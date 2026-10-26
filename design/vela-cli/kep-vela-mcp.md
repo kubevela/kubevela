@@ -299,17 +299,26 @@ The hold does not predict a generation. The write is an update preconditioned on
 resourceVersion of the object the diff was computed against, or a create for a new
 Application, so if anything changed since the diff the write fails and the agent diffs
 again; the token is never applied to a spec it was not computed for. The annotation only
-requests the hold. When the controller first sees it, it records the hold in the
-Application's status, which only the controller writes, and from then on the status entry
-is what keeps the workflow suspended. Every generation it reconciles while the status
-entry is present starts suspended, instead of running the first step, whether or not a
+requests the hold. When the controller first sees it, it writes the hold into the
+Application's status, which only the controller writes, and it does this before starting
+any workflow step for that generation: if the status write fails, the reconcile is
+requeued and no step runs, so a crash or a failed write cannot let the first step start
+unheld. From then on the status entry is what keeps the workflow suspended. Every
+generation it reconciles while the entry is present starts suspended, whether or not a
 later update still carries the annotation; a full-object update that drops it therefore
 cannot release the change. A concurrent edit by someone else makes the controller hold
-more, never less. Only `vela workflow resume`, which confirms it exactly as it confirms
-any suspended workflow, clears the status entry and the annotation. Because the
-hold lives outside the spec and is removed on confirmation, revisions never contain it, a
-rollback is not paused by it, a restart after confirmation does not pause again, and the
-next agent-free change runs normally.
+more, never less.
+
+Confirmation uses the existing path. `vela workflow resume` lifts the workflow's
+suspension exactly as it does for any suspended workflow, and nothing else. The controller
+observes the resumed workflow, clears its own status entry and then removes the
+annotation, so the controller remains the only writer of the hold. The other way out is to
+reject the change: `vela workflow rollback` to the revision that was live before the hold
+was set tells the controller the agent's change is abandoned, so it clears the hold and
+runs that already-confirmed revision. A rollback to any other revision is held like any
+other generation until someone resumes it. Because the hold lives outside the spec and is
+cleared on confirmation or rejection, revisions never contain it, a restart after
+confirmation does not pause again, and the next agent-free change runs normally.
 
 **The approver sees the change, not just its class.** The server stores the change set it
 diffed, redacted and bounded exactly as `diff_application` returned it, in a ConfigMap
@@ -583,7 +592,7 @@ tools. It is scheduled in P1 together with `gated` mode:
 
 | Change | Why | Until it lands |
 |---|---|---|
-| Honour `app.oam.dev/hold`: record it in status on first sight, keep every reconciled generation suspended while the status entry exists, and clear it only on resume | Gated mode without editing the Application's workflow | `apply_application` offers `gitops`, and `direct` on clients that support elicitation; requests that would be `gated`, including every HIGH risk change, fall back to `gitops` |
+| Honour `app.oam.dev/hold`: persist it in status before any step of that generation starts (requeue on write failure), keep every reconciled generation suspended while the entry exists, and clear it after observing a resume or a rollback to the pre-hold revision | Gated mode without editing the Application's workflow | `apply_application` offers `gitops`, and `direct` on clients that support elicitation; requests that would be `gated`, including every HIGH risk change, fall back to `gitops` |
 
 Parameter validation at admission is not a prerequisite. It is a separate proposal that
 improves accuracy for humans and agents alike, and the server serves its schema when it
