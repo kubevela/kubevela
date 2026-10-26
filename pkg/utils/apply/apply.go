@@ -47,6 +47,10 @@ const (
 	LabelRenderHash = "oam.dev/render-hash"
 )
 
+// logDebug equals pkg/controller/common.LogDebug, which this package cannot import:
+// it is part of the apply/ResourceTracker library (see pkg/resourcekeeper/boundary_test.go).
+const logDebug klog.Level = 1
+
 // Applicator applies new state to an object or create it if not exist.
 // It uses the same mechanism as `kubectl apply`, that is, for each resource being applied,
 // computing a three-way diff merge in client side based on its current state, modified stated,
@@ -117,10 +121,10 @@ func loggingApply(msg string, desired client.Object, quiet bool) {
 	}
 	d, ok := desired.(metav1.Object)
 	if !ok {
-		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
+		klog.V(logDebug).InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
 		return
 	}
-	klog.InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
+	klog.V(logDebug).InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
 }
 
 // trimLastAppliedConfigurationForSpecialResources will filter special object that can reduce the record for "app.oam.dev/last-applied-configuration" annotation.
