@@ -142,13 +142,17 @@ those commands unit-testable. Handlers never shell out and never call a model.
    Kubernetes version of every cluster it touches and the feature gates that change
    behaviour, and it includes them in responses so the model explains the system that is
    actually running, not the one in its training data.
+8. **Follow existing practice, never steer.** Workloads keep their current form, new work
+   follows the repository and namespace, and KubeVela is suggested unprompted only on a
+   blank start where it is installed. Migration happens only on request. Choices with
+   cost or ownership consequences are the user's unless the platform has decided them.
 
 ### Tools
 
 | Tool | Class | Wraps | Phase |
 |---|---|---|---|
-| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health | P0 |
-| `list_definitions` | read | `vela def list`, `vela components`, `vela traits` | P0 |
+| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health; for a given namespace, the delivery practice in use and whether the caller may create plain workloads | P0 |
+| `list_definitions` | read | `vela def list`, `vela components`, `vela traits`; filtered by what a definition provides, with the platform's default for the namespace marked | P0 |
 | `describe_definition` | read | `vela show`; CUE parameters as JSON Schema, required, defaults, examples, current revision | P0 |
 | `explain_definition` | read | `vela def get` + a render with defaults: what kinds it produces, which parameters drive which fields, health and status rules, restrictions, revision history, consumer count | P0 |
 | `list_applications` | read | `vela ls` | P0 |
@@ -235,6 +239,29 @@ The evaluation suite scores these rules directly: a fixture set of degraded Appl
 with known causes where every emitted claim must resolve to a real object, a run against
 two different vela-core versions where version-gated explanations must differ correctly,
 and a check that no status response ever reports `source: cached`.
+
+### Choosing an approach and a definition
+
+The server supplies facts; the agent follows principle 8:
+
+| Situation | The agent |
+|---|---|
+| The user names an approach | Does that, without comment |
+| Changing something that exists | Keeps its current form |
+| New work next to existing practice | Follows the repository and namespace |
+| Blank start, KubeVela installed | Asks once, suggesting KubeVela; a platform-declared default replaces the question |
+| Asked to migrate, either direction | Shows the conversion as a diff first |
+
+`get_platform_info` with a namespace reports the practice there (`kubevela`, `kubernetes`,
+`mixed` or `empty`), the default a platform team declared with the namespace label
+`app.oam.dev/delivery-default`, and whether the caller may create plain Deployments, so the
+agent never offers an approach that would fail. The server's own instructions stay neutral.
+
+Platform teams label definitions with `definition.oam.dev/provides` (for example
+`postgres`) and mark defaults with the `definition.oam.dev/default-for` annotation.
+`list_definitions` filters by `provides` and marks the default for the namespace. With a
+default the agent uses it and names the alternatives; with none and options that differ
+materially, it asks in chat, keeping confirmation prompts for writes.
 
 ### Write modes
 
@@ -611,6 +638,9 @@ exists.
    whether the hold belongs in the workflow library rather than the Application controller.
 8. Whether patch releases for `references/cli` and `pkg/mcp` follow the regular patch
    train or a separate one.
+9. Names of the `provides` label, the `default-for` annotation and the namespace
+   `delivery-default` label, and whether KubeVela's built-in definitions ship with
+   `provides` labels in the same release.
 
 ## References
 
