@@ -197,7 +197,10 @@ incident. Four rules make that trust checkable rather than assumed.
 
 `source` is `live` for a direct API server read, `rendered` for dry-run output, and
 `cached` only for definition schemas, which carry their DefinitionRevision so staleness is
-visible. Status tools never serve from an informer cache. `truncated` is set whenever a
+visible. It always describes the data in the response. Where tool descriptions, read tools
+or risk hints came from is reported separately in `servedData` (`builtin`, `addon` or
+`addon-cached`, with the addon version and the cache age), so a stale addon cache never
+makes live data look cached. Status tools never serve from an informer cache. `truncated` is set whenever a
 line budget or size cap cut the data, so the model knows it did not see everything.
 
 **Every explanation cites its evidence.** `explain_application` and `explain_definition`
@@ -268,17 +271,19 @@ The server writes this text from the same change set it hashed into the token, s
 cannot misdescribe the change, and an agent that chains `diff_application` and
 `apply_application` in one generated script, as code-execution clients do, still stops at
 the prompt. Accept applies; decline writes nothing and returns "declined by user". A
-client that does not support elicitation cannot use `direct`: the request is downgraded
-like any other, and the response says nothing was applied because the client cannot ask
-for confirmation. Some harnesses accept prompts automatically in unattended modes. That is
+client that does not support elicitation cannot use `direct`. That request is refused
+rather than downgraded, because a downgrade to `gated` would still write the Application:
+nothing is applied, and the response names the modes this client can use instead. The
+HIGH-risk downgrade above is different: it is policy, the response states the mode that was
+used, and the hold still stops the change. Some harnesses accept prompts automatically in unattended modes. That is
 the user's choice, equivalent to `--yes` on the CLI; unattended automation belongs in
 `gated`, where the gate lives in the cluster rather than in the client. The prompt is a
 confirmation, not authorisation: RBAC still decides what may be applied.
 
 **Gated mode does not edit the spec.** Injecting a `suspend` step would change the
 Application's declared intent: it would appear in revisions and rollbacks, and a restart
-would replay it. Instead the server applies the submitted Application with a hold bound
-to the generation it creates:
+would replay it. Instead the server writes the submitted Application and a hold in the
+same request:
 
 ```yaml
 metadata:
@@ -286,16 +291,30 @@ metadata:
     mcp.oam.dev/initiator: alice@example.com
     mcp.oam.dev/diff-token: sha256:...
     mcp.oam.dev/risk: LOW
-    app.oam.dev/hold-generation: "4"
+    mcp.oam.dev/change-set: shop-mcp-3f9a
+    app.oam.dev/hold: sha256:...
 ```
 
-When the controller reconciles a generation that matches the hold, it starts the workflow
-suspended, with a message naming the initiator, the risk class and the rules that fired,
-so the approver sees what the agent saw, instead of running the first
-step. `vela workflow resume` confirms it exactly as it confirms any suspended workflow, and
-the controller then clears the hold. Because the hold lives outside the spec and names one
-generation, revisions never contain it, a rollback is not paused by it, a restart after
-confirmation does not pause again, and a later generation without a hold runs normally.
+The hold does not predict a generation. The write is an update preconditioned on the
+resourceVersion of the object the diff was computed against, or a create for a new
+Application, so if anything changed since the diff the write fails and the agent diffs
+again; the token is never applied to a spec it was not computed for. While the hold is
+present, the controller starts the workflow of whatever generation it reconciles
+suspended, instead of running the first step. A concurrent edit by someone else therefore
+makes the controller hold more, never less. `vela workflow resume` confirms it exactly as
+it confirms any suspended workflow, and the controller then removes the hold. Because the
+hold lives outside the spec and is removed on confirmation, revisions never contain it, a
+rollback is not paused by it, a restart after confirmation does not pause again, and the
+next agent-free change runs normally.
+
+**The approver sees the change, not just its class.** The server stores the change set it
+diffed, redacted and bounded exactly as `diff_application` returned it, in a ConfigMap
+owned by the Application and named in `mcp.oam.dev/change-set`, together with the token,
+the base revision and the fired rules. The hold message points at it, `get_workflow`
+returns it, and an approver without MCP reads it with
+`kubectl get configmap <name> -o yaml`. The approver therefore resumes having seen the
+same resource-level diff the agent showed, and can compare its base revision with the live
+one before confirming.
 This needs a small controller change, listed under [Milestones](#milestones) as a
 prerequisite for gated writes.
 
@@ -429,7 +448,7 @@ handlers, the tool descriptions and the policy logic. The split:
 | Stays in the binary | Served as data by an optional `vela-mcp` addon |
 |---|---|
 | Every handler that reads or writes the API server | Tool descriptions and examples, with the binary's copy as the default |
-| Namespace allowlist, Secret handling, redaction, mode policy, token checks | Additional read-only tools expressed as VelaQL views, which the CLI already executes |
+| Namespace allowlist, Secret handling, redaction, mode policy, token checks | Additional read-only tools expressed as VelaQL views, evaluated with read-only providers only |
 | The classifier's rules and every HIGH rule | Risk hints that can only raise a class, never lower one |
 
 `vela mcp` is complete without the addon: built-in defaults are the path every release is
@@ -437,9 +456,16 @@ tested on, and `get_platform_info` only reports which data source is in use. Wit
 addon, a platform team installs it once per control plane and developers' CLIs pick it up
 on the next start. Served data carries the vela-core version and minimum CLI version it was
 written for; a CLI ignores entries it does not understand and says so in the envelope. The
-CLI caches what it last saw with that stamp and reports `source: cached` with its age when
-the cluster is unreachable. Nothing executable is fetched at runtime, and nothing served can
-weaken a security rule, so the addon does not need auditing like code.
+CLI caches what it last saw with that stamp and reports `servedData: addon-cached` with its
+age when the cluster is unreachable.
+
+VelaQL views are CUE that the CLI evaluates, and the standard view runtime wires in
+handlers that apply and delete. Served views are therefore evaluated against a separate
+provider set containing only the read handlers (`get`, `list` and the query providers),
+and a view that references any other provider is rejected when it is loaded, never at
+call time. Descriptions and risk hints are data and are validated against a schema. With
+that restriction nothing served can write to a cluster or weaken a security rule, which is
+what lets a platform team ship the addon on its own cadence.
 
 The addon helps installs with a platform team. Everyone else still gets fixes at the CLI's
 cadence, so P0 also proposes patch releases of `vela` for changes under `references/cli`
@@ -469,7 +495,7 @@ sequenceDiagram
     Agent-->>Dev: YAML, change set, risk. Deploy?
     Dev->>Agent: Yes
     Agent->>MCP: apply_application(app v2, token)
-    MCP->>K: Application with hold for this generation, initiator annotation
+    MCP->>K: Application and hold in one write, change set stored
     K-->>MCP: workflow held before its first step
     Agent-->>Dev: paused at approval, resume command for an approver
     Approver->>K: vela workflow resume orders -n dev
@@ -528,8 +554,8 @@ state whether traffic changed. Deterministic, one round trip per cluster.
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
-| P0, KubeVela 1.12 | Lift status tree and live-diff into `pkg/velaops`; `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp setup` for Claude Code, Cursor, Gemini CLI; developer and SRE skills; six documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-gated-deploy on velad in under ten minutes; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
-| P1 | `find_definition_consumers`, `vet_definition`, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, VelaQL read tools and risk hints; defkit-author and platform-engineer skills; kube-trigger webhook recipe | Definition authoring and impact scenarios pass; one adopter runs the trigger recipe |
+| P0, KubeVela 1.12 | Lift status tree and live-diff into `pkg/velaops`; `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp setup` for Claude Code, Cursor, Gemini CLI; developer and SRE skills; six documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
+| P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; defkit-author and platform-engineer skills; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; one adopter runs the trigger recipe |
 | P2, after VelaUX catch-up | VelaUX backend plugin over streamable HTTP; per-caller tool filtering; read-only assistant panel | Hosted client logs in through VelaUX and gets the same allow or deny as the CLI |
 | P3, after the Cluster Infrastructure KEP | Cluster-fleet tools from the Future scope section; cluster-plane handles; `kubevela-cluster-operator` skill | Fleet scenarios pass on three model families; a rollout started through an agent pauses at every approval the KEP defines |
 
@@ -545,11 +571,11 @@ Three open issues break code paths P0 wraps and are prerequisites for it:
 | 5767 | OpenAPI schema generation fails on CUE constraints such as `>=1 & <=3599` | `describe_definition`, and the capability snapshot VelaUX reads |
 
 One controller change is a prerequisite for gated writes, not for the read and plan
-tools:
+tools. It is scheduled in P1 together with `gated` mode:
 
 | Change | Why | Until it lands |
 |---|---|---|
-| Honour `app.oam.dev/hold-generation`: start the matching generation's workflow suspended, clear the hold on resume | Gated mode without editing the Application's workflow | `apply_application` offers `gitops`, and `direct` on clients that support elicitation; requests that would be `gated`, including every HIGH risk change, fall back to `gitops` |
+| Honour `app.oam.dev/hold`: while present, start the reconciled generation's workflow suspended, and remove the hold on resume | Gated mode without editing the Application's workflow | `apply_application` offers `gitops`, and `direct` on clients that support elicitation; requests that would be `gated`, including every HIGH risk change, fall back to `gitops` |
 
 Parameter validation at admission is not a prerequisite. It is a separate proposal that
 improves accuracy for humans and agents alike, and the server serves its schema when it
@@ -564,8 +590,8 @@ exists.
 5. Which third-party servers setup pins in P0: containers/kubernetes-mcp-server,
    grafana/mcp-grafana, Datadog MCP, with Prometheus at P1.
 6. Owner and scope of the VelaUX catch-up release that P2 depends on.
-7. Names of the per-Application mode marker and the hold annotation, and whether the hold
-   belongs in the workflow library rather than the Application controller.
+7. Names of the per-Application mode marker, the hold and change-set annotations, and
+   whether the hold belongs in the workflow library rather than the Application controller.
 8. Whether patch releases for `references/cli` and `pkg/mcp` follow the regular patch
    train or a separate one.
 
