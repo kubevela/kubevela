@@ -108,6 +108,8 @@ var _ = Describe("apply_application", func() {
 			Expect(app.Annotations).To(HaveKeyWithValue(annoInitiator, "alice@example.com"), "the forged initiator in the document is replaced")
 			Expect(app.Annotations).To(HaveKeyWithValue(annoDiffToken, d.Token))
 			Expect(app.Annotations).To(HaveKeyWithValue(annoRisk, RiskLow))
+			Expect(app.Annotations).To(HaveKeyWithValue("filter.oam.dev/annotation-keys", annoInitiator+","+annoDiffToken+","+annoRisk),
+				"the server's records stay on the Application and are not copied onto rendered resources")
 			Expect(out.ResourceVersion).To(Equal(app.ResourceVersion))
 		})
 
@@ -131,7 +133,7 @@ var _ = Describe("apply_application", func() {
 
 		It("updates an existing Application, keeping its other annotations", func() {
 			objs := append(platformFixtures(), shopRunning()...)
-			objs[len(objs)-2].(*v1beta1.Application).Annotations = map[string]string{"owner": "team-a", annoInitiator: "old@example.com"}
+			objs[len(objs)-2].(*v1beta1.Application).Annotations = map[string]string{"owner": "team-a", annoInitiator: "old@example.com", "filter.oam.dev/annotation-keys": "secret.example/x," + annoRisk}
 			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), objs...)
 			doc := shopDoc("nginx:1.27", 2, "")
 			d := diff(doc)
@@ -143,6 +145,8 @@ var _ = Describe("apply_application", func() {
 			Expect(string(app.Spec.Components[0].Properties.Raw)).To(ContainSubstring("nginx:1.27"))
 			Expect(app.Annotations).To(HaveKeyWithValue("owner", "team-a"))
 			Expect(app.Annotations).To(HaveKeyWithValue(annoInitiator, "alice@example.com"))
+			Expect(app.Annotations).To(HaveKeyWithValue("filter.oam.dev/annotation-keys", "secret.example/x,"+annoRisk+","+annoInitiator+","+annoDiffToken),
+				"the user's filter entries are kept, in order, without duplicates")
 		})
 	})
 

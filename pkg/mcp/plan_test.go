@@ -80,7 +80,7 @@ func shopRunning() []client.Object {
 				// The controller stamps its version on the Application it stores
 				// in a revision; renders of the base carry it, the submitted
 				// document does not.
-				Application: v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "shop", Namespace: "team-a", Annotations: map[string]string{"oam.dev/kubevela-version": "v1.11.0"}}, Spec: spec},
+				Application: v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "shop", Namespace: "team-a", Annotations: map[string]string{"oam.dev/kubevela-version": "v1.11.0", "mcp.oam.dev/risk": "LOW", "mcp.oam.dev/initiator": "bob@example.com"}}, Spec: spec},
 			}},
 		},
 	}

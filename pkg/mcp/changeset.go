@@ -250,6 +250,11 @@ func isIgnoredLeaf(p string) bool {
 			return true
 		}
 	}
+	// Server-owned records. Older controllers copy them from the
+	// Application onto every rendered object; they are never user intent.
+	if strings.HasPrefix(p, "metadata.annotations."+mcpAnnotationPrefix) {
+		return true
+	}
 	return strings.HasPrefix(p, "metadata.managedFields") || p == "metadata.resourceVersion" || p == "metadata.uid" || p == "metadata.generation" || p == "metadata.creationTimestamp"
 }
 

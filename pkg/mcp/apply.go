@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // Write modes, from least to most strict.
@@ -470,6 +471,7 @@ func writeApplication(ctx context.Context, cli client.Client, app, live *v1beta1
 		annos[annoInitiator] = initiator
 		annos[annoDiffToken] = token
 		annos[annoRisk] = risk
+		annos[oam.AnnotationFilterAnnotationKeys] = withFilteredKeys(annos[oam.AnnotationFilterAnnotationKeys], annoInitiator, annoDiffToken, annoRisk)
 		return annos
 	}
 	if live == nil {
@@ -505,6 +507,24 @@ func writeApplication(ctx context.Context, cli client.Client, app, live *v1beta1
 		return nil, fmt.Errorf("update application %s/%s: %w", app.Namespace, app.Name, err)
 	}
 	return obj, nil
+}
+
+// withFilteredKeys adds keys to a filter.oam.dev/annotation-keys value,
+// keeping the user's entries and their order. KubeVela copies an
+// Application's annotations onto every resource it renders unless they are
+// listed there, and the server's records belong on the Application only.
+func withFilteredKeys(current string, keys ...string) string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, k := range append(strings.Split(current, ","), keys...) {
+		k = strings.TrimSpace(k)
+		if k == "" || seen[k] {
+			continue
+		}
+		seen[k] = true
+		out = append(out, k)
+	}
+	return strings.Join(out, ",")
 }
 
 // initiator names who applied the change, for the record on the object.

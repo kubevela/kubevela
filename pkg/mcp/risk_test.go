@@ -135,6 +135,9 @@ var _ = Describe("change set", func() {
 		target := obj("Deployment", "web", map[string]any{"replicas": int64(1)})
 		target.Object["metadata"].(map[string]any)["annotations"] = map[string]any{}
 		Expect(compareObjects(base, target)).To(BeNil())
+
+		base.SetAnnotations(map[string]string{"mcp.oam.dev/diff-token": "sha256:x", "mcp.oam.dev/risk": "LOW"})
+		Expect(compareObjects(base, target)).To(BeNil(), "server records copied onto rendered objects are not a change")
 	})
 
 	It("detects a removed approval gate and placement changes", func() {

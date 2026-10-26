@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -230,6 +231,13 @@ func baseFromRevision(rev *v1beta1.ApplicationRevision, target *v1beta1.Applicat
 	base := rev.Spec.Application.DeepCopy()
 	base.Name = target.Name
 	base.Namespace = target.Namespace
+	// The server's own records are not part of what the user declared, so
+	// they do not take part in the comparison.
+	for k := range base.Annotations {
+		if strings.HasPrefix(k, mcpAnnotationPrefix) {
+			delete(base.Annotations, k)
+		}
+	}
 	return base
 }
 
