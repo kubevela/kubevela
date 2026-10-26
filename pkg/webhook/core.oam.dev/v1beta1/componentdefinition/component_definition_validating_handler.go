@@ -63,7 +63,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	logger := logging.NewHandlerLogger(ctx, req, "ComponentDefinitionValidator")
 
 	// Using the logger methods directly will show the correct file location
-	logger.WithStep("start").Info("Starting admission validation for ComponentDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
+	logger.WithStep("start").Debug("Starting admission validation for ComponentDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	obj := &v1beta1.ComponentDefinition{}
 	// Advisory findings, returned with an accepted definition rather than
@@ -90,7 +90,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)
 		}
-		logger.WithStep("decode").Info("Successfully decoded ComponentDefinition from admission request",
+		logger.WithStep("decode").Debug("Successfully decoded ComponentDefinition from admission request",
 			"definitionName", obj.Name,
 			"namespace", obj.Namespace,
 			"workloadType", obj.Spec.Workload.Type,
@@ -101,7 +101,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("validate-workload").WithError(err).Error(err, "ComponentDefinition workload configuration is invalid - type and definition must be consistent")
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.WithStep("validate-workload").Info("ComponentDefinition workload configuration validated successfully", "workloadType", obj.Spec.Workload.Type)
+		logger.WithStep("validate-workload").Debug("ComponentDefinition workload configuration validated successfully", "workloadType", obj.Spec.Workload.Type)
 
 		// Judged outside the block below, which is where everything else about
 		// `extends` is checked: with no CUE schematic that block is skipped and a
@@ -114,7 +114,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 		// Validate CUE template
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for ComponentDefinition schematic")
+			logger.WithStep("validate-cue").Debug("Validating CUE template syntax and semantics for ComponentDefinition schematic")
 
 			// Validate against the effective template; if auto-upgrade is enabled, rewrite legacy
 			// syntax before validation so the template compiles correctly.
@@ -149,7 +149,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 					return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 				}
 				warnings = append(warnings, warns...)
-				logger.WithStep("validate-extends").WithSuccess(true).Info("ComponentDefinition inheritance validated", "extends", obj.Spec.Extends, "chainLength", len(ancestors))
+				logger.WithStep("validate-extends").WithSuccess(true).Debug("ComponentDefinition inheritance validated", "extends", obj.Spec.Extends, "chainLength", len(ancestors))
 			} else if err := webhookutils.ValidateCuexTemplate(ctx, cueTemplate); err != nil {
 				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
@@ -159,7 +159,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
+			logger.WithStep("validate-cue").WithSuccess(true).Debug("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
 		}
 
 		// Validate semantic version
@@ -168,7 +168,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-version").WithError(err).Error(err, "ComponentDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-version").Info("ComponentDefinition version follows semantic versioning format", "version", obj.Spec.Version)
+			logger.WithStep("validate-version").Debug("ComponentDefinition version follows semantic versioning format", "version", obj.Spec.Version)
 		}
 
 		// Validate identity fields: module and apiVersion are set together or not at all.
@@ -191,7 +191,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-revision").WithError(err).Error(err, "ComponentDefinition revision conflicts with existing revision or has invalid format", "revisionName", revisionName, "expectedRevisionName", fmt.Sprintf("%s-v%s", obj.Name, revisionName))
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-revision").Info("ComponentDefinition revision validation completed - no conflicts detected", "revisionName", revisionName)
+			logger.WithStep("validate-revision").Debug("ComponentDefinition revision validation completed - no conflicts detected", "revisionName", revisionName)
 		}
 
 		// Check version conflicts
@@ -201,12 +201,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		// Log successful completion
-		logger.WithStep("complete").WithSuccess(true, startTime).Info("ComponentDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+		logger.WithStep("complete").WithSuccess(true, startTime).Debug("ComponentDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
 		if len(warnings) > 0 {
 			return admission.ValidationResponse(true, "").WithWarnings(warnings...)
 		}
 	} else {
-		logger.WithStep("skip-validation").Info("Skipping ComponentDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
+		logger.WithStep("skip-validation").Debug("Skipping ComponentDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 	}
 	resp := admission.ValidationResponse(true, "")
 	resp.Warnings = warnings

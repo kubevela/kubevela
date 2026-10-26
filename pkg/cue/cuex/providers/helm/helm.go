@@ -37,6 +37,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -213,13 +214,13 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 		}
 	}
 
-	klog.Infof("Helm provider [%s]: Deployed %d resources for chart %s", velaContextStr(renderParams.Context), len(resources), renderParams.Chart.Source)
+	klog.V(common.LogDebug).Infof("Helm provider [%s]: Deployed %d resources for chart %s", velaContextStr(renderParams.Context), len(resources), renderParams.Chart.Source)
 
 	// Log resource summary for debugging
 	if len(resources) > 0 {
 		if kind, found, _ := unstructured.NestedString(resources[0], "kind"); found {
 			if name, found, _ := unstructured.NestedString(resources[0], "metadata", "name"); found {
-				klog.Infof("Helm provider [%s]: First resource is %s/%s", velaContextStr(renderParams.Context), kind, name)
+				klog.V(common.LogDebug).Infof("Helm provider [%s]: First resource is %s/%s", velaContextStr(renderParams.Context), kind, name)
 			}
 		}
 

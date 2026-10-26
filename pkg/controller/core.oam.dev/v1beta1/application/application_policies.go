@@ -76,7 +76,7 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 	app.Status.AppliedApplicationPolicies = nil
 
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) {
-		ctx.Info("Application-scoped policies disabled by feature gate")
+		logDebug(ctx, "Application-scoped policies disabled by feature gate")
 		return ctx, nil
 	}
 
@@ -219,7 +219,7 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 		h.writePolicyObservabilityConfigMap(ctx, app, renderedResults, renderedSpec, renderedMetadata, autoRevision, cacheHit)
 	}
 
-	ctx.Info("Policy transforms completed",
+	logDebug(ctx, "Policy transforms completed",
 		"total", len(renderedResults),
 		"enabled", countAppliedPolicies(app.Status.AppliedApplicationPolicies),
 		"autoRevision", autoRevision)
@@ -1132,7 +1132,7 @@ func (h *AppHandler) renderPoliciesInSequence(ctx monitorContext.Context, app *v
 	})
 
 	for _, p := range policiesToRender {
-		ctx.Info("Rendering policy", "policy", p.policyRef.Name, "priority", p.priority, "source", p.source)
+		logDebug(ctx, "Rendering policy", "policy", p.policyRef.Name, "priority", p.priority, "source", p.source)
 
 		// Resolve version metadata before rendering so it can be injected into the CUE context.
 		// Use versionKey (namespaced) for map operations; fall back to policyRef.Name for explicit policies.
