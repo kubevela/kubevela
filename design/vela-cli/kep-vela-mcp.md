@@ -298,11 +298,15 @@ metadata:
 The hold does not predict a generation. The write is an update preconditioned on the
 resourceVersion of the object the diff was computed against, or a create for a new
 Application, so if anything changed since the diff the write fails and the agent diffs
-again; the token is never applied to a spec it was not computed for. While the hold is
-present, the controller starts the workflow of whatever generation it reconciles
-suspended, instead of running the first step. A concurrent edit by someone else therefore
-makes the controller hold more, never less. `vela workflow resume` confirms it exactly as
-it confirms any suspended workflow, and the controller then removes the hold. Because the
+again; the token is never applied to a spec it was not computed for. The annotation only
+requests the hold. When the controller first sees it, it records the hold in the
+Application's status, which only the controller writes, and from then on the status entry
+is what keeps the workflow suspended. Every generation it reconciles while the status
+entry is present starts suspended, instead of running the first step, whether or not a
+later update still carries the annotation; a full-object update that drops it therefore
+cannot release the change. A concurrent edit by someone else makes the controller hold
+more, never less. Only `vela workflow resume`, which confirms it exactly as it confirms
+any suspended workflow, clears the status entry and the annotation. Because the
 hold lives outside the spec and is removed on confirmation, revisions never contain it, a
 rollback is not paused by it, a restart after confirmation does not pause again, and the
 next agent-free change runs normally.
@@ -463,7 +467,11 @@ VelaQL views are CUE that the CLI evaluates, and the standard view runtime wires
 handlers that apply and delete. Served views are therefore evaluated against a separate
 provider set containing only the read handlers (`get`, `list` and the query providers),
 and a view that references any other provider is rejected when it is loaded, never at
-call time. Descriptions and risk hints are data and are validated against a schema. With
+call time. Served views also never see more than the built-in tools: their `get` and
+`list` providers refuse Secret kinds before the request and return ConfigMaps as keys only,
+the namespace allowlist applies to every object they read, and their results pass through
+the same redaction and size bounds as every other response before they leave the server.
+Descriptions and risk hints are data and are validated against a schema. With
 that restriction nothing served can write to a cluster or weaken a security rule, which is
 what lets a platform team ship the addon on its own cadence.
 
@@ -575,7 +583,7 @@ tools. It is scheduled in P1 together with `gated` mode:
 
 | Change | Why | Until it lands |
 |---|---|---|
-| Honour `app.oam.dev/hold`: while present, start the reconciled generation's workflow suspended, and remove the hold on resume | Gated mode without editing the Application's workflow | `apply_application` offers `gitops`, and `direct` on clients that support elicitation; requests that would be `gated`, including every HIGH risk change, fall back to `gitops` |
+| Honour `app.oam.dev/hold`: record it in status on first sight, keep every reconciled generation suspended while the status entry exists, and clear it only on resume | Gated mode without editing the Application's workflow | `apply_application` offers `gitops`, and `direct` on clients that support elicitation; requests that would be `gated`, including every HIGH risk change, fall back to `gitops` |
 
 Parameter validation at admission is not a prerequisite. It is a separate proposal that
 improves accuracy for humans and agents alike, and the server serves its schema when it
