@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -133,6 +134,12 @@ func (d *deps) applyApplication(ctx context.Context, req *sdk.CallToolRequest, i
 	out.Mode, out.ModeReasons = d.decideMode(in.Mode, app.Namespace, nsMode, liveMode, app.Annotations[agentWriteModeKey], rec.risk.Class)
 	out.Meta = d.meta(ctx)
 	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
+
+	if live != nil && isNoop(rec.changeSet, app, live) {
+		d.burnToken(in.Token)
+		out.Next = "Nothing to apply: the document renders the same objects as the running revision and carries no new labels or annotations. Nothing was written."
+		return nil, out, nil
+	}
 
 	if out.Mode == ModeGitOps {
 		doc, err := gitopsDocument(app)
@@ -405,7 +412,11 @@ func confirmationText(app *v1beta1.Application, rec diffRecord) string {
 	for _, r := range rec.risk.Rules {
 		rules = append(rules, r.Rule)
 	}
-	fmt.Fprintf(&b, "  Risk %s: %s\n", rec.risk.Class, strings.Join(uniq(rules), ", "))
+	if len(rules) == 0 {
+		fmt.Fprintf(&b, "  Risk %s: no rendered resource changes; only the Application's own labels or annotations change\n", rec.risk.Class)
+	} else {
+		fmt.Fprintf(&b, "  Risk %s: %s\n", rec.risk.Class, strings.Join(uniq(rules), ", "))
+	}
 	fmt.Fprintf(&b, "  Base %s. Token valid for %s more.", rec.base, time.Until(rec.createdAt.Add(diffTokenTTL)).Round(time.Minute))
 	return redactLine(b.String())
 }
@@ -500,6 +511,13 @@ func writeApplication(ctx context.Context, cli client.Client, app, live *v1beta1
 		merged[k] = v
 	}
 	obj.Annotations = stamp(merged)
+	if _, ok := obj.Annotations[kubectlLastApplied]; ok {
+		cfg, err := kubectlAppliedConfig(app)
+		if err != nil {
+			return nil, err
+		}
+		obj.Annotations[kubectlLastApplied] = cfg
+	}
 	if err := cli.Update(ctx, obj); err != nil {
 		if apierrors.IsConflict(err) {
 			return nil, fmt.Errorf("application %s/%s changed while applying; nothing was written: call diff_application again", app.Namespace, app.Name)
@@ -507,6 +525,61 @@ func writeApplication(ctx context.Context, cli client.Client, app, live *v1beta1
 		return nil, fmt.Errorf("update application %s/%s: %w", app.Namespace, app.Name, err)
 	}
 	return obj, nil
+}
+
+// kubectlLastApplied is where kubectl apply keeps the configuration it
+// applied, which its next three-way merge starts from.
+const kubectlLastApplied = "kubectl.kubernetes.io/last-applied-configuration"
+
+// kubectlAppliedConfig is the record kubectl apply would have written for
+// this document. When an Application was created with kubectl apply and is
+// then written here, leaving the old record would make the next kubectl
+// apply merge against a configuration that is no longer the live intent.
+func kubectlAppliedConfig(app *v1beta1.Application) (string, error) {
+	annos := map[string]string{}
+	for k, v := range app.Annotations {
+		if k != kubectlLastApplied {
+			annos[k] = v
+		}
+	}
+	meta := map[string]any{"name": app.Name, "namespace": app.Namespace, "annotations": annos}
+	if len(app.Labels) > 0 {
+		meta["labels"] = app.Labels
+	}
+	raw, err := json.Marshal(map[string]any{
+		"apiVersion": v1beta1.SchemeGroupVersion.String(),
+		"kind":       v1beta1.ApplicationKind,
+		"metadata":   meta,
+		"spec":       app.Spec,
+	})
+	if err != nil {
+		return "", fmt.Errorf("record the applied configuration: %w", err)
+	}
+	return string(raw) + "\n", nil
+}
+
+// isNoop reports whether applying the document would change nothing: no
+// rendered resource, component, policy, placement or workflow change, and
+// every label and annotation it sets already present on the live object.
+func isNoop(cs ChangeSet, app, live *v1beta1.Application) bool {
+	if len(cs.Resources) > 0 || len(cs.ComponentsAdded) > 0 || len(cs.ComponentsRemoved) > 0 ||
+		len(cs.PoliciesChanged) > 0 || cs.PlacementChanged || cs.GateRemoved || cs.WorkflowChanged {
+		return false
+	}
+	for k, v := range app.Labels {
+		if live.Labels[k] != v {
+			return false
+		}
+	}
+	for k, v := range app.Annotations {
+		if k == kubectlLastApplied {
+			continue
+		}
+		if live.Annotations[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // withFilteredKeys adds keys to a filter.oam.dev/annotation-keys value,

@@ -19,6 +19,7 @@ package mcp
 import (
 	"context"
 	"strings"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	. "github.com/onsi/ginkgo/v2"
@@ -147,6 +148,62 @@ var _ = Describe("apply_application", func() {
 			Expect(app.Annotations).To(HaveKeyWithValue(annoInitiator, "alice@example.com"))
 			Expect(app.Annotations).To(HaveKeyWithValue("filter.oam.dev/annotation-keys", "secret.example/x,"+annoRisk+","+annoInitiator+","+annoDiffToken),
 				"the user's filter entries are kept, in order, without duplicates")
+		})
+	})
+
+	Context("no-op and metadata-only applies", func() {
+		It("returns nothing to apply without prompting or writing", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
+			doc := shopDoc("nginx:1.26", 2, "")
+			doc = strings.Replace(doc, "  annotations:\n    mcp.oam.dev/initiator: forged@example.com\n", "", 1)
+			before := liveApp("shop").ResourceVersion
+			_, out := apply(doc, diff(doc).Token, ModeDirect)
+			Expect(out.Applied).To(BeFalse())
+			Expect(out.Next).To(ContainSubstring("Nothing to apply"))
+			Expect(prompt.messages).To(BeEmpty())
+			Expect(liveApp("shop").ResourceVersion).To(Equal(before))
+		})
+
+		It("still prompts for a label-only change, which reaches the rendered objects", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
+			doc := strings.Replace(shopDoc("nginx:1.26", 2, ""), "  annotations:\n", "  labels:\n    team: a\n  annotations:\n", 1)
+			_, out := apply(doc, diff(doc).Token, ModeDirect)
+			Expect(out.Applied).To(BeTrue())
+			Expect(prompt.messages).To(HaveLen(1))
+			Expect(prompt.messages[0]).To(ContainSubstring("metadata.labels.team"))
+			Expect(liveApp("shop").Labels).To(HaveKeyWithValue("team", "a"))
+		})
+
+		It("words the risk line when no rule fired", func() {
+			app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "shop", Namespace: "team-a"}}
+			text := confirmationText(app, diffRecord{base: "shop-v1", risk: Risk{Class: RiskLow}, createdAt: time.Now()})
+			Expect(text).To(ContainSubstring("no rendered resources change"))
+			Expect(text).To(ContainSubstring("Risk LOW: no rendered resource changes"))
+			Expect(text).NotTo(ContainSubstring("Risk LOW: \n"))
+		})
+	})
+
+	Context("kubectl interplay", func() {
+		It("rewrites kubectl's last-applied record so a later kubectl apply merges from the new intent", func() {
+			objs := append(platformFixtures(), shopRunning()...)
+			objs[len(objs)-2].(*v1beta1.Application).Annotations = map[string]string{
+				"kubectl.kubernetes.io/last-applied-configuration": `{"spec":{"components":[{"properties":{"image":"nginx:1.26"}}]}}`,
+			}
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), objs...)
+			doc := shopDoc("nginx:1.27", 2, "")
+			_, out := apply(doc, diff(doc).Token, ModeDirect)
+			Expect(out.Applied).To(BeTrue())
+			record := liveApp("shop").Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+			Expect(record).To(ContainSubstring("nginx:1.27"))
+			Expect(record).NotTo(ContainSubstring("nginx:1.26"))
+			Expect(record).NotTo(ContainSubstring("mcp.oam.dev"), "the record holds what was submitted, not the server's stamps")
+		})
+
+		It("does not add a kubectl record to an Application kubectl never applied", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
+			doc := shopDoc("nginx:1.27", 2, "")
+			apply(doc, diff(doc).Token, ModeDirect)
+			Expect(liveApp("shop").Annotations).NotTo(HaveKey("kubectl.kubernetes.io/last-applied-configuration"))
 		})
 	})
 
