@@ -252,6 +252,29 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 		require.Equal(t, deployment, child.Spec.Workload)
 	})
 
+	t.Run("a partial GVK is the child's own", func(t *testing.T) {
+		own := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "batch/v1"}}
+		child := compDef("child", "base", "")
+		child.Spec.Workload = own
+		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
+		require.Equal(t, own, child.Spec.Workload)
+	})
+
+	t.Run("a child without a CUE schematic inherits", func(t *testing.T) {
+		child := compDef("child", "base", "")
+		child.Spec.Schematic = nil
+		child.Spec.Workload = autodetect
+		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
+		require.Equal(t, deployment, child.Spec.Workload)
+	})
+
+	t.Run("a malformed $inherit is reported", func(t *testing.T) {
+		child := compDef("child", "base", "$inherit: output: \"no\"\noutput: {}")
+		err := resolveComponentChain(context.Background(), &Template{}, child,
+			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
+		require.ErrorContains(t, err, "expected true or false")
+	})
+
 	t.Run("a middle that replaces output stops the chain", func(t *testing.T) {
 		middle := compDef("middle", "base", "$inherit: output: false\noutput: {}")
 		middle.Spec.Workload = autodetect

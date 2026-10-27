@@ -237,7 +237,8 @@ func inheritComponentAttributes(tmpl *Template, child, parent *v1beta1.Component
 }
 
 func workloadUnset(w common.WorkloadTypeDescriptor) bool {
-	return w.Definition.Kind == "" && (w.Type == "" || w.Type == types.AutoDetectWorkloadDefinition)
+	return w.Definition == (common.WorkloadGVK{}) &&
+		(w.Type == "" || w.Type == types.AutoDetectWorkloadDefinition)
 }
 
 func cueTemplateOf(cd *v1beta1.ComponentDefinition) string {
