@@ -835,6 +835,7 @@ type Installer struct {
 	dryRunBuff *bytes.Buffer
 
 	installerRuntime map[string]interface{}
+	scheduling       SchedulingProperties
 
 	registries []Registry
 }
@@ -864,6 +865,10 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 	}
 	// clean injected data from runtime option
 	delete(args, InstallerRuntimeOption)
+
+	if sched, err := ExtractSchedulingFromArgs(args); err == nil {
+		i.scheduling = sched
+	}
 
 	for _, opt := range opts {
 		opt(&i)
@@ -1460,6 +1465,9 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}
+	if err := AttachSchedulingTrait(app, h.scheduling); err != nil {
+		return errors.Wrap(err, "attach affinity scheduling traits")
+	}
 	appName, err := determineAddonAppName(h.ctx, h.cli, h.addon.Name)
 	if err != nil {
 		return err
@@ -1556,6 +1564,7 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 		return nil
 	}
 
+	InjectSchedulingIntoArgs(h.args, h.scheduling)
 	if len(h.args) > 0 {
 		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)

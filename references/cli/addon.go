@@ -59,15 +59,17 @@ const (
 var enabledAddonColor = color.New(color.Bold, color.FgGreen)
 
 var (
-	forceDisable  bool
-	addonRegistry string
-	addonVersion  string
-	addonClusters string
-	verboseStatus bool
-	skipValidate  bool
-	overrideDefs  bool
-	dryRun        bool
-	yes2all       bool
+	forceDisable        bool
+	addonRegistry       string
+	addonVersion        string
+	addonClusters       string
+	verboseStatus       bool
+	skipValidate        bool
+	overrideDefs        bool
+	dryRun              bool
+	yes2all             bool
+	addonNodeSelector   map[string]string
+	addonSchedulingFile string
 )
 
 // NewAddonCommand create `addon` command
@@ -144,6 +146,9 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	vela addon enable <addon-name> <my-parameter-of-addon>=<my-value>
   Enable addon with specified registry:
     vela addon enable <registryName>/<addonName>
+  Enable addon with pod scheduling (nodeSelector / affinity / tolerations):
+	vela addon enable <addon-name> --nodeSelector disktype=ssd
+	vela addon enable <addon-name> --scheduling-file scheduling.yaml
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var additionalInfo string
@@ -152,6 +157,9 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			}
 			addonArgs, err := parseAddonArgsToMap(args[1:])
 			if err != nil {
+				return err
+			}
+			if err := injectSchedulingArgs(addonArgs); err != nil {
 				return err
 			}
 			clusterArgs := transClusters(addonClusters)
@@ -230,6 +238,8 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
 	cmd.Flags().BoolVarP(&dryRun, FlagDryRun, "", false, "render all yaml files out without real execute it")
 	cmd.Flags().BoolVarP(&yes2all, "yes", "y", false, "all checks will be skipped and the default answer is yes for all validation check.")
+	cmd.Flags().StringToStringVar(&addonNodeSelector, "nodeSelector", nil, "pod nodeSelector key=value pairs (affinity trait (overlays chart values))")
+	cmd.Flags().StringVar(&addonSchedulingFile, "scheduling-file", "", "YAML file with Kubernetes pod scheduling fields (nodeSelector, affinity, tolerations, ...)")
 	return cmd
 }
 
@@ -265,6 +275,9 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 	vela addon upgrade <addon-name> <my-parameter-of-addon>=<my-value>
   The specified args will be merged with legacy args, what user specified in 'vela addon enable', and non-empty legacy arg will be overridden by
 non-empty new arg
+  Upgrade addon scheduling:
+	vela addon upgrade <addon-name> --nodeSelector disktype=ssd
+	vela addon upgrade <addon-name> --scheduling-file scheduling.yaml
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -284,6 +297,9 @@ non-empty new arg
 			}
 			addonInputArgs, err := parseAddonArgsToMap(args[1:])
 			if err != nil {
+				return err
+			}
+			if err := injectSchedulingArgs(addonInputArgs); err != nil {
 				return err
 			}
 			clusterArgs := transClusters(addonClusters)
@@ -352,7 +368,23 @@ non-empty new arg
 	cmd.Flags().StringVarP(&addonClusters, types.ClustersArg, "c", "", "specify the runtime-clusters to upgrade")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
 	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
+	cmd.Flags().StringToStringVar(&addonNodeSelector, "nodeSelector", nil, "pod nodeSelector key=value pairs (affinity trait (overlays chart values))")
+	cmd.Flags().StringVar(&addonSchedulingFile, "scheduling-file", "", "YAML file with Kubernetes pod scheduling fields (nodeSelector, affinity, tolerations, ...)")
 	return cmd
+}
+
+// injectSchedulingArgs loads --scheduling-file and merges --nodeSelector into reserved addon args.
+func injectSchedulingArgs(addonArgs map[string]interface{}) error {
+	props, err := pkgaddon.LoadSchedulingFile(addonSchedulingFile)
+	if err != nil {
+		return err
+	}
+	props.MergeNodeSelector(addonNodeSelector)
+	if props.Empty() {
+		return nil
+	}
+	pkgaddon.InjectSchedulingIntoArgs(addonArgs, props)
+	return nil
 }
 
 func parseAddonArgsToMap(args []string) (map[string]interface{}, error) {

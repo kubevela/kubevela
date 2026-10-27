@@ -1,0 +1,30 @@
+# H-NS: helmchart + nodeSelector overlays chart workloads
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reg-h-ns
+  namespace: vela-system
+  labels:
+    regression.kubevela.io/suite: addon-scheduling
+    regression.kubevela.io/case: H-NS
+spec:
+  components:
+    - name: cert-manager
+      type: helmchart
+      properties:
+        chart:
+          source: cert-manager
+          repoURL: https://charts.jetstack.io
+          version: v1.9.1
+        release:
+          name: reg-cm-ns
+          namespace: reg-cm-ns
+        values:
+          installCRDs: true
+          replicaCount: 1
+      traits:
+        - type: affinity
+          properties:
+            nodeSelector:
+              disktype: ssd
+              node-type: infra

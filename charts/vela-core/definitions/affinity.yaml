@@ -4,100 +4,112 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Affinity specifies affinity and toleration K8s pod for your workload which follows the pod spec in path 'spec.template'.
+    definition.oam.dev/description: 'Universal pod scheduling trait (nodeSelector, affinity, tolerations, …). Patches workloads with spec.template, helmchart chart resources, and when the component output is an Application (type: addon / type: module) upserts itself onto that Application''s components and overlays auxiliary controller Deployments. Trait fields overlay any values already present.'
   labels:
     custom.definition.oam.dev/ui-hidden: "true"
   name: affinity
   namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
-    - deployments.apps
-    - statefulsets.apps
-    - daemonsets.apps
-    - jobs.batch
+    - '*'
   podDisruptive: true
   #{{ include "definitionRestrictions" (dict "name" "affinity" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |
-        patch: spec: template: spec: {
-        	if parameter.podAffinity != _|_ {
-        		affinity: podAffinity: {
-        			if parameter.podAffinity.required != _|_ {
-        				requiredDuringSchedulingIgnoredDuringExecution: [
-        					for k in parameter.podAffinity.required {
-        						if k.labelSelector != _|_ {
-        							labelSelector: k.labelSelector
-        						}
-        						if k.namespace != _|_ {
-        							namespace: k.namespace
-        						}
-        						if k.namespaces != _|_ {
-        							namespaces: k.namespaces
-        						}
-        						topologyKey: k.topologyKey
-        						if k.namespaceSelector != _|_ {
-        							namespaceSelector: k.namespaceSelector
-        						}
-        					}]
-        			}
-        			if parameter.podAffinity.preferred != _|_ {
-        				preferredDuringSchedulingIgnoredDuringExecution: [
-        					for k in parameter.podAffinity.preferred {
-        						weight:          k.weight
-        						podAffinityTerm: k.podAffinityTerm
-        					}]
+        import (
+        	"list"
+        	"strings"
+        )
+        // Shared PodSpec scheduling fields. Applied to the primary workload via patch
+        // and to every auxiliary with a pod template via patchOutputs (helmchart
+        // helm-resource-N, etc.). Trait fields overlay chart values / prior specs.
+        _podSpec: {
+        	if parameter.nodeSelector != _|_ {
+        		nodeSelector: parameter.nodeSelector
+        	}
+        	if parameter.affinity != _|_ {
+        		affinity: parameter.affinity
+        	}
+        	if parameter.affinity == _|_ {
+        		if parameter.podAffinity != _|_ {
+        			affinity: podAffinity: {
+        				if parameter.podAffinity.required != _|_ {
+        					requiredDuringSchedulingIgnoredDuringExecution: [
+        						for k in parameter.podAffinity.required {
+        							if k.labelSelector != _|_ {
+        								labelSelector: k.labelSelector
+        							}
+        							if k.namespace != _|_ {
+        								namespace: k.namespace
+        							}
+        							if k.namespaces != _|_ {
+        								namespaces: k.namespaces
+        							}
+        							topologyKey: k.topologyKey
+        							if k.namespaceSelector != _|_ {
+        								namespaceSelector: k.namespaceSelector
+        							}
+        						}]
+        				}
+        				if parameter.podAffinity.preferred != _|_ {
+        					preferredDuringSchedulingIgnoredDuringExecution: [
+        						for k in parameter.podAffinity.preferred {
+        							weight:          k.weight
+        							podAffinityTerm: k.podAffinityTerm
+        						}]
+        				}
         			}
         		}
-        	}
-        	if parameter.podAntiAffinity != _|_ {
-        		affinity: podAntiAffinity: {
-        			if parameter.podAntiAffinity.required != _|_ {
-        				requiredDuringSchedulingIgnoredDuringExecution: [
-        					for k in parameter.podAntiAffinity.required {
-        						if k.labelSelector != _|_ {
-        							labelSelector: k.labelSelector
-        						}
-        						if k.namespace != _|_ {
-        							namespace: k.namespace
-        						}
-        						if k.namespaces != _|_ {
-        							namespaces: k.namespaces
-        						}
-        						topologyKey: k.topologyKey
-        						if k.namespaceSelector != _|_ {
-        							namespaceSelector: k.namespaceSelector
-        						}
-        					}]
-        			}
-        			if parameter.podAntiAffinity.preferred != _|_ {
-        				preferredDuringSchedulingIgnoredDuringExecution: [
-        					for k in parameter.podAntiAffinity.preferred {
-        						weight:          k.weight
-        						podAffinityTerm: k.podAffinityTerm
-        					}]
+        		if parameter.podAntiAffinity != _|_ {
+        			affinity: podAntiAffinity: {
+        				if parameter.podAntiAffinity.required != _|_ {
+        					requiredDuringSchedulingIgnoredDuringExecution: [
+        						for k in parameter.podAntiAffinity.required {
+        							if k.labelSelector != _|_ {
+        								labelSelector: k.labelSelector
+        							}
+        							if k.namespace != _|_ {
+        								namespace: k.namespace
+        							}
+        							if k.namespaces != _|_ {
+        								namespaces: k.namespaces
+        							}
+        							topologyKey: k.topologyKey
+        							if k.namespaceSelector != _|_ {
+        								namespaceSelector: k.namespaceSelector
+        							}
+        						}]
+        				}
+        				if parameter.podAntiAffinity.preferred != _|_ {
+        					preferredDuringSchedulingIgnoredDuringExecution: [
+        						for k in parameter.podAntiAffinity.preferred {
+        							weight:          k.weight
+        							podAffinityTerm: k.podAffinityTerm
+        						}]
+        				}
         			}
         		}
-        	}
-        	if parameter.nodeAffinity != _|_ {
-        		affinity: nodeAffinity: {
-        			if parameter.nodeAffinity.required != _|_ {
-        				requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [
-        					for k in parameter.nodeAffinity.required.nodeSelectorTerms {
-        						if k.matchExpressions != _|_ {
-        							matchExpressions: k.matchExpressions
-        						}
-        						if k.matchFields != _|_ {
-        							matchFields: k.matchFields
-        						}
-        					}]
-        			}
-        			if parameter.nodeAffinity.preferred != _|_ {
-        				preferredDuringSchedulingIgnoredDuringExecution: [
-        					for k in parameter.nodeAffinity.preferred {
-        						weight:     k.weight
-        						preference: k.preference
-        					}]
+        		if parameter.nodeAffinity != _|_ {
+        			affinity: nodeAffinity: {
+        				if parameter.nodeAffinity.required != _|_ {
+        					requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [
+        						for k in parameter.nodeAffinity.required.nodeSelectorTerms {
+        							if k.matchExpressions != _|_ {
+        								matchExpressions: k.matchExpressions
+        							}
+        							if k.matchFields != _|_ {
+        								matchFields: k.matchFields
+        							}
+        						}]
+        				}
+        				if parameter.nodeAffinity.preferred != _|_ {
+        					preferredDuringSchedulingIgnoredDuringExecution: [
+        						for k in parameter.nodeAffinity.preferred {
+        							weight:     k.weight
+        							preference: k.preference
+        						}]
+        				}
         			}
         		}
         	}
@@ -113,11 +125,138 @@ spec:
         				if k.value != _|_ {
         					value: k.value
         				}
-        				operator: k.operator
+        				if k.operator != _|_ {
+        					operator: k.operator
+        				}
+        				if k.operator == _|_ {
+        					operator: "Equal"
+        				}
         				if k.tolerationSeconds != _|_ {
         					tolerationSeconds: k.tolerationSeconds
         				}
         			}]
+        	}
+        	if parameter.schedulerName != _|_ {
+        		schedulerName: parameter.schedulerName
+        	}
+        	if parameter.priorityClassName != _|_ {
+        		priorityClassName: parameter.priorityClassName
+        	}
+        }
+
+        // Trait properties copied onto owned Application components (same fields the
+        // author set on this affinity trait). Child components then apply scheduling
+        // when they render (webservice, helmchart, type: module, …).
+        _affinityTraitProperties: {
+        	if parameter.nodeSelector != _|_ {
+        		nodeSelector: parameter.nodeSelector
+        	}
+        	if parameter.affinity != _|_ {
+        		affinity: parameter.affinity
+        	}
+        	if parameter.podAffinity != _|_ {
+        		podAffinity: parameter.podAffinity
+        	}
+        	if parameter.podAntiAffinity != _|_ {
+        		podAntiAffinity: parameter.podAntiAffinity
+        	}
+        	if parameter.nodeAffinity != _|_ {
+        		nodeAffinity: parameter.nodeAffinity
+        	}
+        	if parameter.tolerations != _|_ {
+        		tolerations: parameter.tolerations
+        	}
+        	if parameter.schedulerName != _|_ {
+        		schedulerName: parameter.schedulerName
+        	}
+        	if parameter.priorityClassName != _|_ {
+        		priorityClassName: parameter.priorityClassName
+        	}
+        }
+
+        _affinityTrait: {
+        	type:       "affinity"
+        	properties: _affinityTraitProperties
+        }
+
+        // Namespace helpers and raw components are left alone (mirrors AttachSchedulingTrait).
+        #skipSchedulingComp: {
+        	name: string
+        	type: string
+        	skip: type == "raw" || strings.HasSuffix(name, "-ns") || strings.HasSuffix(name, "-namespace")
+        }
+
+        // For Application outputs (type: addon / type: module):
+        // 1) upsert this affinity trait onto each non-skipped component so child
+        //    workloads (webservice, helmchart, nested module, …) honor it;
+        // 2) overlay PodSpec fields onto any k8s-objects that already embed a
+        //    pod template (module aux controllers).
+        // Defined as # so it is only evaluated when unified (avoids incomplete
+        // evaluation on webservice/helmchart primary outputs).
+        _scheduleAppComponents: {
+        	components: _
+        	out: [
+        		for c in components {
+        			if (#skipSchedulingComp & {name: c.name, type: c.type}).skip {
+        				c
+        			}
+        			if !(#skipSchedulingComp & {name: c.name, type: c.type}).skip {
+        				{
+        					name: c.name
+        					type: c.type
+        					if c.dependsOn != _|_ {
+        						dependsOn: c.dependsOn
+        					}
+        					if c.properties != _|_ {
+        						properties: c.properties
+        					}
+        					if c.properties != _|_ && c.properties.objects != _|_ {
+        						properties: objects: [
+        							for o in c.properties.objects {
+        								if o.spec != _|_ && o.spec.template != _|_ {
+        									o & {spec: template: spec: _podSpec}
+        								}
+        								if o.spec == _|_ || o.spec.template == _|_ {
+        									o
+        								}
+        							},
+        						]
+        					}
+        					traits: list.Concat([
+        						[if c.traits != _|_ for t in c.traits if t.type != "affinity" && t.type != "scheduling" {t}],
+        						[_affinityTrait],
+        					])
+        				}
+        			}
+        		},
+        	]
+        }
+
+        // Trait fields overlay chart values / prior specs (author intent wins).
+        // +patchStrategy=jsonMergePatch
+        patch: {
+        	if context.output.spec != _|_ && context.output.spec.template != _|_ {
+        		spec: template: spec: _podSpec
+        	}
+
+        	// type: module (and inline modules as k8s-objects) render an Application.
+        	if context.output.kind == "Application" && context.output.spec != _|_ && context.output.spec.components != _|_ {
+        		spec: components: (_scheduleAppComponents & {components: context.output.spec.components}).out
+        	}
+        }
+
+        // Overlay the same fields onto every auxiliary that has a pod template
+        // (helmchart chart resources) and onto Application auxiliaries (rare).
+        // Named keys must match context.outputs.
+        // +patchStrategy=jsonMergePatch
+        patchOutputs: {
+        	for name, o in context.outputs {
+        		if o.spec != _|_ && o.spec.template != _|_ {
+        			(name): spec: template: spec: _podSpec
+        		}
+        		if o.kind == "Application" && o.spec != _|_ && o.spec.components != _|_ {
+        			(name): spec: components: (_scheduleAppComponents & {components: o.spec.components}).out
+        		}
         	}
         }
 
@@ -138,65 +277,61 @@ spec:
         	namespaceSelector?: #labelSelector
         }
 
-        #nodeSelector: {
+        #nodeSelectorReq: {
         	key:      string
         	operator: *"In" | "NotIn" | "Exists" | "DoesNotExist" | "Gt" | "Lt"
         	values?: [...string]
         }
 
         #nodeSelectorTerm: {
-        	matchExpressions?: [...#nodeSelector]
-        	matchFields?: [...#nodeSelector]
+        	matchExpressions?: [...#nodeSelectorReq]
+        	matchFields?: [...#nodeSelectorReq]
         }
 
         parameter: {
-        	// +usage=Specify the pod affinity scheduling rules
+        	// +usage=Standard Kubernetes nodeSelector; overlays any existing nodeSelector (e.g. from Helm values)
+        	nodeSelector?: [string]: string
+        	// +usage=Raw Kubernetes affinity object. When set, used as-is and takes precedence over the wrapped podAffinity/podAntiAffinity/nodeAffinity fields below.
+        	affinity?: {
+        		nodeAffinity?: {...}
+        		podAffinity?: {...}
+        		podAntiAffinity?: {...}
+        	}
+        	// +usage=Specify the pod affinity scheduling rules (ignored when affinity is set)
         	podAffinity?: {
-        		// +usage=Specify the required during scheduling ignored during execution
         		required?: [...#podAffinityTerm]
-        		// +usage=Specify the preferred during scheduling ignored during execution
         		preferred?: [...{
-        			// +usage=Specify weight associated with matching the corresponding podAffinityTerm
-        			weight: int & >=1 & <=100
-        			// +usage=Specify a set of pods
+        			weight:          int & >=1 & <=100
         			podAffinityTerm: #podAffinityTerm
         		}]
         	}
-        	// +usage=Specify the pod anti-affinity scheduling rules
+        	// +usage=Specify the pod anti-affinity scheduling rules (ignored when affinity is set)
         	podAntiAffinity?: {
-        		// +usage=Specify the required during scheduling ignored during execution
         		required?: [...#podAffinityTerm]
-        		// +usage=Specify the preferred during scheduling ignored during execution
         		preferred?: [...{
-        			// +usage=Specify weight associated with matching the corresponding podAffinityTerm
-        			weight: int & >=1 & <=100
-        			// +usage=Specify a set of pods
+        			weight:          int & >=1 & <=100
         			podAffinityTerm: #podAffinityTerm
         		}]
         	}
-        	// +usage=Specify the node affinity scheduling rules for the pod
+        	// +usage=Specify the node affinity scheduling rules (ignored when affinity is set)
         	nodeAffinity?: {
-        		// +usage=Specify the required during scheduling ignored during execution
-        		required?: {
-        			// +usage=Specify a list of node selector
-        			nodeSelectorTerms: [...#nodeSelectorTerm]
-        		}
-        		// +usage=Specify the preferred during scheduling ignored during execution
+        		required?: nodeSelectorTerms: [...#nodeSelectorTerm]
         		preferred?: [...{
-        			// +usage=Specify weight associated with matching the corresponding nodeSelector
-        			weight: int & >=1 & <=100
-        			// +usage=Specify a node selector
+        			weight:     int & >=1 & <=100
         			preference: #nodeSelectorTerm
         		}]
         	}
-        	// +usage=Specify tolerant taint
+        	// +usage=Standard Kubernetes tolerations; overlays any existing tolerations
         	tolerations?: [...{
-        		key?:     string
-        		operator: *"Equal" | "Exists"
-        		value?:   string
-        		effect?:  "NoSchedule" | "PreferNoSchedule" | "NoExecute"
-        		// +usage=Specify the period of time the toleration
+        		key?:               string
+        		operator?:          string
+        		value?:             string
+        		effect?:            string
         		tolerationSeconds?: int
         	}]
+        	// +usage=Name of the scheduler to use
+        	schedulerName?: string
+        	// +usage=PriorityClass name for the pod
+        	priorityClassName?: string
         }
 

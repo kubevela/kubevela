@@ -1,0 +1,31 @@
+# Declarative addon with affinity trait (EnableAddonComponent).
+# Trait overlays PodSpec fields on workloads in the owned addon Application
+# (same pattern as module / helmchart).
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: addon-scheduling-example
+  namespace: vela-system
+spec:
+  components:
+    - name: kube-state-metrics
+      type: addon
+      properties:
+        addon: kube-state-metrics
+        properties:
+          image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0
+          imagePullPolicy: IfNotPresent
+      traits:
+        - type: affinity
+          properties:
+            nodeSelector:
+              disktype: ssd
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: node-type
+                          operator: In
+                          values:
+                            - infra

@@ -1,0 +1,33 @@
+# H-OVER: chart values set a wrong nodeSelector; affinity trait must win
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reg-h-over
+  namespace: vela-system
+  labels:
+    regression.kubevela.io/suite: addon-scheduling
+    regression.kubevela.io/case: H-OVER
+spec:
+  components:
+    - name: cert-manager
+      type: helmchart
+      properties:
+        chart:
+          source: cert-manager
+          repoURL: https://charts.jetstack.io
+          version: v1.9.1
+        release:
+          name: reg-cm-over
+          namespace: reg-cm-over
+        values:
+          installCRDs: true
+          replicaCount: 1
+          nodeSelector:
+            disktype: hdd
+            node-type: app
+      traits:
+        - type: affinity
+          properties:
+            nodeSelector:
+              disktype: ssd
+              node-type: infra

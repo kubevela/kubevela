@@ -1,0 +1,28 @@
+# A-NA: type: addon + wrapped nodeAffinity
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reg-a-na
+  namespace: vela-system
+  labels:
+    regression.kubevela.io/suite: addon-scheduling
+    regression.kubevela.io/case: A-NA
+spec:
+  components:
+    - name: sched-demo
+      type: addon
+      properties:
+        addon: sched-demo
+        registry: local-addons
+        version: "1.0.0"
+      traits:
+        - type: affinity
+          properties:
+            nodeAffinity:
+              required:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node-type
+                        values: ["infra"]
+                      - key: disktype
+                        values: ["ssd"]

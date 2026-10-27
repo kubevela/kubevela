@@ -1,0 +1,35 @@
+# H-NA: helmchart + wrapped nodeAffinity
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reg-h-na
+  namespace: vela-system
+  labels:
+    regression.kubevela.io/suite: addon-scheduling
+    regression.kubevela.io/case: H-NA
+spec:
+  components:
+    - name: cert-manager
+      type: helmchart
+      properties:
+        chart:
+          source: cert-manager
+          repoURL: https://charts.jetstack.io
+          version: v1.9.1
+        release:
+          name: reg-cm-na
+          namespace: reg-cm-na
+        values:
+          installCRDs: true
+          replicaCount: 1
+      traits:
+        - type: affinity
+          properties:
+            nodeAffinity:
+              required:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node-type
+                        values: ["infra"]
+                      - key: disktype
+                        values: ["ssd"]

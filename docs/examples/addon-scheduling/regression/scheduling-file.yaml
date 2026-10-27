@@ -1,0 +1,16 @@
+# Used by CLI --scheduling-file (GitHub #5362)
+nodeSelector:
+  disktype: ssd
+  node-type: infra
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-type
+              operator: In
+              values: ["infra"]
+tolerations:
+  - key: dedicated
+    operator: Exists
+    effect: NoSchedule

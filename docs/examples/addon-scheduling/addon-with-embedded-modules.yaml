@@ -1,0 +1,30 @@
+# Addon that embeds modules (modules/ under the addon package).
+# Affinity on the outer type: addon overlays workloads and type: module
+# children (including their auxiliary controllers) in the owned Application.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: addon-with-embedded-modules
+  namespace: vela-system
+spec:
+  components:
+    - name: kit-suite-inline
+      type: addon
+      properties:
+        addon: kit-suite-inline
+        registry: local-addons
+        version: "1.0.0"
+      traits:
+        - type: affinity
+          properties:
+            nodeSelector:
+              disktype: ssd
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: node-type
+                          operator: In
+                          values:
+                            - infra

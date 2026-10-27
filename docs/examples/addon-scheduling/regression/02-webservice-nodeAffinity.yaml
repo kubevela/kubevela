@@ -1,0 +1,26 @@
+# W-NA: webservice + wrapped nodeAffinity only
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reg-w-na
+  namespace: default
+  labels:
+    regression.kubevela.io/suite: addon-scheduling
+    regression.kubevela.io/case: W-NA
+spec:
+  components:
+    - name: reg-w-na
+      type: webservice
+      properties:
+        image: rancher/mirrored-pause:3.6
+      traits:
+        - type: affinity
+          properties:
+            nodeAffinity:
+              required:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node-type
+                        values: ["infra"]
+                      - key: disktype
+                        values: ["ssd"]

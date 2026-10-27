@@ -434,6 +434,10 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	app.Spec.Components = append(app.Spec.Components, moduleComps...)
 	app.Spec.Components = append(app.Spec.Components, inlineModuleComps...)
 
+	// Pod scheduling for type: addon is the outer affinity trait on the
+	// installing Application (universal trait). Imperative CLI still uses
+	// AttachSchedulingTrait via the Installer.
+
 	groups, err := r.auxComponents(ctx, installPkg, req.Properties)
 	if err != nil {
 		return nil, fmt.Errorf("render auxiliaries for addon %q: %w", req.Name, err)

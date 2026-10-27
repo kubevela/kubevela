@@ -151,14 +151,235 @@ _term: {labelSelector: matchLabels: app: "cache", topologyKey: "kubernetes.io/ho
 	}
 }
 
-"a toleration effect must be a taint effect": test.#TraitRender & _web & {
-	parameter: tolerations: [{key: "dedicated", effect: "Sometimes"}]
-	expect: error: {
-		parameter: [=~"effect"] @contains()
+"nodeSelector overlays onto the pod spec": test.#TraitRender & _web & {
+	parameter: nodeSelector: disktype: "ssd"
+	expect: output: spec: template: spec: {
+		nodeSelector: disktype: "ssd"
+		containers: [{name: "web", image: "shop:1.0"}]
+	}
+}
+
+"raw affinity takes precedence over wrapped nodeAffinity": test.#TraitRender & _web & {
+	parameter: {
+		affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
+			matchExpressions: [{key: "node-type", operator: "In", values: ["infra"]}]
+		}]
+		nodeAffinity: required: nodeSelectorTerms: [{matchExpressions: [{key: "disktype", values: ["ssd"]}]}]
+	}
+	expect: output: spec: template: spec: {
+		affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
+			matchExpressions: [{key: "node-type", operator: "In", values: ["infra"]}]
+		}]
 	}
 }
 
 "a pod affinity term needs a topology key": test.#TraitRender & _web & {
 	parameter: podAffinity: required: [{labelSelector: matchLabels: app: "cache"}]
 	expect: error: =~"topologyKey"
+}
+
+// type: module (and inline modules) render an owned Application whose aux
+// Deployments carry controllers; affinity must reach those pod templates.
+_moduleApp: {
+	definition: "affinity"
+	workload: {
+		apiVersion: "core.oam.dev/v1beta1"
+		kind:       "Application"
+		metadata: name: "module-provider-kit"
+		spec: components: [{
+			name: "provider-kit-aux"
+			type: "k8s-objects"
+			properties: objects: [{
+				apiVersion: "apps/v1"
+				kind:       "Deployment"
+				metadata: name: "provider-ctrl"
+				spec: template: spec: {
+					containers: [{name: "ctrl", image: "provider:1"}]
+				}
+			}, {
+				apiVersion: "apiextensions.crossplane.io/v1"
+				kind:       "CompositeResourceDefinition"
+				metadata: name: "xbuckets.aws.platform.io"
+				spec: {}
+			}]
+		}]
+	}
+}
+
+"module owned Application aux Deployment gets nodeSelector": test.#TraitRender & _moduleApp & {
+	parameter: nodeSelector: "node-type": "infra"
+	expect: output: spec: components: [{
+		name: "provider-kit-aux"
+		type: "k8s-objects"
+		traits: [{
+			type: "affinity"
+			properties: nodeSelector: "node-type": "infra"
+		}]
+		properties: objects: [{
+			metadata: name: "provider-ctrl"
+			spec: template: spec: {
+				nodeSelector: "node-type": "infra"
+				containers: [{name: "ctrl", image: "provider:1"}]
+			}
+		}, {
+			metadata: name: "xbuckets.aws.platform.io"
+			spec: {}
+		}]
+	}]
+}
+
+// type: addon owned Application: child webservice must receive the affinity trait
+// so its Deployment is scheduled (object-walk alone cannot see that workload).
+_addonApp: {
+	definition: "affinity"
+	workload: {
+		apiVersion: "core.oam.dev/v1beta1"
+		kind:       "Application"
+		metadata: name: "addon-kube-state-metrics"
+		spec: components: [{
+			name: "addon-kube-state-metrics-ns"
+			type: "k8s-objects"
+			properties: objects: [{
+				apiVersion: "v1"
+				kind:       "Namespace"
+				metadata: name: "o11y-system"
+			}]
+		}, {
+			name: "kube-state-metrics"
+			type: "webservice"
+			properties: image: "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0"
+		}]
+	}
+}
+
+"addon owned Application upserts affinity onto webservice, skips ns helper": test.#TraitRender & _addonApp & {
+	parameter: nodeSelector: {
+		disktype:    "ssd"
+		"node-type": "infra"
+	}
+	expect: output: spec: components: [{
+		name: "addon-kube-state-metrics-ns"
+		type: "k8s-objects"
+		traits?: _|_
+	}, {
+		name: "kube-state-metrics"
+		type: "webservice"
+		traits: [{
+			type: "affinity"
+			properties: nodeSelector: {
+				disktype:    "ssd"
+				"node-type": "infra"
+			}
+		}]
+	}]
+}
+
+"addon owned Application upserts wrapped nodeAffinity onto webservice": test.#TraitRender & _addonApp & {
+	parameter: nodeAffinity: required: nodeSelectorTerms: [{
+		matchExpressions: [{key: "node-type", values: ["infra"]}]
+	}]
+	expect: output: spec: components: [{
+		name: "addon-kube-state-metrics-ns"
+		traits?: _|_
+	}, {
+		name: "kube-state-metrics"
+		type: "webservice"
+		traits: [{
+			type: "affinity"
+			properties: nodeAffinity: required: nodeSelectorTerms: [{
+				matchExpressions: [{key: "node-type", values: ["infra"]}]
+			}]
+		}]
+	}]
+}
+
+"addon owned Application upserts combo nodeSelector+tolerations": test.#TraitRender & _addonApp & {
+	parameter: {
+		nodeSelector: disktype: "ssd"
+		tolerations: [{key: "dedicated", operator: "Exists", effect: "NoSchedule"}]
+	}
+	expect: output: spec: components: [{
+		name: "addon-kube-state-metrics-ns"
+		traits?: _|_
+	}, {
+		name: "kube-state-metrics"
+		traits: [{
+			type: "affinity"
+			properties: {
+				nodeSelector: disktype: "ssd"
+				tolerations: [{key: "dedicated", operator: "Exists", effect: "NoSchedule"}]
+			}
+		}]
+	}]
+}
+
+"module aux Deployment gets raw affinity and tolerations": test.#TraitRender & _moduleApp & {
+	parameter: {
+		affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
+			matchExpressions: [{key: "node-type", operator: "In", values: ["infra"]}]
+		}]
+		tolerations: [{key: "dedicated", operator: "Exists", effect: "NoSchedule"}]
+	}
+	expect: output: spec: components: [{
+		name: "provider-kit-aux"
+		traits: [{
+			type: "affinity"
+			properties: {
+				affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
+					matchExpressions: [{key: "node-type", operator: "In", values: ["infra"]}]
+				}]
+				tolerations: [{key: "dedicated", operator: "Exists", effect: "NoSchedule"}]
+			}
+		}]
+		properties: objects: [{
+			metadata: name: "provider-ctrl"
+			spec: template: spec: {
+				affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
+					matchExpressions: [{key: "node-type", operator: "In", values: ["infra"]}]
+				}]
+				tolerations: [{key: "dedicated", operator: "Exists", effect: "NoSchedule"}]
+				containers: [{name: "ctrl", image: "provider:1"}]
+			}
+		}, {
+			metadata: name: "xbuckets.aws.platform.io"
+			spec: {}
+		}]
+	}]
+}
+
+"helmchart-like Deployment output gets nodeSelector via patch": test.#TraitRender & {
+	definition: "affinity"
+	workload: {
+		apiVersion: "apps/v1"
+		kind:       "Deployment"
+		metadata: name: "chart-ctrl"
+		spec: template: spec: {
+			nodeSelector: disktype: "hdd"
+			containers: [{name: "c", image: "chart:1"}]
+		}
+	}
+	parameter: nodeSelector: {
+		disktype:    "ssd"
+		"node-type": "infra"
+	}
+	expect: output: spec: template: spec: {
+		nodeSelector: {
+			disktype:    "ssd"
+			"node-type": "infra"
+		}
+		containers: [{name: "c", image: "chart:1"}]
+	}
+}
+
+"schedulerName and priorityClassName land on the pod spec": test.#TraitRender & _web & {
+	parameter: {
+		schedulerName:      "default-scheduler"
+		priorityClassName:  "system-cluster-critical"
+		nodeSelector: zone: "a"
+	}
+	expect: output: spec: template: spec: {
+		schedulerName:     "default-scheduler"
+		priorityClassName: "system-cluster-critical"
+		nodeSelector: zone: "a"
+	}
 }
