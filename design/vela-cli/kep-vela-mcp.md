@@ -398,8 +398,8 @@ No transport introduces a privileged service identity for agents.
 ### Reference stack
 
 MCP servers do not call each other; the client loads several and the model chooses. So
-the pairing is a tested combination that `vela mcp setup` configures in one step, with
-boundaries written into tool descriptions and skills.
+the pairing is a tested combination, with boundaries written into tool descriptions and
+skills.
 
 | Question | Goes to |
 |---|---|
@@ -410,17 +410,19 @@ boundaries written into tool descriptions and skills.
 | Change anything an Application manages | Vela MCP, diffed and gated |
 | Change anything else | Neither, in any documented configuration |
 
+`vela` writes no client configuration, so it never tracks client formats or versions.
+`vela mcp config` prints the server entry, either as the `mcpServers` JSON block most
+clients accept or as a command line for a client's own `mcp add`:
+
 ```text
-$ vela mcp setup --client claude-code
-Detected: Claude Code, kubeconfig context prod-hub, Grafana addon in vela-system
-Writing servers: kubevela (read + plan), kubernetes-mcp-server@<pinned> --config kubernetes-mcp.toml (read_only = true, Secret and RBAC kinds denied), mcp-grafana@<pinned> --disable-write
-Installing skills: kubevela-developer, kubevela-sre (grafana appendix)
+$ claude mcp add kubevela -- $(vela mcp config --format command --namespace team-a)
 ```
 
-Setup writes the exact third-party versions from a table embedded in the vela binary at
-release time, after the evaluation suite has passed against them (`<pinned>` above stands
-for those exact versions). It never stores a
-third-party credential, and has no option to make the Kubernetes MCP writable.
+Per-client steps, skills installation and the companion servers, with the exact
+third-party versions the evaluation suite last passed against, live in the
+`kubevela/skills` repository, which moves at the clients' pace without a `vela` release.
+Those instructions never store a third-party credential and never make the Kubernetes
+MCP writable.
 
 Honest boundary: the developer and platform-engineer loops are complete with Vela MCP
 alone. The incident loop is only as good as the trio. Our target is the team that already
@@ -600,7 +602,7 @@ state whether traffic changed. Deterministic, one round trip per cluster.
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
-| P0, KubeVela 1.12 | Lift status tree and live-diff into `pkg/velaops`; `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp setup` for Claude Code, Cursor, Gemini CLI; developer and SRE skills; six documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
+| P0, KubeVela 1.12 | Lift status tree and live-diff into `pkg/velaops`; `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp config`, with per-client steps in `kubevela/skills`; developer and SRE skills; six documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
 | P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; defkit-author and platform-engineer skills; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; one adopter runs the trigger recipe |
 | P2, after VelaUX catch-up | VelaUX backend plugin over streamable HTTP; per-caller tool filtering; read-only assistant panel | Hosted client logs in through VelaUX and gets the same allow or deny as the CLI |
 | P3, after the Cluster Infrastructure KEP | Cluster-fleet tools from the Future scope section; cluster-plane handles; `kubevela-cluster-operator` skill | Fleet scenarios pass on three model families; a rollout started through an agent pauses at every approval the KEP defines |
