@@ -17,7 +17,11 @@ limitations under the License.
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -67,8 +71,8 @@ var (
 		# the client only in the dev namespace
 		vela mcp --allow-write --direct-namespace dev
 
-		# Claude Code: register the server once, then use it from any session
-		claude mcp add vela -- vela mcp`))
+		# Print the entry for an AI client instead of starting the server
+		vela mcp config`))
 )
 
 // MCPOption is the configuration of the vela mcp command.
@@ -138,10 +142,151 @@ func NewMCPCommand(f velacmd.Factory, order string) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&o.Transport, "transport", o.Transport, "Transport to serve on. Only stdio is supported.")
+	addServerFlags(cmd, o)
+	cmd.AddCommand(NewMCPConfigCommand())
+	return velacmd.NewCommandBuilder(f, cmd).WithResponsiveWriter().Build()
+}
+
+// addServerFlags registers the flags that shape what the server exposes.
+// vela mcp and vela mcp config share them, so a printed entry always uses
+// flags the server accepts.
+func addServerFlags(cmd *cobra.Command, o *MCPOption) {
 	cmd.Flags().BoolVar(&o.AllowWrite, "allow-write", false, "Register apply_application. Without --direct-namespace it only returns YAML for a pull request. Off by default.")
 	cmd.Flags().StringArrayVar(&o.DirectNamespaces, "direct-namespace", nil, "Allow direct mode, confirmed by the user in their client, in this namespace. Repeat for more than one. Refused at start if it matches --production-pattern.")
 	cmd.Flags().StringVar(&o.ProductionPattern, "production-pattern", mcp.DefaultProductionPattern, "Regular expression for production namespace names, which never allow direct mode.")
 	cmd.Flags().BoolVar(&o.AllowResume, "allow-resume", false, "Register resume_workflow, which continues a workflow paused for approval. Off by default.")
 	cmd.Flags().StringArrayVar(&o.Namespaces, "namespace", nil, "Restrict Application, resource and log reads to this namespace, including resources an Application manages elsewhere. Repeat for more than one; empty means any namespace RBAC allows. Definitions, addons and clusters in the system namespace stay readable.")
-	return velacmd.NewCommandBuilder(f, cmd).WithResponsiveWriter().Build()
+}
+
+var (
+	mcpConfigLong = templates.LongDesc(i18n.T(`
+		Print the server entry an AI client needs to start vela mcp. Nothing is
+		written: each client keeps its own configuration format, so the entry is
+		printed either as the mcpServers JSON block most clients accept, or as a
+		command line for a client's own "mcp add" command.
+
+		The entry points at the absolute path of this vela binary and carries the
+		server flags given here. The server uses the kubeconfig and context of the
+		client process that starts it, so start the client from a shell pointed at
+		the cluster you mean.`))
+
+	mcpConfigExample = templates.Examples(i18n.T(`
+		# JSON block to paste into a client's MCP configuration
+		vela mcp config
+
+		# Claude Code, read and plan tools, restricted to one namespace
+		claude mcp add kubevela -- $(vela mcp config --format command --namespace team-a)
+
+		# Allow writes, with confirmed direct mode only in dev
+		vela mcp config --allow-write --direct-namespace dev`))
+
+	// executablePath finds the running binary; tests replace it.
+	executablePath = func() (string, error) {
+		p, err := os.Executable()
+		if err != nil {
+			return "", err
+		}
+		return filepath.EvalSymlinks(p)
+	}
+
+	shellSafe = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
+)
+
+// MCPConfigOption is the configuration of the vela mcp config command.
+type MCPConfigOption struct {
+	MCPOption
+	Name   string
+	Format string
+}
+
+// Validate refuses an entry the server would refuse to start with.
+func (o *MCPConfigOption) Validate() error {
+	if err := o.MCPOption.Validate(); err != nil {
+		return err
+	}
+	if o.Format != "json" && o.Format != "command" {
+		return fmt.Errorf("--format must be json or command, not %q", o.Format)
+	}
+	if strings.TrimSpace(o.Name) == "" {
+		return fmt.Errorf("--name must not be empty")
+	}
+	return mcp.CheckDirectNamespaces(o.DirectNamespaces, o.ProductionPattern)
+}
+
+// ServerArgs are the arguments that start the server with these flags.
+// Flags left at their defaults are omitted, so the entry stays short.
+func (o *MCPConfigOption) ServerArgs() []string {
+	args := []string{"mcp"}
+	for _, ns := range o.Namespaces {
+		args = append(args, "--namespace", ns)
+	}
+	if o.AllowWrite {
+		args = append(args, "--allow-write")
+	}
+	for _, ns := range o.DirectNamespaces {
+		args = append(args, "--direct-namespace", ns)
+	}
+	if o.ProductionPattern != "" && o.ProductionPattern != mcp.DefaultProductionPattern {
+		args = append(args, "--production-pattern", o.ProductionPattern)
+	}
+	if o.AllowResume {
+		args = append(args, "--allow-resume")
+	}
+	return args
+}
+
+// Run prints the entry.
+func (o *MCPConfigOption) Run(cmd *cobra.Command) error {
+	binary, err := executablePath()
+	if err != nil {
+		return fmt.Errorf("find the vela binary: %w", err)
+	}
+	args := o.ServerArgs()
+	out := cmd.OutOrStdout()
+	if o.Format == "command" {
+		parts := []string{shellQuote(binary)}
+		for _, a := range args {
+			parts = append(parts, shellQuote(a))
+		}
+		_, err := fmt.Fprintln(out, strings.Join(parts, " "))
+		return err
+	}
+	entry := map[string]any{"mcpServers": map[string]any{o.Name: map[string]any{"command": binary, "args": args}}}
+	enc := json.NewEncoder(out)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	return enc.Encode(entry)
+}
+
+// shellQuote quotes a word for a POSIX shell when it needs it.
+func shellQuote(s string) string {
+	if shellSafe.MatchString(s) {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// NewMCPConfigCommand creates the `vela mcp config` command.
+func NewMCPConfigCommand() *cobra.Command {
+	o := &MCPConfigOption{MCPOption: MCPOption{Transport: mcp.TransportStdio}, Name: "kubevela", Format: "json"}
+	cmd := &cobra.Command{
+		Use:     "config",
+		Short:   i18n.T("Print the server entry an AI client needs to start vela mcp."),
+		Long:    mcpConfigLong,
+		Example: mcpConfigExample,
+		Args:    cobra.NoArgs,
+		// The output is meant for $(...) and config files, so a refusal must
+		// never print usage text into it.
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := o.Validate(); err != nil {
+				return err
+			}
+			return o.Run(cmd)
+		},
+	}
+	cmd.Flags().StringVar(&o.Format, "format", o.Format, "Output format: json for an mcpServers block, or command for a client's own mcp add command.")
+	cmd.Flags().StringVar(&o.Name, "name", o.Name, "Server name in the JSON block.")
+	addServerFlags(cmd, &o.MCPOption)
+	return cmd
 }

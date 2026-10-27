@@ -55,7 +55,7 @@ func NewServer(f velacmd.Factory, opts Options) (*Server, error) {
 	if opts.Transport != TransportStdio {
 		return nil, fmt.Errorf("transport %q is not supported; only %q is available", opts.Transport, TransportStdio)
 	}
-	if err := checkDirectNamespaces(opts); err != nil {
+	if err := CheckDirectNamespaces(opts.DirectNamespaces, opts.ProductionPattern); err != nil {
 		return nil, err
 	}
 	srv := sdk.NewServer(&sdk.Implementation{
@@ -253,20 +253,25 @@ func registerTools(s *Server, d *deps) {
 	// the command's contract is stable.
 }
 
-// checkDirectNamespaces refuses to start when a direct namespace matches
-// the production pattern, so a misconfiguration fails loudly instead of
-// enabling direct writes to production.
-func checkDirectNamespaces(opts Options) error {
-	if len(opts.DirectNamespaces) == 0 {
+// CheckDirectNamespaces refuses a direct allowlist that contains a
+// namespace matching the production pattern, so a misconfiguration fails
+// loudly instead of enabling direct writes to production. An empty pattern
+// means DefaultProductionPattern. The server runs it at start, and vela mcp
+// config runs it before printing an entry the server would refuse.
+func CheckDirectNamespaces(direct []string, pattern string) error {
+	if len(direct) == 0 {
 		return nil
 	}
-	re, err := regexp.Compile(opts.ProductionPattern)
-	if err != nil {
-		return fmt.Errorf("invalid production pattern %q: %w", opts.ProductionPattern, err)
+	if pattern == "" {
+		pattern = DefaultProductionPattern
 	}
-	for _, ns := range opts.DirectNamespaces {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return fmt.Errorf("invalid production pattern %q: %w", pattern, err)
+	}
+	for _, ns := range direct {
 		if re.MatchString(ns) {
-			return fmt.Errorf("namespace %q is on the direct allowlist and matches the production pattern %q; direct mode is never allowed in production", ns, opts.ProductionPattern)
+			return fmt.Errorf("namespace %q is on the direct allowlist and matches the production pattern %q; direct mode is never allowed in production", ns, pattern)
 		}
 	}
 	return nil

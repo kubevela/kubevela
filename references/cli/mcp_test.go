@@ -18,6 +18,8 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -66,4 +68,70 @@ func TestMCPOptionValidate(t *testing.T) {
 	require.Error(t, (&MCPOption{Transport: mcp.TransportStdio, Namespaces: []string{" "}}).Validate())
 	require.Error(t, (&MCPOption{Transport: mcp.TransportStdio, DirectNamespaces: []string{"dev"}}).Validate())
 	require.NoError(t, (&MCPOption{Transport: mcp.TransportStdio, AllowWrite: true, DirectNamespaces: []string{"dev"}}).Validate())
+}
+
+// runMCPConfig runs vela mcp config with a fixed binary path.
+func runMCPConfig(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	old := executablePath
+	executablePath = func() (string, error) { return "/opt/vela tools/vela", nil }
+	t.Cleanup(func() { executablePath = old })
+	cmd := NewMCPCommand(velacmd.NewTestFactory(nil, nil), "3")
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	cmd.SetArgs(append([]string{"config"}, args...))
+	err := cmd.Execute()
+	return out.String(), err
+}
+
+func TestMCPConfigJSON(t *testing.T) {
+	out, err := runMCPConfig(t, "--namespace", "team-a", "--allow-write", "--direct-namespace", "dev")
+	require.NoError(t, err)
+	var entry struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(out), &entry))
+	server, ok := entry.MCPServers["kubevela"]
+	require.True(t, ok, out)
+	require.Equal(t, "/opt/vela tools/vela", server.Command)
+	require.Equal(t, []string{"mcp", "--namespace", "team-a", "--allow-write", "--direct-namespace", "dev"}, server.Args)
+}
+
+func TestMCPConfigDefaultsAreReadOnlyAndShort(t *testing.T) {
+	out, err := runMCPConfig(t, "--name", "vela-dev")
+	require.NoError(t, err)
+	require.Contains(t, out, `"vela-dev"`)
+	require.Contains(t, out, `"args": [
+        "mcp"
+      ]`)
+	require.NotContains(t, out, "--allow-write")
+	require.NotContains(t, out, "--production-pattern", "the default pattern is not repeated")
+}
+
+func TestMCPConfigCommandFormatQuotes(t *testing.T) {
+	out, err := runMCPConfig(t, "--format", "command", "--namespace", "team-a", "--allow-write", "--direct-namespace", "dev", "--production-pattern", "^live$")
+	require.NoError(t, err)
+	require.Equal(t, `'/opt/vela tools/vela' mcp --namespace team-a --allow-write --direct-namespace dev --production-pattern '^live$'`, strings.TrimSpace(out))
+	require.Equal(t, `'it'\''s'`, shellQuote("it's"))
+}
+
+func TestMCPConfigRefusesWhatTheServerWould(t *testing.T) {
+	cases := map[string][]string{
+		"production namespace on the direct list": {"--allow-write", "--direct-namespace", "payments-prod"},
+		"direct without writes":                   {"--direct-namespace", "dev"},
+		"unknown format":                          {"--format", "toml"},
+		"empty name":                              {"--name", " "},
+		"bad production pattern":                  {"--allow-write", "--direct-namespace", "dev", "--production-pattern", "("},
+	}
+	for name, args := range cases {
+		t.Run(name, func(t *testing.T) {
+			out, err := runMCPConfig(t, args...)
+			require.Error(t, err)
+			require.Empty(t, out, "nothing is printed for a refused entry")
+		})
+	}
 }
