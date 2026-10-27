@@ -4,7 +4,7 @@
 set -uo pipefail
 # Continue across case failures; exit non-zero only at the end if any failed.
 
-ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../../.." && pwd)"
 REG="$(cd "$(dirname "$0")" && pwd)"
 VELA="${ROOT}/bin/vela"
 export KUBECONFIG="${KUBECONFIG:-$(k3d kubeconfig write addon-sched)}"
@@ -184,8 +184,8 @@ print('FAIL:'+','.join(fail) if fail else 'OK')
 
 cleanup_reg() {
   log "== cleanup prior regression apps =="
-  kubectl delete app -n default -l regression.kubevela.io/suite=addon-scheduling --wait=false 2>/dev/null || true
-  kubectl delete app -n vela-system -l regression.kubevela.io/suite=addon-scheduling --wait=false 2>/dev/null || true
+  kubectl delete app -n default -l regression.kubevela.io/suite=affinity --wait=false 2>/dev/null || true
+  kubectl delete app -n vela-system -l regression.kubevela.io/suite=affinity --wait=false 2>/dev/null || true
   # also clear leftover demo apps that collide with addon/module names
   # Keep live-helmchart / cert-manager release for H-* mutations (avoids re-pull).
   for a in live-addon live-module live-embed-2 live-webservice \
@@ -199,7 +199,7 @@ cleanup_reg() {
   if ! kubectl get app -n vela-system live-helmchart >/dev/null 2>&1; then
     kubectl apply -f "$REG/../helmchart.yaml"
     # rename to live-helmchart for H-* helpers
-    kubectl get app -n vela-system helmchart-scheduling-example -o json 2>/dev/null | \
+    kubectl get app -n vela-system affinity-helmchart-example -o json 2>/dev/null | \
       python3 -c 'import json,sys; a=json.load(sys.stdin); a["metadata"]["name"]="live-helmchart";
 a.pop("status",None); a["metadata"].pop("resourceVersion",None); a["metadata"].pop("uid",None);
 a["metadata"].pop("creationTimestamp",None); a["metadata"].pop("generation",None);
@@ -286,7 +286,7 @@ run_helmchart() {
   # H-NS: apply nodeSelector-only onto existing cert-manager release via new app would conflict.
   # Use live-helmchart if present, else apply 30 once.
   if kubectl get app -n vela-system live-helmchart >/dev/null 2>&1; then
-    kubectl patch app live-helmchart -n vela-system --type merge -p '{"metadata":{"labels":{"regression.kubevela.io/suite":"addon-scheduling","regression.kubevela.io/case":"H-NS"}}}'
+    kubectl patch app live-helmchart -n vela-system --type merge -p '{"metadata":{"labels":{"regression.kubevela.io/suite":"affinity","regression.kubevela.io/case":"H-NS"}}}'
     kubectl get app live-helmchart -n vela-system -o json | python3 -c "
 import json,sys
 app=json.load(sys.stdin)
@@ -309,7 +309,7 @@ json.dump(app, sys.stdout)
   kubectl get app "$target" -n vela-system -o json | python3 -c '
 import json,sys
 app=json.load(sys.stdin)
-app["metadata"]["labels"]={"regression.kubevela.io/suite":"addon-scheduling","regression.kubevela.io/case":"H-NA"}
+app["metadata"]["labels"]={"regression.kubevela.io/suite":"affinity","regression.kubevela.io/case":"H-NA"}
 app["spec"]["components"][0]["traits"]=[{
   "type":"affinity",
   "properties":{"nodeAffinity":{"required":{"nodeSelectorTerms":[{
@@ -341,7 +341,7 @@ json.dump(app, sys.stdout)
   kubectl get app "$target" -n vela-system -o json | python3 -c '
 import json,sys
 app=json.load(sys.stdin)
-app["metadata"]["labels"]={"regression.kubevela.io/suite":"addon-scheduling","regression.kubevela.io/case":"H-OVER"}
+app["metadata"]["labels"]={"regression.kubevela.io/suite":"affinity","regression.kubevela.io/case":"H-OVER"}
 props=app["spec"]["components"][0]["properties"]
 vals=props.get("values") or {}
 vals["nodeSelector"]={"disktype":"hdd","node-type":"app"}

@@ -1,20 +1,18 @@
-# A-COMBO: type: addon + nodeSelector + raw affinity + tolerations
+# W-COMBO: nodeSelector + raw affinity + tolerations together
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: reg-a-combo
-  namespace: vela-system
+  name: reg-w-combo
+  namespace: default
   labels:
-    regression.kubevela.io/suite: addon-scheduling
-    regression.kubevela.io/case: A-COMBO
+    regression.kubevela.io/suite: affinity
+    regression.kubevela.io/case: W-COMBO
 spec:
   components:
-    - name: sched-demo
-      type: addon
+    - name: reg-w-combo
+      type: webservice
       properties:
-        addon: sched-demo
-        registry: local-addons
-        version: "1.0.0"
+        image: rancher/mirrored-pause:3.6
       traits:
         - type: affinity
           properties:

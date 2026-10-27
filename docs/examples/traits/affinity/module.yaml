@@ -1,20 +1,19 @@
-# Declarative addon with affinity trait (EnableAddonComponent).
-# Trait overlays PodSpec fields on workloads in the owned addon Application
-# (same pattern as module / helmchart).
+# Declarative module with affinity trait (EnableModuleComponent).
+# Trait overlays PodSpec fields on auxiliary controllers in the owned Application
+# (e.g. Crossplane provider Deployments), not on definitions-only objects.
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: addon-scheduling-example
+  name: affinity-module-example
   namespace: vela-system
 spec:
   components:
-    - name: kube-state-metrics
-      type: addon
+    - name: widget-kit
+      type: module
       properties:
-        addon: kube-state-metrics
-        properties:
-          image: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.13.0
-          imagePullPolicy: IfNotPresent
+        module: widget-kit
+        registry: local-modules
+        version: "1.1.0"
       traits:
         - type: affinity
           properties:

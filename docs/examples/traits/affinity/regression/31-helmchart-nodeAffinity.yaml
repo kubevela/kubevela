@@ -1,20 +1,27 @@
-# A-NA: type: addon + wrapped nodeAffinity
+# H-NA: helmchart + wrapped nodeAffinity
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: reg-a-na
+  name: reg-h-na
   namespace: vela-system
   labels:
-    regression.kubevela.io/suite: addon-scheduling
-    regression.kubevela.io/case: A-NA
+    regression.kubevela.io/suite: affinity
+    regression.kubevela.io/case: H-NA
 spec:
   components:
-    - name: sched-demo
-      type: addon
+    - name: cert-manager
+      type: helmchart
       properties:
-        addon: sched-demo
-        registry: local-addons
-        version: "1.0.0"
+        chart:
+          source: cert-manager
+          repoURL: https://charts.jetstack.io
+          version: v1.9.1
+        release:
+          name: reg-cm-na
+          namespace: reg-cm-na
+        values:
+          installCRDs: true
+          replicaCount: 1
       traits:
         - type: affinity
           properties:

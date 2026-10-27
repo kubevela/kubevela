@@ -1,15 +1,15 @@
-# W-NS: normal webservice + nodeSelector → infra/ssd node
+# W-BAD: impossible nodeSelector → Pending / FailedScheduling
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: reg-w-ns
+  name: reg-w-bad
   namespace: default
   labels:
-    regression.kubevela.io/suite: addon-scheduling
-    regression.kubevela.io/case: W-NS
+    regression.kubevela.io/suite: affinity
+    regression.kubevela.io/case: W-BAD
 spec:
   components:
-    - name: reg-w-ns
+    - name: reg-w-bad
       type: webservice
       properties:
         image: rancher/mirrored-pause:3.6
@@ -17,5 +17,4 @@ spec:
         - type: affinity
           properties:
             nodeSelector:
-              disktype: ssd
-              node-type: infra
+              disktype: nvme-does-not-exist

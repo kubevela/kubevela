@@ -1,20 +1,18 @@
-# M-NA: type: module + wrapped nodeAffinity
+# W-NA: webservice + wrapped nodeAffinity only
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: reg-m-na
-  namespace: vela-system
+  name: reg-w-na
+  namespace: default
   labels:
-    regression.kubevela.io/suite: addon-scheduling
-    regression.kubevela.io/case: M-NA
+    regression.kubevela.io/suite: affinity
+    regression.kubevela.io/case: W-NA
 spec:
   components:
-    - name: ctrl-kit
-      type: module
+    - name: reg-w-na
+      type: webservice
       properties:
-        module: ctrl-kit
-        registry: local-modules
-        version: "1.0.0"
+        image: rancher/mirrored-pause:3.6
       traits:
         - type: affinity
           properties:

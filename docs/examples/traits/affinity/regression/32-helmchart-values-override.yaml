@@ -5,7 +5,7 @@ metadata:
   name: reg-h-over
   namespace: vela-system
   labels:
-    regression.kubevela.io/suite: addon-scheduling
+    regression.kubevela.io/suite: affinity
     regression.kubevela.io/case: H-OVER
 spec:
   components:

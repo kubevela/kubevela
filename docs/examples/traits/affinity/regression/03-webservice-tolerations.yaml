@@ -5,7 +5,7 @@ metadata:
   name: reg-w-tol
   namespace: default
   labels:
-    regression.kubevela.io/suite: addon-scheduling
+    regression.kubevela.io/suite: affinity
     regression.kubevela.io/case: W-TOL
 spec:
   components:

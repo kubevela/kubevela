@@ -1,18 +1,18 @@
-# A-NS: type: addon + nodeSelector (declarative EnableAddonComponent)
+# E-EMBED: addon with embedded modules + outer affinity
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: reg-a-ns
+  name: reg-embed
   namespace: vela-system
   labels:
-    regression.kubevela.io/suite: addon-scheduling
-    regression.kubevela.io/case: A-NS
+    regression.kubevela.io/suite: affinity
+    regression.kubevela.io/case: E-EMBED
 spec:
   components:
-    - name: sched-demo
+    - name: kit-suite-inline
       type: addon
       properties:
-        addon: sched-demo
+        addon: kit-suite-inline
         registry: local-addons
         version: "1.0.0"
       traits:
