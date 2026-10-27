@@ -244,7 +244,7 @@ func summarizeResource(res querytypes.AppliedResource) ResourceSummary {
 		rs.Health = ResourceHealth{Status: "Unknown", Reason: "resource not found in cluster"}
 		return rs
 	}
-	nodes := flattenTree(res.ResourceTree, 0, "", nil)
+	nodes := deriveFromPods(flattenTree(res.ResourceTree, 0, "", nil))
 	rs.Health = nodes[0].Health
 	for _, n := range nodes[1:] {
 		if n.Kind == podKind {

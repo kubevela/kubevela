@@ -25,7 +25,12 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/component-base/featuregate"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	// Registers the vela-core gates and their defaults.
+	_ "github.com/oam-dev/kubevela/pkg/features"
 
 	"github.com/oam-dev/kubevela/version"
 )
@@ -290,6 +295,27 @@ func parseFeatureGates(deploy *appsv1.Deployment) map[string]bool {
 		return nil
 	}
 	return gates
+}
+
+// nonDefaultGates keeps the gates whose value differs from the default this
+// vela binary was built with, and any gate it does not know. When the CLI
+// and controller versions differ, the version-skew warning already says so.
+func nonDefaultGates(gates map[string]bool) map[string]bool {
+	if len(gates) == 0 {
+		return nil
+	}
+	defaults := feature.DefaultMutableFeatureGate.GetAll()
+	out := map[string]bool{}
+	for name, value := range gates {
+		spec, known := defaults[featuregate.Feature(name)]
+		if !known || spec.Default != value {
+			out[name] = value
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // mainContainer returns the container that runs the controller: the one

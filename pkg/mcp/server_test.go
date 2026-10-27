@@ -89,6 +89,9 @@ var _ = Describe("vela mcp server", func() {
 			Expect(out.Warnings).To(BeEmpty())
 			Expect(out.Meta.Source).To(Equal(SourceLive))
 			Expect(out.Meta.VelaCore).To(Equal("1.11.0"))
+			Expect(out.FeatureGates).To(HaveLen(4), "get_platform_info lists every gate")
+			Expect(out.Meta.FeatureGates).To(Equal(map[string]bool{"ApplyOnce": true}),
+				"the envelope repeats only gates that differ from their defaults")
 			Expect(out.Meta.ObservedAt).NotTo(BeZero())
 		})
 

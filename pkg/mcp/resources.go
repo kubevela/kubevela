@@ -53,6 +53,44 @@ type ResourceHealth struct {
 	Status  string `json:"status"`
 	Reason  string `json:"reason,omitempty"`
 	Message string `json:"message,omitempty"`
+	// Derived is set when the status was computed from the object's pods.
+	Derived bool `json:"derived,omitempty" jsonschema:"True when this status was computed from the object's pods, because its own health check reported Healthy while some of its pods were not."`
+}
+
+// deriveFromPods corrects a managed object whose own health check reports
+// Healthy while pods under it are failing. KubeVela's resource tree has no
+// rule for most workload kinds and defaults them to Healthy, so without
+// this a crash-looping Deployment reads as healthy at the top line. All
+// pods failing is UnHealthy; some failing is Progressing. The original
+// verdict is kept in the message.
+func deriveFromPods(nodes []ResourceNode) []ResourceNode {
+	if len(nodes) == 0 || nodes[0].Health.Status != string(querytypes.HealthStatusHealthy) {
+		return nodes
+	}
+	pods, failing := 0, 0
+	for _, n := range nodes[1:] {
+		if n.Kind != podKind {
+			continue
+		}
+		pods++
+		if n.Health.Status != string(querytypes.HealthStatusHealthy) {
+			failing++
+		}
+	}
+	if failing == 0 {
+		return nodes
+	}
+	status := string(querytypes.HealthStatusProgressing)
+	if failing == pods {
+		status = string(querytypes.HealthStatusUnHealthy)
+	}
+	nodes[0].Health = ResourceHealth{
+		Status:  status,
+		Reason:  fmt.Sprintf("%d of %d pods are not healthy", failing, pods),
+		Message: "the object's own health check reported Healthy",
+		Derived: true,
+	}
+	return nodes
 }
 
 // ResourceNode is one object in a managed resource's tree. The tree is
@@ -282,7 +320,7 @@ func viewManagedResource(res querytypes.AppliedResource) ManagedResource {
 		Revision:   res.Revision,
 	}
 	if res.ResourceTree != nil {
-		m.Tree = flattenTree(res.ResourceTree, 0, "", nil)
+		m.Tree = deriveFromPods(flattenTree(res.ResourceTree, 0, "", nil))
 	}
 	return m
 }
