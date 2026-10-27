@@ -259,7 +259,7 @@ func summarizeResource(res querytypes.AppliedResource) ResourceSummary {
 			rs.Restarts += intValue(n.Info["Restarts"])
 		}
 		if n.Health.Status != string(querytypes.HealthStatusHealthy) {
-			rs.Unhealthy = append(rs.Unhealthy, strings.TrimSpace(fmt.Sprintf("%s/%s: %s %s %s", n.Kind, n.Name, n.Health.Status, n.Health.Reason, n.Health.Message)))
+			rs.Unhealthy = append(rs.Unhealthy, fmt.Sprintf("%s/%s: %s", n.Kind, n.Name, joinParts(n.Health.Status, n.Health.Reason, n.Health.Message)))
 		}
 		if len(rs.Unhealthy) >= maxTreeNodes {
 			break
@@ -276,7 +276,7 @@ func resourceFindings(component string, rs ResourceSummary) []Finding {
 		if rs.Health.Status == string(querytypes.HealthStatusProgressing) {
 			severity = SeverityWarning
 		}
-		findings = append(findings, Finding{Severity: severity, Message: fmt.Sprintf("component %q: %s %s is %s", component, rs.Kind, rs.Name, rs.Health.Status), Observed: strings.TrimSpace(rs.Health.Reason + " " + rs.Health.Message), Evidence: ref})
+		findings = append(findings, Finding{Severity: severity, Message: fmt.Sprintf("component %q: %s %s is %s", component, rs.Kind, rs.Name, rs.Health.Status), Observed: joinParts(rs.Health.Reason, rs.Health.Message), Evidence: ref})
 	}
 	if n := len(rs.Unhealthy); n > 0 {
 		findings = append(findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("component %q: %d objects under %s %s are not healthy", component, n, rs.Kind, rs.Name), Observed: strings.Join(rs.Unhealthy, "; "), Evidence: ref})
@@ -330,13 +330,13 @@ func applicationFindings(app *v1beta1.Application, wf *WorkflowDetail, appRef st
 		}
 		for _, s := range wf.Steps {
 			if s.Phase == "failed" {
-				findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("workflow step %q (%s) failed", s.Name, s.Type), Observed: strings.TrimSpace(s.Reason + " " + s.Message), Evidence: appRef + " status.workflow.steps"})
+				findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("workflow step %q (%s) failed", s.Name, s.Type), Observed: joinParts(s.Reason, s.Message), Evidence: appRef + " status.workflow.steps"})
 			}
 		}
 	}
 	for _, c := range app.Status.Conditions {
 		if c.Status == corev1.ConditionFalse {
-			findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("condition %s is False", c.Type), Observed: text(strings.TrimSpace(string(c.Reason) + " " + c.Message)), Evidence: appRef + " status.conditions"})
+			findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("condition %s is False", c.Type), Observed: text(joinParts(string(c.Reason), c.Message)), Evidence: appRef + " status.conditions"})
 		}
 	}
 	return findings
@@ -412,4 +412,16 @@ func intValue(v any) int {
 func sortFindings(findings []Finding) {
 	rank := map[string]int{SeverityError: 0, SeverityWarning: 1, SeverityInfo: 2}
 	sort.SliceStable(findings, func(i, j int) bool { return rank[findings[i].Severity] < rank[findings[j].Severity] })
+}
+
+// joinParts joins the non-empty parts of a status (status, reason, message)
+// with "; " so that adjacent cluster strings stay readable.
+func joinParts(parts ...string) string {
+	kept := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			kept = append(kept, p)
+		}
+	}
+	return strings.Join(kept, "; ")
 }

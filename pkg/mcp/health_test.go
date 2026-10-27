@@ -109,13 +109,26 @@ var _ = Describe("health derived from pods", func() {
 			}
 		}
 		Expect(found).NotTo(BeNil(), toJSON(out.Findings))
-		Expect(found.Observed).To(ContainSubstring("2 of 2 pods are not healthy"))
+		Expect(found.Observed).To(Equal("2 of 2 pods are not healthy; the object's own health check reported Healthy"))
 		for _, c := range out.Components {
 			for _, r := range c.Resources {
 				if r.Kind == "Deployment" {
 					Expect(r.Health.Status).To(Equal("UnHealthy"), "the summary no longer reads Healthy")
+					for _, u := range r.Unhealthy {
+						Expect(u).NotTo(ContainSubstring("  "), "empty parts leave no double spaces")
+					}
 				}
 			}
 		}
 	})
+
+	DescribeTable("joinParts keeps status text readable",
+		func(parts []string, want string) {
+			Expect(joinParts(parts...)).To(Equal(want))
+		},
+		Entry("separates reason and message", []string{"Progressing", "rollout", "0 of 1 ready"}, "Progressing; rollout; 0 of 1 ready"),
+		Entry("skips an empty reason", []string{"Progressing", "", "Waiting for rollout"}, "Progressing; Waiting for rollout"),
+		Entry("trims whitespace-only parts", []string{" ", "Timeout", ""}, "Timeout"),
+		Entry("returns empty for nothing", []string{"", ""}, ""),
+	)
 })
