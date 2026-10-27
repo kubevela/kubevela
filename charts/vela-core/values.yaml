@@ -172,6 +172,7 @@ optimize:
 ##@param featureGates.enableDefinitionInheritance enable spec.extends on ComponentDefinition and TraitDefinition
 ##@param featureGates.enableModuleComponent enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)
 ##@param featureGates.autoMigrateLegacyConfigs adopt legacy config templates and configs into ConfigTemplate and Config CRs once at controller startup, the same as running vela config-template migrate --all in every namespace; legacy objects are kept (Alpha)
+##@param featureGates.validateTraitAppliesToWorkloads reject an Application that attaches a trait to a component its TraitDefinition's appliesToWorkloads does not list (Alpha)
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -202,6 +203,7 @@ featureGates:
   restrictDefinitionNamespaces: true
   enableDefinitionInheritance: false
   autoMigrateLegacyConfigs: false
+  validateTraitAppliesToWorkloads: false
 
 ## @section Definition restriction parameters
 
