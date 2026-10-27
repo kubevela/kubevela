@@ -47,11 +47,11 @@ var definitionTypes = []string{DefinitionTypeComponent, DefinitionTypeTrait, Def
 // DefinitionSummary is one row of list_definitions.
 type DefinitionSummary struct {
 	Name           string `json:"name"`
-	Type           string `json:"type"`
+	Type           string `json:"type" jsonschema:"Definition type: component, trait, policy or workflow-step."`
 	Namespace      string `json:"namespace"`
-	Description    string `json:"description,omitempty"`
-	Version        string `json:"version,omitempty"`
-	LatestRevision string `json:"latestRevision,omitempty"`
+	Description    string `json:"description,omitempty" jsonschema:"One-line description the definition declares."`
+	Version        string `json:"version,omitempty" jsonschema:"Version the definition declares, if any."`
+	LatestRevision string `json:"latestRevision,omitempty" jsonschema:"Name of the definition's latest DefinitionRevision."`
 	// Provides is the capability the platform says this definition serves.
 	Provides string `json:"provides,omitempty" jsonschema:"Capability the platform labels this definition as providing, such as postgres. Definitions with the same value are alternatives."`
 	// DefaultFor lists the namespaces where the platform made it the default.
@@ -79,7 +79,7 @@ type ListDefinitionsInput struct {
 
 // ListDefinitionsOutput is the structured result of list_definitions.
 type ListDefinitionsOutput struct {
-	Definitions []DefinitionSummary `json:"definitions"`
+	Definitions []DefinitionSummary `json:"definitions" jsonschema:"Definitions sorted by type, namespace and name."`
 	Meta        Meta                `json:"meta"`
 }
 
@@ -94,11 +94,11 @@ type DescribeDefinitionInput struct {
 type DescribeDefinitionOutput struct {
 	DefinitionSummary
 	// Parameters is the JSON Schema of the definition's parameter block.
-	Parameters map[string]any `json:"parameters"`
+	Parameters map[string]any `json:"parameters" jsonschema:"The definition's parameters as JSON Schema."`
 	// Required lists the top-level parameters that have no default and so
 	// must be supplied. The schema's own required list also includes
 	// defaulted fields, as CUE reports them.
-	Required []string `json:"required"`
+	Required []string `json:"required" jsonschema:"Parameter names the definition requires."`
 	Meta     Meta     `json:"meta"`
 }
 

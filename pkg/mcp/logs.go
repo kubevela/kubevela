@@ -80,7 +80,7 @@ type PodLogs struct {
 type GetLogsOutput struct {
 	Application string    `json:"application"`
 	Namespace   string    `json:"namespace"`
-	Pods        []PodLogs `json:"pods"`
+	Pods        []PodLogs `json:"pods" jsonschema:"One entry per pod read, with its lines and whether they were cut."`
 	Evidence    []string  `json:"evidence"`
 	Meta        Meta      `json:"meta"`
 }

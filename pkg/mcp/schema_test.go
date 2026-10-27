@@ -93,4 +93,23 @@ var _ = Describe("published output schemas", func() {
 			Expect(t.OutputSchema).NotTo(BeNil(), t.Name)
 		}
 	})
+
+	// The tool reference on kubevela.io is generated from these schemas, so
+	// a new result field without a description shows up there as a blank.
+	// Fields every result shares mean the same everywhere and are described
+	// once by the generator.
+	It("describes every top-level result field", func() {
+		h = startHarness(Options{AllowWrite: true}, platformFixtures()...)
+		shared := map[string]bool{"meta": true, "evidence": true, "name": true, "namespace": true, "application": true}
+		var missing []string
+		for name, schema := range tools() {
+			props, _ := schema["properties"].(map[string]any)
+			for field := range props {
+				if !shared[field] && describe(schema, field) == "" {
+					missing = append(missing, name+"."+field)
+				}
+			}
+		}
+		Expect(missing).To(BeEmpty())
+	})
 })

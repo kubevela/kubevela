@@ -80,7 +80,7 @@ type RenderedPolicy struct {
 type DryRunOutput struct {
 	Application string             `json:"application"`
 	Namespace   string             `json:"namespace"`
-	Components  []ComponentRef     `json:"components"`
+	Components  []ComponentRef     `json:"components" jsonschema:"Components in the document, with their types."`
 	Resources   []RenderedResource `json:"resources" jsonschema:"Every object the components and traits would create."`
 	Policies    []RenderedPolicy   `json:"policies" jsonschema:"Objects rendered by policies."`
 	Evidence    []string           `json:"evidence" jsonschema:"What was rendered and with which definitions."`

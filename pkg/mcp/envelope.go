@@ -53,7 +53,7 @@ type Meta struct {
 	Kubernetes map[string]string `json:"kubernetes" jsonschema:"Kubernetes API server version per cluster name."`
 	// FeatureGates lists the controller feature gates read from vela-core's
 	// arguments. Absent gates are at their defaults.
-	FeatureGates map[string]bool `json:"featureGates,omitempty" jsonschema:"vela-core feature gates set to a value other than their default. Absent gates are at their defaults; get_platform_info lists every gate."`
+	FeatureGates map[string]bool `json:"featureGates,omitempty" jsonschema:"vela-core feature gates set to a value other than their default. Absent gates are at their defaults; get_platform_info lists every gate set on the controller."`
 	// ObservedAt is when the data in this response was read.
 	ObservedAt time.Time `json:"observedAt" jsonschema:"When the data in this response was read, UTC."`
 	// Source is one of SourceLive, SourceRendered or SourceCached.

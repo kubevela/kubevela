@@ -58,7 +58,7 @@ type ClusterSummary struct {
 
 // ListClustersOutput is the structured result of list_clusters.
 type ListClustersOutput struct {
-	Clusters []ClusterSummary `json:"clusters"`
+	Clusters []ClusterSummary `json:"clusters" jsonschema:"Clusters with alias, credential type, endpoint and labels."`
 	Evidence []string         `json:"evidence"`
 	Meta     Meta             `json:"meta"`
 }
@@ -148,7 +148,7 @@ type AddonSummary struct {
 type ListAddonsOutput struct {
 	// Addons lists enabled addons only. Registry catalogues are a network
 	// call to systems outside the cluster and are not part of this tool.
-	Addons   []AddonSummary `json:"addons"`
+	Addons   []AddonSummary `json:"addons" jsonschema:"Enabled addons."`
 	Evidence []string       `json:"evidence"`
 	Meta     Meta           `json:"meta"`
 }

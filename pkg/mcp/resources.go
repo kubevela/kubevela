@@ -138,7 +138,7 @@ type ManagedResource struct {
 type GetManagedResourceOutput struct {
 	Application string            `json:"application"`
 	Namespace   string            `json:"namespace"`
-	Resources   []ManagedResource `json:"resources"`
+	Resources   []ManagedResource `json:"resources" jsonschema:"Managed objects with cluster, health and the live resource tree. A single match also carries the live object."`
 	Evidence    []string          `json:"evidence"`
 	Meta        Meta              `json:"meta"`
 }

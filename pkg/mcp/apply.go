@@ -88,8 +88,8 @@ type ApplyOutput struct {
 	// YAML is the document to commit in gitops mode.
 	YAML string `json:"yaml,omitempty" jsonschema:"In gitops mode, the Application to commit to the delivery repository. Nothing was written to the cluster."`
 	// ResourceVersion and Generation identify what was written.
-	ResourceVersion string `json:"resourceVersion,omitempty"`
-	Generation      int64  `json:"generation,omitempty"`
+	ResourceVersion string `json:"resourceVersion,omitempty" jsonschema:"resourceVersion of the Application as written. Empty when nothing was written."`
+	Generation      int64  `json:"generation,omitempty" jsonschema:"Generation of the Application as written. Empty when nothing was written."`
 	Risk            Risk   `json:"risk" jsonschema:"Risk class and rules from the diff this token was issued for."`
 	// Next is what the agent should do now.
 	Next     string   `json:"next" jsonschema:"What to do next, such as open a pull request or poll get_application."`

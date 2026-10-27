@@ -69,15 +69,15 @@ type WorkflowSummary struct {
 type ApplicationSummary struct {
 	Name       string           `json:"name"`
 	Namespace  string           `json:"namespace"`
-	Phase      string           `json:"phase"`
-	Healthy    bool             `json:"healthy"`
-	Components []ComponentRef   `json:"components"`
-	Workflow   *WorkflowSummary `json:"workflow,omitempty"`
-	Revision   string           `json:"revision,omitempty"`
+	Phase      string           `json:"phase" jsonschema:"Application phase as the controller recorded it, such as running or runningWorkflow."`
+	Healthy    bool             `json:"healthy" jsonschema:"False when the phase or a workflow step failed, or when no service has reported status yet."`
+	Components []ComponentRef   `json:"components" jsonschema:"Components with their types."`
+	Workflow   *WorkflowSummary `json:"workflow,omitempty" jsonschema:"Workflow progress: mode, phase, and whether it is suspended, terminated or finished."`
+	Revision   string           `json:"revision,omitempty" jsonschema:"Latest ApplicationRevision name."`
 	// StatusStale is set when the controller has not yet observed the
 	// latest spec, so status describes an older generation.
-	StatusStale bool      `json:"statusStale"`
-	CreatedAt   time.Time `json:"createdAt"`
+	StatusStale bool      `json:"statusStale" jsonschema:"True when the controller has not observed the latest spec, so status describes an older generation."`
+	CreatedAt   time.Time `json:"createdAt" jsonschema:"When the Application was created, UTC."`
 }
 
 // ListApplicationsInput filters list_applications.
@@ -87,7 +87,7 @@ type ListApplicationsInput struct {
 
 // ListApplicationsOutput is the structured result of list_applications.
 type ListApplicationsOutput struct {
-	Applications []ApplicationSummary `json:"applications"`
+	Applications []ApplicationSummary `json:"applications" jsonschema:"Applications the server may read, sorted by namespace and name."`
 	Meta         Meta                 `json:"meta"`
 }
 
@@ -203,10 +203,10 @@ type ApplicationStatusView struct {
 // GetApplicationOutput is the structured result of get_application.
 type GetApplicationOutput struct {
 	ApplicationSummary
-	Labels      map[string]string     `json:"labels,omitempty"`
-	Annotations map[string]string     `json:"annotations,omitempty"`
-	Spec        ApplicationSpecView   `json:"spec"`
-	Status      ApplicationStatusView `json:"status"`
+	Labels      map[string]string     `json:"labels,omitempty" jsonschema:"Application labels."`
+	Annotations map[string]string     `json:"annotations,omitempty" jsonschema:"Application annotations. Values that embed a serialized object are dropped."`
+	Spec        ApplicationSpecView   `json:"spec" jsonschema:"Declared components, traits, policies and workflow, with secret-like values removed."`
+	Status      ApplicationStatusView `json:"status" jsonschema:"Status as the controller last wrote it: services, conditions, applied resources and workflow."`
 	// Evidence lists the objects this answer was derived from.
 	Evidence []string `json:"evidence"`
 	Meta     Meta     `json:"meta"`
@@ -253,12 +253,12 @@ type GetWorkflowInput = ApplicationRef
 
 // GetWorkflowOutput is the structured result of get_workflow.
 type GetWorkflowOutput struct {
-	Application string        `json:"application"`
-	Namespace   string        `json:"namespace"`
-	Spec        *WorkflowSpec `json:"spec,omitempty"`
-	Status      *WorkflowDetail
-	Evidence    []string `json:"evidence"`
-	Meta        Meta     `json:"meta"`
+	Application string          `json:"application"`
+	Namespace   string          `json:"namespace"`
+	Spec        *WorkflowSpec   `json:"spec,omitempty" jsonschema:"Workflow steps as the Application declares them."`
+	Status      *WorkflowDetail `json:"status,omitempty" jsonschema:"Each step's recorded phase, reason, message and timing, and the vela command that moves the workflow forward."`
+	Evidence    []string        `json:"evidence"`
+	Meta        Meta            `json:"meta"`
 }
 
 func (d *deps) listApplications(ctx context.Context, _ *sdk.CallToolRequest, in ListApplicationsInput) (*sdk.CallToolResult, ListApplicationsOutput, error) {

@@ -92,18 +92,18 @@ type ConsumerSummary struct {
 // ExplainDefinitionOutput is the structured result of explain_definition.
 type ExplainDefinitionOutput struct {
 	DefinitionSummary
-	Alias      string `json:"alias,omitempty"`
-	Deprecated bool   `json:"deprecated,omitempty"`
-	Hidden     bool   `json:"hidden,omitempty"`
-	Extends    string `json:"extends,omitempty"`
-	Abstract   bool   `json:"abstract,omitempty"`
+	Alias      string `json:"alias,omitempty" jsonschema:"Short alias the definition declares."`
+	Deprecated bool   `json:"deprecated,omitempty" jsonschema:"True when the definition is marked deprecated."`
+	Hidden     bool   `json:"hidden,omitempty" jsonschema:"True when the definition asks to be hidden from listings."`
+	Extends    string `json:"extends,omitempty" jsonschema:"Definition this one extends, if any."`
+	Abstract   bool   `json:"abstract,omitempty" jsonschema:"True when the definition is abstract and is only extended, never used directly."`
 	// Workload is set for component definitions.
-	Workload *WorkloadInfo `json:"workload,omitempty"`
+	Workload *WorkloadInfo `json:"workload,omitempty" jsonschema:"For components: the workload type, apiVersion and kind the template declares."`
 	// Trait is set for trait definitions.
-	Trait *TraitBehaviour `json:"trait,omitempty"`
+	Trait *TraitBehaviour `json:"trait,omitempty" jsonschema:"For traits: the workloads it applies to, what it conflicts with, and whether it restarts pods or manages the workload."`
 	// RestrictedToNamespaces lists where the definition may be used when
 	// the platform restricts it.
-	RestrictedToNamespaces []string           `json:"restrictedToNamespaces,omitempty"`
+	RestrictedToNamespaces []string           `json:"restrictedToNamespaces,omitempty" jsonschema:"Namespaces the definition may be used in, when the platform restricts it."`
 	Produces               []ProducedResource `json:"produces" jsonschema:"Kinds the template emits, read from the template without rendering."`
 	ParameterUsage         []ParameterUsage   `json:"parameterUsage" jsonschema:"Which template fields each parameter flows into."`
 	Parameters             map[string]any     `json:"parameters" jsonschema:"JSON Schema of the parameter block."`

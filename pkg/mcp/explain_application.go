@@ -116,7 +116,7 @@ type Finding struct {
 type ExplainApplicationOutput struct {
 	ApplicationSummary
 	Components []ComponentExplanation `json:"components" jsonschema:"Each component joined with its definition, status and live resources."`
-	Policies   []PolicySpec           `json:"policies,omitempty"`
+	Policies   []PolicySpec           `json:"policies,omitempty" jsonschema:"Policies the Application declares, with their types and properties."`
 	Workflow   *WorkflowDetail        `json:"workflow,omitempty" jsonschema:"Workflow state with suspended and failed steps and the next command."`
 	Events     []EventSummary         `json:"events" jsonschema:"Recent events on the Application or its resources, newest first."`
 	// Findings are ordered error, warning, info. They are facts read from

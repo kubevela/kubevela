@@ -54,15 +54,15 @@ const (
 // platformInfo is what get_platform_info returns and what the envelope is
 // built from. The two share one lookup so they cannot disagree.
 type platformInfo struct {
-	VelaCLI      string            `json:"velaCLI"`
-	VelaCore     string            `json:"velaCore"`
-	GitRevision  string            `json:"gitRevision"`
-	Kubernetes   map[string]string `json:"kubernetes"`
-	FeatureGates map[string]bool   `json:"featureGates,omitempty"`
-	Controller   controllerInfo    `json:"controller"`
+	VelaCLI      string            `json:"velaCLI" jsonschema:"Version of the vela binary serving this session."`
+	VelaCore     string            `json:"velaCore" jsonschema:"vela-core controller version found on the cluster, or unknown."`
+	GitRevision  string            `json:"gitRevision" jsonschema:"Git revision the vela binary was built from."`
+	Kubernetes   map[string]string `json:"kubernetes" jsonschema:"Kubernetes API server version per cluster name."`
+	FeatureGates map[string]bool   `json:"featureGates,omitempty" jsonschema:"Feature gates set on the vela-core controller's --feature-gates flag, with their values."`
+	Controller   controllerInfo    `json:"controller" jsonschema:"Whether the vela-core Deployment was found, with its image and ready replicas."`
 	// Gateway describes how reads in other clusters are authenticated.
-	Gateway  gatewayInfo `json:"clusterGateway"`
-	Warnings []string    `json:"warnings,omitempty"`
+	Gateway  gatewayInfo `json:"clusterGateway" jsonschema:"Whether cluster-gateway was found and whether it forwards the caller's identity to other clusters."`
+	Warnings []string    `json:"warnings,omitempty" jsonschema:"Version skew and other notes about this platform."`
 }
 
 // gatewayInfo records whether cluster-gateway forwards the caller's
