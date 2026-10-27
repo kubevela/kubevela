@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -171,7 +172,7 @@ func (h *ValidatingHandler) resolveAppliesToTarget(ctx context.Context, app *v1b
 		if !inheritanceEnabled() {
 			return nil, nil
 		}
-		if cd, err = appfile.InheritedComponentDefinition(ctx, h.Client, cd); err != nil {
+		if cd, err = appfile.InheritedComponentDefinition(ctx, h.Client, cd, app.GetAnnotations()); err != nil {
 			return nil, ignoreNotFound(err)
 		}
 	}
@@ -195,7 +196,7 @@ func (h *ValidatingHandler) resolveAppliesToTrait(ctx context.Context, app *v1be
 		if !inheritanceEnabled() {
 			return nil, nil
 		}
-		if td, err = appfile.InheritedTraitDefinition(ctx, h.Client, td); err != nil {
+		if td, err = appfile.InheritedTraitDefinition(ctx, h.Client, td, app.GetAnnotations()); err != nil {
 			return nil, ignoreNotFound(err)
 		}
 	}
@@ -251,6 +252,12 @@ func (h *ValidatingHandler) workloadOf(ctx context.Context, cd *v1beta1.Componen
 	}
 	ref, err := oamutil.ConvertWorkloadGVK2Definition(h.Client.RESTMapper(), w.Definition)
 	if err != nil {
+		// A kind the cluster does not serve, such as a CRD not installed yet, has
+		// no workload to compare against. Any other failure, such as discovery
+		// being unavailable, leaves the answer unknown and fails closed.
+		if !meta.IsNoMatchError(err) {
+			return "", err
+		}
 		klog.Warningf("Cannot map workload %s/%s of ComponentDefinition %q: %v", w.Definition.APIVersion, w.Definition.Kind, cd.Name, err)
 		return "", nil
 	}

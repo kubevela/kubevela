@@ -128,6 +128,14 @@ func appliesToRESTMapper() meta.RESTMapper {
 
 // appliesToClient serves objects through a fake client, with funcs intercepting
 // its calls when not nil.
+// unavailableRESTMapper fails every mapping the way a mapper does when discovery
+// cannot be reached, which is not a NoKindMatch.
+type unavailableRESTMapper struct{ meta.RESTMapper }
+
+func (unavailableRESTMapper) RESTMapping(schema.GroupKind, ...string) (*meta.RESTMapping, error) {
+	return nil, fmt.Errorf("discovery unavailable")
+}
+
 func appliesToClient(funcs *interceptor.Funcs, objects ...client.Object) client.Client {
 	b := fake.NewClientBuilder().WithScheme(readKindsScheme()).WithRESTMapper(appliesToRESTMapper()).WithObjects(objects...)
 	if funcs != nil {
@@ -223,6 +231,29 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 
 		require.Len(t, errs, 1)
 		assert.Contains(t, errs[0].Detail, `(workload "statefulsets.apps")`)
+	})
+
+	t.Run("treats a kind the cluster does not serve as having no workload type", func(t *testing.T) {
+		withAppliesToValidation(t)
+		unserved := appliesToComponentDef("widget", common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{APIVersion: "example.com/v1", Kind: "Widget"},
+		})
+		app := appliesToApp(component("w", "widget", "sts-only"))
+
+		assert.Empty(t, appliesToErrs(appliesToHandler(append(definitions, unserved)...), app))
+	})
+
+	t.Run("fails closed when the RESTMapper cannot answer", func(t *testing.T) {
+		withAppliesToValidation(t)
+		cli := fake.NewClientBuilder().WithScheme(readKindsScheme()).
+			WithRESTMapper(unavailableRESTMapper{appliesToRESTMapper()}).WithObjects(definitions...).Build()
+		app := appliesToApp(component("db", "gvk-only", "sts-only"))
+
+		errs := appliesToErrs(&ValidatingHandler{Client: cli}, app)
+
+		require.Len(t, errs, 1)
+		assert.Equal(t, field.ErrorTypeInternal, errs[0].Type)
+		assert.Equal(t, "spec.components[0].type", errs[0].Field)
 	})
 
 	t.Run("reads the workload from the WorkloadDefinition spec.workload.type names", func(t *testing.T) {
@@ -456,6 +487,41 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, false)
 		app := appliesToApp(component("web", "base-web", "tenant-scaler"))
 		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
+	})
+
+	// A parent pinned as "@v1" resolves through the Application's annotations, as
+	// it does at render: with auto-update the latest v1.x revision is read.
+	t.Run("a pinned parent is resolved with the Application's annotations", func(t *testing.T) {
+		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
+		revision := func(name string, appliesTo ...string) *v1beta1.DefinitionRevision {
+			return &v1beta1.DefinitionRevision{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: oam.SystemDefinitionNamespace,
+					Labels:    map[string]string{oam.LabelTraitDefinitionName: "sts-scaler"},
+				},
+				Spec: v1beta1.DefinitionRevisionSpec{
+					DefinitionType:  common.TraitType,
+					TraitDefinition: *appliesToTraitDef("sts-scaler", appliesTo...),
+				},
+			}
+		}
+		pinned := appliesToTraitDef("pinned-scaler")
+		pinned.Spec.Extends = "sts-scaler@v1"
+		h := appliesToHandler(append(definitions, pinned,
+			revision("sts-scaler-v1.0", "*"),
+			revision("sts-scaler-v1.1", "statefulsets.apps"))...)
+
+		app := appliesToApp(component("web", "base-web", "pinned-scaler"))
+		app.Annotations = map[string]string{oam.AnnotationAutoUpdate: "true"}
+		errs := appliesToErrs(h, app)
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Detail, `appliesToWorkloads: ["statefulsets.apps"]`)
+
+		// Without auto-update "@v1" names a revision that does not exist, so the
+		// chain does not resolve and is left to rendering.
+		app.Annotations = nil
+		assert.Empty(t, appliesToErrs(h, app))
 	})
 }
 

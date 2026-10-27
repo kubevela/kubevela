@@ -418,9 +418,13 @@ func TraitAncestors(ctx context.Context, cli client.Client, td *v1beta1.TraitDef
 // InheritedComponentDefinition returns a copy of cd with the attributes it
 // inherits through spec.extends filled in, such as its workload, for a caller
 // that reads the spec rather than rendering the template. cd is left as it is.
-func InheritedComponentDefinition(ctx context.Context, cli client.Client, cd *v1beta1.ComponentDefinition) (*v1beta1.ComponentDefinition, error) {
+//
+// annotations are the Application's, as LoadTemplate takes them: they decide
+// which revision a pinned parent such as "webservice@v1" resolves to, so the
+// chain read here is the one that renders.
+func InheritedComponentDefinition(ctx context.Context, cli client.Client, cd *v1beta1.ComponentDefinition, annotations map[string]string) (*v1beta1.ComponentDefinition, error) {
 	merged := cd.DeepCopy()
-	if err := resolveComponentChain(ctx, &Template{}, merged, clusterComponentFetcher(cli, cd.Namespace, cd.Annotations)); err != nil {
+	if err := resolveComponentChain(ctx, &Template{}, merged, clusterComponentFetcher(cli, cd.Namespace, annotations)); err != nil {
 		return nil, err
 	}
 	return merged, nil
@@ -428,9 +432,9 @@ func InheritedComponentDefinition(ctx context.Context, cli client.Client, cd *v1
 
 // InheritedTraitDefinition is InheritedComponentDefinition for a
 // TraitDefinition, filling in fields such as appliesToWorkloads.
-func InheritedTraitDefinition(ctx context.Context, cli client.Client, td *v1beta1.TraitDefinition) (*v1beta1.TraitDefinition, error) {
+func InheritedTraitDefinition(ctx context.Context, cli client.Client, td *v1beta1.TraitDefinition, annotations map[string]string) (*v1beta1.TraitDefinition, error) {
 	merged := td.DeepCopy()
-	if err := resolveTraitChain(ctx, &Template{}, merged, clusterTraitFetcher(cli, td.Namespace, td.Annotations)); err != nil {
+	if err := resolveTraitChain(ctx, &Template{}, merged, clusterTraitFetcher(cli, td.Namespace, annotations)); err != nil {
 		return nil, err
 	}
 	return merged, nil

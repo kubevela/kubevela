@@ -241,7 +241,7 @@ func TestInheritedDefinitionHelpers(t *testing.T) {
 		child := definitionIn("team-a", "child", "base", "$super: properties: {}")
 		cli := fakeClientWith(parent, child).Build()
 
-		got, err := InheritedComponentDefinition(context.Background(), cli, child)
+		got, err := InheritedComponentDefinition(context.Background(), cli, child, nil)
 		require.NoError(t, err)
 		require.Equal(t, "deployments.apps", got.Spec.Workload.Type)
 		require.Empty(t, child.Spec.Workload.Type, "the caller's definition must not be modified")
@@ -254,7 +254,7 @@ func TestInheritedDefinitionHelpers(t *testing.T) {
 		child.Spec.Workload = common.WorkloadTypeDescriptor{Type: "statefulsets.apps"}
 		cli := fakeClientWith(parent, child).Build()
 
-		got, err := InheritedComponentDefinition(context.Background(), cli, child)
+		got, err := InheritedComponentDefinition(context.Background(), cli, child, nil)
 		require.NoError(t, err)
 		require.Equal(t, "statefulsets.apps", got.Spec.Workload.Type)
 	})
@@ -265,7 +265,7 @@ func TestInheritedDefinitionHelpers(t *testing.T) {
 		child := traitIn("team-a", "child", "base", "$super: properties: {}")
 		cli := traitClient(parent, child).Build()
 
-		got, err := InheritedTraitDefinition(context.Background(), cli, child)
+		got, err := InheritedTraitDefinition(context.Background(), cli, child, nil)
 		require.NoError(t, err)
 		require.Equal(t, []string{"statefulsets.apps"}, got.Spec.AppliesToWorkloads)
 		require.Empty(t, child.Spec.AppliesToWorkloads, "the caller's definition must not be modified")
@@ -275,7 +275,7 @@ func TestInheritedDefinitionHelpers(t *testing.T) {
 		td := traitIn("team-a", "plain", "", "patch: {}")
 		td.Spec.AppliesToWorkloads = []string{"*"}
 
-		got, err := InheritedTraitDefinition(context.Background(), traitClient(td).Build(), td)
+		got, err := InheritedTraitDefinition(context.Background(), traitClient(td).Build(), td, nil)
 		require.NoError(t, err)
 		require.Equal(t, td, got)
 	})
@@ -283,7 +283,7 @@ func TestInheritedDefinitionHelpers(t *testing.T) {
 	t.Run("a parent that is not there is reported", func(t *testing.T) {
 		child := traitIn("team-a", "orphan", "gone", "$super: properties: {}")
 
-		_, err := InheritedTraitDefinition(context.Background(), traitClient(child).Build(), child)
+		_, err := InheritedTraitDefinition(context.Background(), traitClient(child).Build(), child, nil)
 		require.Error(t, err)
 	})
 }
