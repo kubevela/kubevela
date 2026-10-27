@@ -29,6 +29,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	ctrlEvent "sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -343,4 +344,55 @@ func TestRecordPolicyStatuses_HasContext(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPolicyDefinitionEventHandler(t *testing.T) {
+	ctx := context.Background()
+
+	originalPolicyScopeIndex := policyScopeIndex
+	defer func() { policyScopeIndex = originalPolicyScopeIndex }()
+	policyScopeIndex = NewPolicyScopeIndex()
+	policyScopeIndex.initialized = true
+
+	r := &Reconciler{}
+	h := r.policyDefinitionEventHandler()
+
+	newPolicy := func(namespace string, priority int32) *v1beta1.PolicyDefinition {
+		return &v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "evt-policy", Namespace: namespace},
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Scope:    v1beta1.ApplicationScope,
+				Global:   true,
+				Priority: priority,
+			},
+		}
+	}
+
+	for _, ns := range []string{oam.SystemDefinitionNamespace, "my-ns"} {
+		t.Run(ns, func(t *testing.T) {
+			created := newPolicy(ns, 10)
+			h.Create(ctx, ctrlEvent.CreateEvent{Object: created}, nil)
+			if got := policyScopeIndex.GetFromNamespace("evt-policy", ns); got == nil || got.Priority != 10 {
+				t.Fatalf("expected create event to index policy with priority 10, got %+v", got)
+			}
+
+			updated := newPolicy(ns, 20)
+			h.Update(ctx, ctrlEvent.UpdateEvent{ObjectOld: created, ObjectNew: updated}, nil)
+			if got := policyScopeIndex.GetFromNamespace("evt-policy", ns); got == nil || got.Priority != 20 {
+				t.Fatalf("expected update event to refresh policy priority to 20, got %+v", got)
+			}
+
+			h.Delete(ctx, ctrlEvent.DeleteEvent{Object: updated}, nil)
+			if got := policyScopeIndex.GetFromNamespace("evt-policy", ns); got != nil {
+				t.Fatalf("expected delete event to evict policy without finalizers, got %+v", got)
+			}
+		})
+	}
+
+	t.Run("non-PolicyDefinition object is ignored", func(t *testing.T) {
+		h.Create(ctx, ctrlEvent.CreateEvent{Object: &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "evt-policy", Namespace: "my-ns"}}}, nil)
+		if got := policyScopeIndex.GetFromNamespace("evt-policy", "my-ns"); got != nil {
+			t.Fatalf("expected non-PolicyDefinition object to be ignored, got %+v", got)
+		}
+	})
 }

@@ -992,20 +992,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return true
 			},
 		}).
-		Watches(
-			&v1beta1.PolicyDefinition{},
-			ctrlHandler.Funcs{
-				CreateFunc: func(ctx context.Context, e ctrlEvent.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-					r.handlePolicyDefinitionChange(ctx, e.Object, false)
-				},
-				UpdateFunc: func(ctx context.Context, e ctrlEvent.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-					r.handlePolicyDefinitionChange(ctx, e.ObjectNew, false)
-				},
-				DeleteFunc: func(ctx context.Context, e ctrlEvent.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-					r.handlePolicyDefinitionChange(ctx, e.Object, true)
-				},
-			},
-		).
+		Watches(&v1beta1.PolicyDefinition{}, r.policyDefinitionEventHandler()).
 		For(&v1beta1.Application{}).
 		Complete(r)
 }
@@ -1082,6 +1069,20 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	newTracker.ManagedFields = old.ManagedFields
 	newTracker.ResourceVersion = old.ResourceVersion
 	return !reflect.DeepEqual(newTracker, old)
+}
+
+func (r *Reconciler) policyDefinitionEventHandler() ctrlHandler.Funcs {
+	return ctrlHandler.Funcs{
+		CreateFunc: func(ctx context.Context, e ctrlEvent.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.handlePolicyDefinitionChange(ctx, e.Object, false)
+		},
+		UpdateFunc: func(ctx context.Context, e ctrlEvent.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.handlePolicyDefinitionChange(ctx, e.ObjectNew, false)
+		},
+		DeleteFunc: func(ctx context.Context, e ctrlEvent.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.handlePolicyDefinitionChange(ctx, e.Object, true)
+		},
+	}
 }
 
 func (r *Reconciler) handlePolicyDefinitionChange(_ context.Context, obj client.Object, deleted bool) {
