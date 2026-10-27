@@ -414,3 +414,24 @@ func TraitAncestors(ctx context.Context, cli client.Client, td *v1beta1.TraitDef
 	}
 	return tmpl.Ancestors, nil
 }
+
+// InheritedComponentDefinition returns a copy of cd with the attributes it
+// inherits through spec.extends filled in, such as its workload, for a caller
+// that reads the spec rather than rendering the template. cd is left as it is.
+func InheritedComponentDefinition(ctx context.Context, cli client.Client, cd *v1beta1.ComponentDefinition) (*v1beta1.ComponentDefinition, error) {
+	merged := cd.DeepCopy()
+	if err := resolveComponentChain(ctx, &Template{}, merged, clusterComponentFetcher(cli, cd.Namespace, cd.Annotations)); err != nil {
+		return nil, err
+	}
+	return merged, nil
+}
+
+// InheritedTraitDefinition is InheritedComponentDefinition for a
+// TraitDefinition, filling in fields such as appliesToWorkloads.
+func InheritedTraitDefinition(ctx context.Context, cli client.Client, td *v1beta1.TraitDefinition) (*v1beta1.TraitDefinition, error) {
+	merged := td.DeepCopy()
+	if err := resolveTraitChain(ctx, &Template{}, merged, clusterTraitFetcher(cli, td.Namespace, td.Annotations)); err != nil {
+		return nil, err
+	}
+	return merged, nil
+}
