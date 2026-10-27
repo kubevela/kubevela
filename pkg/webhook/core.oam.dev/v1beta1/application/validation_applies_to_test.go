@@ -175,6 +175,16 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		appliesToTraitDef("anywhere"),
 		appliesToComponentDef("wd-backed", common.WorkloadTypeDescriptor{Type: "my-deploy"}),
 		appliesToComponentDef("wd-missing", common.WorkloadTypeDescriptor{Type: "statefulsets.apps"}),
+		appliesToComponentDef("wd-noref", common.WorkloadTypeDescriptor{Type: "bare-wd"}),
+		&v1beta1.WorkloadDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "bare-wd", Namespace: oam.SystemDefinitionNamespace},
+		},
+		// What the ComponentDefinition mutating webhook stores for a GVK.
+		appliesToComponentDef("gvk-and-type", common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{APIVersion: "apps/v1", Kind: "StatefulSet"},
+			Type:       "statefulsets.apps",
+		}),
+		appliesToComponentDef("no-workload", common.WorkloadTypeDescriptor{}),
 		&v1beta1.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: "my-deploy", Namespace: oam.SystemDefinitionNamespace},
 			Spec:       v1beta1.WorkloadDefinitionSpec{Reference: common.DefinitionReference{Name: "deployments.apps"}},
@@ -372,6 +382,53 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		assert.Equal(t, 1, calls)
 	})
 
+	t.Run("uses spec.workload.type when a GVK is set as well", func(t *testing.T) {
+		withAppliesToValidation(t)
+		app := appliesToApp(component("db", "gvk-and-type", "sts-only", "webservice-only"))
+
+		errs := appliesToErrs(appliesToHandler(definitions...), app)
+
+		require.Len(t, errs, 1)
+		assert.Equal(t, "spec.components[0].traits[1].type", errs[0].Field)
+		assert.Contains(t, errs[0].Detail, `(workload "statefulsets.apps")`)
+	})
+
+	t.Run("a WorkloadDefinition without a definitionRef stands for its own name", func(t *testing.T) {
+		withAppliesToValidation(t)
+		app := appliesToApp(component("web", "wd-noref", "webservice-only"))
+
+		errs := appliesToErrs(appliesToHandler(definitions...), app)
+
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Detail, `(workload "bare-wd")`)
+	})
+
+	t.Run("a component that declares no workload has no workload type", func(t *testing.T) {
+		withAppliesToValidation(t)
+		app := appliesToApp(component("x", "no-workload", "sts-only", "webservice-only"))
+
+		errs := appliesToErrs(appliesToHandler(definitions...), app)
+
+		require.Len(t, errs, 1)
+		assert.Equal(t, "spec.components[0].traits[1].type", errs[0].Field)
+		assert.Contains(t, errs[0].Detail, `(workload "")`)
+	})
+
+	t.Run("fails closed when the WorkloadDefinition cannot be read", func(t *testing.T) {
+		withAppliesToValidation(t)
+		cli := failingClient(func(obj client.Object) bool {
+			_, ok := obj.(*v1beta1.WorkloadDefinition)
+			return ok
+		})
+		app := appliesToApp(component("web", "wd-backed", "sts-only"))
+
+		errs := appliesToErrs(&ValidatingHandler{Client: cli}, app)
+
+		require.Len(t, errs, 1)
+		assert.Equal(t, field.ErrorTypeInternal, errs[0].Type)
+		assert.Equal(t, "spec.components[0].type", errs[0].Field)
+	})
+
 	t.Run("fails closed when a definition cannot be read", func(t *testing.T) {
 		withAppliesToValidation(t)
 		cli := failingClient(func(obj client.Object) bool {
@@ -459,8 +516,10 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 	// declares no workload of its own.
 	childComp := appliesToComponentDef("tenant-web", common.WorkloadTypeDescriptor{Type: types.AutoDetectWorkloadDefinition})
 	childComp.Spec.Extends = "base-web"
+	orphanComp := appliesToComponentDef("orphan-web", common.WorkloadTypeDescriptor{Type: types.AutoDetectWorkloadDefinition})
+	orphanComp.Spec.Extends = "gone"
 
-	definitions := []client.Object{parentTrait, childTrait, parentComp, childComp}
+	definitions := []client.Object{parentTrait, childTrait, parentComp, childComp, orphanComp}
 
 	t.Run("a child trait inherits its parent's appliesToWorkloads", func(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
@@ -480,6 +539,18 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
 		app := appliesToApp(component("web", "tenant-web", "sts-scaler"))
 
+		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
+	})
+
+	t.Run("an extending component is left to rendering while inheritance is off", func(t *testing.T) {
+		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, false)
+		app := appliesToApp(component("web", "tenant-web", "sts-scaler"))
+		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
+	})
+
+	t.Run("a component whose parent is missing is left to rendering", func(t *testing.T) {
+		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
+		app := appliesToApp(component("web", "orphan-web", "sts-scaler"))
 		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 

@@ -286,4 +286,11 @@ func TestInheritedDefinitionHelpers(t *testing.T) {
 		_, err := InheritedTraitDefinition(context.Background(), traitClient(child).Build(), child, nil)
 		require.Error(t, err)
 	})
+
+	t.Run("a component's parent that is not there is reported", func(t *testing.T) {
+		child := definitionIn("team-a", "orphan", "gone", "$super: properties: {}")
+
+		_, err := InheritedComponentDefinition(context.Background(), fakeClientWith(child).Build(), child, nil)
+		require.Error(t, err)
+	})
 }
