@@ -559,6 +559,219 @@ template: {
 		})
 	})
 
+	Context("Validators on Trait", func() {
+		hpaTrait := func() *defkit.TraitDefinition {
+			return defkit.NewTrait("example-hpa").
+				Params(
+					defkit.Int("min").Default(1),
+					defkit.Int("max").Default(5),
+				).
+				Template(func(tpl *defkit.Template) {
+					tpl.Outputs("hpa", defkit.NewResource("autoscaling/v2", "HorizontalPodAutoscaler").
+						Set("spec.minReplicas", defkit.Int("min")).
+						Set("spec.maxReplicas", defkit.Int("max")))
+				})
+		}
+
+		minMaxValidator := func() *defkit.Validator {
+			return defkit.Validate("min must not be greater than max").
+				WithName("_validateMinMax").
+				FailWhen(defkit.CUEExpr("parameter.min > parameter.max"))
+		}
+
+		// upperRegionValidator has a ValidateValue message that calls
+		// strings.ToUpper, so it needs the "strings" import.
+		upperRegionValidator := func() *defkit.Validator {
+			return defkit.ValidateValue(defkit.Interpolation(
+				defkit.Lit("region '"),
+				defkit.StringsToUpper(defkit.LocalField("region")),
+				defkit.Lit("' is not allowed"),
+			)).FailWhen(defkit.LocalField("region").Eq("x")).WithName("_v")
+		}
+
+		It("should store validators via Validators method", func() {
+			v1 := defkit.Validate("a").WithName("_a")
+			v2 := defkit.Validate("b").WithName("_b")
+
+			t := defkit.NewTrait("test").Validators(v1, v2)
+			Expect(t.GetValidators()).To(HaveLen(2))
+			Expect(t.GetValidators()[0]).To(Equal(v1))
+			Expect(t.GetValidators()[1]).To(Equal(v2))
+		})
+
+		It("should accumulate validators across multiple calls", func() {
+			t := defkit.NewTrait("test").
+				Validators(defkit.Validate("a").WithName("_a")).
+				Validators(defkit.Validate("b").WithName("_b"))
+			Expect(t.GetValidators()).To(HaveLen(2))
+		})
+
+		It("should emit top-level validators inside the parameter block", func() {
+			cue := hpaTrait().Validators(minMaxValidator()).ToCue()
+
+			Expect(cue).To(ContainSubstring("_validateMinMax: {"))
+			Expect(cue).To(ContainSubstring(`"min must not be greater than max": true`))
+			Expect(cue).To(ContainSubstring("if parameter.min > parameter.max {"))
+			// The validator must sit inside parameter: {}, not elsewhere in the template.
+			Expect(strings.Index(cue, "parameter: {")).To(BeNumerically("<", strings.Index(cue, "_validateMinMax")))
+			// A plain struct parameter keeps a single block.
+			Expect(strings.Count(cue, "parameter: {")).To(Equal(1))
+		})
+
+		It("should add imports for a top-level ValidateValue message", func() {
+			cue := defkit.NewTrait("test").
+				Params(defkit.String("region")).
+				Validators(upperRegionValidator()).
+				Template(func(tpl *defkit.Template) {
+					tpl.Outputs("cm", defkit.NewResource("v1", "ConfigMap").
+						Set("data.region", defkit.String("region")))
+				}).
+				ToCue()
+
+			Expect(cue).To(ContainSubstring("strings.ToUpper(region)"))
+			Expect(cue).To(ContainSubstring(`"strings"`))
+		})
+
+		It("should not add imports for a fixed string validator", func() {
+			cue := hpaTrait().Validators(minMaxValidator()).ToCue()
+			Expect(cue).NotTo(ContainSubstring("import"))
+		})
+
+		It("should not change output when no validators are set", func() {
+			Expect(hpaTrait().ToCue()).NotTo(ContainSubstring("_validate"))
+		})
+
+		Context("when the parameter is not a plain struct", func() {
+			It("should emit validators for an OpenStruct parameter in a second parameter block", func() {
+				cue := defkit.NewTrait("merge-patch").
+					Params(defkit.OpenStruct()).
+					Validators(minMaxValidator()).
+					ToCue()
+
+				Expect(cue).To(ContainSubstring("parameter: {...}"))
+				Expect(cue).To(ContainSubstring("_validateMinMax: {"))
+				Expect(strings.Count(cue, "parameter:")).To(Equal(2))
+				// The open schema line is unchanged and comes first.
+				Expect(strings.Index(cue, "parameter: {...}")).To(BeNumerically("<", strings.Index(cue, "_validateMinMax")))
+			})
+
+			It("should emit validators for a DynamicMap parameter in a second parameter block", func() {
+				cue := defkit.NewTrait("labels").
+					Params(defkit.DynamicMap().ValueTypeUnion("string | null")).
+					Validators(minMaxValidator()).
+					ToCue()
+
+				Expect(cue).To(ContainSubstring("parameter: [string]: string | null"))
+				Expect(cue).To(ContainSubstring("_validateMinMax: {"))
+				Expect(strings.Count(cue, "parameter:")).To(Equal(2))
+				Expect(strings.Index(cue, "parameter: [string]")).To(BeNumerically("<", strings.Index(cue, "_validateMinMax")))
+			})
+
+			It("should leave OpenStruct and DynamicMap output unchanged when no validators are set", func() {
+				open := defkit.NewTrait("merge-patch").Params(defkit.OpenStruct()).ToCue()
+				Expect(open).NotTo(ContainSubstring("_validate"))
+				Expect(strings.Count(open, "parameter:")).To(Equal(1))
+
+				dyn := defkit.NewTrait("labels").
+					Params(defkit.DynamicMap().ValueType(defkit.ParamTypeString)).ToCue()
+				Expect(dyn).NotTo(ContainSubstring("_validate"))
+				Expect(strings.Count(dyn, "parameter:")).To(Equal(1))
+			})
+
+			It("should add imports for a validator message on an OpenStruct trait", func() {
+				cue := defkit.NewTrait("merge-patch").
+					Params(defkit.OpenStruct()).
+					Validators(upperRegionValidator()).
+					ToCue()
+
+				Expect(cue).To(ContainSubstring(`"strings"`))
+				Expect(cue).To(ContainSubstring("strings.ToUpper(region)"))
+			})
+		})
+
+		Context("with TemplateBlock", func() {
+			templateBlockTrait := func() *defkit.TraitDefinition {
+				return defkit.NewTrait("raw-template").
+					TemplateBlock(`
+parameter: {
+	min: *1 | int
+	max: *5 | int
+}
+outputs: hpa: {
+	apiVersion: "autoscaling/v2"
+	kind:       "HorizontalPodAutoscaler"
+}`)
+			}
+
+			It("should emit validators in a second parameter block", func() {
+				cue := templateBlockTrait().Validators(minMaxValidator()).ToCue()
+
+				Expect(cue).To(ContainSubstring("_validateMinMax: {"))
+				Expect(cue).To(ContainSubstring("if parameter.min > parameter.max {"))
+				Expect(strings.Count(cue, "parameter:")).To(Equal(2))
+				// The raw parameter block is untouched and comes first.
+				Expect(strings.Index(cue, "min: *1 | int")).To(BeNumerically("<", strings.Index(cue, "_validateMinMax")))
+			})
+
+			It("should keep the strings import used by a validator message", func() {
+				cue := templateBlockTrait().Validators(upperRegionValidator()).ToCue()
+
+				Expect(cue).To(ContainSubstring(`"strings"`))
+				Expect(cue).To(ContainSubstring("strings.ToUpper(region)"))
+			})
+
+			It("should not change output when no validators are set", func() {
+				cue := templateBlockTrait().ToCue()
+				Expect(cue).NotTo(ContainSubstring("_validate"))
+				Expect(strings.Count(cue, "parameter:")).To(Equal(1))
+			})
+		})
+
+		Context("with UsePatchContainer", func() {
+			patchContainerTrait := func() *defkit.TraitDefinition {
+				return defkit.NewTrait("resource-limits").
+					AppliesTo("deployments.apps").
+					Template(func(tpl *defkit.Template) {
+						tpl.UsePatchContainer(defkit.PatchContainerConfig{
+							ContainerNameParam:   "containerName",
+							DefaultToContextName: true,
+							PatchFields: defkit.PatchFields(
+								defkit.PatchField("cpuLimit").Target("cpu").Str().IsSet(),
+							),
+						})
+					})
+			}
+
+			It("should emit validators in a second parameter block", func() {
+				cue := patchContainerTrait().
+					Validators(defkit.Validate("containerName is not allowed").
+						WithName("_validateName").
+						FailWhen(defkit.CUEExpr(`parameter.containerName == "bad"`))).
+					ToCue()
+
+				Expect(cue).To(ContainSubstring("#PatchParams: {"))
+				Expect(cue).To(ContainSubstring("_validateName: {"))
+				Expect(cue).To(ContainSubstring(`if parameter.containerName == "bad" {`))
+			})
+
+			It("should keep the strings import used by a validator message", func() {
+				cue := patchContainerTrait().
+					Validators(upperRegionValidator()).
+					ToCue()
+
+				// The message calls strings.ToUpper, so the import must be both
+				// collected and matched by an emitted use, or CUE rejects the
+				// definition with "imported and not used".
+				Expect(cue).To(ContainSubstring(`"strings"`))
+				Expect(cue).To(ContainSubstring("strings.ToUpper(region)"))
+			})
+
+			It("should not change output when no validators are set", func() {
+				Expect(patchContainerTrait().ToCue()).NotTo(ContainSubstring("_validate"))
+			})
+		})
+	})
+
 	Context("ToYAML Generation", func() {
 		It("should generate valid Kubernetes YAML", func() {
 			trait := defkit.NewTrait("scaler").
