@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -206,7 +207,17 @@ func TestHandlePolicyDefinitionChangeDeleteWithoutFinalizer(t *testing.T) {
 
 	// Also verify renderPoliciesForNewRevision self-heals and falls back to vela-system
 	// if a reconcile races ahead of the watch event while nsPolicy is still in the index.
-	_ = utilfeature.DefaultMutableFeatureGate.Set("EnableApplicationScopedPolicies=true,EnableGlobalPolicies=true")
+	prevAppScoped := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies)
+	prevGlobal := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies)
+	t.Cleanup(func() {
+		_ = utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+			string(features.EnableApplicationScopedPolicies): prevAppScoped,
+			string(features.EnableGlobalPolicies):            prevGlobal,
+		})
+	})
+	if err := utilfeature.DefaultMutableFeatureGate.Set("EnableApplicationScopedPolicies=true,EnableGlobalPolicies=true"); err != nil {
+		t.Fatalf("failed to enable policy feature gates: %v", err)
+	}
 	policyScopeIndex.AddOrUpdate(nsPolicy)
 
 	app := &v1beta1.Application{
