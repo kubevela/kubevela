@@ -1084,10 +1084,10 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	return !reflect.DeepEqual(newTracker, old)
 }
 
-func (r *Reconciler) handlePolicyDefinitionChange(_ context.Context, obj client.Object, deleted bool) []reconcile.Request {
+func (r *Reconciler) handlePolicyDefinitionChange(_ context.Context, obj client.Object, deleted bool) {
 	policy, ok := obj.(*v1beta1.PolicyDefinition)
 	if !ok {
-		return nil
+		return
 	}
 
 	// Update the in-memory index so the next reconcile sees the new/updated policy.
@@ -1107,8 +1107,6 @@ func (r *Reconciler) handlePolicyDefinitionChange(_ context.Context, obj client.
 		// Namespace-specific policy - invalidate for that namespace
 		applicationPolicyCache.InvalidateForNamespace(policy.Namespace)
 	}
-
-	return []reconcile.Request{}
 }
 
 func findObjectForResourceTracker(_ context.Context, rt client.Object) []reconcile.Request {
