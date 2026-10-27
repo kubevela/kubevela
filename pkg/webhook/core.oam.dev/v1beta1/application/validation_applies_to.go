@@ -18,14 +18,17 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -33,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/features"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
 const errFmtTraitNotAppliable = "trait %q cannot apply to component %q of type %q (workload %q); appliesToWorkloads: %q"
@@ -46,9 +50,9 @@ type appliesToTarget struct {
 	workload string
 }
 
-// attachedTrait identifies a trait on a component, for telling whether an
+// traitAttachment identifies a trait on a component, for telling whether an
 // update introduced it.
-type attachedTrait struct {
+type traitAttachment struct {
 	component, componentType, trait string
 }
 
@@ -69,26 +73,29 @@ func (h *ValidatingHandler) ValidateTraitAppliesTo(ctx context.Context, app, old
 	var errs field.ErrorList
 	var warnings []string
 	defCtx := oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-	existing := attachedTraits(oldApp)
+	existing := traitAttachments(oldApp)
 
-	// Cache resolved definitions across components so each type is fetched once.
-	targets := make(map[string]*appliesToTarget)
-	traitDefs := make(map[string]*v1beta1.TraitDefinition)
+	// Each type is resolved once per request, failures included, so a failing
+	// type is reported once, where it is first used.
+	resolveTarget := memoize(func(compType string) (*appliesToTarget, error) {
+		return h.resolveAppliesToTarget(defCtx, app, compType)
+	})
+	resolveTrait := memoize(func(traitType string) (*v1beta1.TraitDefinition, error) {
+		return h.resolveAppliesToTrait(defCtx, app, traitType)
+	})
 
 	for compIdx, comp := range app.Spec.Components {
 		if len(comp.Traits) == 0 {
 			continue
 		}
 		compPath := field.NewPath("spec", "components").Index(compIdx)
-		target, cached := targets[comp.Type]
-		if !cached {
-			var err error
-			if target, err = h.resolveAppliesToTarget(defCtx, app, comp.Type); err != nil {
+		target, first, err := resolveTarget(comp.Type)
+		if err != nil {
+			if first {
 				klog.Errorf("Failed to resolve ComponentDefinition %q for appliesToWorkloads validation: %v", comp.Type, err)
 				errs = append(errs, field.InternalError(compPath.Child("type"), err))
-				continue
 			}
-			targets[comp.Type] = target
+			continue
 		}
 		if target == nil {
 			continue
@@ -96,24 +103,21 @@ func (h *ValidatingHandler) ValidateTraitAppliesTo(ctx context.Context, app, old
 
 		for i, trait := range comp.Traits {
 			traitPath := compPath.Child("traits").Index(i).Child("type")
-			def, cached := traitDefs[trait.Type]
-			if !cached {
-				var err error
-				if def, err = h.resolveAppliesToTrait(defCtx, app, trait.Type); err != nil {
-					// Fail closed, as ValidateTraitConflicts does, so a lookup error
-					// cannot be used to get past the check.
+			def, first, err := resolveTrait(trait.Type)
+			if err != nil {
+				// Fail closed, so a lookup error cannot be used to get past the check.
+				if first {
 					klog.Errorf("Failed to resolve TraitDefinition %q for appliesToWorkloads validation: %v", trait.Type, err)
 					errs = append(errs, field.InternalError(traitPath, err))
-					continue
 				}
-				traitDefs[trait.Type] = def
+				continue
 			}
 			if def == nil || traitAppliesTo(def.Spec.AppliesToWorkloads, *target) {
 				continue
 			}
 			msg := fmt.Sprintf(errFmtTraitNotAppliable, def.Name, comp.Name, target.definition, target.workload, def.Spec.AppliesToWorkloads)
-			if existing[attachedTrait{component: comp.Name, componentType: comp.Type, trait: trait.Type}] {
-				klog.Infof("Admitting Application %s/%s with a trait it already had: %s", app.Namespace, app.Name, msg)
+			if existing[traitAttachment{component: comp.Name, componentType: comp.Type, trait: trait.Type}] {
+				klog.V(2).Infof("Admitting Application %s/%s with a trait it already had: %s", app.Namespace, app.Name, msg)
 				warnings = append(warnings, msg+"; allowed because the Application already had it")
 				continue
 			}
@@ -123,104 +127,162 @@ func (h *ValidatingHandler) ValidateTraitAppliesTo(ctx context.Context, app, old
 	return errs, warnings
 }
 
-// attachedTraits lists the traits on each component of app, which may be nil.
-func attachedTraits(app *v1beta1.Application) map[attachedTrait]bool {
+// memoize caches f's result, error included, per key. The returned func also
+// reports whether this call was the first for its key.
+func memoize[T any](f func(string) (T, error)) func(string) (T, bool, error) {
+	type result struct {
+		value T
+		err   error
+	}
+	cache := make(map[string]result)
+	return func(key string) (T, bool, error) {
+		if r, ok := cache[key]; ok {
+			return r.value, false, r.err
+		}
+		value, err := f(key)
+		cache[key] = result{value: value, err: err}
+		return value, true, err
+	}
+}
+
+// traitAttachments lists the traits on each component of app, which may be nil.
+func traitAttachments(app *v1beta1.Application) map[traitAttachment]bool {
 	if app == nil {
 		return nil
 	}
-	attached := make(map[attachedTrait]bool)
+	attached := make(map[traitAttachment]bool)
 	for _, comp := range app.Spec.Components {
 		for _, trait := range comp.Traits {
-			attached[attachedTrait{component: comp.Name, componentType: comp.Type, trait: trait.Type}] = true
+			attached[traitAttachment{component: comp.Name, componentType: comp.Type, trait: trait.Type}] = true
 		}
 	}
 	return attached
 }
 
 // resolveAppliesToTarget looks up the ComponentDefinition behind a component
-// type. It returns nil when the type cannot be resolved or does not exist:
-// that is reported by other validations, and must not block admission here.
+// type. It returns nil when there is nothing to check against.
 func (h *ValidatingHandler) resolveAppliesToTarget(ctx context.Context, app *v1beta1.Application, compType string) (*appliesToTarget, error) {
-	resolved, err := appfile.ResolveModuleType(ctx, h.Client, compType, types.TypeComponentDefinition)
-	if err != nil {
-		// Invalid or ambiguous type strings are reported by other validations.
-		klog.V(4).InfoS("Skipping appliesToWorkloads validation for unresolved component type", "type", compType, "err", err)
-		return nil, nil
-	}
 	cd := &v1beta1.ComponentDefinition{}
-	if err := oamutil.GetCapabilityDefinition(ctx, h.Client, cd, resolved, app.GetAnnotations()); err != nil {
-		if errors.IsNotFound(err) {
-			return nil, nil
-		}
+	found, err := h.readDefinition(ctx, app, compType, types.TypeComponentDefinition, cd)
+	if !found || err != nil {
 		return nil, err
 	}
-	merged, err := appfile.InheritedComponentDefinition(ctx, h.Client, cd)
-	if err != nil {
-		// A broken extends chain is refused at render with a better message.
-		klog.Warningf("Skipping appliesToWorkloads validation for component type %q: %v", compType, err)
-		return nil, nil
+	if cd.Spec.Extends != "" {
+		if !inheritanceEnabled() {
+			return nil, nil
+		}
+		if cd, err = appfile.InheritedComponentDefinition(ctx, h.Client, cd); err != nil {
+			return nil, ignoreNotFound(err)
+		}
 	}
-	return &appliesToTarget{definition: merged.Name, workload: h.workloadOf(merged)}, nil
+	workload, err := h.workloadOf(ctx, cd)
+	if err != nil {
+		return nil, err
+	}
+	return &appliesToTarget{definition: cd.Name, workload: workload}, nil
 }
 
 // resolveAppliesToTrait looks up a TraitDefinition with what it inherits
 // through spec.extends filled in. It returns nil when there is nothing to check
-// against, for the same reasons as resolveAppliesToTarget.
+// against.
 func (h *ValidatingHandler) resolveAppliesToTrait(ctx context.Context, app *v1beta1.Application, traitType string) (*v1beta1.TraitDefinition, error) {
-	resolved, err := appfile.ResolveModuleType(ctx, h.Client, traitType, types.TypeTrait)
-	if err != nil {
-		klog.V(4).InfoS("Skipping appliesToWorkloads validation for unresolved trait type", "type", traitType, "err", err)
-		return nil, nil
-	}
 	td := &v1beta1.TraitDefinition{}
-	if err := oamutil.GetCapabilityDefinition(ctx, h.Client, td, resolved, app.GetAnnotations()); err != nil {
-		if errors.IsNotFound(err) {
-			return nil, nil
-		}
+	found, err := h.readDefinition(ctx, app, traitType, types.TypeTrait, td)
+	if !found || err != nil {
 		return nil, err
 	}
-	merged, err := appfile.InheritedTraitDefinition(ctx, h.Client, td)
-	if err != nil {
-		klog.Warningf("Skipping appliesToWorkloads validation for trait type %q: %v", traitType, err)
-		return nil, nil
+	if td.Spec.Extends != "" {
+		if !inheritanceEnabled() {
+			return nil, nil
+		}
+		if td, err = appfile.InheritedTraitDefinition(ctx, h.Client, td); err != nil {
+			return nil, ignoreNotFound(err)
+		}
 	}
-	return merged, nil
+	return td, nil
+}
+
+// readDefinition reads the definition a component or trait type names into def,
+// the way isAbstract does: resolved as the render path resolves it, and retried
+// against the API server when the cache has not caught up. It reports false for
+// a definition that does not exist, which fails elsewhere with a message that
+// says so. Any other failure is returned, so it cannot be used to get past the
+// check.
+func (h *ValidatingHandler) readDefinition(ctx context.Context, app *v1beta1.Application, typ string, capType types.CapType, def client.Object) (bool, error) {
+	resolved, err := appfile.ResolveModuleType(ctx, h.Client, typ, capType)
+	if err != nil {
+		if errors.Is(err, appfile.ErrNoDefinition) {
+			return false, nil
+		}
+		return false, err
+	}
+	err = webhookutils.ReadWithLiveRetry(h.Client, h.Live, func(cli client.Client) error {
+		return oamutil.GetCapabilityDefinition(ctx, cli, def, resolved, app.GetAnnotations())
+	})
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// inheritanceEnabled reports whether spec.extends is read at all. While it is
+// off, a definition that sets it is refused at render, so it is not checked here.
+func inheritanceEnabled() bool {
+	return utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableDefinitionInheritance)
 }
 
 // workloadOf returns a ComponentDefinition's workload as <plural>.<group>, or
-// empty when it has no single workload type. spec.workload.type is normally
-// filled in by the ComponentDefinition mutating webhook; when only the GVK is
-// set it is mapped here instead.
-func (h *ValidatingHandler) workloadOf(cd *v1beta1.ComponentDefinition) string {
+// empty when it has no single workload type.
+//
+// With a GVK, spec.workload.type is the mapped name, filled in by the
+// ComponentDefinition mutating webhook, or mapped here when it is missing.
+// Without one, spec.workload.type names a WorkloadDefinition, whose
+// definitionRef holds the workload.
+func (h *ValidatingHandler) workloadOf(ctx context.Context, cd *v1beta1.ComponentDefinition) (string, error) {
 	w := cd.Spec.Workload
-	switch {
-	case w.Type == types.AutoDetectWorkloadDefinition:
-		return ""
-	case w.Type != "":
-		return w.Type
-	case w.Definition == (common.WorkloadGVK{}):
-		return ""
+	if w.Type == types.AutoDetectWorkloadDefinition {
+		return "", nil
+	}
+	if w.Definition == (common.WorkloadGVK{}) {
+		return h.workloadDefinitionRef(ctx, w.Type)
+	}
+	if w.Type != "" {
+		return w.Type, nil
 	}
 	ref, err := oamutil.ConvertWorkloadGVK2Definition(h.Client.RESTMapper(), w.Definition)
 	if err != nil {
 		klog.Warningf("Cannot map workload %s/%s of ComponentDefinition %q: %v", w.Definition.APIVersion, w.Definition.Kind, cd.Name, err)
-		return ""
+		return "", nil
 	}
-	return ref.Name
+	return ref.Name, nil
+}
+
+// workloadDefinitionRef returns the workload a WorkloadDefinition refers to.
+// WorkloadDefinitions are conventionally named after their workload, so the name
+// itself is used when there is none or it does not say.
+func (h *ValidatingHandler) workloadDefinitionRef(ctx context.Context, name string) (string, error) {
+	if name == "" {
+		return "", nil
+	}
+	wd := &v1beta1.WorkloadDefinition{}
+	if err := oamutil.GetDefinition(ctx, h.Client, wd, name); err != nil {
+		if apierrors.IsNotFound(err) {
+			return name, nil
+		}
+		return "", err
+	}
+	if wd.Spec.Reference.Name == "" {
+		return name, nil
+	}
+	return wd.Spec.Reference.Name, nil
 }
 
 // traitAppliesTo reports whether a trait with the given appliesToWorkloads may
 // be attached to target. An empty list applies to everything.
 func traitAppliesTo(rules []string, target appliesToTarget) bool {
-	if len(rules) == 0 {
-		return true
-	}
-	for _, rule := range rules {
-		if appliesToRuleMatches(rule, target) {
-			return true
-		}
-	}
-	return false
+	return len(rules) == 0 || slices.ContainsFunc(rules, func(rule string) bool {
+		return appliesToRuleMatches(rule, target)
+	})
 }
 
 // appliesToRuleMatches checks a single appliesToWorkloads entry against a component.
@@ -230,14 +292,16 @@ func traitAppliesTo(rules []string, target appliesToTarget) bool {
 //   - "*.<group>"          matches a workload in exactly that API group
 //   - "<plural>.<group>"   matches that workload, e.g. "deployments.apps"
 //
+// A "/<version>" suffix, which the API field's documentation shows, is
+// ignored: a workload is matched by resource and group only.
+//
 // A component with no workload type cannot be checked against the workload
 // forms, so any entry containing a dot is taken to match it; only "*" and the
 // definition name can restrict it.
 func appliesToRuleMatches(rule string, target appliesToTarget) bool {
+	rule, _, _ = strings.Cut(rule, "/")
 	switch {
-	case rule == "*":
-		return true
-	case rule == target.definition:
+	case rule == "*" || rule == target.definition:
 		return true
 	case target.workload == "":
 		return strings.Contains(rule, ".")

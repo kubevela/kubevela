@@ -213,9 +213,8 @@ const (
 
 	// ValidateTraitAppliesToWorkloads rejects an Application that attaches a trait
 	// to a component its TraitDefinition.spec.appliesToWorkloads does not list.
-	// Off by default: the field went unenforced for a long time, so definitions in
-	// the wild may declare values that do not match where they are used, and once
-	// on, an Application already breaking the rule can no longer be updated.
+	// Off by default because the field went unenforced for years, and definitions
+	// in the wild may list workloads that don't match where they are used.
 	ValidateTraitAppliesToWorkloads featuregate.Feature = "ValidateTraitAppliesToWorkloads"
 )
 

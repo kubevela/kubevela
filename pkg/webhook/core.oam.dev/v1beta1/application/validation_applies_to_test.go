@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	admissionv1 "k8s.io/api/admission/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -67,6 +68,8 @@ func TestAppliesToRuleMatches(t *testing.T) {
 		{"group wildcard matches a nested group exactly", []string{"*.networking.k8s.io"}, ingress, true},
 		{"definition name match", []string{"webservice"}, webservice, true},
 		{"definition name miss", []string{"worker"}, webservice, false},
+		{"version suffix is ignored", []string{"deployments.apps/v1"}, webservice, true},
+		{"version suffix on a miss", []string{"statefulsets.apps/v1"}, webservice, false},
 		{"no workload: workload form is not checked", []string{"cronjobs.batch"}, cronTask, true},
 		{"no workload: group wildcard is not checked", []string{"*.apps"}, cronTask, true},
 		{"no workload: definition name match", []string{"cron-task"}, cronTask, true},
@@ -123,11 +126,18 @@ func appliesToRESTMapper() meta.RESTMapper {
 	return mapper
 }
 
+// appliesToClient serves objects through a fake client, with funcs intercepting
+// its calls when not nil.
+func appliesToClient(funcs *interceptor.Funcs, objects ...client.Object) client.Client {
+	b := fake.NewClientBuilder().WithScheme(readKindsScheme()).WithRESTMapper(appliesToRESTMapper()).WithObjects(objects...)
+	if funcs != nil {
+		b = b.WithInterceptorFuncs(*funcs)
+	}
+	return b.Build()
+}
+
 func appliesToHandler(objects ...client.Object) *ValidatingHandler {
-	scheme := runtime.NewScheme()
-	_ = v1beta1.AddToScheme(scheme)
-	cli := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(appliesToRESTMapper()).WithObjects(objects...).Build()
-	return &ValidatingHandler{Client: cli}
+	return &ValidatingHandler{Client: appliesToClient(nil, objects...)}
 }
 
 // appliesToErrs validates app as a create.
@@ -155,6 +165,12 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		appliesToTraitDef("webservice-only", "webservice"),
 		appliesToTraitDef("cronjob-scaler", "cronjobs.batch"),
 		appliesToTraitDef("anywhere"),
+		appliesToComponentDef("wd-backed", common.WorkloadTypeDescriptor{Type: "my-deploy"}),
+		appliesToComponentDef("wd-missing", common.WorkloadTypeDescriptor{Type: "statefulsets.apps"}),
+		&v1beta1.WorkloadDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "my-deploy", Namespace: oam.SystemDefinitionNamespace},
+			Spec:       v1beta1.WorkloadDefinitionSpec{Reference: common.DefinitionReference{Name: "deployments.apps"}},
+		},
 	}
 
 	t.Run("does nothing while the gate is off", func(t *testing.T) {
@@ -207,6 +223,21 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 
 		require.Len(t, errs, 1)
 		assert.Contains(t, errs[0].Detail, `(workload "statefulsets.apps")`)
+	})
+
+	t.Run("reads the workload from the WorkloadDefinition spec.workload.type names", func(t *testing.T) {
+		withAppliesToValidation(t)
+		app := appliesToApp(
+			component("web", "wd-backed", "apps-group", "sts-only"),
+			component("db", "wd-missing", "sts-only"),
+		)
+
+		errs := appliesToErrs(appliesToHandler(definitions...), app)
+
+		// my-deploy refers to deployments.apps; with no WorkloadDefinition the type itself is used.
+		require.Len(t, errs, 1)
+		assert.Equal(t, "spec.components[0].traits[1].type", errs[0].Field)
+		assert.Contains(t, errs[0].Detail, `(workload "deployments.apps")`)
 	})
 
 	t.Run("does not check workload forms on a component with no workload type", func(t *testing.T) {
@@ -262,26 +293,82 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		assert.Equal(t, "spec.components[0].traits[0].type", errs[0].Field)
 	})
 
-	t.Run("fails closed when a definition cannot be read", func(t *testing.T) {
-		withAppliesToValidation(t)
-		scheme := runtime.NewScheme()
-		_ = v1beta1.AddToScheme(scheme)
-		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(definitions...).
-			WithInterceptorFuncs(interceptor.Funcs{
-				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-					if _, ok := obj.(*v1beta1.DefinitionRevision); ok {
-						return fmt.Errorf("apiserver unavailable")
-					}
-					return c.Get(ctx, key, obj, opts...)
-				},
-			}).Build()
-		app := appliesToApp(component("web", "webservice", "anywhere@v1"))
+	failingClient := func(failOn func(client.Object) bool) client.Client {
+		return appliesToClient(&interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if failOn(obj) {
+					return apierrors.NewServiceUnavailable("apiserver unavailable")
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}, definitions...)
+	}
 
-		errs := appliesToErrs((&ValidatingHandler{Client: cli}), app)
+	t.Run("fails closed when the type cannot be resolved for want of the apiserver", func(t *testing.T) {
+		withAppliesToValidation(t)
+		cli := failingClient(func(obj client.Object) bool {
+			_, ok := obj.(*v1beta1.TraitDefinition)
+			return ok
+		})
+		app := appliesToApp(component("web", "webservice", "anywhere"))
+
+		errs := appliesToErrs(&ValidatingHandler{Client: cli}, app)
 
 		require.Len(t, errs, 1)
 		assert.Equal(t, field.ErrorTypeInternal, errs[0].Type)
 		assert.Equal(t, "spec.components[0].traits[0].type", errs[0].Field)
+	})
+
+	t.Run("reports a failing type once", func(t *testing.T) {
+		withAppliesToValidation(t)
+		calls := 0
+		cli := failingClient(func(obj client.Object) bool {
+			_, ok := obj.(*v1beta1.ComponentDefinition)
+			if ok {
+				calls++
+			}
+			return ok
+		})
+		app := appliesToApp(
+			component("a", "webservice", "anywhere"),
+			component("b", "webservice", "anywhere"),
+		)
+
+		errs := appliesToErrs(&ValidatingHandler{Client: cli}, app)
+
+		require.Len(t, errs, 1)
+		assert.Equal(t, "spec.components[0].type", errs[0].Field)
+		assert.Equal(t, 1, calls)
+	})
+
+	t.Run("fails closed when a definition cannot be read", func(t *testing.T) {
+		withAppliesToValidation(t)
+		cli := failingClient(func(obj client.Object) bool {
+			_, ok := obj.(*v1beta1.DefinitionRevision)
+			return ok
+		})
+		app := appliesToApp(component("web", "webservice", "anywhere@v1"))
+
+		errs := appliesToErrs(&ValidatingHandler{Client: cli}, app)
+
+		require.Len(t, errs, 1)
+		assert.Equal(t, field.ErrorTypeInternal, errs[0].Type)
+		assert.Equal(t, "spec.components[0].traits[0].type", errs[0].Field)
+	})
+
+	t.Run("reads a definition the cache has not caught up with from the API server", func(t *testing.T) {
+		withAppliesToValidation(t)
+		late := appliesToTraitDef("late-sts-only", "statefulsets.apps")
+		h := &ValidatingHandler{
+			Client: appliesToClient(nil, definitions...),
+			Live:   appliesToClient(nil, append(definitions, late)...),
+		}
+		app := appliesToApp(component("web", "webservice", "late-sts-only"))
+
+		errs := appliesToErrs(h, app)
+
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Detail, `trait "late-sts-only"`)
 	})
 }
 
@@ -337,7 +424,9 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 	childTrait.Spec.Extends = "sts-scaler"
 
 	parentComp := appliesToComponentDef("base-web", common.WorkloadTypeDescriptor{Type: "deployments.apps"})
-	childComp := appliesToComponentDef("tenant-web", common.WorkloadTypeDescriptor{})
+	// What the ComponentDefinition mutating webhook stores for a child that
+	// declares no workload of its own.
+	childComp := appliesToComponentDef("tenant-web", common.WorkloadTypeDescriptor{Type: types.AutoDetectWorkloadDefinition})
 	childComp.Spec.Extends = "base-web"
 
 	definitions := []client.Object{parentTrait, childTrait, parentComp, childComp}
@@ -352,14 +441,15 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 		assert.Contains(t, errs[0].Detail, `trait "tenant-scaler"`)
 	})
 
-	t.Run("a child component inherits its parent's workload", func(t *testing.T) {
+	// A child component does not inherit its parent's workload yet
+	// (kubevela/kubevela#7508), so it counts as having no workload type and the
+	// workload forms are not checked on it. Once that is fixed this child reads as
+	// deployments.apps and sts-scaler is refused.
+	t.Run("a child component has no workload type of its own yet", func(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
 		app := appliesToApp(component("web", "tenant-web", "sts-scaler"))
 
-		errs := appliesToErrs(appliesToHandler(definitions...), app)
-
-		require.Len(t, errs, 1)
-		assert.Contains(t, errs[0].Detail, `(workload "deployments.apps")`)
+		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 
 	t.Run("an unresolvable chain is left to rendering", func(t *testing.T) {
@@ -369,11 +459,16 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 	})
 }
 
-// Through the admission handler against a real apiserver, so the check is
-// wired into the soundness phase and the GVK-only "worker" fixture's workload
-// is resolved by the apiserver's RESTMapper.
+// These go through the admission handler against a real apiserver. That shows
+// the check is wired into the soundness phase, and the "worker" fixture, which
+// sets only a GVK, gets its workload from the apiserver's RESTMapper.
 var _ = Describe("Trait appliesToWorkloads admission", func() {
 	var stsOnly *v1beta1.TraitDefinition
+
+	setGate := func(on bool) {
+		Expect(utilfeature.DefaultMutableFeatureGate.Set(
+			fmt.Sprintf("%s=%t", features.ValidateTraitAppliesToWorkloads, on))).Should(Succeed())
+	}
 
 	BeforeEach(func() {
 		handler = &ValidatingHandler{Client: k8sClient, Decoder: decoder}
@@ -391,11 +486,8 @@ var _ = Describe("Trait appliesToWorkloads admission", func() {
 			Expect(k8sClient.Delete(ctx, stsOnly)).Should(Succeed())
 		})
 
-		enabled := utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateTraitAppliesToWorkloads)
-		DeferCleanup(func() {
-			Expect(utilfeature.DefaultMutableFeatureGate.Set(
-				fmt.Sprintf("%s=%t", features.ValidateTraitAppliesToWorkloads, enabled))).Should(Succeed())
-		})
+		DeferCleanup(setGate, utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateTraitAppliesToWorkloads))
+		setGate(true)
 	})
 
 	appJSON := func(traitType string) []byte {
@@ -425,13 +517,7 @@ var _ = Describe("Trait appliesToWorkloads admission", func() {
 		return req
 	}
 
-	setGate := func(on bool) {
-		Expect(utilfeature.DefaultMutableFeatureGate.Set(
-			fmt.Sprintf("%s=%t", features.ValidateTraitAppliesToWorkloads, on))).Should(Succeed())
-	}
-
 	It("rejects a trait that does not apply to the component's workload", func() {
-		setGate(true)
 		resp := handler.Handle(ctx, request("sts-only-scaler"))
 		Expect(resp.Allowed).Should(BeFalse())
 		Expect(resp.Result.Message).Should(ContainSubstring(
@@ -439,20 +525,17 @@ var _ = Describe("Trait appliesToWorkloads admission", func() {
 	})
 
 	It("admits a trait that applies", func() {
-		setGate(true)
 		resp := handler.Handle(ctx, request("scaler"))
 		Expect(resp.Allowed).Should(BeTrue(), resp.Result.Message)
 	})
 
 	It("admits an update that keeps a trait the Application already had, with a warning", func() {
-		setGate(true)
 		resp := handler.Handle(ctx, updateRequest("sts-only-scaler", "sts-only-scaler"))
 		Expect(resp.Allowed).Should(BeTrue(), resp.Result.Message)
 		Expect(resp.Warnings).Should(ContainElement(ContainSubstring("allowed because the Application already had it")))
 	})
 
 	It("rejects an update that attaches the trait", func() {
-		setGate(true)
 		resp := handler.Handle(ctx, updateRequest("scaler", "sts-only-scaler"))
 		Expect(resp.Allowed).Should(BeFalse())
 		Expect(resp.Result.Message).Should(ContainSubstring(`trait "sts-only-scaler" cannot apply`))

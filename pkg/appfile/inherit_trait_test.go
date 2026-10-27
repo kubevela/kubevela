@@ -230,8 +230,8 @@ func TestAncestorsHelpersResolveFromTheCluster(t *testing.T) {
 	})
 }
 
-// The spec a child reads through its chain, for admission checks that look at
-// fields rather than templates.
+// Admission checks read spec fields, not templates, so they need the child's
+// spec with its parent's fields filled in.
 func TestInheritedDefinitionHelpers(t *testing.T) {
 	withInheritance(t)
 
