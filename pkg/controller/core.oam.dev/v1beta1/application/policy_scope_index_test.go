@@ -20,14 +20,17 @@ import (
 	"context"
 	"testing"
 
+	monitorContext "github.com/kubevela/pkg/monitor/context"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -148,6 +151,77 @@ func TestPolicyScopeIndexDeleteOnDeletionTimestamp(t *testing.T) {
 
 	if idx.GetFromNamespace("deleted-policy", "my-ns") != nil {
 		t.Fatal("expected entry to be removed when DeletionTimestamp is set")
+	}
+}
+
+func TestHandlePolicyDefinitionChangeDeleteWithoutFinalizer(t *testing.T) {
+	ctx := context.Background()
+	s := newTestScheme(t)
+
+	systemPolicy := &v1beta1.PolicyDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "shared-global", Namespace: oam.SystemDefinitionNamespace},
+		Spec: v1beta1.PolicyDefinitionSpec{
+			Scope:    v1beta1.ApplicationScope,
+			Global:   true,
+			Priority: 10,
+			Schematic: &common.Schematic{
+				CUE: &common.CUE{Template: `parameter: {}, output: labels: {"policy-source": "vela-system"}`},
+			},
+		},
+	}
+	nsPolicy := &v1beta1.PolicyDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "shared-global", Namespace: "my-ns"},
+		Spec: v1beta1.PolicyDefinitionSpec{
+			Scope:    v1beta1.ApplicationScope,
+			Global:   true,
+			Priority: 10,
+			Schematic: &common.Schematic{
+				CUE: &common.CUE{Template: `parameter: {}, output: labels: {"policy-source": "my-ns"}`},
+			},
+		},
+	}
+
+	// Only systemPolicy remains in the cluster after nsPolicy is deleted
+	cli := fake.NewClientBuilder().WithScheme(s).WithObjects(systemPolicy).Build()
+	r := &Reconciler{Client: cli}
+
+	originalPolicyScopeIndex := policyScopeIndex
+	defer func() { policyScopeIndex = originalPolicyScopeIndex }()
+
+	policyScopeIndex = NewPolicyScopeIndex()
+	policyScopeIndex.initialized = true
+	policyScopeIndex.AddOrUpdate(systemPolicy)
+	policyScopeIndex.AddOrUpdate(nsPolicy)
+
+	// DELETED watch event arrives for nsPolicy with nil DeletionTimestamp (no finalizers)
+	r.handlePolicyDefinitionChange(ctx, nsPolicy, true)
+
+	if policyScopeIndex.GetFromNamespace("shared-global", "my-ns") != nil {
+		t.Fatal("expected namespace policy to be evicted from index on delete event with nil DeletionTimestamp")
+	}
+	deduped := policyScopeIndex.GetGlobalApplicationPoliciesDeduped("my-ns")
+	if len(deduped) != 1 || deduped[0].Namespace != oam.SystemDefinitionNamespace {
+		t.Fatalf("expected fallback to vela-system global policy after namespace policy deletion, got %+v", deduped)
+	}
+
+	// Also verify renderPoliciesForNewRevision self-heals and falls back to vela-system
+	// if a reconcile races ahead of the watch event while nsPolicy is still in the index.
+	_ = utilfeature.DefaultMutableFeatureGate.Set("EnableApplicationScopedPolicies=true,EnableGlobalPolicies=true")
+	policyScopeIndex.AddOrUpdate(nsPolicy)
+
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-app", Namespace: "my-ns"},
+	}
+	h := &AppHandler{Client: cli, app: app, isNewRevision: true}
+	results, err := h.renderPoliciesForNewRevision(monitorContext.NewTraceContext(ctx, "test"), app)
+	if err != nil {
+		t.Fatalf("unexpected error rendering policies: %v", err)
+	}
+	if len(results) != 1 || results[0].PolicyNamespace != oam.SystemDefinitionNamespace {
+		t.Fatalf("expected fallback to vela-system policy during render, got %+v", results)
+	}
+	if policyScopeIndex.GetFromNamespace("shared-global", "my-ns") != nil {
+		t.Fatal("expected stale namespace policy to be evicted from index during render")
 	}
 }
 

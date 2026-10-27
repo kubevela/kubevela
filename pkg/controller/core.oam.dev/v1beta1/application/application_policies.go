@@ -952,11 +952,24 @@ func (h *AppHandler) renderPoliciesForNewRevision(ctx monitorContext.Context, ap
 				Namespace: metadata.Namespace,
 			}, policyDef)
 			if err != nil {
-				ctx.Info("Failed to load global PolicyDefinition from index",
-					"policy", metadata.Name,
-					"namespace", metadata.Namespace,
-					"error", err)
-				continue
+				if kerrors.IsNotFound(err) {
+					policyScopeIndex.Delete(metadata.Name, metadata.Namespace)
+					if metadata.Namespace != oam.SystemDefinitionNamespace {
+						if sysMeta := policyScopeIndex.GetFromNamespace(metadata.Name, oam.SystemDefinitionNamespace); sysMeta != nil && sysMeta.Global && sysMeta.Scope == v1beta1.ApplicationScope {
+							err = h.Client.Get(ctx.GetContext(), client.ObjectKey{
+								Name:      sysMeta.Name,
+								Namespace: sysMeta.Namespace,
+							}, policyDef)
+						}
+					}
+				}
+				if err != nil {
+					ctx.Info("Failed to load global PolicyDefinition from index",
+						"policy", metadata.Name,
+						"namespace", metadata.Namespace,
+						"error", err)
+					continue
+				}
 			}
 
 			policyDefCopy := policyDef.DeepCopy()

@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -993,7 +994,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}).
 		Watches(
 			&v1beta1.PolicyDefinition{},
-			ctrlHandler.EnqueueRequestsFromMapFunc(r.handlePolicyDefinitionChange),
+			ctrlHandler.Funcs{
+				CreateFunc: func(ctx context.Context, e ctrlEvent.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					r.handlePolicyDefinitionChange(ctx, e.Object, false)
+				},
+				UpdateFunc: func(ctx context.Context, e ctrlEvent.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					r.handlePolicyDefinitionChange(ctx, e.ObjectNew, false)
+				},
+				DeleteFunc: func(ctx context.Context, e ctrlEvent.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+					r.handlePolicyDefinitionChange(ctx, e.Object, true)
+				},
+			},
 		).
 		For(&v1beta1.Application{}).
 		Complete(r)
@@ -1073,13 +1084,16 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	return !reflect.DeepEqual(newTracker, old)
 }
 
-func (r *Reconciler) handlePolicyDefinitionChange(ctx context.Context, obj client.Object) []reconcile.Request {
-	policy := obj.(*v1beta1.PolicyDefinition)
+func (r *Reconciler) handlePolicyDefinitionChange(_ context.Context, obj client.Object, deleted bool) []reconcile.Request {
+	policy, ok := obj.(*v1beta1.PolicyDefinition)
+	if !ok {
+		return nil
+	}
 
 	// Update the in-memory index so the next reconcile sees the new/updated policy.
 	// Without this, newly created global PolicyDefinitions are invisible until the
 	// controller restarts (the index is only populated once at startup).
-	if policy.GetDeletionTimestamp() != nil {
+	if deleted || policy.GetDeletionTimestamp() != nil {
 		policyScopeIndex.Delete(policy.Name, policy.Namespace)
 	} else {
 		policyScopeIndex.AddOrUpdate(policy)
