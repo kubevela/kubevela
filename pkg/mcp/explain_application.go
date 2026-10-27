@@ -125,6 +125,8 @@ type ExplainApplicationOutput struct {
 	// Unknowns lists what this answer could not read, so an agent says so
 	// rather than filling the gap.
 	Unknowns []string `json:"unknowns" jsonschema:"What could not be read. Report these as unknown rather than guessing."`
+	// Handles are the exact identifiers for downstream queries.
+	Handles  Handles  `json:"handles" jsonschema:"Exact identifiers for queries to other tools: clusters, namespace, pods, labels and the time window. Use them verbatim; do not guess label names or time ranges."`
 	Evidence []string `json:"evidence" jsonschema:"Objects this answer was derived from."`
 	Meta     Meta     `json:"meta"`
 }
@@ -215,7 +217,11 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 			}
 		}
 	}
-	out.Unknowns = append(out.Unknowns, "metrics, traces and historical logs are outside vela; use the observability MCP for them")
+	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
+	out.Handles = handles
+	out.Evidence = append(out.Evidence, handleEvidence...)
+	out.Unknowns = append(out.Unknowns, handleUnknowns...)
+	out.Unknowns = append(out.Unknowns, "metrics, traces and historical logs are outside vela; use the observability MCP for them with the handles")
 	sortFindings(out.Findings)
 	out.Meta = d.meta(ctx)
 	if w := d.remoteReadWarning(ctx, clusters); w != "" {
