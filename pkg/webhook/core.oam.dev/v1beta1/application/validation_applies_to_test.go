@@ -126,8 +126,6 @@ func appliesToRESTMapper() meta.RESTMapper {
 	return mapper
 }
 
-// appliesToClient serves objects through a fake client, with funcs intercepting
-// its calls when not nil.
 // unavailableRESTMapper fails every mapping the way a mapper does when discovery
 // cannot be reached, which is not a NoKindMatch.
 type unavailableRESTMapper struct{ meta.RESTMapper }
@@ -136,6 +134,8 @@ func (unavailableRESTMapper) RESTMapping(schema.GroupKind, ...string) (*meta.RES
 	return nil, fmt.Errorf("discovery unavailable")
 }
 
+// appliesToClient serves objects through a fake client, with funcs intercepting
+// its calls when not nil.
 func appliesToClient(funcs *interceptor.Funcs, objects ...client.Object) client.Client {
 	b := fake.NewClientBuilder().WithScheme(readKindsScheme()).WithRESTMapper(appliesToRESTMapper()).WithObjects(objects...)
 	if funcs != nil {
