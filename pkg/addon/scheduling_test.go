@@ -106,11 +106,26 @@ func TestAttachSchedulingTraitTopology(t *testing.T) {
 	}
 	props := SchedulingProperties{
 		TopologySpreadConstraints: []interface{}{
-			map[string]interface{}{"maxSkew": 1, "topologyKey": "kubernetes.io/hostname"},
+			map[string]interface{}{
+				"maxSkew":           1,
+				"topologyKey":       "kubernetes.io/hostname",
+				"whenUnsatisfiable": "DoNotSchedule",
+				"labelSelector":     map[string]interface{}{"matchLabels": map[string]interface{}{"app": "web"}},
+			},
 		},
 	}
 	require.NoError(t, AttachSchedulingTrait(app, props))
-	require.Equal(t, TopologySpreadTraitType, app.Spec.Components[0].Traits[0].Type)
+	require.Len(t, app.Spec.Components[0].Traits, 1)
+	require.Equal(t, AffinityTraitType, app.Spec.Components[0].Traits[0].Type)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(app.Spec.Components[0].Traits[0].Properties.Raw, &got))
+	raw, ok := got["topologySpreadConstraints"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, raw, 1)
+	c := raw[0].(map[string]interface{})
+	require.EqualValues(t, 1, c["maxSkew"])
+	require.Equal(t, "kubernetes.io/hostname", c["topologyKey"])
+	require.Equal(t, "DoNotSchedule", c["whenUnsatisfiable"])
 }
 
 func TestSchedulingPropertiesEmpty(t *testing.T) {
@@ -139,6 +154,8 @@ func TestAttachSchedulingTraitIssue5362Matrix(t *testing.T) {
 		{Name: "chart", Type: "helmchart"},
 		{Name: "provider-kit", Type: "module"},
 		{Name: "raw-blob", Type: "raw"},
+		{Name: "aux-objects", Type: "k8s-objects"},
+		{Name: "backend-ns", Type: "webservice"},
 	}
 	props := SchedulingProperties{
 		NodeSelector: map[string]string{"disktype": "ssd", "node-type": "infra"},
@@ -162,10 +179,10 @@ func TestAttachSchedulingTraitIssue5362Matrix(t *testing.T) {
 	}
 	require.NoError(t, AttachSchedulingTrait(app, props))
 
-	require.Empty(t, app.Spec.Components[0].Traits, "*-ns helper skipped")
+	require.Empty(t, app.Spec.Components[0].Traits, "k8s-objects *-ns helper skipped")
 	require.Empty(t, app.Spec.Components[4].Traits, "raw skipped")
 
-	for _, idx := range []int{1, 2, 3} {
+	for _, idx := range []int{1, 2, 3, 5, 6} {
 		comp := app.Spec.Components[idx]
 		require.Len(t, comp.Traits, 1, comp.Name)
 		require.Equal(t, AffinityTraitType, comp.Traits[0].Type)
@@ -178,4 +195,15 @@ func TestAttachSchedulingTraitIssue5362Matrix(t *testing.T) {
 		require.Contains(t, got, "tolerations")
 		require.Equal(t, "default-scheduler", got["schedulerName"])
 	}
+}
+
+func TestExtractSchedulingFromArgsMalformedKeepsKey(t *testing.T) {
+	args := map[string]interface{}{
+		SchedulingArg: "not-an-object",
+		"replicas":    2,
+	}
+	_, err := ExtractSchedulingFromArgs(args)
+	require.Error(t, err)
+	require.Contains(t, args, SchedulingArg, "malformed key must remain for the caller to see")
+	require.Equal(t, 2, args["replicas"])
 }

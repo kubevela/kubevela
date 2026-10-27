@@ -1,6 +1,11 @@
 # Declarative module with affinity trait (EnableModuleComponent).
 # Trait overlays PodSpec fields on auxiliary controllers in the owned Application
 # (e.g. Crossplane provider Deployments), not on definitions-only objects.
+#
+# Prerequisites: a module registry that publishes `widget-kit` (this example uses
+# a local registry named `local-modules`). Publish your module and register the
+# Helm/OCI endpoint with `vela module registry add` (or the equivalent ConfigMap)
+# before applying. Replace `registry` / `module` / `version` for your environment.
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:

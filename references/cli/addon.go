@@ -374,12 +374,17 @@ non-empty new arg
 }
 
 // injectSchedulingArgs loads --scheduling-file and merges --nodeSelector into reserved addon args.
+// Flags are read once and cleared so a reused cobra command cannot leak prior scheduling settings.
 func injectSchedulingArgs(addonArgs map[string]interface{}) error {
-	props, err := pkgaddon.LoadSchedulingFile(addonSchedulingFile)
+	file := addonSchedulingFile
+	ns := addonNodeSelector
+	addonSchedulingFile = ""
+	addonNodeSelector = nil
+	props, err := pkgaddon.LoadSchedulingFile(file)
 	if err != nil {
 		return err
 	}
-	props.MergeNodeSelector(addonNodeSelector)
+	props.MergeNodeSelector(ns)
 	if props.Empty() {
 		return nil
 	}

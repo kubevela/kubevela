@@ -74,6 +74,8 @@ func (s SchedulingProperties) Empty() bool {
 }
 
 // ToAffinityTraitProperties maps file/CLI fields onto affinity trait parameters.
+// Topology spread is included here so a single affinity trait propagates every
+// scheduling field through Application walk / helmchart patchOutputs.
 func (s SchedulingProperties) ToAffinityTraitProperties() map[string]interface{} {
 	m := map[string]interface{}{}
 	if len(s.NodeSelector) > 0 {
@@ -84,6 +86,9 @@ func (s SchedulingProperties) ToAffinityTraitProperties() map[string]interface{}
 	}
 	if len(s.Tolerations) > 0 {
 		m["tolerations"] = s.Tolerations
+	}
+	if len(s.TopologySpreadConstraints) > 0 {
+		m["topologySpreadConstraints"] = s.TopologySpreadConstraints
 	}
 	if s.SchedulerName != "" {
 		m["schedulerName"] = s.SchedulerName
@@ -133,7 +138,6 @@ func ExtractSchedulingFromArgs(args map[string]interface{}) (SchedulingPropertie
 	if !ok || raw == nil {
 		return props, nil
 	}
-	delete(args, SchedulingArg)
 	b, err := json.Marshal(raw)
 	if err != nil {
 		return props, errors.Wrap(err, "marshal scheduling args")
@@ -141,6 +145,8 @@ func ExtractSchedulingFromArgs(args map[string]interface{}) (SchedulingPropertie
 	if err := json.Unmarshal(b, &props); err != nil {
 		return props, errors.Wrap(err, "parse scheduling args")
 	}
+	// Remove only after a successful decode so a malformed value is not silently dropped.
+	delete(args, SchedulingArg)
 	return props, nil
 }
 
@@ -160,43 +166,31 @@ func InjectSchedulingIntoArgs(args map[string]interface{}, props SchedulingPrope
 	args[SchedulingArg] = asMap
 }
 
-// AttachSchedulingTrait appends or replaces affinity (and topology-spread when
-// needed) on workload components, including type: module and helmchart.
-// Namespace helper components are skipped. Affinity trait fields overlay chart
-// values and module auxiliary controller pod templates.
+// AttachSchedulingTrait appends or replaces the affinity trait on workload
+// components, including type: module and helmchart. Namespace helper components
+// are skipped. Affinity carries every scheduling field (including
+// topologySpreadConstraints) so Application walk / helmchart patchOutputs apply them.
 func AttachSchedulingTrait(app *v1beta1.Application, props SchedulingProperties) error {
 	if app == nil || props.Empty() {
 		return nil
 	}
 	affinityProps := props.ToAffinityTraitProperties()
-	var affinityRaw *runtime.RawExtension
-	if len(affinityProps) > 0 {
-		affinityRaw = util.Object2RawExtension(affinityProps)
-		if affinityRaw == nil {
-			return fmt.Errorf("failed to encode affinity trait properties")
-		}
+	if len(affinityProps) == 0 {
+		return nil
 	}
-	var topoRaw *runtime.RawExtension
-	if len(props.TopologySpreadConstraints) > 0 {
-		topoRaw = util.Object2RawExtension(map[string]interface{}{
-			"constraints": props.TopologySpreadConstraints,
-		})
-		if topoRaw == nil {
-			return fmt.Errorf("failed to encode topology spread trait properties")
-		}
+	affinityRaw := util.Object2RawExtension(affinityProps)
+	if affinityRaw == nil {
+		return fmt.Errorf("failed to encode affinity trait properties")
 	}
 	for i := range app.Spec.Components {
 		comp := &app.Spec.Components[i]
 		if shouldSkipSchedulingComponent(*comp) {
 			continue
 		}
-		if affinityRaw != nil {
-			upsertTrait(comp, AffinityTraitType, affinityRaw)
-			removeTrait(comp, DeprecatedSchedulingTraitType)
-		}
-		if topoRaw != nil {
-			upsertTrait(comp, TopologySpreadTraitType, topoRaw)
-		}
+		upsertTrait(comp, AffinityTraitType, affinityRaw)
+		removeTrait(comp, DeprecatedSchedulingTraitType)
+		// Prefer the unified affinity path; drop a leftover topology-only trait.
+		removeTrait(comp, TopologySpreadTraitType)
 	}
 	return nil
 }
@@ -229,6 +223,10 @@ func shouldSkipSchedulingComponent(comp common2.ApplicationComponent) bool {
 	if comp.Type == "raw" {
 		return true
 	}
-	// Addon helpers are usually named *-ns (cert-manager-ns) or *-namespace.
+	// Addon namespace helpers are k8s-objects named *-ns / *-namespace. A
+	// webservice named backend-ns is a real workload and must keep the trait.
+	if comp.Type != "k8s-objects" {
+		return false
+	}
 	return strings.HasSuffix(comp.Name, "-ns") || strings.HasSuffix(comp.Name, "-namespace")
 }

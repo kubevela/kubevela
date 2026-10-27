@@ -836,6 +836,7 @@ type Installer struct {
 
 	installerRuntime map[string]interface{}
 	scheduling       SchedulingProperties
+	schedulingErr    error
 
 	registries []Registry
 }
@@ -866,7 +867,10 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 	// clean injected data from runtime option
 	delete(args, InstallerRuntimeOption)
 
-	if sched, err := ExtractSchedulingFromArgs(args); err == nil {
+	sched, err := ExtractSchedulingFromArgs(args)
+	if err != nil {
+		i.schedulingErr = err
+	} else {
 		i.scheduling = sched
 	}
 
@@ -879,6 +883,9 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 func (h *Installer) enableAddon(ctx context.Context, addon *InstallPackage) (string, error) {
 	var err error
 	h.addon = addon
+	if h.schedulingErr != nil {
+		return "", errors.Wrap(h.schedulingErr, "invalid addon scheduling args")
+	}
 	if !h.skipVersionValidate {
 		err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 		if err != nil {

@@ -126,7 +126,7 @@ _term: {labelSelector: matchLabels: app: "cache", topologyKey: "kubernetes.io/ho
 	]
 	expect: output: spec: template: spec: {
 		tolerations: [
-			{key: "dedicated", operator: "Equal", value: "shop", effect: "NoSchedule", tolerationSeconds?: _|_},
+			{key: "dedicated", operator: "equal", value: "shop", effect: "NoSchedule", tolerationSeconds?: _|_},
 			{operator: "Exists", effect: "NoExecute", tolerationSeconds: 300, key?: _|_, value?: _|_},
 		]
 		affinity?: _|_
@@ -347,7 +347,7 @@ _addonApp: {
 	}]
 }
 
-"helmchart-like Deployment output gets nodeSelector via patch": test.#TraitRender & {
+"primary Deployment patch overlays existing nodeSelector": test.#TraitRender & {
 	definition: "affinity"
 	workload: {
 		apiVersion: "apps/v1"
@@ -369,6 +369,72 @@ _addonApp: {
 		}
 		containers: [{name: "c", image: "chart:1"}]
 	}
+}
+
+"module aux Deployment overlays prior nodeSelector without CUE conflict": test.#TraitRender & {
+	definition: "affinity"
+	workload: {
+		apiVersion: "core.oam.dev/v1beta1"
+		kind:       "Application"
+		metadata: name: "module-provider-kit"
+		spec: components: [{
+			name: "provider-kit-aux"
+			type: "k8s-objects"
+			properties: objects: [{
+				apiVersion: "apps/v1"
+				kind:       "Deployment"
+				metadata: name: "provider-ctrl"
+				spec: template: spec: {
+					nodeSelector: disktype: "hdd"
+					containers: [{name: "ctrl", image: "provider:1"}]
+				}
+			}]
+		}]
+	}
+	parameter: nodeSelector: {
+		disktype:    "ssd"
+		"node-type": "infra"
+	}
+	expect: output: spec: components: [{
+		name: "provider-kit-aux"
+		properties: objects: [{
+			metadata: name: "provider-ctrl"
+			spec: template: spec: {
+				nodeSelector: {
+					disktype:    "ssd"
+					"node-type": "infra"
+				}
+				containers: [{name: "ctrl", image: "provider:1"}]
+			}
+		}]
+	}]
+}
+
+"Application walk preserves inputs/outputs on child components": test.#TraitRender & {
+	definition: "affinity"
+	workload: {
+		apiVersion: "core.oam.dev/v1beta1"
+		kind:       "Application"
+		metadata: name: "addon-with-meta"
+		spec: components: [{
+			name: "web"
+			type: "webservice"
+			inputs: [{from: "cfg", parameterKey: "env"}]
+			outputs: [{name: "url", valueFrom: "status.url"}]
+			properties: image: "web:1"
+		}]
+	}
+	parameter: nodeSelector: disktype: "ssd"
+	expect: output: spec: components: [{
+		name: "web"
+		type: "webservice"
+		inputs: [{from: "cfg", parameterKey: "env"}]
+		outputs: [{name: "url", valueFrom: "status.url"}]
+		traits: [{
+			type: "affinity"
+			properties: nodeSelector: disktype: "ssd"
+		}]
+	}]
 }
 
 "schedulerName and priorityClassName land on the pod spec": test.#TraitRender & _web & {

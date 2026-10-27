@@ -122,10 +122,10 @@ template: {
 						value: k.value
 					}
 					if k.operator != _|_ {
-						operator: k.operator
+						operator: "\(k.operator)"
 					}
 					if k.operator == _|_ {
-						operator: "Equal"
+						operator: "equal"
 					}
 					if k.tolerationSeconds != _|_ {
 						tolerationSeconds: k.tolerationSeconds
@@ -137,6 +137,9 @@ template: {
 		}
 		if parameter.priorityClassName != _|_ {
 			priorityClassName: parameter.priorityClassName
+		}
+		if parameter.topologySpreadConstraints != _|_ {
+			topologySpreadConstraints: parameter.topologySpreadConstraints
 		}
 	}
 
@@ -168,6 +171,9 @@ template: {
 		if parameter.priorityClassName != _|_ {
 			priorityClassName: parameter.priorityClassName
 		}
+		if parameter.topologySpreadConstraints != _|_ {
+			topologySpreadConstraints: parameter.topologySpreadConstraints
+		}
 	}
 
 	_affinityTrait: {
@@ -175,12 +181,17 @@ template: {
 		properties: _affinityTraitProperties
 	}
 
-	// Namespace helpers and raw components are left alone (mirrors AttachSchedulingTrait).
+	// Namespace helpers are k8s-objects named *-ns / *-namespace (addon
+	// convention). A webservice named backend-ns is not skipped. raw is skipped.
 	#skipSchedulingComp: {
 		name: string
 		type: string
-		skip: type == "raw" || strings.HasSuffix(name, "-ns") || strings.HasSuffix(name, "-namespace")
+		skip: type == "raw" || (type == "k8s-objects" && (strings.HasSuffix(name, "-ns") || strings.HasSuffix(name, "-namespace")))
 	}
+
+	// PodSpec scheduling keys the trait may overlay; dropped from an embedded
+	// object before _podSpec is applied so CUE does not conflict with prior values.
+	_schedKeys: ["nodeSelector", "affinity", "tolerations", "schedulerName", "priorityClassName", "topologySpreadConstraints"]
 
 	// For Application outputs (type: addon / type: module):
 	// 1) upsert this affinity trait onto each non-skipped component so child
@@ -198,25 +209,37 @@ template: {
 				}
 				if !(#skipSchedulingComp & {name: c.name, type: c.type}).skip {
 					{
-						name: c.name
-						type: c.type
-						if c.dependsOn != _|_ {
-							dependsOn: c.dependsOn
-						}
+						// Preserve every ApplicationComponent field; only replace
+						// traits and (when present) properties.objects.
+						for k, v in c if k != "traits" && k != "properties" {(k): v}
 						if c.properties != _|_ {
-							properties: c.properties
-						}
-						if c.properties != _|_ && c.properties.objects != _|_ {
-							properties: objects: [
-								for o in c.properties.objects {
-									if o.spec != _|_ && o.spec.template != _|_ {
-										o & {spec: template: spec: _podSpec}
-									}
-									if o.spec == _|_ || o.spec.template == _|_ {
-										o
-									}
-								},
-							]
+							properties: {
+								for k, v in c.properties if k != "objects" {(k): v}
+								if c.properties.objects != _|_ {
+									objects: [
+										for o in c.properties.objects {
+											if o.spec != _|_ && o.spec.template != _|_ && o.spec.template.spec != _|_ {
+												{
+													for k, v in o if k != "spec" {(k): v}
+													spec: {
+														for k, v in o.spec if k != "template" {(k): v}
+														template: {
+															for k, v in o.spec.template if k != "spec" {(k): v}
+															spec: {
+																for k, v in o.spec.template.spec if !list.Contains(_schedKeys, k) {(k): v}
+																_podSpec
+															}
+														}
+													}
+												}
+											}
+											if o.spec == _|_ || o.spec.template == _|_ || o.spec.template.spec == _|_ {
+												o
+											}
+										},
+									]
+								}
+							}
 						}
 						traits: list.Concat([
 							[if c.traits != _|_ for t in c.traits if t.type != "affinity" && t.type != "scheduling" {t}],
@@ -324,15 +347,34 @@ template: {
 		}
 		// +usage=Standard Kubernetes tolerations; overlays any existing tolerations
 		tolerations?: [...{
-			key?:               string
-			operator?:          string
-			value?:             string
-			effect?:            string
+			key?:     string
+			operator?: *"equal" | "Exists"
+			value?:   string
+			effect?:  "NoSchedule" | "PreferNoSchedule" | "NoExecute"
+			// +usage=Specify the period of time the toleration
 			tolerationSeconds?: int
 		}]
 		// +usage=Name of the scheduler to use
 		schedulerName?: string
 		// +usage=PriorityClass name for the pod
 		priorityClassName?: string
+		// +usage=Standard Kubernetes topologySpreadConstraints; overlays any existing constraints
+		topologySpreadConstraints?: [...{
+			maxSkew:           int
+			topologyKey:       string
+			whenUnsatisfiable: *"DoNotSchedule" | "ScheduleAnyway"
+			labelSelector?: {
+				matchLabels?: [string]: string
+				matchExpressions?: [...{
+					key:      string
+					operator: *"In" | "NotIn" | "Exists" | "DoesNotExist"
+					values?: [...string]
+				}]
+			}
+			minDomains?:         int
+			matchLabelKeys?: [...string]
+			nodeAffinityPolicy?: *"Honor" | "Ignore"
+			nodeTaintsPolicy?:   *"Honor" | "Ignore"
+		}]
 	}
 }
