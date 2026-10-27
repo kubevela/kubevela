@@ -449,3 +449,60 @@ _addonApp: {
 		nodeSelector: zone: "a"
 	}
 }
+
+"raw affinity.podAffinity and podAntiAffinity pass through": test.#TraitRender & _web & {
+	parameter: affinity: {
+		podAffinity: requiredDuringSchedulingIgnoredDuringExecution: [{
+			labelSelector: matchLabels: app: "cache"
+			topologyKey: "kubernetes.io/hostname"
+		}]
+		podAntiAffinity: preferredDuringSchedulingIgnoredDuringExecution: [{
+			weight: 10
+			podAffinityTerm: {
+				labelSelector: matchLabels: app: "web"
+				topologyKey: "kubernetes.io/hostname"
+			}
+		}]
+	}
+	expect: output: spec: template: spec: {
+		affinity: {
+			podAffinity: requiredDuringSchedulingIgnoredDuringExecution: [{
+				labelSelector: matchLabels: app: "cache"
+				topologyKey: "kubernetes.io/hostname"
+			}]
+			podAntiAffinity: preferredDuringSchedulingIgnoredDuringExecution: [{
+				weight: 10
+				podAffinityTerm: {
+					labelSelector: matchLabels: app: "web"
+					topologyKey: "kubernetes.io/hostname"
+				}
+			}]
+		}
+	}
+}
+
+"topologySpreadConstraints land on the pod spec": test.#TraitRender & _web & {
+	parameter: topologySpreadConstraints: [{
+		maxSkew:           1
+		topologyKey:       "kubernetes.io/hostname"
+		whenUnsatisfiable: "DoNotSchedule"
+		labelSelector: matchLabels: app: "web"
+		minDomains:          2
+		matchLabelKeys: ["pod-template-hash"]
+		nodeAffinityPolicy: "Honor"
+		nodeTaintsPolicy:   "Honor"
+	}]
+	expect: output: spec: template: spec: {
+		topologySpreadConstraints: [{
+			maxSkew:           1
+			topologyKey:       "kubernetes.io/hostname"
+			whenUnsatisfiable: "DoNotSchedule"
+			labelSelector: matchLabels: app: "web"
+			minDomains:          2
+			matchLabelKeys: ["pod-template-hash"]
+			nodeAffinityPolicy: "Honor"
+			nodeTaintsPolicy:   "Honor"
+		}]
+	}
+}
+
