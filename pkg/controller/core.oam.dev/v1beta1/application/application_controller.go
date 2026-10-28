@@ -1071,35 +1071,50 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	return !reflect.DeepEqual(newTracker, old)
 }
 
+// policyDefinitionEventHandler keeps policyScopeIndex in sync with PolicyDefinition events.
+// DeleteFunc must stay explicit: PolicyDefinitions have no finalizers, so delete events
+// arrive with a nil DeletionTimestamp and a MapFunc cannot tell them apart from updates.
 func (r *Reconciler) policyDefinitionEventHandler() ctrlHandler.Funcs {
 	return ctrlHandler.Funcs{
-		CreateFunc: func(ctx context.Context, e ctrlEvent.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-			r.handlePolicyDefinitionChange(ctx, e.Object, false)
+		CreateFunc: func(_ context.Context, e ctrlEvent.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.onPolicyDefinitionChanged(e.Object)
 		},
-		UpdateFunc: func(ctx context.Context, e ctrlEvent.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-			r.handlePolicyDefinitionChange(ctx, e.ObjectNew, false)
+		UpdateFunc: func(_ context.Context, e ctrlEvent.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.onPolicyDefinitionChanged(e.ObjectNew)
 		},
-		DeleteFunc: func(ctx context.Context, e ctrlEvent.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
-			r.handlePolicyDefinitionChange(ctx, e.Object, true)
+		DeleteFunc: func(_ context.Context, e ctrlEvent.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.onPolicyDefinitionDeleted(e.Object)
 		},
 	}
 }
 
-func (r *Reconciler) handlePolicyDefinitionChange(_ context.Context, obj client.Object, deleted bool) {
+// onPolicyDefinitionChanged updates the in-memory index so the next reconcile sees the
+// new/updated policy. Without this, newly created global PolicyDefinitions are invisible
+// until the controller restarts (the index is only populated once at startup).
+func (r *Reconciler) onPolicyDefinitionChanged(obj client.Object) {
 	policy, ok := obj.(*v1beta1.PolicyDefinition)
 	if !ok {
 		return
 	}
-
-	// Update the in-memory index so the next reconcile sees the new/updated policy.
-	// Without this, newly created global PolicyDefinitions are invisible until the
-	// controller restarts (the index is only populated once at startup).
-	if deleted || policy.GetDeletionTimestamp() != nil {
+	if policy.GetDeletionTimestamp() != nil {
 		policyScopeIndex.Delete(policy.Name, policy.Namespace)
 	} else {
 		policyScopeIndex.AddOrUpdate(policy)
 	}
+	invalidatePolicyCacheFor(policy)
+}
 
+// onPolicyDefinitionDeleted evicts a deleted policy from the in-memory index.
+func (r *Reconciler) onPolicyDefinitionDeleted(obj client.Object) {
+	policy, ok := obj.(*v1beta1.PolicyDefinition)
+	if !ok {
+		return
+	}
+	policyScopeIndex.Delete(policy.Name, policy.Namespace)
+	invalidatePolicyCacheFor(policy)
+}
+
+func invalidatePolicyCacheFor(policy *v1beta1.PolicyDefinition) {
 	// Invalidate rendered policy cache when global policies change
 	if policy.Namespace == oam.SystemDefinitionNamespace {
 		// vela-system policy affects all namespaces - invalidate entire cache
