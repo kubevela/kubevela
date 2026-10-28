@@ -48,3 +48,26 @@ func TestApplyConfigTemplateCRDRefusesASystemTemplateOutsideVelaSystem(t *testin
 	r.NoError(cli.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: "t"}, &got))
 	r.Equal(configv1alpha1.ConfigTemplateScopeSystem, got.Spec.Scope)
 }
+
+func TestApplyConfigTemplateCRDRefusesTurningSensitiveOff(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	key := client.ObjectKey{Namespace: "wf-a", Name: "t"}
+	tmpl := &config.Template{Name: "t", Template: script.CUE("template: {parameter: {}}")}
+
+	r.NoError(applyConfigTemplateCRD(ctx, cli, "wf-a", tmpl), "created not sensitive")
+	tmpl.Sensitive = true
+	r.NoError(applyConfigTemplateCRD(ctx, cli, "wf-a", tmpl), "false to true")
+
+	off := &config.Template{Name: "t", Description: "changed", Template: script.CUE("template: {parameter: {}}")}
+	err := applyConfigTemplateCRD(ctx, cli, "wf-a", off)
+	r.EqualError(err, "config template wf-a/t: sensitive cannot be changed from true to false")
+	var got configv1alpha1.ConfigTemplate
+	r.NoError(cli.Get(ctx, key, &got))
+	r.True(got.Spec.Sensitive, "nothing written")
+	r.Empty(got.Spec.Description, "nothing written")
+
+	tmpl.Description = "changed"
+	r.NoError(applyConfigTemplateCRD(ctx, cli, "wf-a", tmpl), "an update that keeps it sensitive")
+}

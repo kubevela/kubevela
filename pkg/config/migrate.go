@@ -766,7 +766,7 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		raw = nil
 	}
 	templateName := secret.Labels[types.LabelConfigType]
-	sensitive := secretSensitive(secret)
+	sensitive := SecretSensitive(secret)
 	if templateName != "" {
 		templateNS := templateNamespaceOf(secret)
 		cfg.Spec.TemplateRef = &configv1alpha1.ConfigTemplateReference{Name: templateName, Namespace: templateNS}
@@ -806,11 +806,12 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 	return cfg, propsSecret, nil, nil
 }
 
-// secretSensitive reports whether the legacy Secret itself says it was made from
-// a sensitive template. The template may have been flipped since; the Secret's
-// word keeps its input out of the CR either way.
-func secretSensitive(secret *corev1.Secret) bool {
-	return secret.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue
+// SecretSensitive reports whether a config Secret is marked sensitive. For a legacy
+// Secret it is the Secret's own word that it was made from a sensitive template; the
+// template may have been flipped since, and the Secret's word keeps its input out of
+// the CR either way.
+func SecretSensitive(secret *corev1.Secret) bool {
+	return secret.Annotations[types.AnnotationConfigSensitive] == SensitiveAnnotationValue
 }
 
 // propertiesSecretForeign reports whether a Secret already holds the companion
@@ -926,7 +927,7 @@ func (t templateLookup) sensitive() bool {
 	if t.cr != nil {
 		return t.cr.Spec.Sensitive
 	}
-	return t.legacy != nil && t.legacy.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue
+	return t.legacy != nil && t.legacy.Annotations[types.AnnotationConfigSensitive] == SensitiveAnnotationValue
 }
 
 // ObjectReferences lists the output objects a config Secret records under

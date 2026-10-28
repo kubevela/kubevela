@@ -87,6 +87,13 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 		}
 	}
+	// sensitive is one-way (issue #7410 section 7). The CRD's transition rule refuses the same
+	// update before this webhook is called wherever the API server evaluates it (Kubernetes
+	// 1.25+); this is the layer where it does not. No exemption: not for the controller, not for
+	// a template being deleted (its finalizer removals leave the spec alone).
+	if old != nil && old.Spec.Sensitive && !obj.Spec.Sensitive {
+		return admission.Denied(legacyconfig.SensitiveTurnedOffError(obj.Namespace, obj.Name).Error())
+	}
 	// An object being deleted loses its finalizers through updates, and refusing those would
 	// leave it Terminating. Only metadata may change then: a spec edit is judged as any other.
 	if obj.DeletionTimestamp != nil && old != nil && reflect.DeepEqual(old.Spec, obj.Spec) {
