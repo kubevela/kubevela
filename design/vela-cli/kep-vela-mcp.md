@@ -256,12 +256,16 @@ The server supplies facts; the agent follows principle 8:
 `mixed` or `empty`), the default a platform team declared with the namespace label
 `app.oam.dev/delivery-default`, and whether the caller may create plain Deployments, so the
 agent never offers an approach that would fail. The server's own instructions stay neutral.
+Neither server writes plain Kubernetes objects: for that work the agent hands back the
+manifests for the repository or the user's own pipeline, as gitops mode does for Applications.
 
 Platform teams label definitions with `definition.oam.dev/provides` (for example
 `postgres`) and mark defaults with the `definition.oam.dev/default-for` annotation.
 `list_definitions` filters by `provides` and marks the default for the namespace. With a
 default the agent uses it and names the alternatives; with none and options that differ
-materially, it asks in chat, keeping confirmation prompts for writes.
+materially, it asks in chat, keeping confirmation prompts for writes. Unlabelled
+definitions, which today includes the built-in ones, are still listed with their
+descriptions, and the agent compares those when no label applies.
 
 ### Write modes
 
@@ -322,12 +326,12 @@ metadata:
     app.oam.dev/hold: sha256:...
 ```
 
-The hold does not predict a generation. The write is refused if the Application's spec
-generation, labels or annotations changed since the diff, or if it appeared or vanished,
-and the update itself carries the current resourceVersion, so a change landing during the
-write is a conflict; the token is never applied to a spec it was not computed for. Status
-writes by the controller do not count as changes, which keeps reconciling Applications
-appliable. The annotation only
+The hold does not predict a generation. An existing Application is updated only while its
+UID, spec generation, labels and annotations still match the diff; the update carries the
+current resourceVersion, and a conflict caused by a controller status write is retried
+after the same checks pass against a fresh read. A new Application is created only if it
+is still absent. Anything else fails and the agent diffs again, so the token is never
+applied to a spec it was not computed for. The annotation only
 requests the hold. When the controller first sees it, it writes the hold into the
 Application's status, which only the controller writes, and it does this before starting
 any workflow step for that generation: if the status write fails, the reconcile is
@@ -412,7 +416,7 @@ skills.
 
 `vela` writes no client configuration, so it never tracks client formats or versions.
 `vela mcp config` prints the server entry, either as the `mcpServers` JSON block most
-clients accept or as a command line for a client's own `mcp add`:
+clients accept or as the server command and arguments that go after a client's own `mcp add`:
 
 ```text
 $ claude mcp add kubevela -- $(vela mcp config --format command --namespace team-a)
