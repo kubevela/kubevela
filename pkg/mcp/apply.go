@@ -32,6 +32,7 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -184,7 +185,8 @@ func (d *deps) applyApplication(ctx context.Context, req *sdk.CallToolRequest, i
 	}
 
 	initiator := d.initiator(ctx, cli)
-	written, err := writeApplication(ctx, cli, app, live, initiator, in.Token, rec.risk.Class)
+	recheck := func() (*v1beta1.Application, error) { return d.checkUnchanged(ctx, cli, app, rec) }
+	written, err := writeApplication(ctx, cli, app, live, recheck, initiator, in.Token, rec.risk.Class)
 	if err != nil {
 		return nil, out, err
 	}
@@ -266,14 +268,16 @@ func (d *deps) checkUnchanged(ctx context.Context, cli client.Client, app *v1bet
 		return nil, fmt.Errorf("get application %s/%s: %w", app.Namespace, app.Name, err)
 	case !rec.liveExists:
 		return nil, fmt.Errorf("application %s/%s was created since the diff: call diff_application again", app.Namespace, app.Name)
+	case string(live.UID) != rec.liveUID:
+		return nil, fmt.Errorf("application %s/%s was deleted and recreated since the diff: call diff_application again", app.Namespace, app.Name)
 	case live.Generation != rec.liveGeneration:
 		return nil, fmt.Errorf("application %s/%s spec changed since the diff (generation %d, now %d): call diff_application again", app.Namespace, app.Name, rec.liveGeneration, live.Generation)
 	case intentMeta(live) != rec.liveMeta:
 		return nil, fmt.Errorf("application %s/%s labels or annotations changed since the diff: call diff_application again", app.Namespace, app.Name)
 	}
 	// Status-only writes by the controller pass. The write that follows
-	// carries the resourceVersion read here, so a change landing between
-	// this check and the write is still a conflict.
+	// carries the resourceVersion read here; writeApplication retries a
+	// conflict only after running this check again.
 	return live, nil
 }
 
@@ -469,7 +473,7 @@ func gitopsDocument(app *v1beta1.Application) (string, error) {
 // saw, so a change that lands between the check and the write is a
 // conflict, never an overwrite. Annotations the live object has and the
 // document does not are kept; server-owned ones are replaced.
-func writeApplication(ctx context.Context, cli client.Client, app, live *v1beta1.Application, initiator, token, risk string) (*v1beta1.Application, error) {
+func writeApplication(ctx context.Context, cli client.Client, app, live *v1beta1.Application, recheck func() (*v1beta1.Application, error), initiator, token, risk string) (*v1beta1.Application, error) {
 	stamp := func(annos map[string]string) map[string]string {
 		if annos == nil {
 			annos = map[string]string{}
@@ -491,10 +495,47 @@ func writeApplication(ctx context.Context, cli client.Client, app, live *v1beta1
 		obj.Status = v1beta1.Application{}.Status
 		obj.Annotations = stamp(obj.Annotations)
 		if err := cli.Create(ctx, obj); err != nil {
+			if apierrors.IsAlreadyExists(err) {
+				return nil, fmt.Errorf("application %s/%s was created while applying; nothing was written: call diff_application again", app.Namespace, app.Name)
+			}
 			return nil, fmt.Errorf("create application %s/%s: %w", app.Namespace, app.Name, err)
 		}
 		return obj, nil
 	}
+	// A status write by the controller between the check and the update
+	// moves the resourceVersion without changing intent. Retry those
+	// conflicts, re-running every precondition against a fresh read first.
+	var obj *v1beta1.Application
+	var stale error
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if obj != nil {
+			fresh, err := recheck()
+			if err != nil {
+				stale = err
+				return err
+			}
+			live = fresh
+		}
+		var err error
+		if obj, err = updatedApplication(app, live, stamp); err != nil {
+			return err
+		}
+		return cli.Update(ctx, obj)
+	})
+	switch {
+	case stale != nil:
+		return nil, stale
+	case apierrors.IsConflict(err):
+		return nil, fmt.Errorf("application %s/%s kept changing while applying; nothing was written: call diff_application again", app.Namespace, app.Name)
+	case err != nil:
+		return nil, fmt.Errorf("update application %s/%s: %w", app.Namespace, app.Name, err)
+	}
+	return obj, nil
+}
+
+// updatedApplication is live with the document's spec, labels and
+// annotations merged in and the apply markers stamped.
+func updatedApplication(app, live *v1beta1.Application, stamp func(map[string]string) map[string]string) (*v1beta1.Application, error) {
 	obj := live.DeepCopy()
 	obj.Spec = app.Spec
 	if obj.Labels == nil {
@@ -517,12 +558,6 @@ func writeApplication(ctx context.Context, cli client.Client, app, live *v1beta1
 			return nil, err
 		}
 		obj.Annotations[kubectlLastApplied] = cfg
-	}
-	if err := cli.Update(ctx, obj); err != nil {
-		if apierrors.IsConflict(err) {
-			return nil, fmt.Errorf("application %s/%s changed while applying; nothing was written: call diff_application again", app.Namespace, app.Name)
-		}
-		return nil, fmt.Errorf("update application %s/%s: %w", app.Namespace, app.Name, err)
 	}
 	return obj, nil
 }

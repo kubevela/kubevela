@@ -162,8 +162,8 @@ var (
 	mcpConfigLong = templates.LongDesc(i18n.T(`
 		Print the server entry an AI client needs to start vela mcp. Nothing is
 		written: each client keeps its own configuration format, so the entry is
-		printed either as the mcpServers JSON block most clients accept, or as a
-		command line for a client's own "mcp add" command.
+		printed either as the mcpServers JSON block most clients accept, or as the
+		server's own command and arguments, which go after a client's "mcp add".
 
 		The entry points at the absolute path of this vela binary and carries the
 		server flags given here. The server uses the kubeconfig and context of the
@@ -285,7 +285,7 @@ func NewMCPConfigCommand() *cobra.Command {
 			return o.Run(cmd)
 		},
 	}
-	cmd.Flags().StringVar(&o.Format, "format", o.Format, "Output format: json for an mcpServers block, or command for a client's own mcp add command.")
+	cmd.Flags().StringVar(&o.Format, "format", o.Format, "Output format: json for an mcpServers block, or command for the server command and arguments a client's mcp add takes.")
 	cmd.Flags().StringVar(&o.Name, "name", o.Name, "Server name in the JSON block.")
 	addServerFlags(cmd, &o.MCPOption)
 	return cmd

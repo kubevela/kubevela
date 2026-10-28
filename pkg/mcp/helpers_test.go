@@ -29,6 +29,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -74,10 +75,19 @@ func startHarness(opts Options, objs ...client.Object) *harness {
 // startHarnessWithClient is startHarness with client options, for specs
 // that need a client able to answer elicitation prompts.
 func startHarnessWithClient(opts Options, copts *sdk.ClientOptions, objs ...client.Object) *harness {
+	return startHarnessIntercepted(opts, copts, nil, objs...)
+}
+
+// startHarnessIntercepted routes the server's calls through funcs, so a
+// spec can inject a concurrent write. h.cli stays the plain client.
+func startHarnessIntercepted(opts Options, copts *sdk.ClientOptions, funcs *interceptor.Funcs, objs ...client.Object) *harness {
 	h := &harness{}
 	h.ctx, h.cancel = context.WithCancel(context.Background())
 	h.cli = fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(objs...).Build()
 	cli := h.cli
+	if funcs != nil {
+		cli = interceptor.NewClient(cli.(client.WithWatch), *funcs)
+	}
 	f := velacmd.NewTestFactory(&rest.Config{Host: "https://example.invalid"}, cli)
 	if opts.ServerVersion == nil {
 		opts.ServerVersion = func(*rest.Config) (string, error) { return "v1.31.4", nil }

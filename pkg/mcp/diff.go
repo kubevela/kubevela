@@ -77,6 +77,9 @@ type diffRecord struct {
 	// computed. apply_application writes only if both still hold.
 	liveExists bool
 	liveRV     string
+	// liveUID tells a same-name replacement from the object that was
+	// diffed; a recreated Application can match on everything else.
+	liveUID string
 	// liveGeneration and liveMeta capture the live Application's intent:
 	// the spec generation and its user labels and annotations. Status
 	// writes by the controller change the resourceVersion but not these.
@@ -247,15 +250,16 @@ func baseFromRevision(rev *v1beta1.ApplicationRevision, target *v1beta1.Applicat
 // token, and so does any change to the live Application.
 func (d *deps) issueToken(app *v1beta1.Application, document, base string, live *v1beta1.Application, cs ChangeSet, risk Risk) (string, time.Time) {
 	specHash := sha256.Sum256([]byte(document))
-	liveRV := ""
+	liveRV, liveUID := "", ""
 	if live != nil {
-		liveRV = live.ResourceVersion
+		liveRV, liveUID = live.ResourceVersion, string(live.UID)
 	}
 	payload, _ := json.Marshal(map[string]string{
 		"namespace": app.Namespace,
 		"name":      app.Name,
 		"base":      base,
 		"live":      liveRV,
+		"uid":       liveUID,
 		"spec":      hex.EncodeToString(specHash[:]),
 		"risk":      risk.Class,
 		"issued":    time.Now().UTC().Format(time.RFC3339Nano),
@@ -268,6 +272,7 @@ func (d *deps) issueToken(app *v1beta1.Application, document, base string, live 
 		specHash:   hex.EncodeToString(specHash[:]),
 		liveExists: live != nil,
 		liveRV:     liveRV,
+		liveUID:    liveUID,
 		changeSet:  cs,
 		risk:       risk,
 		createdAt:  time.Now(),

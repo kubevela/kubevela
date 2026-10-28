@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -343,6 +344,68 @@ var _ = Describe("apply_application", func() {
 			Expect(h.cli.Create(context.Background(), &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "shop", Namespace: "team-a"}})).To(Succeed())
 			res, _ := apply(doc, d.Token, ModeDirect)
 			Expect(errorText(res)).To(ContainSubstring("was created since the diff"))
+		})
+
+		It("refuses when the Application was deleted and recreated under the same name", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
+			doc := shopDoc("nginx:1.27", 2, "")
+			d := diff(doc)
+			old := liveApp("shop")
+			Expect(h.cli.Delete(context.Background(), old)).To(Succeed())
+			again := old.DeepCopy()
+			again.ResourceVersion, again.UID = "", "recreated"
+			Expect(h.cli.Create(context.Background(), again)).To(Succeed())
+			Expect(liveApp("shop").Generation).To(Equal(old.Generation), "the replacement matches on everything but its UID")
+			res, _ := apply(doc, d.Token, ModeDirect)
+			Expect(errorText(res)).To(ContainSubstring("deleted and recreated since the diff"))
+			Expect(prompt.messages).To(BeEmpty())
+		})
+	})
+
+	Context("concurrent writes during the apply", func() {
+		// raceOnce makes one write to the live Application just before the
+		// server's first update, the way a reconcile can land between the
+		// server's read and its write.
+		raceOnce := func(change func(*v1beta1.Application)) (*interceptor.Funcs, *bool) {
+			raced := false
+			return &interceptor.Funcs{Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+				if _, ok := obj.(*v1beta1.Application); ok && !raced {
+					raced = true
+					live := &v1beta1.Application{}
+					if err := c.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
+						return err
+					}
+					change(live)
+					if err := c.Update(ctx, live); err != nil {
+						return err
+					}
+				}
+				return c.Update(ctx, obj, opts...)
+			}}, &raced
+		}
+
+		It("retries past a status write by the controller", func() {
+			funcs, raced := raceOnce(func(app *v1beta1.Application) { app.Status.Phase = "runningWorkflow" })
+			h = startHarnessIntercepted(writeOptions(), prompt.clientOptions(), funcs, append(platformFixtures(), shopRunning()...)...)
+			doc := shopDoc("nginx:1.27", 2, "")
+			d := diff(doc)
+			res, out := apply(doc, d.Token, ModeDirect)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			Expect(*raced).To(BeTrue(), "the status write landed between the read and the update")
+			Expect(out.Applied).To(BeTrue())
+			Expect(string(liveApp("shop").Spec.Components[0].Properties.Raw)).To(ContainSubstring("nginx:1.27"))
+		})
+
+		It("still refuses a spec change that lands during the apply", func() {
+			funcs, raced := raceOnce(func(app *v1beta1.Application) { app.Generation++ })
+			h = startHarnessIntercepted(writeOptions(), prompt.clientOptions(), funcs, append(platformFixtures(), shopRunning()...)...)
+			doc := shopDoc("nginx:1.27", 2, "")
+			d := diff(doc)
+			res, out := apply(doc, d.Token, ModeDirect)
+			Expect(*raced).To(BeTrue())
+			Expect(out.Applied).To(BeFalse())
+			Expect(errorText(res)).To(ContainSubstring("spec changed since the diff"))
+			Expect(string(liveApp("shop").Spec.Components[0].Properties.Raw)).NotTo(ContainSubstring("nginx:1.27"))
 		})
 	})
 })
