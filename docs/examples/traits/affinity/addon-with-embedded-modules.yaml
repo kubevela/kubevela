@@ -9,9 +9,11 @@
 # (kube-state-metrics) or a module with aux controllers (module.yaml).
 #
 # Prerequisites:
-# - Enable the feature gate (off by default):
-#     --set featureGates.enableAddonComponent=true
-#   or controller flag --feature-gates=EnableAddonComponent=true
+# - Enable both feature gates (off by default). Inline modules under modules/
+#   are gated by EnableModuleComponent as well as EnableAddonComponent:
+#     --set featureGates.enableAddonComponent=true,featureGates.enableModuleComponent=true
+#   or controller flags:
+#     --feature-gates=EnableAddonComponent=true,EnableModuleComponent=true
 # - Local addon registry hosting kit-suite-inline (see e2e addon module testdata).
 # Replace registry/addon/version for your environment.
 apiVersion: core.oam.dev/v1beta1
