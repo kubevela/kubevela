@@ -36,7 +36,11 @@ func TestApplyConfigTemplateCRDRefusesASystemTemplateOutsideVelaSystem(t *testin
 	r := require.New(t)
 	ctx := context.Background()
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	tmpl := &config.Template{Name: "t", Scope: "system", Template: script.CUE("template: {parameter: {}}")}
+	tmpl := &config.Template{
+		NamespacedName: config.NamespacedName{Name: "t"},
+		Scope:          "system",
+		Template:       script.CUE("template: {parameter: {}}"),
+	}
 
 	err := applyConfigTemplateCRD(ctx, cli, "wf-a", tmpl)
 	r.Error(err)
