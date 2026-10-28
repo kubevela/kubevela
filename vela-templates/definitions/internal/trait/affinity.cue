@@ -13,7 +13,7 @@ import (
 	attributes: {
 		// "*" so helmchart, type: addon, and type: module (Application primary) can carry the trait.
 		appliesToWorkloads: ["*"]
-		podDisruptive:      true
+		podDisruptive: true
 	}
 }
 template: {
@@ -257,6 +257,7 @@ template: {
 		if context.output.spec != _|_ && context.output.spec.template != _|_ {
 			spec: template: spec: _podSpec
 		}
+
 		// type: module (and inline modules as k8s-objects) render an Application.
 		if context.output.kind == "Application" && context.output.spec != _|_ && context.output.spec.components != _|_ {
 			spec: components: (_scheduleAppComponents & {components: context.output.spec.components}).out
@@ -310,15 +311,18 @@ template: {
 		matchFields?: [...#nodeSelectorReq]
 	}
 
+	// Named type so SDK gen-api emits AffinityRules, not Affinity (which would clash with the Affinity() constructor).
+	#affinityRules: {
+		nodeAffinity?: {...}
+		podAffinity?: {...}
+		podAntiAffinity?: {...}
+	}
+
 	parameter: {
 		// +usage=Standard Kubernetes nodeSelector; overlays any existing nodeSelector (e.g. from Helm values)
 		nodeSelector?: [string]: string
 		// +usage=Raw Kubernetes affinity object. When set, used as-is and takes precedence over the wrapped podAffinity/podAntiAffinity/nodeAffinity fields below.
-		affinity?: {
-			nodeAffinity?: {...}
-			podAffinity?: {...}
-			podAntiAffinity?: {...}
-		}
+		affinity?: #affinityRules
 		// +usage=Specify the pod affinity scheduling rules (ignored when affinity is set)
 		podAffinity?: {
 			required?: [...#podAffinityTerm]
@@ -347,10 +351,10 @@ template: {
 		}
 		// +usage=Standard Kubernetes tolerations; overlays any existing tolerations
 		tolerations?: [...{
-			key?:     string
+			key?:      string
 			operator?: *"equal" | "Exists"
-			value?:   string
-			effect?:  "NoSchedule" | "PreferNoSchedule" | "NoExecute"
+			value?:    string
+			effect?:   "NoSchedule" | "PreferNoSchedule" | "NoExecute"
 			// +usage=Specify the period of time the toleration
 			tolerationSeconds?: int
 		}]
@@ -371,7 +375,7 @@ template: {
 					values?: [...string]
 				}]
 			}
-			minDomains?:         int
+			minDomains?: int
 			matchLabelKeys?: [...string]
 			nodeAffinityPolicy?: *"Honor" | "Ignore"
 			nodeTaintsPolicy?:   *"Honor" | "Ignore"

@@ -258,8 +258,8 @@ _addonApp: {
 		"node-type": "infra"
 	}
 	expect: output: spec: components: [{
-		name: "addon-kube-state-metrics-ns"
-		type: "k8s-objects"
+		name:    "addon-kube-state-metrics-ns"
+		type:    "k8s-objects"
 		traits?: _|_
 	}, {
 		name: "kube-state-metrics"
@@ -279,7 +279,7 @@ _addonApp: {
 		matchExpressions: [{key: "node-type", values: ["infra"]}]
 	}]
 	expect: output: spec: components: [{
-		name: "addon-kube-state-metrics-ns"
+		name:    "addon-kube-state-metrics-ns"
 		traits?: _|_
 	}, {
 		name: "kube-state-metrics"
@@ -299,7 +299,7 @@ _addonApp: {
 		tolerations: [{key: "dedicated", operator: "Exists", effect: "NoSchedule"}]
 	}
 	expect: output: spec: components: [{
-		name: "addon-kube-state-metrics-ns"
+		name:    "addon-kube-state-metrics-ns"
 		traits?: _|_
 	}, {
 		name: "kube-state-metrics"
@@ -439,8 +439,8 @@ _addonApp: {
 
 "schedulerName and priorityClassName land on the pod spec": test.#TraitRender & _web & {
 	parameter: {
-		schedulerName:      "default-scheduler"
-		priorityClassName:  "system-cluster-critical"
+		schedulerName:     "default-scheduler"
+		priorityClassName: "system-cluster-critical"
 		nodeSelector: zone: "a"
 	}
 	expect: output: spec: template: spec: {
@@ -487,7 +487,7 @@ _addonApp: {
 		topologyKey:       "kubernetes.io/hostname"
 		whenUnsatisfiable: "DoNotSchedule"
 		labelSelector: matchLabels: app: "web"
-		minDomains:          2
+		minDomains: 2
 		matchLabelKeys: ["pod-template-hash"]
 		nodeAffinityPolicy: "Honor"
 		nodeTaintsPolicy:   "Honor"
@@ -498,11 +498,10 @@ _addonApp: {
 			topologyKey:       "kubernetes.io/hostname"
 			whenUnsatisfiable: "DoNotSchedule"
 			labelSelector: matchLabels: app: "web"
-			minDomains:          2
+			minDomains: 2
 			matchLabelKeys: ["pod-template-hash"]
 			nodeAffinityPolicy: "Honor"
 			nodeTaintsPolicy:   "Honor"
 		}]
 	}
 }
-
