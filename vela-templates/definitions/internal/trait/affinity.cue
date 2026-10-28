@@ -233,7 +233,28 @@ template: {
 													}
 												}
 											}
-											if o.spec == _|_ || o.spec.template == _|_ || o.spec.template.spec == _|_ {
+											if o.spec != _|_ && o.spec.jobTemplate != _|_ && o.spec.jobTemplate.spec != _|_ && o.spec.jobTemplate.spec.template != _|_ && o.spec.jobTemplate.spec.template.spec != _|_ {
+												{
+													for k, v in o if k != "spec" {(k): v}
+													spec: {
+														for k, v in o.spec if k != "jobTemplate" {(k): v}
+														jobTemplate: {
+															for k, v in o.spec.jobTemplate if k != "spec" {(k): v}
+															spec: {
+																for k, v in o.spec.jobTemplate.spec if k != "template" {(k): v}
+																template: {
+																	for k, v in o.spec.jobTemplate.spec.template if k != "spec" {(k): v}
+																	spec: {
+																		for k, v in o.spec.jobTemplate.spec.template.spec if !list.Contains(_schedKeys, k) {(k): v}
+																		_podSpec
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+											if (o.spec == _|_ || o.spec.template == _|_ || o.spec.template.spec == _|_) && (o.spec == _|_ || o.spec.jobTemplate == _|_ || o.spec.jobTemplate.spec == _|_ || o.spec.jobTemplate.spec.template == _|_ || o.spec.jobTemplate.spec.template.spec == _|_) {
 												o
 											}
 										},
@@ -257,6 +278,9 @@ template: {
 		if context.output.spec != _|_ && context.output.spec.template != _|_ {
 			spec: template: spec: _podSpec
 		}
+		if context.output.spec != _|_ && context.output.spec.jobTemplate != _|_ && context.output.spec.jobTemplate.spec != _|_ && context.output.spec.jobTemplate.spec.template != _|_ {
+			spec: jobTemplate: spec: template: spec: _podSpec
+		}
 
 		// type: module (and inline modules as k8s-objects) render an Application.
 		if context.output.kind == "Application" && context.output.spec != _|_ && context.output.spec.components != _|_ {
@@ -265,7 +289,7 @@ template: {
 	}
 
 	// Overlay the same fields onto every auxiliary that has a pod template
-	// (helmchart chart resources) and onto Application auxiliaries (rare).
+	// (helmchart chart resources, CronJobs) and onto Application auxiliaries (rare).
 	// Named keys must match context.outputs.
 	// +patchStrategy=jsonMergePatch
 	patchOutputs: {
@@ -273,6 +297,11 @@ template: {
 			if o.spec != _|_ && o.spec.template != _|_ {
 				(name): {
 					spec: template: spec: _podSpec
+				}
+			}
+			if o.spec != _|_ && o.spec.jobTemplate != _|_ && o.spec.jobTemplate.spec != _|_ && o.spec.jobTemplate.spec.template != _|_ {
+				(name): {
+					spec: jobTemplate: spec: template: spec: _podSpec
 				}
 			}
 			if o.kind == "Application" && o.spec != _|_ && o.spec.components != _|_ {
@@ -364,7 +393,8 @@ template: {
 		priorityClassName?: string
 		// +usage=Standard Kubernetes topologySpreadConstraints; overlays any existing constraints
 		topologySpreadConstraints?: [...{
-			maxSkew:           int
+			// Kubernetes rejects maxSkew < 1
+			maxSkew:           int & >=1
 			topologyKey:       string
 			whenUnsatisfiable: *"DoNotSchedule" | "ScheduleAnyway"
 			labelSelector?: {
@@ -375,7 +405,8 @@ template: {
 					values?: [...string]
 				}]
 			}
-			minDomains?: int
+			// Kubernetes rejects minDomains < 1; only meaningful with DoNotSchedule
+			minDomains?: int & >=1
 			matchLabelKeys?: [...string]
 			nodeAffinityPolicy?: *"Honor" | "Ignore"
 			nodeTaintsPolicy?:   *"Honor" | "Ignore"

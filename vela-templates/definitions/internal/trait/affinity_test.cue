@@ -505,3 +505,89 @@ _addonApp: {
 		}]
 	}
 }
+
+"topologySpread maxSkew below 1 is rejected": test.#TraitRender & _web & {
+	parameter: topologySpreadConstraints: [{
+		maxSkew:           0
+		topologyKey:       "kubernetes.io/hostname"
+		whenUnsatisfiable: "DoNotSchedule"
+	}]
+	expect: error: {
+		parameter: [=~"maxSkew"] @contains()
+	}
+}
+
+"CronJob primary patch lands on jobTemplate pod spec": test.#TraitRender & {
+	definition: "affinity"
+	workload: {
+		apiVersion: "batch/v1"
+		kind:       "CronJob"
+		metadata: name: "nightly"
+		spec: {
+			schedule: "0 * * * *"
+			jobTemplate: spec: template: spec: {
+				containers: [{name: "job", image: "busybox"}]
+			}
+		}
+	}
+	parameter: nodeSelector: disktype: "ssd"
+	expect: output: spec: jobTemplate: spec: template: spec: {
+		nodeSelector: disktype: "ssd"
+		containers: [{name: "job", image: "busybox"}]
+	}
+}
+
+"embedded CronJob in Application overlays jobTemplate pod spec": test.#TraitRender & {
+	definition: "affinity"
+	workload: {
+		apiVersion: "core.oam.dev/v1beta1"
+		kind:       "Application"
+		metadata: name: "cron-owner"
+		spec: components: [{
+			name: "jobs"
+			type: "k8s-objects"
+			properties: objects: [{
+				apiVersion: "batch/v1"
+				kind:       "CronJob"
+				metadata: name: "nightly"
+				spec: {
+					schedule: "0 * * * *"
+					jobTemplate: spec: template: spec: {
+						nodeSelector: disktype: "hdd"
+						containers: [{name: "job", image: "busybox"}]
+					}
+				}
+			}]
+		}]
+	}
+	parameter: nodeSelector: {
+		disktype:    "ssd"
+		"node-type": "infra"
+	}
+	expect: output: spec: components: [{
+		name: "jobs"
+		type: "k8s-objects"
+		properties: objects: [{
+			apiVersion: "batch/v1"
+			kind:       "CronJob"
+			metadata: name: "nightly"
+			spec: {
+				schedule: "0 * * * *"
+				jobTemplate: spec: template: spec: {
+					nodeSelector: {
+						disktype:    "ssd"
+						"node-type": "infra"
+					}
+					containers: [{name: "job", image: "busybox"}]
+				}
+			}
+		}]
+		traits: [{
+			type: "affinity"
+			properties: nodeSelector: {
+				disktype:    "ssd"
+				"node-type": "infra"
+			}
+		}]
+	}]
+}

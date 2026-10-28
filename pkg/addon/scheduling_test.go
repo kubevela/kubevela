@@ -144,8 +144,9 @@ func TestMergeNodeSelector(t *testing.T) {
 	require.Equal(t, "a", empty.NodeSelector["zone"])
 }
 
-// GitHub #5362: CLI --nodeSelector / --scheduling-file attach affinity onto the
-// addon Application components (webservice/helmchart/module), skipping *-ns helpers.
+// GitHub #5362: AttachSchedulingTrait puts affinity onto webservice/helmchart/module
+// components and skips *-ns helpers / raw. CLI flag wiring is covered by
+// TestInjectSchedulingArgs in references/cli.
 func TestAttachSchedulingTraitIssue5362Matrix(t *testing.T) {
 	app := &v1beta1.Application{}
 	app.Spec.Components = []common2.ApplicationComponent{

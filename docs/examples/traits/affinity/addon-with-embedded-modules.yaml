@@ -1,10 +1,19 @@
 # Addon that embeds modules inline (modules/ under the addon package).
 # Those render as k8s-objects whose primary object is an Application, not as
 # separate type: module children. Affinity on the outer type: addon walks that
-# owned Application and overlays auxiliary controller Deployments inside it.
+# owned Application and upserts itself onto its components (Application walk).
 #
-# Prerequisites: local addon registry hosting kit-suite-inline (see e2e addon
-# module testdata). Replace registry/addon/version for your environment.
+# kit-suite-inline ships definitions and ConfigMaps only (no controller
+# Deployment). Use this to exercise the Application walk / trait upsert path.
+# For scheduling on a real controller Deployment, see addon.yaml
+# (kube-state-metrics) or a module with aux controllers (module.yaml).
+#
+# Prerequisites:
+# - Enable the feature gate (off by default):
+#     --set featureGates.enableAddonComponent=true
+#   or controller flag --feature-gates=EnableAddonComponent=true
+# - Local addon registry hosting kit-suite-inline (see e2e addon module testdata).
+# Replace registry/addon/version for your environment.
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
