@@ -417,7 +417,7 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		Expect(fake.publishCount()).Should(Equal(1))
 	})
 
-	It("refuses a sensitive endpoint config", func() {
+	It("reads a sensitive endpoint config", func() {
 		sensitive := legacyEndpoint("nacos-e")
 		sensitive.Annotations = map[string]string{apitypes.AnnotationConfigSensitive: "true"}
 		Expect(k8sClient.Create(ctx, sensitive)).Should(Succeed())
@@ -425,12 +425,36 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		cfg := newConfig("nc-db-e", "nc-app-e", 3306)
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
-		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(Equal("False/EndpointUnreadable"))
-		var got configv1alpha1.Config
-		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
-		Expect(got.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
-		Expect(got.Status.GetCondition(configv1alpha1.ConditionNacosSynced).Message).Should(ContainSubstring("sensitive"))
-		Expect(fake.calls()).Should(Equal(0))
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(HavePrefix("True/"))
+		Expect(fake.publishCount()).Should(Equal(1))
+		Expect(fake.lastPublish().Content).Should(Equal("mysqlHost = db\nmysqlPort = 3306\n"))
+	})
+
+	It("reads an endpoint Config that keeps its properties in a Secret", func() {
+		props := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "nacos-e2-props", Namespace: "vela-system"},
+			Data:       map[string][]byte{"properties": []byte(`{"servers":[{"ipAddr":"127.0.0.1","port":8848}]}`)},
+		}
+		Expect(k8sClient.Create(ctx, props)).Should(Succeed())
+		endpoint := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "nacos-e2", Namespace: "vela-system"},
+			Spec: configv1alpha1.ConfigSpec{
+				PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "nacos-e2-props"}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, endpoint)).Should(Succeed())
+		var gotEndpoint configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(endpoint), configv1alpha1.ConfigPhaseAvailable, &gotEndpoint)
+		var endpointSecret corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: "nacos-e2"}, &endpointSecret)).Should(Succeed())
+		Expect(endpointSecret.Annotations).Should(HaveKeyWithValue(apitypes.AnnotationConfigSensitive, "true"), "propertiesFrom always means sensitive")
+
+		availableTemplate("nc-app-e2", nacosTemplateCUE("nacos-e2"))
+		cfg := newConfig("nc-db-e2", "nc-app-e2", 3306)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(HavePrefix("True/"))
+		Expect(fake.publishCount()).Should(Equal(1))
 	})
 
 	It("retries a failed publish with backoff and records each attempt on the condition", func() {

@@ -18,7 +18,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/oam-dev/kubevela/pkg/sources"
@@ -93,28 +92,36 @@ func sourceTemplateRefsByType(ctx context.Context, cli client.Client, af *appfil
 	return out
 }
 
+// Read returns a cache entry and its freshness, a missing entry as a miss.
+//
+// The entry's Secret is read directly, not through the config factory: its Config keeps
+// the values in spec.propertiesFrom, so the Config controller marks the Secret sensitive,
+// and the factory's readers refuse a sensitive config. The mark keeps the values from
+// users; the cache is this controller's own.
 func (s *configAPISourceCacheStore) Read(ctx context.Context, cacheKey string, ttl time.Duration) (velaprocess.SourceCacheRead, error) {
-	cfg, err := s.factory.GetConfig(ctx, sources.CacheNamespace(), cacheKey, false)
-	if err != nil {
-		if errors.Is(err, config.ErrConfigNotFound) {
+	var secret corev1.Secret
+	if err := s.client.Get(ctx, client.ObjectKey{Namespace: sources.CacheNamespace(), Name: cacheKey}, &secret); err != nil {
+		if apierrors.IsNotFound(err) {
 			return velaprocess.SourceCacheRead{}, nil
 		}
+		return velaprocess.SourceCacheRead{}, err
+	}
+	properties, err := config.SecretInputProperties(&secret)
+	if err != nil {
 		return velaprocess.SourceCacheRead{}, err
 	}
 	if ttl <= 0 {
 		ttl = 15 * time.Minute
 	}
-	lastSyncAt := cfg.CreateTime
-	if cfg.Secret != nil && cfg.Secret.Annotations != nil {
-		if raw, ok := cfg.Secret.Annotations[sourceCacheSyncAtKey]; ok && raw != "" {
-			if parsed, parseErr := time.Parse(time.RFC3339, raw); parseErr == nil {
-				lastSyncAt = parsed
-			}
+	lastSyncAt := secret.CreationTimestamp.Time
+	if raw := secret.Annotations[sourceCacheSyncAtKey]; raw != "" {
+		if parsed, parseErr := time.Parse(time.RFC3339, raw); parseErr == nil {
+			lastSyncAt = parsed
 		}
 	}
 	expiresAt := lastSyncAt.Add(ttl)
 	return velaprocess.SourceCacheRead{
-		Data:      cfg.Properties,
+		Data:      properties,
 		Found:     true,
 		Stale:     time.Now().After(expiresAt),
 		ExpiresAt: expiresAt,
@@ -165,6 +172,10 @@ func (s *configAPISourceCacheStore) Write(ctx context.Context, cacheKey, sourceT
 	}
 	carrier.Annotations[sourceCacheSyncAtKey] = time.Now().UTC().Format(time.RFC3339)
 	cfg.Labels, cfg.Annotations = carrier.Labels, carrier.Annotations
+	// Sensitive from the first write: the Config below keeps the values in
+	// spec.propertiesFrom, which the Config controller marks sensitive anyway, and a
+	// write of "false" would leave them readable until it does.
+	metav1.SetMetaDataAnnotation(&cfg.Secret.ObjectMeta, apitypes.AnnotationConfigSensitive, config.SensitiveAnnotationValue)
 
 	// Values first, declaration second. The validating webhook resolves
 	// spec.propertiesFrom when a Config is admitted, so declaring the entry

@@ -75,6 +75,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
+	// spec.propertiesFrom makes the Config sensitive whatever its template says, so its
+	// Secret is marked before anything can fail, the template's resolution included: a
+	// template deleted, in Error or not yet Available leaves the Secret refused too.
+	if cfg.Spec.PropertiesFrom != nil {
+		if err := r.markSecretSensitive(ctx, &cfg); err != nil {
+			return r.markError(ctx, &cfg, err)
+		}
+	}
+
 	if cfg.Spec.Properties != nil && cfg.Spec.PropertiesFrom != nil {
 		return r.markError(ctx, &cfg, legacyconfig.ErrMutuallyExclusiveProperties)
 	}
@@ -97,6 +106,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// A misplaced system template reads as namespace-scoped (ResolvedTemplate.EffectiveScope),
 	// so at admission a Config elsewhere that names it meets the review like any other
 	// cross-namespace reference, not a system template's free pass.
+
+	// A sensitive template marks the Secret this Config owns as soon as it resolves,
+	// before any step below can fail, so readers refuse it while the Config sits in
+	// Error: inline properties on a template since turned sensitive are refused next.
+	if cfg.Spec.PropertiesFrom == nil && tmpl != nil && tmpl.Sensitive {
+		if err := r.markSecretSensitive(ctx, &cfg); err != nil {
+			return r.markError(ctx, &cfg, err)
+		}
+	}
 
 	// defense in depth: the validating webhook already blocks this, but a Config applied
 	// before its sensitive template first becomes Available can slip past admission.
@@ -157,6 +175,37 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, r.UpdateStatus(ctx, &cfg)
+}
+
+// configSensitive decides the Secret's sensitive annotation: a sensitive template, or
+// spec.propertiesFrom, template or not. Properties kept in a Secret are sensitive whatever
+// the template says, so readers return no input properties for them. Reconcile applies the
+// same rule early in two halves: spec.propertiesFrom before the template resolves, a
+// sensitive template as soon as it does.
+func configSensitive(cfg *configv1alpha1.Config, tmpl *legacyconfig.ResolvedTemplate) bool {
+	return cfg.Spec.PropertiesFrom != nil || (tmpl != nil && tmpl.Sensitive)
+}
+
+// markSecretSensitive marks the Secret this Config owns sensitive, if it is not already. A
+// Secret it does not own, or none yet, is left alone; the render marks a new one.
+func (r *Reconciler) markSecretSensitive(ctx context.Context, cfg *configv1alpha1.Config) error {
+	name := cfg.Name
+	if cfg.Status.SecretRef != nil {
+		name = cfg.Status.SecretRef.Name
+	}
+	var secret corev1.Secret
+	if err := r.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: name}, &secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if !metav1.IsControlledBy(&secret, cfg) || legacyconfig.SecretSensitive(&secret) {
+		return nil
+	}
+	patch := client.MergeFrom(secret.DeepCopy())
+	metav1.SetMetaDataAnnotation(&secret.ObjectMeta, apitypes.AnnotationConfigSensitive, legacyconfig.SensitiveAnnotationValue)
+	if err := r.Patch(ctx, &secret, patch); err != nil {
+		return fmt.Errorf("failed to mark secret %s/%s sensitive: %w", secret.Namespace, secret.Name, err)
+	}
+	return nil
 }
 
 // resolveTemplate looks up the referenced template, CRD first, falling back to a
@@ -256,13 +305,16 @@ func (r *Reconciler) renderSecret(cfg *configv1alpha1.Config, tmpl *legacyconfig
 		if secret.Annotations == nil {
 			secret.Annotations = map[string]string{}
 		}
-		secret.Annotations[apitypes.AnnotationConfigSensitive] = fmt.Sprintf("%t", tmpl.Sensitive)
 		secret.Annotations[apitypes.AnnotationConfigTemplateNamespace] = tmpl.Namespace
 	} else {
 		secret.Labels = map[string]string{
 			apitypes.LabelConfigCatalog: apitypes.VelaCoreConfig,
 		}
 		secret.Annotations = map[string]string{}
+	}
+	// a template-less Config has no annotation unless spec.propertiesFrom makes it sensitive
+	if sensitive := configSensitive(cfg, tmpl); sensitive || tmpl != nil {
+		secret.Annotations[apitypes.AnnotationConfigSensitive] = fmt.Sprintf("%t", sensitive)
 	}
 
 	if secret.Name == "" {
@@ -373,7 +425,15 @@ func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config
 		// keeping is the safe direction when the alternative deletes somebody
 		// else's metadata.
 		existing.Labels = mergeMeta(existing.Labels, secret.Labels)
+		// A Secret marked sensitive stays sensitive: no admission refuses a legacy template
+		// ConfigMap's annotation edited to false, or a ConfigTemplate turned off with the
+		// webhooks off where the API server drops the CRD rule, and what was refused to
+		// readers is not handed back. Deleting and recreating the Config resets it.
+		wasSensitive := legacyconfig.SecretSensitive(existing)
 		existing.Annotations = mergeMeta(existing.Annotations, secret.Annotations)
+		if wasSensitive {
+			existing.Annotations[apitypes.AnnotationConfigSensitive] = legacyconfig.SensitiveAnnotationValue
+		}
 		delete(existing.Annotations, apitypes.AnnotationConfigAdoptBy) // the mark has done its work
 		existing.Data = secret.Data
 		existing.StringData = secret.StringData
