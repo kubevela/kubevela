@@ -230,8 +230,7 @@ func TestAncestorsHelpersResolveFromTheCluster(t *testing.T) {
 	})
 }
 
-// Admission checks read spec fields, not templates, so they need the child's
-// spec with its parent's fields filled in.
+// Admission reads spec fields, so it needs the child's spec merged with its parent's.
 func TestInheritedDefinitionHelpers(t *testing.T) {
 	withInheritance(t)
 

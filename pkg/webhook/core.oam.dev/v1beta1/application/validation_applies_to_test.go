@@ -117,8 +117,7 @@ func component(name, compType string, traitTypes ...string) common.ApplicationCo
 	return comp
 }
 
-// appliesToRESTMapper knows the workloads used below, for definitions that set
-// only the GVK.
+// appliesToRESTMapper maps the GVKs these tests use.
 func appliesToRESTMapper() meta.RESTMapper {
 	mapper := meta.NewDefaultRESTMapper(nil)
 	mapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
@@ -126,16 +125,15 @@ func appliesToRESTMapper() meta.RESTMapper {
 	return mapper
 }
 
-// unavailableRESTMapper fails every mapping the way a mapper does when discovery
-// cannot be reached, which is not a NoKindMatch.
+// unavailableRESTMapper fails like a mapper whose discovery is down, which is
+// not a NoKindMatch.
 type unavailableRESTMapper struct{ meta.RESTMapper }
 
 func (unavailableRESTMapper) RESTMapping(schema.GroupKind, ...string) (*meta.RESTMapping, error) {
 	return nil, fmt.Errorf("discovery unavailable")
 }
 
-// appliesToClient serves objects through a fake client, with funcs intercepting
-// its calls when not nil.
+// appliesToClient returns a fake client serving objects, intercepted by funcs if set.
 func appliesToClient(funcs *interceptor.Funcs, objects ...client.Object) client.Client {
 	b := fake.NewClientBuilder().WithScheme(readKindsScheme()).WithRESTMapper(appliesToRESTMapper()).WithObjects(objects...)
 	if funcs != nil {
@@ -345,41 +343,74 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		}, definitions...)
 	}
 
-	t.Run("fails closed when the type cannot be resolved for want of the apiserver", func(t *testing.T) {
+	t.Run("leaves a type that cannot be resolved to the abstract-type check", func(t *testing.T) {
 		withAppliesToValidation(t)
 		cli := failingClient(func(obj client.Object) bool {
 			_, ok := obj.(*v1beta1.TraitDefinition)
 			return ok
 		})
+		h := &ValidatingHandler{Client: cli}
 		app := appliesToApp(component("web", "webservice", "anywhere"))
 
-		errs := appliesToErrs(&ValidatingHandler{Client: cli}, app)
-
-		require.Len(t, errs, 1)
-		assert.Equal(t, field.ErrorTypeInternal, errs[0].Type)
-		assert.Equal(t, "spec.components[0].traits[0].type", errs[0].Field)
+		// ValidateAbstractTypes refuses it, so this check doesn't repeat it.
+		require.Len(t, h.ValidateAbstractTypes(context.Background(), app), 1)
+		assert.Empty(t, appliesToErrs(h, app))
 	})
 
 	t.Run("reports a failing type once", func(t *testing.T) {
 		withAppliesToValidation(t)
 		calls := 0
 		cli := failingClient(func(obj client.Object) bool {
-			_, ok := obj.(*v1beta1.ComponentDefinition)
+			_, ok := obj.(*v1beta1.DefinitionRevision)
 			if ok {
 				calls++
 			}
 			return ok
 		})
 		app := appliesToApp(
-			component("a", "webservice", "anywhere"),
-			component("b", "webservice", "anywhere"),
+			component("a", "webservice@v1", "anywhere"),
+			component("b", "webservice@v1", "anywhere"),
 		)
 
 		errs := appliesToErrs(&ValidatingHandler{Client: cli}, app)
 
 		require.Len(t, errs, 1)
+		assert.Equal(t, field.ErrorTypeInternal, errs[0].Type)
 		assert.Equal(t, "spec.components[0].type", errs[0].Field)
 		assert.Equal(t, 1, calls)
+	})
+
+	t.Run("does not repeat a malformed type", func(t *testing.T) {
+		withAppliesToValidation(t)
+		app := appliesToApp(component("web", "webservice", "foo/bar"))
+		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
+	})
+
+	t.Run("reads a WorkloadDefinition from the ComponentDefinition's namespace", func(t *testing.T) {
+		withAppliesToValidation(t)
+		// Same name as vela-system/my-deploy, in the Application's namespace.
+		shadow := &v1beta1.WorkloadDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "my-deploy", Namespace: "default"},
+			Spec:       v1beta1.WorkloadDefinitionSpec{Reference: common.DefinitionReference{Name: "statefulsets.apps"}},
+		}
+		app := appliesToApp(component("web", "wd-backed", "sts-only"))
+
+		errs := appliesToErrs(appliesToHandler(append(definitions, shadow)...), app)
+
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Detail, `(workload "deployments.apps")`)
+	})
+
+	t.Run("reads a cluster-scoped ComponentDefinition's WorkloadDefinition from vela-system", func(t *testing.T) {
+		withAppliesToValidation(t)
+		legacy := appliesToComponentDef("legacy-wd", common.WorkloadTypeDescriptor{Type: "my-deploy"})
+		legacy.Namespace = ""
+		app := appliesToApp(component("web", "legacy-wd", "sts-only"))
+
+		errs := appliesToErrs(appliesToHandler(append(definitions, legacy)...), app)
+
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Detail, `(workload "deployments.apps")`)
 	})
 
 	t.Run("uses spec.workload.type when a GVK is set as well", func(t *testing.T) {
@@ -512,8 +543,7 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 	childTrait.Spec.Extends = "sts-scaler"
 
 	parentComp := appliesToComponentDef("base-web", common.WorkloadTypeDescriptor{Type: "deployments.apps"})
-	// What the ComponentDefinition mutating webhook stores for a child that
-	// declares no workload of its own.
+	// What the mutating webhook stores for a child without a workload.
 	childComp := appliesToComponentDef("tenant-web", common.WorkloadTypeDescriptor{Type: types.AutoDetectWorkloadDefinition})
 	childComp.Spec.Extends = "base-web"
 	orphanComp := appliesToComponentDef("orphan-web", common.WorkloadTypeDescriptor{Type: types.AutoDetectWorkloadDefinition})
@@ -531,10 +561,9 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 		assert.Contains(t, errs[0].Detail, `trait "tenant-scaler"`)
 	})
 
-	// A child component does not inherit its parent's workload yet
-	// (kubevela/kubevela#7508), so it counts as having no workload type and the
-	// workload forms are not checked on it. Once that is fixed this child reads as
-	// deployments.apps and sts-scaler is refused.
+	// Child components don't inherit their parent's workload yet
+	// (kubevela/kubevela#7508), so workload entries aren't checked on them. Once
+	// that's fixed, sts-scaler is refused here.
 	t.Run("a child component has no workload type of its own yet", func(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
 		app := appliesToApp(component("web", "tenant-web", "sts-scaler"))
@@ -554,14 +583,44 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 
+	t.Run("a chain that breaks the definition rules is left to rendering", func(t *testing.T) {
+		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
+		// A child may only extend a parent in its own namespace; sts-scaler is in vela-system.
+		crossNS := appliesToTraitDef("cross-ns-scaler")
+		crossNS.Namespace = "default"
+		crossNS.Spec.Extends = "sts-scaler"
+		app := appliesToApp(component("web", "base-web", "cross-ns-scaler"))
+
+		assert.Empty(t, appliesToErrs(appliesToHandler(append(definitions, crossNS)...), app))
+	})
+
+	t.Run("fails closed when a parent cannot be read", func(t *testing.T) {
+		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
+		cli := appliesToClient(&interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, ok := obj.(*v1beta1.TraitDefinition); ok && key.Name == "sts-scaler" {
+					return apierrors.NewServiceUnavailable("apiserver unavailable")
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		}, definitions...)
+		app := appliesToApp(component("web", "base-web", "tenant-scaler"))
+
+		errs := appliesToErrs(&ValidatingHandler{Client: cli}, app)
+
+		require.Len(t, errs, 1)
+		assert.Equal(t, field.ErrorTypeInternal, errs[0].Type)
+		assert.Equal(t, "spec.components[0].traits[0].type", errs[0].Field)
+	})
+
 	t.Run("an unresolvable chain is left to rendering", func(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, false)
 		app := appliesToApp(component("web", "base-web", "tenant-scaler"))
 		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 
-	// A parent pinned as "@v1" resolves through the Application's annotations, as
-	// it does at render: with auto-update the latest v1.x revision is read.
+	// A "@v1" parent resolves with the Application's annotations, as at render:
+	// auto-update reads the latest v1.x.
 	t.Run("a pinned parent is resolved with the Application's annotations", func(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
 		revision := func(name string, appliesTo ...string) *v1beta1.DefinitionRevision {
@@ -589,16 +648,15 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 		require.Len(t, errs, 1)
 		assert.Contains(t, errs[0].Detail, `appliesToWorkloads: ["statefulsets.apps"]`)
 
-		// Without auto-update "@v1" names a revision that does not exist, so the
-		// chain does not resolve and is left to rendering.
+		// Without auto-update, "@v1" doesn't exist, so the chain is left to rendering.
 		app.Annotations = nil
 		assert.Empty(t, appliesToErrs(h, app))
 	})
 }
 
-// These go through the admission handler against a real apiserver. That shows
-// the check is wired into the soundness phase, and the "worker" fixture, which
-// sets only a GVK, gets its workload from the apiserver's RESTMapper.
+// Through the admission handler against a real apiserver: this checks the
+// wiring, and that the GVK-only "worker" fixture gets its workload from the
+// apiserver's RESTMapper.
 var _ = Describe("Trait appliesToWorkloads admission", func() {
 	var stsOnly *v1beta1.TraitDefinition
 

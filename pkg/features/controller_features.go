@@ -212,11 +212,8 @@ const (
 	AutoMigrateLegacyConfigs featuregate.Feature = "AutoMigrateLegacyConfigs"
 
 	// ValidateTraitAppliesToWorkloads rejects an Application that attaches a trait
-	// to a component its TraitDefinition.spec.appliesToWorkloads does not list.
-	// An update that keeps a trait the Application already had on that component
-	// is admitted with a warning instead, so existing Applications stay editable.
-	// Off by default because the field went unenforced for years, and definitions
-	// in the wild may list workloads that don't match where they are used.
+	// its TraitDefinition's appliesToWorkloads doesn't allow. An update that keeps
+	// an existing trait only warns. Off by default: the field went unenforced for years.
 	ValidateTraitAppliesToWorkloads featuregate.Feature = "ValidateTraitAppliesToWorkloads"
 )
 
