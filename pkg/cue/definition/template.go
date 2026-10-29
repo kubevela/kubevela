@@ -475,12 +475,31 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	outputsPatcher := val.LookupPath(value.FieldPath(PatchOutputsFieldName))
 	if outputsPatcher.Exists() {
+		// Honor +patchStrategy on patchOutputs (nearest parent declaration, then
+		// fall back to the patch field) so overlays like affinity nodeSelector
+		// can win over chart values.
+		outOpts := sets.CreateUnifyOptionsForPatcher(outputsPatcher)
+		if len(outOpts) == 0 {
+			for i := len(levels) - 1; i >= 0; i-- {
+				p := levels[i].LookupPath(value.FieldPath(PatchOutputsFieldName))
+				if !p.Exists() {
+					continue
+				}
+				if opts := sets.CreateUnifyOptionsForPatcher(p); len(opts) > 0 {
+					outOpts = opts
+					break
+				}
+			}
+		}
+		if len(outOpts) == 0 && patcher.Exists() {
+			outOpts = patchOptionsFromLevels(levels, patcher)
+		}
 		for i, auxiliary := range auxiliaries {
 			target := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
 			if !target.Exists() {
 				continue
 			}
-			if err = auxiliary.Ins.Unify(target); err != nil {
+			if err = auxiliary.Ins.Unify(marshalablePatch(ctx, target, outOpts), outOpts...); err != nil {
 				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
 			if err = repruneAuxiliary(ctx, auxiliaries, i); err != nil {
