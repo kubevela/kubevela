@@ -67,7 +67,7 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 
 	seen := []string{cd.Name}
 	current := cd
-	currentTemplate := cueTemplateOf(cd)
+	currentTemplate := childTemplateOf(tmpl, cd)
 	// The parent's workload only describes what the child renders while every
 	// level up to it still merges the parent's output.
 	outputMerged := true
@@ -241,7 +241,12 @@ func workloadUnset(w common.WorkloadTypeDescriptor) bool {
 		(w.Type == "" || w.Type == types.AutoDetectWorkloadDefinition)
 }
 
-func cueTemplateOf(cd *v1beta1.ComponentDefinition) string {
+// childTemplateOf is the template the child renders with, which may have come
+// from spec.extension rather than the CUE schematic.
+func childTemplateOf(tmpl *Template, cd *v1beta1.ComponentDefinition) string {
+	if tmpl.TemplateStr != "" {
+		return tmpl.TemplateStr
+	}
 	if cd.Spec.Schematic == nil || cd.Spec.Schematic.CUE == nil {
 		return ""
 	}

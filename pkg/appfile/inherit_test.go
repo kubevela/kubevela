@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
@@ -266,6 +267,17 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 		child.Spec.Workload = autodetect
 		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
 		require.Equal(t, deployment, child.Spec.Workload)
+	})
+
+	t.Run("a template from spec.extension is read for $inherit", func(t *testing.T) {
+		child := compDef("child", "base", "")
+		child.Spec.Schematic = nil
+		child.Spec.Workload = autodetect
+		child.Spec.Extension = &runtime.RawExtension{Raw: []byte(`{"template":"$inherit: output: false\noutput: {}"}`)}
+		_, err := newTemplateOfCompDefinition(context.Background(), child,
+			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
+		require.NoError(t, err)
+		require.Equal(t, autodetect, child.Spec.Workload)
 	})
 
 	t.Run("a malformed $inherit is reported", func(t *testing.T) {
