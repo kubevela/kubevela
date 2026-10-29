@@ -289,7 +289,7 @@ func templateOfConfigMap(name string, cm *corev1.ConfigMap) *ResolvedTemplate {
 		Name:      name,
 		Namespace: cm.Namespace,
 		Scope:     cm.Labels[apitypes.LabelConfigScope],
-		Sensitive: cm.Annotations[apitypes.AnnotationConfigSensitive] == sensitiveAnnotationValue,
+		Sensitive: cm.Annotations[apitypes.AnnotationConfigSensitive] == SensitiveAnnotationValue,
 		Legacy:    true,
 	}
 }
