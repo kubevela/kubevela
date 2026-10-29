@@ -216,22 +216,24 @@ func inheritanceEnabled(name, extends string) error {
 // pair at a time instead would let a grandparent answer for a level that had
 // already spoken.
 //
-// The workload is taken only while the child still merges the parent's output.
-// The webhook stamps autodetect on a definition that declares none, so that
-// counts as silence too.
+// The workload and what describes it are taken only while the child still
+// merges the parent's output. The webhook stamps autodetect on a definition
+// that declares none, so that counts as silence too.
 func inheritComponentAttributes(tmpl *Template, child, parent *v1beta1.ComponentDefinition, outputMerged bool) {
-	if outputMerged && workloadUnset(child.Spec.Workload) && !workloadUnset(parent.Spec.Workload) {
-		child.Spec.Workload = parent.Spec.Workload
-		tmpl.Reference = parent.Spec.Workload
-	}
-	if child.Spec.PodSpecPath == "" {
-		child.Spec.PodSpecPath = parent.Spec.PodSpecPath
-	}
-	if child.Spec.RevisionLabel == "" {
-		child.Spec.RevisionLabel = parent.Spec.RevisionLabel
-	}
-	if len(child.Spec.ChildResourceKinds) == 0 {
-		child.Spec.ChildResourceKinds = parent.Spec.ChildResourceKinds
+	if outputMerged {
+		if workloadUnset(child.Spec.Workload) && !workloadUnset(parent.Spec.Workload) {
+			child.Spec.Workload = parent.Spec.Workload
+			tmpl.Reference = parent.Spec.Workload
+		}
+		if child.Spec.PodSpecPath == "" {
+			child.Spec.PodSpecPath = parent.Spec.PodSpecPath
+		}
+		if child.Spec.RevisionLabel == "" {
+			child.Spec.RevisionLabel = parent.Spec.RevisionLabel
+		}
+		if len(child.Spec.ChildResourceKinds) == 0 {
+			child.Spec.ChildResourceKinds = parent.Spec.ChildResourceKinds
+		}
 	}
 	tmpl.AncestorStatus = append(tmpl.AncestorStatus, snippetsOf(parent.Spec.Status))
 }

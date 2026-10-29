@@ -216,6 +216,9 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 	autodetect := common.WorkloadTypeDescriptor{Type: types.AutoDetectWorkloadDefinition}
 	base := compDef("base", "", "output: {}")
 	base.Spec.Workload = deployment
+	base.Spec.PodSpecPath = "spec.template.spec"
+	base.Spec.RevisionLabel = "app.oam.dev/revision"
+	base.Spec.ChildResourceKinds = []common.ChildResourceKind{{APIVersion: "apps/v1", Kind: "ReplicaSet"}}
 
 	resolve := func(t *testing.T, child *v1beta1.ComponentDefinition, defs map[string]*v1beta1.ComponentDefinition) *Template {
 		t.Helper()
@@ -241,6 +244,9 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 			child.Spec.Workload = autodetect
 			resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
 			require.Equal(t, autodetect, child.Spec.Workload)
+			require.Empty(t, child.Spec.PodSpecPath)
+			require.Empty(t, child.Spec.RevisionLabel)
+			require.Empty(t, child.Spec.ChildResourceKinds)
 		})
 	}
 
@@ -278,6 +284,7 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
 		require.NoError(t, err)
 		require.Equal(t, autodetect, child.Spec.Workload)
+		require.Empty(t, child.Spec.PodSpecPath)
 	})
 
 	t.Run("a malformed $inherit is reported", func(t *testing.T) {
@@ -294,6 +301,20 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 		child.Spec.Workload = autodetect
 		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base, "middle": middle})
 		require.Equal(t, autodetect, child.Spec.Workload)
+		require.Empty(t, child.Spec.PodSpecPath)
+	})
+
+	t.Run("a middle that replaces output still passes its own on", func(t *testing.T) {
+		job := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "batch/v1", Kind: "Job"}}
+		middle := compDef("middle", "base", "$inherit: output: false\noutput: {}")
+		middle.Spec.Workload = job
+		middle.Spec.PodSpecPath = "spec.template.spec"
+		child := compDef("child", "middle", "")
+		child.Spec.Workload = autodetect
+		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base, "middle": middle})
+		require.Equal(t, job, child.Spec.Workload)
+		require.Equal(t, "spec.template.spec", child.Spec.PodSpecPath)
+		require.Empty(t, child.Spec.ChildResourceKinds)
 	})
 }
 
