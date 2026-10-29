@@ -952,11 +952,26 @@ func (h *AppHandler) renderPoliciesForNewRevision(ctx monitorContext.Context, ap
 				Namespace: metadata.Namespace,
 			}, policyDef)
 			if err != nil {
-				ctx.Info("Failed to load global PolicyDefinition from index",
-					"policy", metadata.Name,
-					"namespace", metadata.Namespace,
-					"error", err)
-				continue
+				// The index can briefly lag the informer cache after a delete. Fall back to the
+				// same-named vela-system policy without touching the index: the watch handler owns
+				// eviction, and evicting here could drop a policy that was just recreated.
+				lookupNamespace := metadata.Namespace
+				if kerrors.IsNotFound(err) && metadata.Namespace != oam.SystemDefinitionNamespace {
+					if sysMeta := policyScopeIndex.GetFromNamespace(metadata.Name, oam.SystemDefinitionNamespace); sysMeta != nil && sysMeta.Global && sysMeta.Scope == v1beta1.ApplicationScope {
+						lookupNamespace = sysMeta.Namespace
+						err = h.Client.Get(ctx.GetContext(), client.ObjectKey{
+							Name:      sysMeta.Name,
+							Namespace: sysMeta.Namespace,
+						}, policyDef)
+					}
+				}
+				if err != nil {
+					ctx.Info("Failed to load global PolicyDefinition from index",
+						"policy", metadata.Name,
+						"namespace", lookupNamespace,
+						"error", err)
+					continue
+				}
 			}
 
 			policyDefCopy := policyDef.DeepCopy()
