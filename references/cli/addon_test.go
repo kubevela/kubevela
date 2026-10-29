@@ -692,3 +692,70 @@ func TestGetRegistryFromArgsOCIWritesHelmBlock(t *testing.T) {
 		assert.Contains(t, err.Error(), "supplied together")
 	})
 }
+
+func TestInjectSchedulingArgs(t *testing.T) {
+	t.Cleanup(func() {
+		addonNodeSelector = nil
+		addonSchedulingFile = ""
+	})
+
+	t.Run("nodeSelector merges and clears package flags", func(t *testing.T) {
+		addonNodeSelector = map[string]string{"disktype": "ssd"}
+		addonSchedulingFile = ""
+		args := map[string]interface{}{}
+		require.NoError(t, injectSchedulingArgs(args))
+		require.Nil(t, addonNodeSelector)
+		require.Empty(t, addonSchedulingFile)
+
+		props, err := pkgaddon.ExtractSchedulingFromArgs(args)
+		require.NoError(t, err)
+		require.Equal(t, "ssd", props.NodeSelector["disktype"])
+	})
+
+	t.Run("scheduling-file loads affinity and clears path", func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "sched-*.yaml")
+		require.NoError(t, err)
+		_, err = f.WriteString("nodeSelector:\n  node-type: infra\naffinity:\n  nodeAffinity:\n    requiredDuringSchedulingIgnoredDuringExecution:\n      nodeSelectorTerms: []\n")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		addonNodeSelector = nil
+		addonSchedulingFile = f.Name()
+		args := map[string]interface{}{}
+		require.NoError(t, injectSchedulingArgs(args))
+		require.Empty(t, addonSchedulingFile)
+
+		props, err := pkgaddon.ExtractSchedulingFromArgs(args)
+		require.NoError(t, err)
+		require.Equal(t, "infra", props.NodeSelector["node-type"])
+		require.NotNil(t, props.Affinity)
+	})
+
+	t.Run("nodeSelector overlays file values", func(t *testing.T) {
+		f, err := os.CreateTemp(t.TempDir(), "sched-*.yaml")
+		require.NoError(t, err)
+		_, err = f.WriteString("nodeSelector:\n  disktype: hdd\n")
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		addonSchedulingFile = f.Name()
+		addonNodeSelector = map[string]string{"disktype": "ssd", "zone": "a"}
+		args := map[string]interface{}{}
+		require.NoError(t, injectSchedulingArgs(args))
+
+		props, err := pkgaddon.ExtractSchedulingFromArgs(args)
+		require.NoError(t, err)
+		require.Equal(t, "ssd", props.NodeSelector["disktype"])
+		require.Equal(t, "a", props.NodeSelector["zone"])
+	})
+
+	t.Run("empty flags leave args untouched", func(t *testing.T) {
+		addonNodeSelector = nil
+		addonSchedulingFile = ""
+		args := map[string]interface{}{"replicas": 1}
+		require.NoError(t, injectSchedulingArgs(args))
+		_, ok := args[pkgaddon.SchedulingArg]
+		require.False(t, ok)
+		require.Equal(t, 1, args["replicas"])
+	})
+}
