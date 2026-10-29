@@ -836,7 +836,7 @@ var _ = Describe("Module as a component", Ordered, func() {
 			}
 			err = k8sClient.Create(ctx, app)
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring(`"doesnotexist": is not a configured module registry`))
+			Expect(err.Error()).Should(ContainSubstring(`properties.registry": is not a configured module registry`))
 			Expect(err.Error()).Should(ContainSubstring(demoStoreRegistryName), "the message lists the configured registries")
 		})
 
