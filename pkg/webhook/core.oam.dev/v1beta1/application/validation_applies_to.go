@@ -293,23 +293,23 @@ func traitAppliesTo(rules []string, target appliesToTarget) bool {
 	})
 }
 
-// appliesToRuleMatches checks one appliesToWorkloads entry:
-//   - "*"                  any component
-//   - "<definition-name>"  that ComponentDefinition
-//   - "*.<group>"          any workload in that API group
-//   - "<plural>.<group>"   that workload, e.g. "deployments.apps"
-//
-// A "/<version>" suffix is ignored. When the workload is unknown, any entry
-// with a dot matches, so only "*" and definition names restrict.
+// appliesToRuleMatches checks one appliesToWorkloads entry against a component.
 func appliesToRuleMatches(rule string, target appliesToTarget) bool {
+	// "deployments.apps/v1" is matched as "deployments.apps".
 	rule, _, _ = strings.Cut(rule, "/")
 	switch {
+	// "*" matches any component; "webservice" matches webservice components.
 	case rule == "*" || rule == target.definition:
 		return true
+	// The component has no workload type (autodetect, e.g. k8s-objects, or an
+	// unserved kind), so a workload entry like "deployments.apps" can't be
+	// checked and matches. A name like "worker" only matches through the case above.
 	case target.workload == "":
 		return strings.Contains(rule, ".")
+	// "*.apps" matches any workload in the apps group, e.g. deployments.apps.
 	case strings.HasPrefix(rule, "*."):
 		return schema.ParseGroupResource(target.workload).Group == strings.TrimPrefix(rule, "*.")
+	// "deployments.apps" matches only that workload.
 	default:
 		return rule == target.workload
 	}
