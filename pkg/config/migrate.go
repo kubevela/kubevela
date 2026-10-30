@@ -761,6 +761,11 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		},
 		Spec: configv1alpha1.ConfigSpec{Alias: legacy.Alias, Description: legacy.Description},
 	}
+	// the owner's leave to serve as a Nacos endpoint moves to the Config, which the
+	// controller carries back to the Secret
+	if NacosEndpointMarked(secret) {
+		cfg.Annotations = map[string]string{types.AnnotationConfigNacosEndpoint: NacosEndpointAnnotationValue}
+	}
 	raw := secret.Data[SaveInputPropertiesKey]
 	if string(raw) == "null" {
 		raw = nil
@@ -804,6 +809,12 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		SecretRef: configv1alpha1.SecretKeySelector{Name: propsSecret.Name},
 	}
 	return cfg, propsSecret, nil, nil
+}
+
+// NacosEndpointMarked reports whether a Config CR or a config Secret carries the owner's
+// leave to serve as a Nacos endpoint while sensitive.
+func NacosEndpointMarked(obj metav1.Object) bool {
+	return obj.GetAnnotations()[types.AnnotationConfigNacosEndpoint] == NacosEndpointAnnotationValue
 }
 
 // SecretSensitive reports whether a config Secret is marked sensitive. For a legacy

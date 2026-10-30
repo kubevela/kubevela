@@ -900,6 +900,22 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(controllerOf(getSecret(ns, "cfg-moved")).UID).Should(Equal(cfg.UID))
 		})
 
+		It("moves the Nacos endpoint marker from the legacy Secret to the Config", func() {
+			writeLegacyTemplate(ns, "ep-tpl", legacyTemplateCUE("ep-tpl", "namespace", true, ""))
+			marked := writeLegacyConfig(ns, "ep-tpl", ns, "cfg-ep-marked")
+			setAnnotation(marked, types.AnnotationConfigNacosEndpoint, NacosEndpointAnnotationValue)
+			Expect(k8sClient.Update(ctx, marked)).Should(Succeed())
+			writeLegacyConfig(ns, "ep-tpl", ns, "cfg-ep-plain")
+
+			for _, name := range []string{"cfg-ep-marked", "cfg-ep-plain"} {
+				report, err := migrator.MigrateConfig(ctx, ns, name, MigrationOptions{})
+				Expect(err).Should(Succeed())
+				Expect(report.Results[0].Outcome).Should(Equal(MigrationAdopted))
+			}
+			Expect(NacosEndpointMarked(getConfig(ns, "cfg-ep-marked"))).Should(BeTrue())
+			Expect(NacosEndpointMarked(getConfig(ns, "cfg-ep-plain"))).Should(BeFalse())
+		})
+
 		It("fails a config whose template exists in neither form", func() {
 			writeLegacyTemplate(ns, "gone", legacyTemplateCUE("gone", "namespace", false, ""))
 			writeLegacyConfig(ns, "gone", ns, "cfg-gone")

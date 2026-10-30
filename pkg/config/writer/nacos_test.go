@@ -385,3 +385,45 @@ template: {
 		r.EqualError(err, "the rendered template has no nacos block")
 	})
 }
+
+// TestRealClientErrorsCarryNoEndpointValues pins, against the real SDK, that the errors the
+// controller puts in the NacosSynced condition carry none of the endpoint config's values:
+// anyone who can read a Config sees its status, and the endpoint config may be sensitive.
+// The two cases need no server: a config that is not a Nacos endpoint at all, and an
+// endpoint nothing listens on.
+func TestRealClientErrorsCarryNoEndpointValues(t *testing.T) {
+	values := []string{"leak-user", "leak-pass", "leak-ak", "leak-sk", "leak-host"}
+	client := map[string]interface{}{"username": "leak-user", "password": "leak-pass", "accessKey": "leak-ak", "secretKey": "leak-sk"}
+	data := &NacosData{NacosConfig: NacosConfig{
+		Endpoint: ConfigRef{Name: "ep", Namespace: "vela-system"},
+		Format:   "properties",
+		Metadata: NacosConfigMetadata{DataID: "nc-db", Group: "DEFAULT_GROUP"},
+	}}
+	requireNoValue := func(r *require.Assertions, err error) {
+		r.Error(err)
+		for _, v := range values {
+			r.NotContains(err.Error(), v)
+		}
+	}
+
+	t.Run("a config that is not a Nacos endpoint", func(t *testing.T) {
+		r := require.New(t)
+		_, _, err := data.NewClient(map[string]interface{}{"host": "leak-host", "client": client})
+		requireNoValue(r, err)
+	})
+
+	t.Run("an endpoint nothing listens on", func(t *testing.T) {
+		r := require.New(t)
+		cli, release, err := data.NewClient(map[string]interface{}{
+			// a port nothing listens on: the SDK reports the connection state, not the server
+			"servers": []interface{}{map[string]interface{}{"ipAddr": "127.0.0.1", "port": float64(1), "grpcPort": float64(2)}},
+			"client":  client,
+		})
+		r.NoError(err)
+		defer release()
+		data.Client = cli
+		defer func() { data.Client = nil }()
+		_, err = Read(context.TODO(), data, nil)
+		requireNoValue(r, err)
+	})
+}

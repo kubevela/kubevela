@@ -171,6 +171,22 @@ var _ = Describe("test config factory", func() {
 		Expect(err).Should(BeNil())
 		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(BeNil())
 	})
+	It("does not let a template's output mark the Secret it renders for use as a Nacos endpoint", func() {
+		t, err := fac.ParseTemplate(context.Background(), "", []byte(`
+metadata: name: "self-marking"
+template: {
+	output: metadata: annotations: "config.oam.dev/nacos-endpoint": "true"
+	parameter: servers?: [...{ipAddr: string, port: int}]
+}
+`))
+		Expect(err).Should(BeNil())
+		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(BeNil())
+		DeferCleanup(func() { Expect(fac.DeleteTemplate(context.TODO(), "default", "self-marking")).Should(Succeed()) }) // the template list specs count "default"
+		cfg, err := fac.ParseConfig(context.TODO(), NamespacedName{Name: "self-marking", Namespace: "default"}, Metadata{NamespacedName: NamespacedName{Name: "self-marked", Namespace: "default"}})
+		Expect(err).Should(BeNil())
+		Expect(cfg.Secret.Annotations).ShouldNot(HaveKey(types.AnnotationConfigNacosEndpoint))
+	})
+
 	It("apply a config to the nacos server", func() {
 
 		By("create a nacos server config")
@@ -535,6 +551,15 @@ template: {
 //
 // Annotations as well as labels: the cache's TTL, last-sync and template-hash
 // markers are annotations, and they are what the freshness logic reads.
+// Only the exact value marks a config for use as a Nacos endpoint.
+func TestNacosEndpointMarked(t *testing.T) {
+	for value, want := range map[string]bool{"true": true, "True": false, "false": false, "1": false, "": false} {
+		secret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{types.AnnotationConfigNacosEndpoint: value}}}
+		require.Equal(t, want, NacosEndpointMarked(secret), "value %q", value)
+	}
+	require.False(t, NacosEndpointMarked(&v1.Secret{}), "no annotation")
+}
+
 func TestCreateOrUpdateConfigCarriesCallerMetadata(t *testing.T) {
 	r := require.New(t)
 	k8sClient := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
