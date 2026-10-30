@@ -41,6 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 // MigrationOutcome is what happened to one legacy object during a migration run.
@@ -429,18 +430,13 @@ func isLegacyConfig(secret *corev1.Secret) bool {
 	if secret.Labels[types.LabelConfigCatalog] != types.VelaCoreConfig {
 		return false
 	}
-	if isSourceCacheEntry(secret) {
+	if sources.IsSourceCacheEntry(secret) {
 		return false
 	}
 	if isConfigCRDOwned(secret) && secret.Annotations[types.AnnotationConfigMigratedTo] == "" {
 		return false
 	}
 	return true
-}
-
-func isSourceCacheEntry(secret *corev1.Secret) bool {
-	_, generated := secret.Labels[types.LabelSourceDefinitionName]
-	return generated
 }
 
 func templateNamespaceOf(secret *corev1.Secret) string {
@@ -583,7 +579,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		finish(MigrationSkipped, reasonOptedOut)
 		return
 	}
-	if isSourceCacheEntry(secret) {
+	if sources.IsSourceCacheEntry(secret) {
 		finish(MigrationSkipped, reasonSourceCacheEntry)
 		return
 	}
