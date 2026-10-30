@@ -549,12 +549,6 @@ template: {
 	r.Equal("system", cm.Labels[types.LabelConfigScope])
 }
 
-// Same contract as Template.Labels, on the config side. The source cache stamps
-// identity and lifetime metadata so a context-free sweep can reason about an
-// entry; it should not have to reach into Config.Secret to do it.
-//
-// Annotations as well as labels: the cache's TTL, last-sync and template-hash
-// markers are annotations, and they are what the freshness logic reads.
 // Only the exact value marks a config for use as a Nacos endpoint.
 func TestNacosEndpointMarked(t *testing.T) {
 	for value, want := range map[string]bool{"true": true, "True": false, "false": false, "1": false, "": false} {
@@ -564,6 +558,12 @@ func TestNacosEndpointMarked(t *testing.T) {
 	require.False(t, NacosEndpointMarked(&v1.Secret{}), "no annotation")
 }
 
+// Same contract as Template.Labels, on the config side. The source cache stamps
+// identity and lifetime metadata so a context-free sweep can reason about an
+// entry; it should not have to reach into Config.Secret to do it.
+//
+// Annotations as well as labels: the cache's TTL, last-sync and template-hash
+// markers are annotations, and they are what the freshness logic reads.
 func TestCreateOrUpdateConfigCarriesCallerMetadata(t *testing.T) {
 	r := require.New(t)
 	k8sClient := fake.NewClientBuilder().WithScheme(common.Scheme).Build()

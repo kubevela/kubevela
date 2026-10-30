@@ -35,6 +35,9 @@ import (
 // IsSourceCacheEntry reports whether a Secret carries the mark every source cache write
 // stamps (ApplySourceCacheMetadata always records the SourceDefinition), so a store reads
 // only its own entries and not any Secret that happens to have the cache key as its name.
+// It tells the cache's Secrets from others, not a forged one from a real one: whoever can
+// write Secrets in the cache namespace can rewrite a real entry's data anyway, so that write
+// access is the trust boundary of every store.
 func IsSourceCacheEntry(obj metav1.Object) bool {
 	return obj.GetLabels()[apitypes.LabelSourceDefinitionName] != ""
 }
