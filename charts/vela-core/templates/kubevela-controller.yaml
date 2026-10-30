@@ -349,10 +349,6 @@ spec:
             - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
-            {{ if include "kubevela.clusterGatewayRuntimeCerts" . }}
-            - "--cluster-gateway-tls-secret={{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2"
-            - "--cluster-gateway-service={{ .Release.Namespace }}/{{ .Release.Name }}-cluster-gateway-service"
-            {{ end }}
             {{ if .Values.multicluster.clusterGateway.direct }}
             - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:{{ .Values.multicluster.clusterGateway.port }}"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
@@ -447,10 +443,9 @@ spec:
           {{- toYaml .Values.resources | nindent 12 }}
           {{- $needAdmissionTLS := .Values.admissionWebhooks.enabled }}
           {{- $needClusterGatewayTLS := and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
-          {{- /* With runtime certs, vela-core creates the Secret itself and cannot
+          {{- /* With runtime certs, vela-core creates the admission Secret itself and cannot
                  mount it. It writes the files into an emptyDir at startup. */}}
           {{- $webhookRuntime := include "kubevela.webhookRuntimeCerts" . }}
-          {{- $gatewayRuntime := include "kubevela.clusterGatewayRuntimeCerts" . }}
           {{ if .Values.admissionWebhooks.enabled }}
           ports:
             - containerPort: {{ .Values.webhookService.port }}
@@ -490,9 +485,7 @@ spec:
             {{ if $needClusterGatewayTLS }}
             - mountPath: /cluster-gateway-tls-cert
               name: tls-cert-vol-cg
-              {{- if not $gatewayRuntime }}
               readOnly: true
-              {{- end }}
             {{ end }}
           {{ end }}
       {{ if or $needAdmissionTLS $needClusterGatewayTLS }}
@@ -509,14 +502,10 @@ spec:
         {{ end }}
         {{ if $needClusterGatewayTLS }}
         - name: tls-cert-vol-cg
-          {{- if $gatewayRuntime }}
-          emptyDir: {}
-          {{- else }}
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
-          {{- end }}
-      {{ end }}
+        {{ end }}
       {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
