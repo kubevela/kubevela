@@ -36,8 +36,8 @@ at publish. Definitions always install on the hub. A placement annotation on a
 definition is accepted and then ignored for class.
 
 In this module, `placement: "runtime"` is set on the module and on the `v1`
-line, so unmarked objects follow the installer. `auxiliary/hub/10-admission.yaml`
-has no annotation, so the folder makes it hub. `auxiliary/hub/20-keep-runtime.yaml`
+line, so unmarked objects follow the installer. `auxiliary/hub/admission.yaml`
+has no annotation, so the folder makes it hub. `auxiliary/hub/keep-runtime.yaml`
 carries `runtime`, so the annotation wins and publish warns.
 
 ```shell
