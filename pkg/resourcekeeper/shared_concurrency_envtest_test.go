@@ -70,6 +70,9 @@ var _ = Describe("Test shared resources under concurrent share and delete", func
 			if err := c.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
 				return err
 			}
+			if live.Annotations == nil {
+				live.Annotations = map[string]string{}
+			}
 			live.Annotations[oam.AnnotationAppSharedBy] = sharedBy
 			return c.Update(ctx, live)
 		}

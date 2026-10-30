@@ -391,22 +391,22 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 	if !entry.exists {
 		return nil
 	}
-	// a copy: a retry refreshes it
+	// a copy: a retry overwrites it
 	return DeleteManagedResource(ctx, h.Client, mr, entry.obj.DeepCopy(), h.owner, h.policies.GarbageCollect)
 }
 
 // DeleteManagedResource lets owner go of a resource it manages: if others share it, owner
 // leaves the sharer list and control passes to the next sharer; if it is to be kept (skip-GC,
 // an orphaning owner, or the garbage-collect policy), owner's marks are removed; otherwise it
-// is deleted. garbageCollectPolicy may be nil. If obj changed since it was read, it is read
-// again and the decision is taken again.
+// is deleted. garbageCollectPolicy may be nil. On a conflict, obj is read again and the
+// decision retaken.
 func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, owner resourcetracker.Tracked, garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec) error {
 	_ctx := pkgmulticluster.WithCluster(ctx, mr.Cluster)
 	uid := obj.GetUID()
 	refresh := false
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if refresh {
-			// read as the keeper: the requester may not be allowed to get it
+			// as the keeper: the requester may not be allowed to get
 			latest := &unstructured.Unstructured{}
 			latest.SetGroupVersionKind(obj.GroupVersionKind())
 			if err := cli.Get(asSelf(_ctx), client.ObjectKeyFromObject(obj), latest); err != nil {
@@ -415,7 +415,7 @@ func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.Ma
 				}
 				return errors.Wrapf(err, "failed to get resource %s", mr.ResourceKey())
 			}
-			if latest.GetUID() != uid {
+			if uid != "" && latest.GetUID() != uid {
 				return nil // replaced by another object: the one owner held is gone
 			}
 			obj.Object = latest.Object
@@ -450,7 +450,7 @@ func deleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.Ma
 		return errors.Wrapf(cli.Update(ctx, obj), "skipping deletion for resource")
 	}
 
-	// delete only the object that was read, and a sharable one only if nobody joined since
+	// guard against a replaced object, and a sharer joining the last one
 	preconditions := client.Preconditions{}
 	if uid := obj.GetUID(); uid != "" {
 		preconditions.UID = &uid

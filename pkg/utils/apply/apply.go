@@ -258,8 +258,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 			return nil
 		}
 		if applyAct.writesSharers && !applyAct.dryRun {
-			// the sharer list in the patch only holds for the version it was computed from;
-			// a conflict is left to the requeued reconcile
+			// a conflict fails the reconcile, which recomputes the patch
 			if patch, err = withResourceVersion(patch, existing); err != nil {
 				return errors.Wrap(err, "cannot make patch conditional on resource version")
 			}
@@ -271,19 +270,22 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	}
 }
 
-// addSharer adds the sharer to the list on the live object. If the list changed since it was
-// read, the sharer is added to the list as it is now.
+// addSharer adds the sharer to the live list, re-reading it on a conflict.
 func (a *APIApplicator) addSharer(ctx context.Context, existing, desired client.Object, act *applyAction) error {
 	sharedBy := desired.GetAnnotations()[oam.AnnotationAppSharedBy]
 	var patchOpts []client.PatchOption
 	if act.dryRun {
 		patchOpts = append(patchOpts, client.DryRunAll)
 	}
+	uid := existing.GetUID()
 	refresh := false
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if refresh {
 			if err := a.c.Get(ctx, client.ObjectKeyFromObject(existing), existing); err != nil {
 				return err
+			}
+			if uid != "" && existing.GetUID() != uid {
+				return fmt.Errorf("%s %s/%s was replaced by another object", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
 			}
 			current := existing.GetAnnotations()[oam.AnnotationAppSharedBy]
 			if current == "" {

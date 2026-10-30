@@ -108,6 +108,9 @@ func TestSharedApplyKeepsAConcurrentChangeToTheSharerList(t *testing.T) {
 				if err := c.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
 					return err
 				}
+				if live.Annotations == nil {
+					live.Annotations = map[string]string{}
+				}
 				live.Annotations[oam.AnnotationAppSharedBy] = "x/owner"
 				if err := c.Update(ctx, live); err != nil {
 					return err

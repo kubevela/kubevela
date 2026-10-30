@@ -95,7 +95,7 @@ func threeWayMergePatch(currentObj, modifiedObj client.Object, a *applyAction) (
 	return client.RawPatch(patchType, patchData), nil
 }
 
-// withResourceVersion makes a merge patch apply only to the version of obj it was computed from.
+// withResourceVersion makes the patch apply only to obj's current version.
 func withResourceVersion(patch client.Patch, obj client.Object) (client.Patch, error) {
 	rv := obj.GetResourceVersion()
 	if rv == "" {

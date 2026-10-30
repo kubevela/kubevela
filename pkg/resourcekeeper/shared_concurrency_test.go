@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -76,6 +77,9 @@ func TestResourceKeeperDeleteWhenASharerJoinsMeanwhile(t *testing.T) {
 				live := &v1.ConfigMap{}
 				if err := c.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
 					return err
+				}
+				if live.Annotations == nil {
+					live.Annotations = map[string]string{}
 				}
 				live.Annotations[oam.AnnotationAppSharedBy] += ",default/late"
 				if err := c.Update(ctx, live); err != nil {
@@ -163,6 +167,7 @@ func TestResourceKeeperConcurrentSharedResourceChurn(t *testing.T) {
 			if err = do(); err == nil || !isConflict(err) {
 				return err
 			}
+			time.Sleep(time.Millisecond)
 		}
 		return err
 	}
