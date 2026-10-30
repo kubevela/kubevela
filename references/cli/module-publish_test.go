@@ -253,6 +253,21 @@ func TestModulePublishCommandDryRunReflectsFlags(t *testing.T) {
 	require.Contains(t, out.String(), "registry.example.com/modules/s3:9.9.9")
 }
 
+func TestModulePublishPrintsPlacementWarnings(t *testing.T) {
+	dir := publishFixtureDir(t)
+	full := filepath.Join(dir, "auxiliary", "spoke", "skip.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o750))
+	require.NoError(t, os.WriteFile(full, []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: skip\n"), 0o600))
+
+	cmd := NewModulePublishCommand(common.Args{}, cmdutil.NewDefaultIOStreams())
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{dir, "oci://registry.example.com/modules", "--dry-run"})
+
+	require.NoError(t, cmd.Execute())
+	require.Contains(t, out.String(), "Warning: auxiliary/spoke is not a recognized folder")
+}
+
 // TestModulePublishCommandRejectsRegistryFlagWithPositionalRef exercises the
 // mutual-exclusion rejection through RunE rather than a direct
 // modulePublishOptions construction, proving --registry is read from the

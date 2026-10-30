@@ -32,8 +32,9 @@ type Line struct {
 	// Placement is the line default read from the placement field in
 	// v<N>/_version.cue. The value is hub or runtime. Empty means the line
 	// sets no default. An object annotation resource.oam.dev/placement wins
-	// over it. It applies to the line's auxiliary objects. Definitions stay
-	// on the hub.
+	// over it. A file in v<N>/auxiliary/hub/ is stamped hub when it has no
+	// annotation of its own, so the folder beats this default. It applies
+	// to the line's auxiliary objects. Definitions stay on the hub.
 	Placement string
 	// Auxiliary holds the objects read from v<N>/auxiliary/, in filename order
 	// (and document order within a multi-document file).
@@ -56,8 +57,16 @@ type Module struct {
 	// Placement is the module default read from the placement field in
 	// _module.cue. The value is hub or runtime. Empty means the module sets
 	// no default. A line default wins over it, and an object annotation
-	// resource.oam.dev/placement wins over both. Absent means hub.
+	// resource.oam.dev/placement wins over both. A file in auxiliary/hub/
+	// is stamped hub when it has no annotation of its own, so the folder
+	// beats this default. Absent means hub.
 	Placement string
+	// Warnings are non-fatal findings from the source tree, such as an
+	// unrecognized folder under auxiliary/ or an object in hub/ whose own
+	// annotation says runtime. vela module publish prints them. An
+	// unrecognized folder is skipped. The object's annotation wins over the
+	// folder.
+	Warnings []string
 	// Auxiliary holds the objects read from the module-level auxiliary/, in
 	// filename order (and document order within a multi-document file). Empty
 	// for infra-less module that ships no module-level auxiliary/.

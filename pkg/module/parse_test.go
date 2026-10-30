@@ -321,30 +321,34 @@ func placementAnnotation(obj map[string]interface{}) string {
 }
 
 // TestParseModule_HubDirStampsHub proves auxiliary/hub/ and vN/auxiliary/hub/
-// install on the hub even when the cue defaults say runtime, and even when a
-// file inside hub/ is annotated runtime. Nested directories and any other
-// subdirectory are not read.
+// stamp hub when the file has no annotation, even if the cue defaults say
+// runtime. An annotation already on the object wins, so a runtime annotation
+// inside hub/ stays runtime and is reported. Nested directories and any other
+// subdirectory are not read, and each one is a warning.
 func TestParseModule_HubDirStampsHub(t *testing.T) {
 	fsys := fstest.MapFS{
 		"_module.cue":                       {Data: []byte("module: \"s3\"\nversion: \"1.0.0\"\nplacement: \"runtime\"\n")},
 		"auxiliary/defaults.yaml":           {Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: defaults\n")},
 		"auxiliary/hub/admission.yaml":      {Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: admission\n  annotations:\n    resource.oam.dev/placement: runtime\n")},
+		"auxiliary/hub/gate.yaml":           {Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: gate\n")},
 		"auxiliary/hub/nested/ignored.yaml": {Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: nested\n")},
 		"auxiliary/other/skipped.yaml":      {Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: skipped\n")},
 		"v1/_version.cue":                   {Data: []byte("apiVersion: \"v1\"\nplacement: \"runtime\"\n")},
 		"v1/auxiliary/defaults.yaml":        {Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: v1-defaults\n")},
 		"v1/auxiliary/hub/controller.yaml":  {Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: v1-controller\n")},
-		"v1/definitions/bucket.yaml":        {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n")},
+		"v1/definitions/bucket.yaml":        {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n  annotations:\n    resource.oam.dev/placement: hub\n")},
 	}
 
 	mod, err := ParseModule(fsys)
 	require.NoError(t, err)
 
-	require.Len(t, mod.Auxiliary, 2)
+	require.Len(t, mod.Auxiliary, 3)
 	assert.Equal(t, "defaults", objectName(mod.Auxiliary[0]))
 	assert.Empty(t, placementAnnotation(mod.Auxiliary[0]))
 	assert.Equal(t, "admission", objectName(mod.Auxiliary[1]))
-	assert.Equal(t, "hub", placementAnnotation(mod.Auxiliary[1]))
+	assert.Equal(t, "runtime", placementAnnotation(mod.Auxiliary[1]))
+	assert.Equal(t, "gate", objectName(mod.Auxiliary[2]))
+	assert.Equal(t, "hub", placementAnnotation(mod.Auxiliary[2]))
 
 	line := mod.Lines["v1"]
 	require.Len(t, line.Auxiliary, 2)
@@ -352,6 +356,39 @@ func TestParseModule_HubDirStampsHub(t *testing.T) {
 	assert.Empty(t, placementAnnotation(line.Auxiliary[0]))
 	assert.Equal(t, "v1-controller", objectName(line.Auxiliary[1]))
 	assert.Equal(t, "hub", placementAnnotation(line.Auxiliary[1]))
+
+	require.Len(t, mod.Warnings, 3)
+	assert.Contains(t, mod.Warnings[0], "auxiliary/other")
+	assert.Contains(t, mod.Warnings[1], "auxiliary/hub/nested")
+	assert.Contains(t, mod.Warnings[2], "auxiliary/hub/admission.yaml")
+	assert.Contains(t, mod.Warnings[2], "runtime")
+}
+
+func TestParseModule_RejectsBadObjectPlacement(t *testing.T) {
+	fsys := fstest.MapFS{
+		"_module.cue":                {Data: []byte("module: \"s3\"\nversion: \"1.0.0\"\n")},
+		"v1/_version.cue":            {Data: []byte("apiVersion: \"v1\"\n")},
+		"v1/auxiliary/bad.yaml":      {Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: bad\n  annotations:\n    resource.oam.dev/placement: spoke\n")},
+		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n")},
+	}
+
+	_, err := ParseModule(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "spoke")
+	assert.Contains(t, err.Error(), "v1/auxiliary/bad.yaml")
+}
+
+func TestParseModule_RejectsBadDefinitionPlacement(t *testing.T) {
+	fsys := fstest.MapFS{
+		"_module.cue":                {Data: []byte("module: \"s3\"\nversion: \"1.0.0\"\n")},
+		"v1/_version.cue":            {Data: []byte("apiVersion: \"v1\"\n")},
+		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n  annotations:\n    resource.oam.dev/placement: spoke\n")},
+	}
+
+	_, err := ParseModule(fsys)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "spoke")
+	assert.Contains(t, err.Error(), "v1/definitions/bucket.yaml")
 }
 
 // TestParseModule_AuxiliaryCUEFile covers a .cue auxiliary file: it is a

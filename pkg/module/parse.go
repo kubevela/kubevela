@@ -63,7 +63,8 @@ func ParseModule(fsys fs.FS) (*Module, error) {
 		return nil, fmt.Errorf("parse module: read placement: %w", err)
 	}
 
-	auxiliary, err := readAuxiliaryDir(fsys, "auxiliary")
+	var warnings []string
+	auxiliary, err := readAuxiliaryDir(fsys, "auxiliary", &warnings)
 	if err != nil {
 		return nil, fmt.Errorf("parse module: read auxiliary: %w", err)
 	}
@@ -78,7 +79,7 @@ func ParseModule(fsys fs.FS) (*Module, error) {
 		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "v") {
 			continue
 		}
-		line, err := parseLine(fsys, entry.Name())
+		line, err := parseLine(fsys, entry.Name(), &warnings)
 		if err != nil {
 			return nil, fmt.Errorf("parse line %s: %w", entry.Name(), err)
 		}
@@ -92,7 +93,7 @@ func ParseModule(fsys fs.FS) (*Module, error) {
 		return nil, fmt.Errorf("parse module: %w", err)
 	}
 
-	return &Module{Name: name, Version: version, Placement: place, Auxiliary: auxiliary, Lines: lines}, nil
+	return &Module{Name: name, Version: version, Placement: place, Warnings: warnings, Auxiliary: auxiliary, Lines: lines}, nil
 }
 
 // ParseModuleDir reads a module from a local directory. It is the
@@ -104,7 +105,7 @@ func ParseModuleDir(dir string) (*Module, error) {
 
 // parseLine reads one v<N> line directory from fsys: its apiVersion,
 // Composition, and every file under definitions/ in sorted filename order.
-func parseLine(fsys fs.FS, dir string) (*Line, error) {
+func parseLine(fsys fs.FS, dir string, warnings *[]string) (*Line, error) {
 	versionPath := path.Join(dir, "_version.cue")
 	apiVersion, err := readCUEStringField(fsys, versionPath, "apiVersion")
 	if err != nil {
@@ -124,7 +125,7 @@ func parseLine(fsys fs.FS, dir string) (*Line, error) {
 		return nil, fmt.Errorf("read placement: %w", err)
 	}
 
-	auxiliary, err := readAuxiliaryDir(fsys, path.Join(dir, "auxiliary"))
+	auxiliary, err := readAuxiliaryDir(fsys, path.Join(dir, "auxiliary"), warnings)
 	if err != nil {
 		return nil, fmt.Errorf("read auxiliary: %w", err)
 	}
@@ -159,6 +160,9 @@ func parseLine(fsys fs.FS, dir string) (*Line, error) {
 		if err := validateDefinitionName(rendered, defPath); err != nil {
 			return nil, err
 		}
+		if err := checkObjectPlacement(rendered, defPath); err != nil {
+			return nil, err
+		}
 		defs = append(defs, rendered)
 	}
 
@@ -184,34 +188,35 @@ func renderDefinition(name string, data []byte) (map[string]interface{}, error) 
 }
 
 // readAuxiliaryDir reads every file directly under dir, then every file
-// directly under dir/hub. Files in hub/ are stamped resource.oam.dev/placement:
-// hub, so they stay on the hub whatever the module or line placement field
-// says. hub/ is not recursed. Any other subdirectory is ignored with a
-// warning. A missing dir is not an error: it means "no auxiliary objects".
-func readAuxiliaryDir(fsys fs.FS, dir string) ([]map[string]interface{}, error) {
-	objects, err := readAuxiliaryFiles(fsys, dir)
+// directly under dir/hub. A file in hub/ with no placement annotation is
+// stamped resource.oam.dev/placement: hub, so the folder beats the module
+// and line defaults. An annotation already on the object wins, and a
+// runtime annotation there is a warning. hub/ is not recursed. Any other
+// subdirectory is skipped with a warning. A missing dir is not an error:
+// it means "no auxiliary objects".
+func readAuxiliaryDir(fsys fs.FS, dir string, warnings *[]string) ([]map[string]interface{}, error) {
+	objects, err := readAuxiliaryFiles(fsys, dir, false, warnings)
 	if err != nil {
 		return nil, err
 	}
-	if err := warnOtherAuxiliaryDirs(fsys, dir); err != nil {
+	if err := warnOtherAuxiliaryDirs(fsys, dir, warnings); err != nil {
 		return nil, err
 	}
 	hubDir := path.Join(dir, "hub")
-	hubObjects, err := readAuxiliaryFiles(fsys, hubDir)
-	if err != nil {
+	if err := warnNestedHubDirs(fsys, hubDir, warnings); err != nil {
 		return nil, err
 	}
-	for _, obj := range hubObjects {
-		if err := stampHub(obj); err != nil {
-			return nil, fmt.Errorf("stamp %s: %w", hubDir, err)
-		}
+	hubObjects, err := readAuxiliaryFiles(fsys, hubDir, true, warnings)
+	if err != nil {
+		return nil, err
 	}
 	return append(objects, hubObjects...), nil
 }
 
 // readAuxiliaryFiles reads the files directly in dir, in filename order.
-// Subdirectories are skipped. A missing dir returns no objects.
-func readAuxiliaryFiles(fsys fs.FS, dir string) ([]map[string]interface{}, error) {
+// Subdirectories are skipped. A missing dir returns no objects. When hubFolder
+// is set, an object with no placement annotation is stamped hub.
+func readAuxiliaryFiles(fsys fs.FS, dir string, hubFolder bool, warnings *[]string) ([]map[string]interface{}, error) {
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -239,14 +244,25 @@ func readAuxiliaryFiles(fsys fs.FS, dir string) ([]map[string]interface{}, error
 		if err != nil {
 			return nil, fmt.Errorf("decode %s: %w", p, err)
 		}
+		for _, obj := range decoded {
+			if err := checkObjectPlacement(obj, p); err != nil {
+				return nil, err
+			}
+			if !hubFolder {
+				continue
+			}
+			if err := applyHubFolder(obj, p, warnings); err != nil {
+				return nil, err
+			}
+		}
 		objects = append(objects, decoded...)
 	}
 	return objects, nil
 }
 
-// warnOtherAuxiliaryDirs reports subdirectories other than hub/. Those files
+// warnOtherAuxiliaryDirs records subdirectories other than hub/. Those files
 // are not installed. A missing dir is not an error.
-func warnOtherAuxiliaryDirs(fsys fs.FS, dir string) error {
+func warnOtherAuxiliaryDirs(fsys fs.FS, dir string, warnings *[]string) error {
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -254,16 +270,112 @@ func warnOtherAuxiliaryDirs(fsys fs.FS, dir string) error {
 		}
 		return err
 	}
-	for _, entry := range entries {
-		if entry.IsDir() && entry.Name() != "hub" {
-			klog.Warningf("ignoring %s: only a hub/ directory is recognized under auxiliary", path.Join(dir, entry.Name()))
-		}
+	names := dirNamesOtherThanHub(entries)
+	for _, name := range names {
+		notePlacement(warnings, fmt.Sprintf("%s is not a recognized folder and is ignored; only hub/ is recognized under auxiliary/", path.Join(dir, name)))
 	}
 	return nil
 }
 
-// stampHub sets resource.oam.dev/placement to hub, replacing any value already
-// on the object. Membership in hub/ is the author's decision.
+// warnNestedHubDirs records subdirectories of hub/. Those files are not
+// installed, because hub/ is not recursed. A missing hub/ is not an error.
+func warnNestedHubDirs(fsys fs.FS, hubDir string, warnings *[]string) error {
+	entries, err := fs.ReadDir(fsys, hubDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		notePlacement(warnings, fmt.Sprintf("%s is not read; hub/ does not recurse into sub-folders", path.Join(hubDir, name)))
+	}
+	return nil
+}
+
+func dirNamesOtherThanHub(entries []fs.DirEntry) []string {
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() && entry.Name() != "hub" {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+func notePlacement(warnings *[]string, msg string) {
+	*warnings = append(*warnings, msg)
+	klog.Warning(msg)
+}
+
+// checkObjectPlacement rejects a placement annotation that is not hub or
+// runtime, naming the file. An object with no annotation is valid. A marker
+// on a definition is checked the same way and then ignored: definitions
+// install on the hub either way.
+func checkObjectPlacement(obj map[string]interface{}, filePath string) error {
+	_, _, err := objectPlacementValue(obj)
+	if err != nil {
+		return fmt.Errorf("%s: %w", filePath, err)
+	}
+	return nil
+}
+
+// applyHubFolder stamps hub on an object that has no placement annotation.
+// An annotation already on the object wins. runtime inside hub/ is a warning.
+func applyHubFolder(obj map[string]interface{}, filePath string, warnings *[]string) error {
+	value, ok, err := objectPlacementValue(obj)
+	if err != nil {
+		return fmt.Errorf("%s: %w", filePath, err)
+	}
+	if !ok {
+		if err := stampHub(obj); err != nil {
+			return fmt.Errorf("stamp %s: %w", filePath, err)
+		}
+		return nil
+	}
+	if value == placement.Runtime {
+		notePlacement(warnings, fmt.Sprintf("%s is in hub/ but its own placement annotation is %q; the annotation wins, so it is not hub-only", filePath, value))
+	}
+	return nil
+}
+
+func objectPlacementValue(obj map[string]interface{}) (string, bool, error) {
+	meta, _ := obj["metadata"].(map[string]interface{})
+	if meta == nil {
+		return "", false, nil
+	}
+	rawAnns, exists := meta["annotations"]
+	if !exists || rawAnns == nil {
+		return "", false, nil
+	}
+	anns, ok := rawAnns.(map[string]interface{})
+	if !ok {
+		return "", false, fmt.Errorf("metadata.annotations is not an object")
+	}
+	raw, exists := anns[placement.Annotation]
+	if !exists || raw == nil {
+		return "", false, nil
+	}
+	value, ok := raw.(string)
+	if !ok {
+		return "", false, fmt.Errorf("annotation %s must be a string", placement.Annotation)
+	}
+	if _, err := placement.Normalize(value); err != nil {
+		return "", false, err
+	}
+	return value, true, nil
+}
+
+// stampHub sets resource.oam.dev/placement to hub. The caller has already
+// checked that the object has no placement annotation of its own.
 func stampHub(obj map[string]interface{}) error {
 	raw, ok := obj["metadata"]
 	if !ok || raw == nil {
