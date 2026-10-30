@@ -40,6 +40,12 @@ line, so unmarked objects follow the installer. `auxiliary/hub/admission.yaml`
 has no annotation, so the folder makes it hub. `auxiliary/hub/keep-runtime.yaml`
 carries `runtime`, so the annotation wins and publish warns.
 
+`v1/definitions/bucket.cue` is the v1 capability. It has no placement
+annotation, and it still installs on the hub. Reference it as `store/v1/bucket`.
+`v1/definitions/note.yaml` is a definition that does carry `runtime`. The
+annotation is kept on the object and ignored for class, so it installs on the
+hub with `bucket`.
+
 ```shell
 vela module registry add modules <oci-registry-url> --type oci
 vela module publish store --registry modules
