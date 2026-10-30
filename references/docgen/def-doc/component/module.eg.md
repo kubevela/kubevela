@@ -16,6 +16,8 @@ spec:
       properties:
         # module: s3          # optional, defaults to the component name
         registry: modules      # optional, empty means the configured default registry
-        namespace: vela-system # optional, empty means the default system namespace
         version: "1.0.0"       # optional, empty means the latest published version
+        # placement:           # optional, clusters for objects marked runtime
+        #   clusters:
+        #     - spoke
 ```

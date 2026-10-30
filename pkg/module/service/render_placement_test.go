@@ -23,7 +23,7 @@ import (
 
 	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/module"
-	"github.com/oam-dev/kubevela/pkg/policy/placement"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // storeModule is the in-memory shape of the store module published from the
@@ -37,8 +37,8 @@ import (
 func storeModule(explicit bool) *module.Module {
 	hub, runtime := "", ""
 	if explicit {
-		hub = placement.Hub
-		runtime = placement.Runtime
+		hub = oam.PlacementHub
+		runtime = oam.PlacementRuntime
 	}
 	return &module.Module{
 		Name:    "store",
@@ -78,7 +78,7 @@ func placed(name, class string) map[string]interface{} {
 		return obj
 	}
 	obj["metadata"].(map[string]interface{})["annotations"] = map[string]interface{}{
-		placement.Annotation: class,
+		oam.AnnotationPlacement: class,
 	}
 	return obj
 }
@@ -207,7 +207,7 @@ func TestRenderApplication_LineWithoutDefinitionsHasNoDefsTier(t *testing.T) {
 			"v1": {
 				APIVersion: "v1",
 				Enabled:    true,
-				Auxiliary:  []map[string]interface{}{placed("store-v1-controller", placement.Hub)},
+				Auxiliary:  []map[string]interface{}{placed("store-v1-controller", oam.PlacementHub)},
 			},
 		},
 	}
@@ -228,16 +228,16 @@ func TestRenderApplication_LineDefaultRuntimeYieldsToHubLabel(t *testing.T) {
 	mod := &module.Module{
 		Name:      "store",
 		Version:   "1.0.0",
-		Placement: placement.Runtime,
+		Placement: oam.PlacementRuntime,
 		Auxiliary: []map[string]interface{}{auxObject("ConfigMap", "store-defaults")},
 		Lines: map[string]module.Line{
 			"v1": {
 				APIVersion: "v1",
 				Enabled:    true,
-				Placement:  placement.Runtime,
+				Placement:  oam.PlacementRuntime,
 				Auxiliary: []map[string]interface{}{
 					auxObject("ConfigMap", "store-v1-defaults"),
-					placed("store-v1-controller", placement.Hub),
+					placed("store-v1-controller", oam.PlacementHub),
 				},
 				Definitions: []map[string]interface{}{definition("bucket")},
 			},
@@ -260,16 +260,16 @@ func TestRenderApplication_LineDefaultBeatsModuleDefault(t *testing.T) {
 	mod := &module.Module{
 		Name:      "store",
 		Version:   "1.0.0",
-		Placement: placement.Runtime,
+		Placement: oam.PlacementRuntime,
 		Auxiliary: []map[string]interface{}{auxObject("ConfigMap", "store-defaults")},
 		Lines: map[string]module.Line{
 			"v1": {
 				APIVersion: "v1",
 				Enabled:    true,
-				Placement:  placement.Hub,
+				Placement:  oam.PlacementHub,
 				Auxiliary: []map[string]interface{}{
 					auxObject("ConfigMap", "store-v1-defaults"),
-					placed("store-v1-extra", placement.Runtime),
+					placed("store-v1-extra", oam.PlacementRuntime),
 				},
 				Definitions: []map[string]interface{}{definition("bucket")},
 			},

@@ -26,21 +26,10 @@ import (
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 
 	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-const (
-	// Annotation is the object annotation an author sets to hub or runtime.
-	// Absent means hub. Runtime is explicit: that object follows the
-	// installer's placement request.
-	Annotation = "resource.oam.dev/placement"
-	// Hub stays on the control plane. It is also the class of an object with
-	// no annotation.
-	Hub = "hub"
-	// Runtime follows the installer's placement request. An author sets it.
-	Runtime = "runtime"
-
-	hubSuffix = "-hub"
-)
+const hubSuffix = "-hub"
 
 // Component is one already-named tier and the class it belongs to.
 type Component struct {
@@ -66,7 +55,7 @@ type Names struct {
 	RuntimeStep     string
 }
 
-// Class reads Annotation on obj, then the first non-empty inherited default.
+// Class reads oam.AnnotationPlacement on obj, then the first non-empty inherited default.
 // The caller passes defaults in precedence order (line, then module). An
 // absent marker with no default is hub. Any other value is an error.
 func Class(obj map[string]interface{}, inherited ...string) (string, error) {
@@ -83,7 +72,7 @@ func Class(obj map[string]interface{}, inherited ...string) (string, error) {
 		}
 		return parseClass(d, obj)
 	}
-	return Hub, nil
+	return oam.PlacementHub, nil
 }
 
 // Marked reports whether obj carries an explicit placement annotation.
@@ -109,7 +98,7 @@ func SplitAux(base string, objects []map[string]interface{}, inherited ...string
 		if err != nil {
 			return nil, err
 		}
-		if class == Hub {
+		if class == oam.PlacementHub {
 			hub = append(hub, obj)
 			continue
 		}
@@ -117,10 +106,10 @@ func SplitAux(base string, objects []map[string]interface{}, inherited ...string
 	}
 	var groups []Group
 	if len(runtime) > 0 {
-		groups = append(groups, Group{Name: base, Class: Runtime, Objects: runtime})
+		groups = append(groups, Group{Name: base, Class: oam.PlacementRuntime, Objects: runtime})
 	}
 	if len(hub) > 0 {
-		groups = append(groups, Group{Name: base + hubSuffix, Class: Hub, Objects: hub})
+		groups = append(groups, Group{Name: base + hubSuffix, Class: oam.PlacementHub, Objects: hub})
 	}
 	return groups, nil
 }
@@ -134,7 +123,7 @@ func SplitAux(base string, objects []map[string]interface{}, inherited ...string
 func Assemble(components []Component, req *v1alpha1.Placement, names Names) ([]map[string]interface{}, []map[string]interface{}) {
 	var hubNames, runtimeNames []string
 	for _, c := range components {
-		if c.Class == Hub {
+		if c.Class == oam.PlacementHub {
 			hubNames = append(hubNames, c.Name)
 			continue
 		}
@@ -217,7 +206,7 @@ func annotation(obj map[string]interface{}) (string, bool, error) {
 	if annos == nil {
 		return "", false, nil
 	}
-	v, ok := annos[Annotation]
+	v, ok := annos[oam.AnnotationPlacement]
 	if !ok || v == nil {
 		return "", false, nil
 	}
@@ -228,20 +217,18 @@ func annotation(obj map[string]interface{}) (string, bool, error) {
 	return s, true, nil
 }
 
-// Normalize checks a placement value from a module or line default. Hub and
-// runtime are the only accepted values.
+// Normalize checks a placement value from a module or line default.
+// Hub and runtime are accepted. An empty value and any other value are errors.
 func Normalize(v string) (string, error) {
-	switch v {
-	case Hub, Runtime:
-		return v, nil
-	default:
-		return "", fmt.Errorf("placement class %q is invalid: want %q or %q", v, Hub, Runtime)
+	if err := oam.ValidatePlacement(v); err != nil {
+		return "", err
 	}
+	return v, nil
 }
 
 func parseClass(v string, obj map[string]interface{}) (string, error) {
-	if _, err := Normalize(v); err != nil {
-		return "", fmt.Errorf("placement class %q on %s is invalid: want %q or %q", v, objectName(obj), Hub, Runtime)
+	if err := oam.ValidatePlacement(v); err != nil {
+		return "", fmt.Errorf("placement on %s: %w", objectName(obj), err)
 	}
 	return v, nil
 }

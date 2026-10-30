@@ -391,6 +391,65 @@ func TestParseModule_RejectsBadDefinitionPlacement(t *testing.T) {
 	assert.Contains(t, err.Error(), "v1/definitions/bucket.yaml")
 }
 
+func TestParseModule_RejectsEmptyAndInvalidPlacement(t *testing.T) {
+	base := fstest.MapFS{
+		"_module.cue":                {Data: []byte("module: \"s3\"\nversion: \"1.0.0\"\n")},
+		"v1/_version.cue":            {Data: []byte("apiVersion: \"v1\"\n")},
+		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n")},
+	}
+	cases := []struct {
+		name  string
+		file  string
+		body  string
+		wants []string
+	}{
+		{
+			name:  "empty module default",
+			file:  "_module.cue",
+			body:  "module: \"s3\"\nversion: \"1.0.0\"\nplacement: \"\"\n",
+			wants: []string{"_module.cue", "empty"},
+		},
+		{
+			name:  "empty line default",
+			file:  "v1/_version.cue",
+			body:  "apiVersion: \"v1\"\nplacement: \"\"\n",
+			wants: []string{"v1/_version.cue", "empty"},
+		},
+		{
+			name:  "wrong case line default",
+			file:  "v1/_version.cue",
+			body:  "apiVersion: \"v1\"\nplacement: \"Hub\"\n",
+			wants: []string{"v1/_version.cue", "invalid"},
+		},
+		{
+			name:  "empty object annotation",
+			file:  "auxiliary/blank.yaml",
+			body:  "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: blank\n  annotations:\n    resource.oam.dev/placement: \"\"\n",
+			wants: []string{"auxiliary/blank.yaml", "empty"},
+		},
+		{
+			name:  "empty definition annotation",
+			file:  "v1/definitions/bucket.yaml",
+			body:  "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n  annotations:\n    resource.oam.dev/placement: \"\"\n",
+			wants: []string{"v1/definitions/bucket.yaml", "empty"},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fsys := fstest.MapFS{}
+			for name, file := range base {
+				fsys[name] = file
+			}
+			fsys[c.file] = &fstest.MapFile{Data: []byte(c.body)}
+			_, err := ParseModule(fsys)
+			require.Error(t, err)
+			for _, want := range c.wants {
+				assert.Contains(t, err.Error(), want)
+			}
+		})
+	}
+}
+
 // TestParseModule_AuxiliaryCUEFile covers a .cue auxiliary file: it is a
 // single plain Kubernetes object at its root (apiVersion/kind/metadata
 // directly), not wrapped the way definitions/*.cue is.

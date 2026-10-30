@@ -196,7 +196,7 @@ func partitionTriggered(mod *module.Module, place *v1alpha1.Placement) (bool, er
 		if err != nil {
 			return false, fmt.Errorf("render module: %w", err)
 		}
-		if class == placement.Runtime {
+		if class == oam.PlacementRuntime {
 			found = true
 		}
 	}
@@ -208,7 +208,7 @@ func partitionTriggered(mod *module.Module, place *v1alpha1.Placement) (bool, er
 		if err != nil {
 			return false, fmt.Errorf("render module: line %s: %w", line.APIVersion, err)
 		}
-		if line.Enabled && class == placement.Runtime {
+		if line.Enabled && class == oam.PlacementRuntime {
 			found = true
 		}
 	}
@@ -248,7 +248,7 @@ func renderPartitioned(mod *module.Module, namespace string, place *v1alpha1.Pla
 		for _, g := range groups {
 			comps = append(comps, objectsTier(g.Name, toObjects(g.Objects, namespace), ""))
 			refs = append(refs, placement.Component{Name: g.Name, Class: g.Class})
-			if g.Class == placement.Hub {
+			if g.Class == oam.PlacementHub {
 				moduleHub = g.Name
 			} else {
 				moduleRuntime = g.Name
@@ -266,7 +266,7 @@ func renderPartitioned(mod *module.Module, namespace string, place *v1alpha1.Pla
 			}
 			for _, g := range groups {
 				dep := moduleRuntime
-				if g.Class == placement.Hub {
+				if g.Class == oam.PlacementHub {
 					dep = moduleHub
 					lineHub = g.Name
 				}
@@ -287,7 +287,7 @@ func renderPartitioned(mod *module.Module, namespace string, place *v1alpha1.Pla
 			dep = moduleHub
 		}
 		comps = append(comps, objectsTier(defName, defs, dep))
-		refs = append(refs, placement.Component{Name: defName, Class: placement.Hub})
+		refs = append(refs, placement.Component{Name: defName, Class: oam.PlacementHub})
 	}
 
 	extraPolicies, steps := placement.Assemble(refs, place, modulePlacementNames)

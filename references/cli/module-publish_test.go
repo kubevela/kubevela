@@ -268,6 +268,41 @@ func TestModulePublishPrintsPlacementWarnings(t *testing.T) {
 	require.Contains(t, out.String(), "Warning: auxiliary/spoke is not a recognized folder")
 }
 
+func TestModulePublishDryRunRejectsBadPlacement(t *testing.T) {
+	cases := []struct {
+		name  string
+		cue   string
+		wants []string
+	}{
+		{
+			name:  "empty",
+			cue:   "module: \"s3\"\nversion: \"1.0.0\"\nplacement: \"\"\n",
+			wants: []string{"_module.cue", "empty"},
+		},
+		{
+			name:  "invalid",
+			cue:   "module: \"s3\"\nversion: \"1.0.0\"\nplacement: \"spoke\"\n",
+			wants: []string{"_module.cue", "spoke"},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := publishFixtureDir(t)
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "_module.cue"), []byte(c.cue), 0o600))
+
+			cmd := NewModulePublishCommand(common.Args{}, cmdutil.NewDefaultIOStreams())
+			cmd.SetOut(&bytes.Buffer{})
+			cmd.SetArgs([]string{dir, "oci://registry.example.com/modules", "--dry-run"})
+
+			err := cmd.Execute()
+			require.Error(t, err)
+			for _, want := range c.wants {
+				require.ErrorContains(t, err, want)
+			}
+		})
+	}
+}
+
 // TestModulePublishCommandRejectsRegistryFlagWithPositionalRef exercises the
 // mutual-exclusion rejection through RunE rather than a direct
 // modulePublishOptions construction, proving --registry is read from the

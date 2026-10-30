@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
@@ -32,7 +33,7 @@ func obj(name, class string) map[string]interface{} {
 	}
 	if class != "" {
 		o["metadata"].(map[string]interface{})["annotations"] = map[string]interface{}{
-			Annotation: class,
+			oam.AnnotationPlacement: class,
 		}
 	}
 	return o
@@ -41,53 +42,66 @@ func obj(name, class string) map[string]interface{} {
 func TestClass(t *testing.T) {
 	got, err := Class(obj("plain", ""))
 	require.NoError(t, err)
-	require.Equal(t, Hub, got)
+	require.Equal(t, oam.PlacementHub, got)
 
 	marked, err := Marked(obj("plain", ""))
 	require.NoError(t, err)
 	require.False(t, marked)
-	marked, err = Marked(obj("marked", Hub))
+	marked, err = Marked(obj("marked", oam.PlacementHub))
 	require.NoError(t, err)
 	require.True(t, marked)
 
-	got, err = Class(obj("marked", Hub))
+	got, err = Class(obj("marked", oam.PlacementHub))
 	require.NoError(t, err)
-	require.Equal(t, Hub, got)
+	require.Equal(t, oam.PlacementHub, got)
 
-	got, err = Class(obj("explicit", Runtime), Hub)
+	got, err = Class(obj("explicit", oam.PlacementRuntime), oam.PlacementHub)
 	require.NoError(t, err)
-	require.Equal(t, Runtime, got, "an object's own annotation wins over an inherited default")
+	require.Equal(t, oam.PlacementRuntime, got, "an object's own annotation wins over an inherited default")
 
-	got, err = Class(obj("inherited", ""), Hub)
+	got, err = Class(obj("inherited", ""), oam.PlacementHub)
 	require.NoError(t, err)
-	require.Equal(t, Hub, got)
+	require.Equal(t, oam.PlacementHub, got)
 
-	got, err = Class(obj("line-wins", ""), Runtime, Hub)
+	got, err = Class(obj("line-wins", ""), oam.PlacementRuntime, oam.PlacementHub)
 	require.NoError(t, err)
-	require.Equal(t, Runtime, got, "the first inherited default wins")
+	require.Equal(t, oam.PlacementRuntime, got, "the first inherited default wins")
 
 	_, err = Class(obj("bad", "spoke"))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "bad")
 	require.Contains(t, err.Error(), "spoke")
+
+	empty := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"name": "blank",
+			"annotations": map[string]interface{}{
+				oam.AnnotationPlacement: "",
+			},
+		},
+	}
+	_, err = Class(empty)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "blank")
+	require.Contains(t, err.Error(), "empty")
 }
 
 func TestSplitAux(t *testing.T) {
 	groups, err := SplitAux("store-aux", []map[string]interface{}{
 		obj("defaults", ""),
-		obj("admission", Hub),
-		obj("also-runtime", Runtime),
+		obj("admission", oam.PlacementHub),
+		obj("also-runtime", oam.PlacementRuntime),
 	})
 	require.NoError(t, err)
 	require.Len(t, groups, 2)
 	require.Equal(t, "store-aux", groups[0].Name)
-	require.Equal(t, Runtime, groups[0].Class)
+	require.Equal(t, oam.PlacementRuntime, groups[0].Class)
 	require.Equal(t, []string{"also-runtime"}, names(groups[0].Objects))
 	require.Equal(t, "store-aux-hub", groups[1].Name)
-	require.Equal(t, Hub, groups[1].Class)
+	require.Equal(t, oam.PlacementHub, groups[1].Class)
 	require.Equal(t, []string{"defaults", "admission"}, names(groups[1].Objects))
 
-	onlyHub, err := SplitAux("store-v1-aux", []map[string]interface{}{obj("controller", Hub)})
+	onlyHub, err := SplitAux("store-v1-aux", []map[string]interface{}{obj("controller", oam.PlacementHub)})
 	require.NoError(t, err)
 	require.Len(t, onlyHub, 1)
 	require.Equal(t, "store-v1-aux-hub", onlyHub[0].Name)
@@ -99,9 +113,9 @@ func TestSplitAux(t *testing.T) {
 
 func TestAssembleBindsRuntimeToHubUntilAsked(t *testing.T) {
 	comps := []Component{
-		{Name: "store-aux", Class: Runtime},
-		{Name: "store-aux-hub", Class: Hub},
-		{Name: "store-v1-defs", Class: Hub},
+		{Name: "store-aux", Class: oam.PlacementRuntime},
+		{Name: "store-aux-hub", Class: oam.PlacementHub},
+		{Name: "store-v1-defs", Class: oam.PlacementHub},
 	}
 	names := Names{
 		HubPolicy: "module-hub", RuntimePolicy: "module-runtime",
@@ -129,7 +143,7 @@ func TestAssembleCopiesThePlacementRequest(t *testing.T) {
 		HubOverride: "module-hub-override", RuntimeOverride: "module-runtime-override",
 		HubStep: "deploy-module-hub", RuntimeStep: "deploy-module-runtime",
 	}
-	comps := []Component{{Name: "store-aux", Class: Runtime}}
+	comps := []Component{{Name: "store-aux", Class: oam.PlacementRuntime}}
 
 	first, steps := Assemble(comps, &v1alpha1.Placement{Clusters: []string{"spoke-a", "spoke-b"}}, names)
 	second, _ := Assemble(comps, &v1alpha1.Placement{

@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/definition"
-	"github.com/oam-dev/kubevela/pkg/policy/placement"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // ParseModule reads the module source tree from fsys (rooted at the module
@@ -341,7 +341,7 @@ func applyHubFolder(obj map[string]interface{}, filePath string, warnings *[]str
 		}
 		return nil
 	}
-	if value == placement.Runtime {
+	if value == oam.PlacementRuntime {
 		notePlacement(warnings, fmt.Sprintf("%s is in hub/ but its own placement annotation is %q; the annotation wins, so it is not hub-only", filePath, value))
 	}
 	return nil
@@ -360,15 +360,15 @@ func objectPlacementValue(obj map[string]interface{}) (string, bool, error) {
 	if !ok {
 		return "", false, fmt.Errorf("metadata.annotations is not an object")
 	}
-	raw, exists := anns[placement.Annotation]
+	raw, exists := anns[oam.AnnotationPlacement]
 	if !exists || raw == nil {
 		return "", false, nil
 	}
 	value, ok := raw.(string)
 	if !ok {
-		return "", false, fmt.Errorf("annotation %s must be a string", placement.Annotation)
+		return "", false, fmt.Errorf("annotation %s must be a string", oam.AnnotationPlacement)
 	}
-	if _, err := placement.Normalize(value); err != nil {
+	if err := oam.ValidatePlacement(value); err != nil {
 		return "", false, err
 	}
 	return value, true, nil
@@ -396,7 +396,7 @@ func stampHub(obj map[string]interface{}) error {
 		anns = map[string]interface{}{}
 		meta["annotations"] = anns
 	}
-	anns[placement.Annotation] = placement.Hub
+	anns[oam.AnnotationPlacement] = oam.PlacementHub
 	return nil
 }
 
@@ -483,10 +483,10 @@ func lookupCUEField(fsys fs.FS, p, fieldPath string) (cue.Value, bool, error) {
 	return field, field.Exists(), nil
 }
 
-// readPlacementDefault reads the optional placement field. Absent means the
-// file sets no default. A present value must be hub or runtime. Objects carry
-// the same choice as the annotation resource.oam.dev/placement; this field is
-// only the cue default.
+// readPlacementDefault reads the optional placement field. A missing field
+// means the file sets no default. A present value must be hub or runtime.
+// An empty value is an error. Objects carry the same choice as the annotation
+// resource.oam.dev/placement; this field is only the cue default.
 func readPlacementDefault(fsys fs.FS, p string) (string, error) {
 	const fieldName = "placement"
 	field, exists, err := lookupCUEField(fsys, p, fieldName)
@@ -500,10 +500,7 @@ func readPlacementDefault(fsys fs.FS, p string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("field %s in %s is not a string", fieldName, p)
 	}
-	if s == "" {
-		return "", nil
-	}
-	if _, err := placement.Normalize(s); err != nil {
+	if err := oam.ValidatePlacement(s); err != nil {
 		return "", fmt.Errorf("%s: %w", p, err)
 	}
 	return s, nil

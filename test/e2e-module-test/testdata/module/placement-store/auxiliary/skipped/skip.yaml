@@ -1,0 +1,7 @@
+# Only hub/ is recognized under auxiliary/. This object is not installed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placement-store-skipped
+data:
+  role: skipped
