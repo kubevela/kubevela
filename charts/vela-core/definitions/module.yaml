@@ -46,6 +46,9 @@ spec:
         		registry:  parameter.registry
         		namespace: _namespace
         		version:   parameter.version
+        		if parameter.placement != _|_ {
+        			placement: parameter.placement
+        		}
         	}
         }
 
@@ -60,6 +63,19 @@ spec:
         	// _module.cue's version field). Empty means the latest published version.
         	// This is not the API line (apiVersion v1/v2), which is unaffected.
         	version: *"" | string
+        	// Where objects marked runtime are installed. Unmarked objects and
+        	// definitions stay on the hub. Set clusters or clusterLabelSelector.
+        	placement?: {
+        		clusters?: [...string]
+        		clusterLabelSelector?: [string]: string
+        		allowEmpty?:           bool
+        		if clusters != _|_ && clusterLabelSelector != _|_ {
+        			_one: "set clusters or clusterLabelSelector" & 1
+        		}
+        		if clusters == _|_ && clusterLabelSelector == _|_ {
+        			_one: "set clusters or clusterLabelSelector" & 1
+        		}
+        	}
         }
   status:
     customStatus: |-

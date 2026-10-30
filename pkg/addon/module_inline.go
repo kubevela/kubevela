@@ -193,7 +193,7 @@ func RenderInlineModuleComponents(addon *InstallPackage, existingComponents []co
 
 	var comps []common2.ApplicationComponent
 	for _, mod := range addon.InlineModules {
-		app, err := modulerender.RenderApplication(mod, namespace)
+		app, err := modulerender.RenderApplication(mod, namespace, nil)
 		if err != nil {
 			return nil, fmt.Errorf("render inline module %q for addon %q: %w", mod.Name, addon.Name, err)
 		}

@@ -29,6 +29,12 @@ type Line struct {
 	// ships installable unless its author opts out. The render service
 	// installs every enabled line and skips the rest.
 	Enabled bool
+	// Placement is the line default read from the placement field in
+	// v<N>/_version.cue. The value is hub or runtime. Empty means the line
+	// sets no default. An object annotation resource.oam.dev/placement wins
+	// over it. It applies to the line's auxiliary objects. Definitions stay
+	// on the hub.
+	Placement string
 	// Auxiliary holds the objects read from v<N>/auxiliary/, in filename order
 	// (and document order within a multi-document file).
 	// Empty for a line that ships no auxiliary/.
@@ -47,6 +53,11 @@ type Module struct {
 	// Version is the module's own semver, read from _module.cue's top-level
 	// version field. It is the tag vela module publish uses for the artifact.
 	Version string
+	// Placement is the module default read from the placement field in
+	// _module.cue. The value is hub or runtime. Empty means the module sets
+	// no default. A line default wins over it, and an object annotation
+	// resource.oam.dev/placement wins over both. Absent means hub.
+	Placement string
 	// Auxiliary holds the objects read from the module-level auxiliary/, in
 	// filename order (and document order within a multi-document file). Empty
 	// for infra-less module that ships no module-level auxiliary/.

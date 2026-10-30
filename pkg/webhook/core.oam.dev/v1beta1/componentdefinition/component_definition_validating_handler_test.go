@@ -894,7 +894,7 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 			},
 		}
 
-		app, err := modulerender.RenderApplication(mod, "vela-system")
+		app, err := modulerender.RenderApplication(mod, "vela-system", nil)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		spec, ok := app["spec"].(map[string]interface{})

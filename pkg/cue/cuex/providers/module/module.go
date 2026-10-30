@@ -29,6 +29,7 @@ import (
 	"github.com/kubevela/pkg/util/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -49,6 +50,9 @@ type RenderVars struct {
 	// Version selects the module package version (the OCI/ECR tag); empty means
 	// latest. Not the API line.
 	Version string `json:"version"`
+	// Placement is the installer's cluster request. Nil means they did not ask.
+	// Objects marked runtime follow it. Unmarked objects stay on the hub.
+	Placement *v1alpha1.Placement `json:"placement,omitempty"`
 }
 
 // ResultVars is the $returns shape.
@@ -86,6 +90,7 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 		Registry:  p.Registry,
 		Namespace: p.Namespace,
 		Version:   p.Version,
+		Placement: p.Placement,
 	})
 	if err != nil {
 		return nil, err

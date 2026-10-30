@@ -23,6 +23,8 @@ package api
 import (
 	"context"
 	"sync"
+
+	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
 
 // ModuleRequest is the resolved input for rendering one module. There is no
@@ -40,6 +42,10 @@ type ModuleRequest struct {
 	// publish writes from _module.cue's version field). Empty resolves the
 	// highest published semver tag.
 	Version string
+	// Placement is the installer's request for where this module's runtime
+	// objects land. Nil means the installer did not ask. A hub marker on the
+	// module can still partition the render on its own.
+	Placement *v1alpha1.Placement
 }
 
 // ModuleResult is the rendered output: the module's owned Application as a

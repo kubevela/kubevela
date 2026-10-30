@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/module/naming"
 	"github.com/oam-dev/kubevela/pkg/module/service/api"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/policy/placement"
 )
 
 // rendererImpl fetches a module and renders its owned Application.
@@ -66,7 +67,7 @@ func (r *rendererImpl) RenderModule(ctx context.Context, req api.ModuleRequest) 
 	if err != nil {
 		return nil, err
 	}
-	app, err := RenderApplication(mod, req.Namespace)
+	app, err := RenderApplication(mod, req.Namespace, req.Placement)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +88,15 @@ func (r *rendererImpl) RenderModule(ctx context.Context, req api.ModuleRequest) 
 // meant to fail, and it does: the owned Application is already controlled by
 // the first install's deploy Application, so MustBeControlledByApp rejects the
 // second (pkg/utils/apply/apply.go).
-func RenderApplication(mod *module.Module, definitionNamespace string) (map[string]interface{}, error) {
+//
+// place is the installer's placement request. Nil means they did not ask.
+// An explicit placement marker on any auxiliary object, or a non-nil place,
+// partitions each auxiliary tier by class and adds the topology policies and
+// deploy steps that put each class where it belongs. An absent marker is hub,
+// so it does not by itself follow the request. With neither an explicit
+// marker nor a request, the Application is the flat shape this function has
+// always returned.
+func RenderApplication(mod *module.Module, definitionNamespace string, place *v1alpha1.Placement) (map[string]interface{}, error) {
 	if mod == nil || mod.Name == "" {
 		return nil, fmt.Errorf("render module: module has no name")
 	}
@@ -96,6 +105,14 @@ func RenderApplication(mod *module.Module, definitionNamespace string) (map[stri
 	}
 	if definitionNamespace == "" {
 		definitionNamespace = types.DefaultKubeVelaNS
+	}
+
+	triggered, err := partitionTriggered(mod, place)
+	if err != nil {
+		return nil, err
+	}
+	if triggered {
+		return renderPartitioned(mod, definitionNamespace, place)
 	}
 
 	comps := []interface{}{}
@@ -152,6 +169,157 @@ func RenderApplication(mod *module.Module, definitionNamespace string) (map[stri
 			"components": comps,
 			"policies":   []interface{}{moduleStateKeepPolicy()},
 		},
+	}, nil
+}
+
+// modulePlacementNames are the policy and workflow step names the module
+// renderer gives a partitioned Application. The placement package itself does
+// not know they are for a module.
+var modulePlacementNames = placement.Names{
+	HubPolicy:       "module-hub",
+	RuntimePolicy:   "module-runtime",
+	HubOverride:     "module-hub-override",
+	RuntimeOverride: "module-runtime-override",
+	HubStep:         "deploy-module-hub",
+	RuntimeStep:     "deploy-module-runtime",
+}
+
+// partitionTriggered reports whether this render leaves the flat shape.
+// An explicit annotation triggers it, and so does a module or line default of
+// runtime. The default class is hub, so an absent marker does not. An invalid
+// placement marker is an error even when it is not what triggers the
+// partition, so a bad value cannot render as if it were unmarked.
+func partitionTriggered(mod *module.Module, place *v1alpha1.Placement) (bool, error) {
+	found := false
+	if mod.Placement != "" {
+		class, err := placement.Normalize(mod.Placement)
+		if err != nil {
+			return false, fmt.Errorf("render module: %w", err)
+		}
+		if class == placement.Runtime {
+			found = true
+		}
+	}
+	for _, line := range mod.Lines {
+		if line.Placement == "" {
+			continue
+		}
+		class, err := placement.Normalize(line.Placement)
+		if err != nil {
+			return false, fmt.Errorf("render module: line %s: %w", line.APIVersion, err)
+		}
+		if line.Enabled && class == placement.Runtime {
+			found = true
+		}
+	}
+	groups := [][]map[string]interface{}{mod.Auxiliary}
+	for _, line := range mod.Lines {
+		groups = append(groups, line.Auxiliary)
+	}
+	for _, objs := range groups {
+		for _, obj := range objs {
+			marked, err := placement.Marked(obj)
+			if err != nil {
+				return false, fmt.Errorf("render module: %w", err)
+			}
+			if marked {
+				found = true
+			}
+		}
+	}
+	return place != nil || found, nil
+}
+
+// renderPartitioned splits every auxiliary tier into the classes it actually
+// contains and emits the two deploy steps that install them. Definitions are
+// always hub, under the same tier name a flat render would have used.
+// dependsOn stays inside one class: a hub tier depends on the hub tier above
+// it, a runtime tier on the runtime tier above it.
+func renderPartitioned(mod *module.Module, namespace string, place *v1alpha1.Placement) (map[string]interface{}, error) {
+	comps := []interface{}{}
+	var refs []placement.Component
+
+	moduleRuntime, moduleHub := "", ""
+	if len(mod.Auxiliary) > 0 {
+		groups, err := placement.SplitAux(mod.Name+"-aux", mod.Auxiliary, mod.Placement)
+		if err != nil {
+			return nil, fmt.Errorf("render module: %w", err)
+		}
+		for _, g := range groups {
+			comps = append(comps, objectsTier(g.Name, toObjects(g.Objects, namespace), ""))
+			refs = append(refs, placement.Component{Name: g.Name, Class: g.Class})
+			if g.Class == placement.Hub {
+				moduleHub = g.Name
+			} else {
+				moduleRuntime = g.Name
+			}
+		}
+	}
+
+	for _, apiVersion := range enabledLines(mod) {
+		line := mod.Lines[apiVersion]
+		lineHub := ""
+		if len(line.Auxiliary) > 0 {
+			groups, err := placement.SplitAux(fmt.Sprintf("%s-%s-aux", mod.Name, apiVersion), line.Auxiliary, line.Placement, mod.Placement)
+			if err != nil {
+				return nil, fmt.Errorf("render module: %w", err)
+			}
+			for _, g := range groups {
+				dep := moduleRuntime
+				if g.Class == placement.Hub {
+					dep = moduleHub
+					lineHub = g.Name
+				}
+				comps = append(comps, objectsTier(g.Name, toObjects(g.Objects, namespace), dep))
+				refs = append(refs, placement.Component{Name: g.Name, Class: g.Class})
+			}
+		}
+		if len(line.Definitions) == 0 {
+			continue
+		}
+		defs := make([]interface{}, 0, len(line.Definitions))
+		for _, def := range line.Definitions {
+			defs = append(defs, stampIdentity(def, mod.Name, apiVersion, namespace))
+		}
+		defName := fmt.Sprintf("%s-%s-defs", mod.Name, apiVersion)
+		dep := lineHub
+		if dep == "" {
+			dep = moduleHub
+		}
+		comps = append(comps, objectsTier(defName, defs, dep))
+		refs = append(refs, placement.Component{Name: defName, Class: placement.Hub})
+	}
+
+	extraPolicies, steps := placement.Assemble(refs, place, modulePlacementNames)
+	policies := []interface{}{moduleStateKeepPolicy()}
+	for _, p := range extraPolicies {
+		policies = append(policies, p)
+	}
+	stepList := make([]interface{}, len(steps))
+	for i, step := range steps {
+		stepList[i] = step
+	}
+	spec := map[string]interface{}{
+		"components": comps,
+		"policies":   policies,
+		"workflow": map[string]interface{}{
+			"steps": stepList,
+		},
+	}
+	return map[string]interface{}{
+		"apiVersion": "core.oam.dev/v1beta1",
+		"kind":       "Application",
+		"metadata": map[string]interface{}{
+			"name":      "module-" + mod.Name,
+			"namespace": types.DefaultKubeVelaNS,
+			"labels": map[string]interface{}{
+				types.LabelDefinitionModule: mod.Name,
+			},
+			"annotations": map[string]interface{}{
+				types.AnnoDefinitionModuleVersion: mod.Version,
+			},
+		},
+		"spec": spec,
 	}, nil
 }
 

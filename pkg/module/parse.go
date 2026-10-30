@@ -30,9 +30,11 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/policy/placement"
 )
 
 // ParseModule reads the module source tree from fsys (rooted at the module
@@ -54,6 +56,11 @@ func ParseModule(fsys fs.FS) (*Module, error) {
 	}
 	if err := validateModuleVersion(version, "_module.cue"); err != nil {
 		return nil, fmt.Errorf("parse module: %w", err)
+	}
+
+	place, err := readPlacementDefault(fsys, "_module.cue")
+	if err != nil {
+		return nil, fmt.Errorf("parse module: read placement: %w", err)
 	}
 
 	auxiliary, err := readAuxiliaryDir(fsys, "auxiliary")
@@ -85,7 +92,7 @@ func ParseModule(fsys fs.FS) (*Module, error) {
 		return nil, fmt.Errorf("parse module: %w", err)
 	}
 
-	return &Module{Name: name, Version: version, Auxiliary: auxiliary, Lines: lines}, nil
+	return &Module{Name: name, Version: version, Placement: place, Auxiliary: auxiliary, Lines: lines}, nil
 }
 
 // ParseModuleDir reads a module from a local directory. It is the
@@ -110,6 +117,11 @@ func parseLine(fsys fs.FS, dir string) (*Line, error) {
 	enabled, err := readCUEBoolField(fsys, versionPath, "enabled", true)
 	if err != nil {
 		return nil, fmt.Errorf("read enabled: %w", err)
+	}
+
+	place, err := readPlacementDefault(fsys, versionPath)
+	if err != nil {
+		return nil, fmt.Errorf("read placement: %w", err)
 	}
 
 	auxiliary, err := readAuxiliaryDir(fsys, path.Join(dir, "auxiliary"))
@@ -150,7 +162,7 @@ func parseLine(fsys fs.FS, dir string) (*Line, error) {
 		defs = append(defs, rendered)
 	}
 
-	return &Line{APIVersion: apiVersion, Enabled: enabled, Auxiliary: auxiliary, Definitions: defs}, nil
+	return &Line{APIVersion: apiVersion, Enabled: enabled, Placement: place, Auxiliary: auxiliary, Definitions: defs}, nil
 }
 
 // renderDefinition compiles a single definition file into its unstructured
@@ -171,10 +183,35 @@ func renderDefinition(name string, data []byte) (map[string]interface{}, error) 
 	}
 }
 
-// readAuxiliaryDir reads every file under dir (an auxiliary/ folder) and
-// returns the objects they contain, in filename order. A missing dir is not
-// an error: it means "no auxiliary objects" for that scope.
+// readAuxiliaryDir reads every file directly under dir, then every file
+// directly under dir/hub. Files in hub/ are stamped resource.oam.dev/placement:
+// hub, so they stay on the hub whatever the module or line placement field
+// says. hub/ is not recursed. Any other subdirectory is ignored with a
+// warning. A missing dir is not an error: it means "no auxiliary objects".
 func readAuxiliaryDir(fsys fs.FS, dir string) ([]map[string]interface{}, error) {
+	objects, err := readAuxiliaryFiles(fsys, dir)
+	if err != nil {
+		return nil, err
+	}
+	if err := warnOtherAuxiliaryDirs(fsys, dir); err != nil {
+		return nil, err
+	}
+	hubDir := path.Join(dir, "hub")
+	hubObjects, err := readAuxiliaryFiles(fsys, hubDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, obj := range hubObjects {
+		if err := stampHub(obj); err != nil {
+			return nil, fmt.Errorf("stamp %s: %w", hubDir, err)
+		}
+	}
+	return append(objects, hubObjects...), nil
+}
+
+// readAuxiliaryFiles reads the files directly in dir, in filename order.
+// Subdirectories are skipped. A missing dir returns no objects.
+func readAuxiliaryFiles(fsys fs.FS, dir string) ([]map[string]interface{}, error) {
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -205,6 +242,50 @@ func readAuxiliaryDir(fsys fs.FS, dir string) ([]map[string]interface{}, error) 
 		objects = append(objects, decoded...)
 	}
 	return objects, nil
+}
+
+// warnOtherAuxiliaryDirs reports subdirectories other than hub/. Those files
+// are not installed. A missing dir is not an error.
+func warnOtherAuxiliaryDirs(fsys fs.FS, dir string) error {
+	entries, err := fs.ReadDir(fsys, dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && entry.Name() != "hub" {
+			klog.Warningf("ignoring %s: only a hub/ directory is recognized under auxiliary", path.Join(dir, entry.Name()))
+		}
+	}
+	return nil
+}
+
+// stampHub sets resource.oam.dev/placement to hub, replacing any value already
+// on the object. Membership in hub/ is the author's decision.
+func stampHub(obj map[string]interface{}) error {
+	raw, ok := obj["metadata"]
+	if !ok || raw == nil {
+		raw = map[string]interface{}{}
+		obj["metadata"] = raw
+	}
+	meta, ok := raw.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("metadata is not an object")
+	}
+	var anns map[string]interface{}
+	if rawAnn, exists := meta["annotations"]; exists && rawAnn != nil {
+		anns, ok = rawAnn.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("metadata.annotations is not an object")
+		}
+	} else {
+		anns = map[string]interface{}{}
+		meta["annotations"] = anns
+	}
+	anns[placement.Annotation] = placement.Hub
+	return nil
 }
 
 // decodeAuxiliaryFile decodes one auxiliary file into the objects it
@@ -288,6 +369,32 @@ func lookupCUEField(fsys fs.FS, p, fieldPath string) (cue.Value, bool, error) {
 	}
 	field := val.LookupPath(cue.ParsePath(fieldPath))
 	return field, field.Exists(), nil
+}
+
+// readPlacementDefault reads the optional placement field. Absent means the
+// file sets no default. A present value must be hub or runtime. Objects carry
+// the same choice as the annotation resource.oam.dev/placement; this field is
+// only the cue default.
+func readPlacementDefault(fsys fs.FS, p string) (string, error) {
+	const fieldName = "placement"
+	field, exists, err := lookupCUEField(fsys, p, fieldName)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return "", nil
+	}
+	s, err := field.String()
+	if err != nil {
+		return "", fmt.Errorf("field %s in %s is not a string", fieldName, p)
+	}
+	if s == "" {
+		return "", nil
+	}
+	if _, err := placement.Normalize(s); err != nil {
+		return "", fmt.Errorf("%s: %w", p, err)
+	}
+	return s, nil
 }
 
 // readCUEStringField returns the string value at fieldPath (e.g. "module",

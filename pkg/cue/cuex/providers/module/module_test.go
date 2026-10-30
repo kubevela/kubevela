@@ -26,6 +26,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
+	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/module/service/api"
 )
@@ -72,7 +73,26 @@ func TestRender_PassesParamsThroughAndReturnsApplication(t *testing.T) {
 	assert.Equal(t, "catalog", fake.req.Registry)
 	assert.Equal(t, "team-a", fake.req.Namespace)
 	assert.Equal(t, "1.2.0", fake.req.Version)
+	assert.Nil(t, fake.req.Placement)
 	assert.Equal(t, app, out.Returns.Application)
+}
+
+func TestRender_PassesPlacement(t *testing.T) {
+	enableModuleComponent(t)
+
+	prev := api.DefaultRenderer()
+	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
+
+	fake := &fakeRenderer{res: &api.ModuleResult{Application: map[string]interface{}{}}}
+	api.SetDefaultRenderer(fake)
+
+	place := &v1alpha1.Placement{Clusters: []string{"spoke"}}
+	_, err := Render(context.Background(), &RenderParams{
+		Params: RenderVars{Module: "store", Registry: "modules", Version: "1.0.1", Placement: place},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, place, fake.req.Placement)
+	assert.Equal(t, []string{"spoke"}, fake.req.Placement.Clusters)
 }
 
 // TestRender_DefaultsVersionToEmpty asserts an omitted Version reaches the

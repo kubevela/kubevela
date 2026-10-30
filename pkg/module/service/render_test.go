@@ -88,7 +88,7 @@ func components(t *testing.T, app map[string]interface{}) []map[string]interface
 }
 
 func TestRenderApplication_OwnedApplicationShape(t *testing.T) {
-	app, err := RenderApplication(fixtureModule(), "")
+	app, err := RenderApplication(fixtureModule(), "", nil)
 	require.NoError(t, err)
 
 	require.Equal(t, "core.oam.dev/v1beta1", app["apiVersion"])
@@ -111,7 +111,7 @@ func TestRenderApplication_OwnedApplicationShape(t *testing.T) {
 // resolved to a specific tag, since mod.Version is always the tag that was
 // actually fetched, never the raw request.
 func TestRenderApplication_StampsResolvedVersionAnnotation(t *testing.T) {
-	app, err := RenderApplication(fixtureModule(), "")
+	app, err := RenderApplication(fixtureModule(), "", nil)
 	require.NoError(t, err)
 
 	meta := app["metadata"].(map[string]interface{})
@@ -121,7 +121,7 @@ func TestRenderApplication_StampsResolvedVersionAnnotation(t *testing.T) {
 }
 
 func TestRenderApplication_DefaultsToVelaSystemWithLabel(t *testing.T) {
-	app, err := RenderApplication(&module.Module{Name: "s3"}, "")
+	app, err := RenderApplication(&module.Module{Name: "s3"}, "", nil)
 	require.NoError(t, err)
 
 	meta := app["metadata"].(map[string]interface{})
@@ -137,7 +137,7 @@ func TestRenderApplication_DefaultsToVelaSystemWithLabel(t *testing.T) {
 // asked for them, while the Application that installs them stays with the
 // control plane.
 func TestRenderApplication_OwnedApplicationStaysInVelaSystem(t *testing.T) {
-	app, err := RenderApplication(fixtureModule(), "team-a")
+	app, err := RenderApplication(fixtureModule(), "team-a", nil)
 	require.NoError(t, err)
 
 	meta := app["metadata"].(map[string]interface{})
@@ -161,9 +161,9 @@ func TestRenderApplication_OwnedApplicationStaysInVelaSystem(t *testing.T) {
 // quietly allow a module to be installed twice; keeping one name is what makes
 // the second install fail against the first's claim on the object.
 func TestRenderApplication_OwnedApplicationNameIgnoresTheNamespace(t *testing.T) {
-	a, err := RenderApplication(fixtureModule(), "team-a")
+	a, err := RenderApplication(fixtureModule(), "team-a", nil)
 	require.NoError(t, err)
-	b, err := RenderApplication(fixtureModule(), "team-b")
+	b, err := RenderApplication(fixtureModule(), "team-b", nil)
 	require.NoError(t, err)
 
 	require.Equal(t,
@@ -182,7 +182,7 @@ func TestRenderApplication_AuxiliaryDefaultsToTheDefinitionNamespace(t *testing.
 	pinned["metadata"].(map[string]interface{})["namespace"] = "elsewhere"
 	mod.Auxiliary = append(mod.Auxiliary, pinned)
 
-	app, err := RenderApplication(mod, "team-a")
+	app, err := RenderApplication(mod, "team-a", nil)
 	require.NoError(t, err)
 
 	var objs []interface{}
@@ -233,7 +233,7 @@ func names(comps []map[string]interface{}) []string {
 }
 
 func TestRenderApplication_BothEnabledLinesInstall(t *testing.T) {
-	app, err := RenderApplication(twoLineModule(true, true), "")
+	app, err := RenderApplication(twoLineModule(true, true), "", nil)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{
@@ -244,7 +244,7 @@ func TestRenderApplication_BothEnabledLinesInstall(t *testing.T) {
 }
 
 func TestRenderApplication_DisabledLineIsSkipped(t *testing.T) {
-	app, err := RenderApplication(twoLineModule(false, true), "")
+	app, err := RenderApplication(twoLineModule(false, true), "", nil)
 	require.NoError(t, err)
 
 	got := names(components(t, app))
@@ -253,7 +253,7 @@ func TestRenderApplication_DisabledLineIsSkipped(t *testing.T) {
 }
 
 func TestRenderApplication_LinesAreSiblingsNotAChain(t *testing.T) {
-	app, err := RenderApplication(twoLineModule(true, true), "")
+	app, err := RenderApplication(twoLineModule(true, true), "", nil)
 	require.NoError(t, err)
 
 	byName := map[string]map[string]interface{}{}
@@ -274,7 +274,7 @@ func TestRenderApplication_NoModuleAuxiliaryOmitsThatTier(t *testing.T) {
 	mod := fixtureModule()
 	mod.Auxiliary = nil
 
-	app, err := RenderApplication(mod, "")
+	app, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 
 	comps := components(t, app)
@@ -290,7 +290,7 @@ func TestRenderApplication_NoLineAuxiliaryOmitsThatTier(t *testing.T) {
 	line.Auxiliary = nil
 	mod.Lines["v1"] = line
 
-	app, err := RenderApplication(mod, "")
+	app, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 
 	comps := components(t, app)
@@ -306,7 +306,7 @@ func TestRenderApplication_ModuleWithoutAuxiliaryIsDefinitionsOnly(t *testing.T)
 	line.Auxiliary = nil
 	mod.Lines["v1"] = line
 
-	app, err := RenderApplication(mod, "")
+	app, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 
 	comps := components(t, app)
@@ -315,7 +315,7 @@ func TestRenderApplication_ModuleWithoutAuxiliaryIsDefinitionsOnly(t *testing.T)
 }
 
 func TestRenderApplication_AllLinesDisabledYieldsOnlyTheModuleAuxiliaryTier(t *testing.T) {
-	app, err := RenderApplication(twoLineModule(false, false), "")
+	app, err := RenderApplication(twoLineModule(false, false), "", nil)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"s3-aux"}, names(components(t, app)))
@@ -334,7 +334,7 @@ func TestRenderApplication_TierNamesComeFromTheMapKey(t *testing.T) {
 	delete(mod.Lines, "v1")
 	mod.Lines["v9beta1"] = line // declared apiVersion disagreed with the directory
 
-	app, err := RenderApplication(mod, "")
+	app, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"s3-aux", "s3-v9beta1-aux", "s3-v9beta1-defs"}, names(components(t, app)))
@@ -345,7 +345,7 @@ func TestRenderApplication_TierNamesComeFromTheMapKey(t *testing.T) {
 // are applied, so the tier beneath it proceeds immediately rather than waiting
 // for anything to report ready.
 func TestRenderApplication_TiersWaitOnNothing(t *testing.T) {
-	app, err := RenderApplication(fixtureModule(), "")
+	app, err := RenderApplication(fixtureModule(), "", nil)
 	require.NoError(t, err)
 
 	for _, c := range components(t, app) {
@@ -367,7 +367,7 @@ func TestRenderApplication_OneTierPerScopeRegardlessOfKind(t *testing.T) {
 		auxObject("ConfigMap", "s3-defaults"),
 	}
 
-	app, err := RenderApplication(mod, "")
+	app, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 
 	comps := components(t, app)
@@ -386,7 +386,7 @@ func TestRenderApplication_OneTierPerScopeRegardlessOfKind(t *testing.T) {
 }
 
 func TestRenderApplication_StampsDefinitionIdentity(t *testing.T) {
-	app, err := RenderApplication(fixtureModule(), "")
+	app, err := RenderApplication(fixtureModule(), "", nil)
 	require.NoError(t, err)
 
 	var defs []interface{}
@@ -420,7 +420,7 @@ func TestRenderApplication_StampsDefinitionIdentity(t *testing.T) {
 
 func TestRenderApplication_DoesNotMutateTheFetchedModule(t *testing.T) {
 	mod := fixtureModule()
-	_, err := RenderApplication(mod, "")
+	_, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 
 	// The parsed Module is shared and may be cached; the render must copy.
@@ -441,9 +441,9 @@ func TestRenderApplication_TruncatesLongNamesWithAStableHash(t *testing.T) {
 	line.Definitions = []map[string]interface{}{definition(long)}
 	mod.Lines["v1"] = line
 
-	app, err := RenderApplication(mod, "")
+	app, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
-	app2, err := RenderApplication(mod, "")
+	app2, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 
 	nameOf := func(a map[string]interface{}) string {
@@ -482,7 +482,7 @@ func TestRenderApplication_TruncatesLongNamesWithAStableHash(t *testing.T) {
 // as apply-once, which skips state keep; with the policy declared, that rule
 // does not apply and hand-deleted objects are restored on the next resync.
 func TestRenderApplication_DeclaresApplyOnceOff(t *testing.T) {
-	raw, err := RenderApplication(fixtureModule(), "")
+	raw, err := RenderApplication(fixtureModule(), "", nil)
 	require.NoError(t, err)
 
 	var app v1beta1.Application
