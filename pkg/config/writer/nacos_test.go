@@ -202,6 +202,21 @@ func TestRead(t *testing.T) {
 	})
 }
 
+// TestWriteRefusedPublishIsAnError: the SDK answers a publish the server refuses (wrong
+// credentials on a server with auth on) with false and no error, and nothing is stored.
+func TestWriteRefusedPublishIsAnError(t *testing.T) {
+	r := require.New(t)
+	ctl := gomock.NewController(t)
+	mock := nacosmock.NewMockIConfigClient(ctl)
+	mock.EXPECT().PublishConfig(gomock.Any()).Return(false, nil)
+	data := &NacosData{NacosConfig: NacosConfig{
+		Endpoint: ConfigRef{Name: "nacos", Namespace: "vela-system"},
+		Format:   "properties",
+		Metadata: NacosConfigMetadata{DataID: "nc-db", Group: "DEFAULT_GROUP"},
+	}, Content: []byte("mysqlPort = 3306\n"), Client: mock}
+	r.EqualError(data.write(context.TODO(), nil), "fail to publish the config DEFAULT_GROUP/nc-db: the nacos server refused it (check the endpoint's credentials and permissions)")
+}
+
 func TestNewNacosClientSeam(t *testing.T) {
 	r := require.New(t)
 	ctl := gomock.NewController(t)

@@ -50,6 +50,7 @@ type fakeNacos struct {
 	store     map[string]string
 	publishes []vo.ConfigParam
 	failing   error // every publish fails with it while set
+	refusing  bool  // every publish is refused (false, no error) while set
 	reads     int
 	built     int
 	closed    int
@@ -70,6 +71,10 @@ func (f *fakeNacos) PublishConfig(p vo.ConfigParam) (bool, error) {
 	f.publishes = append(f.publishes, p)
 	if f.failing != nil {
 		return false, f.failing
+	}
+	if f.refusing {
+		// what the SDK answers a publish the server refuses (wrong credentials): no error
+		return false, nil
 	}
 	f.store[f.key(p)] = p.Content
 	return true, nil
@@ -127,6 +132,12 @@ func (f *fakeNacos) setFailing(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failing = err
+}
+
+func (f *fakeNacos) setRefusing(refusing bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refusing = refusing
 }
 
 // nacosTemplateCUE is the shape of pkg/config/testdata/mysql-db-nacos.cue with the
@@ -640,6 +651,29 @@ template: {
 		fake.setFailing(nil)
 		Eventually(nacosSynced(cfg), 60*time.Second, time.Second).Should(HavePrefix("True/"))
 		Expect(fake.lastPublish().Content).Should(Equal("mysqlHost = db\nmysqlPort = 3306\n"))
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(HaveLen(64))
+	})
+
+	It("records a publish Nacos refuses as PublishFailed and retries it, never as Published", func() {
+		Expect(k8sClient.Create(ctx, legacyEndpoint("nacos-f2"))).Should(Succeed())
+		availableTemplate("nc-app-f2", nacosTemplateCUE("nacos-f2"))
+		fake.setRefusing(true)
+		cfg := newConfig("nc-db-f2", "nc-app-f2", 3306)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(Equal("False/PublishFailed"))
+		var got configv1alpha1.Config
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		Expect(got.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+		Expect(got.Status.GetCondition(configv1alpha1.ConditionNacosSynced).Message).Should(ContainSubstring("fail to publish the config DEFAULT_GROUP/nc-db-f2: the nacos server refused it"))
+		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(BeEmpty(), "no successful sync recorded")
+		By("the requeue keeps trying while Nacos keeps refusing")
+		Eventually(fake.publishCount, 15*time.Second, time.Second).Should(BeNumerically(">=", 2))
+
+		By("the server accepts and the next retry publishes")
+		fake.setRefusing(false)
+		Eventually(nacosSynced(cfg), 60*time.Second, time.Second).Should(Equal("True/Published"))
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
 		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(HaveLen(64))
 	})

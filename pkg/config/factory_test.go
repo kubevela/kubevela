@@ -241,6 +241,10 @@ template: {
 		Expect(err).Should(BeNil())
 		Expect(fac.CreateOrUpdateConfig(context.Background(), db, "default")).Should(BeNil())
 
+		By("a publish the server refuses fails the write; the Secret is applied first, so a rerun is safe")
+		nacosClient.EXPECT().PublishConfig(gomock.Any()).Return(false, nil)
+		err = fac.CreateOrUpdateConfig(context.Background(), db, "default")
+		Expect(err).Should(MatchError(ContainSubstring("fail to publish the config DEFAULT_GROUP/dbconfig: the nacos server refused it")))
 	})
 
 	It("list all templates", func() {
