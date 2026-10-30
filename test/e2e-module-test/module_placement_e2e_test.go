@@ -201,7 +201,7 @@ spec:
 		Expect(out).To(ContainSubstring(placementModuleName + ":" + placementModuleVersion))
 		Expect(out).To(ContainSubstring("auxiliary/skipped is not a recognized folder"))
 		Expect(out).To(ContainSubstring("auxiliary/hub/nested is not read"))
-		Expect(out).To(ContainSubstring("auxiliary/hub/20-keep-runtime.yaml is in hub/"))
+		Expect(out).To(ContainSubstring("auxiliary/hub/keep-runtime.yaml is in hub/"))
 		Expect(out).To(ContainSubstring("the annotation wins"))
 
 		By("Registering that registry for the controller")
