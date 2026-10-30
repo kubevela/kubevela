@@ -147,19 +147,44 @@ func TestAssembleCopiesThePlacementRequest(t *testing.T) {
 
 	first, steps := Assemble(comps, &v1alpha1.Placement{Clusters: []string{"spoke-a", "spoke-b"}}, names)
 	second, _ := Assemble(comps, &v1alpha1.Placement{
-		Clusters:             []string{"spoke-c"},
 		ClusterLabelSelector: map[string]string{"tier": "runtime"},
 		AllowEmpty:           true,
 	}, names)
+	emptySelector, _ := Assemble(comps, &v1alpha1.Placement{
+		ClusterLabelSelector: map[string]string{},
+	}, names)
 
 	require.Equal(t, []interface{}{"module-runtime", "module-runtime-override"}, steps[1]["properties"].(map[string]interface{})["policies"])
-	require.Equal(t, []interface{}{"spoke-a", "spoke-b"}, first[2]["properties"].(map[string]interface{})["clusters"])
+	firstProps := first[2]["properties"].(map[string]interface{})
+	require.Equal(t, []interface{}{"spoke-a", "spoke-b"}, firstProps["clusters"])
+	_, hasSelector := firstProps["clusterLabelSelector"]
+	require.False(t, hasSelector)
+
 	props := second[2]["properties"].(map[string]interface{})
-	require.Equal(t, []interface{}{"spoke-c"}, props["clusters"])
+	_, hasClusters := props["clusters"]
+	require.False(t, hasClusters)
 	require.Equal(t, map[string]interface{}{"tier": "runtime"}, props["clusterLabelSelector"])
 	require.Equal(t, true, props["allowEmpty"])
 	_, hasNamespace := props["namespace"]
 	require.False(t, hasNamespace)
+
+	emptyProps := emptySelector[2]["properties"].(map[string]interface{})
+	require.Empty(t, emptyProps["clusterLabelSelector"])
+	_, hasClusters = emptyProps["clusters"]
+	require.False(t, hasClusters)
+}
+
+func TestAssembleOmitsUnnamedPoliciesAndSteps(t *testing.T) {
+	comps := []Component{{Name: "store-aux", Class: oam.PlacementRuntime}}
+	policies, steps := Assemble(comps, &v1alpha1.Placement{Clusters: []string{"spoke"}}, Names{})
+	require.Empty(t, policies)
+	require.Empty(t, steps)
+
+	policies, steps = Assemble(comps, nil, Names{HubPolicy: "module-hub", HubStep: "deploy-module-hub"})
+	require.Len(t, policies, 1)
+	require.Equal(t, "module-hub", policies[0]["name"])
+	require.Len(t, steps, 1)
+	require.Equal(t, []interface{}{"module-hub"}, steps[0]["properties"].(map[string]interface{})["policies"])
 }
 
 func names(objs []map[string]interface{}) []string {

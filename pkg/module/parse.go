@@ -30,7 +30,6 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/definition"
@@ -313,7 +312,6 @@ func dirNamesOtherThanHub(entries []fs.DirEntry) []string {
 
 func notePlacement(warnings *[]string, msg string) {
 	*warnings = append(*warnings, msg)
-	klog.Warning(msg)
 }
 
 // checkObjectPlacement rejects a placement annotation that is not hub or

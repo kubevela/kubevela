@@ -32,8 +32,8 @@ import (
 // explicit controls whether the runtime objects carry placement: runtime and
 // the hub objects carry placement: hub. With explicit false, every auxiliary
 // object is unmarked and therefore hub.
-// The package format requires every line to have a definition, so the
-// "no defs tier" case is storeModuleWithoutDefs, not a publishable line.
+// A line with no definitions is not a publishable module, so that case is
+// built inline in TestRenderApplication_LineWithoutDefinitionsHasNoDefsTier.
 func storeModule(explicit bool) *module.Module {
 	hub, runtime := "", ""
 	if explicit {
@@ -214,6 +214,78 @@ func TestRenderApplication_LineWithoutDefinitionsHasNoDefsTier(t *testing.T) {
 	app, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 	require.Equal(t, []string{"store-v1-aux-hub"}, componentNames(t, app))
+}
+
+func TestRenderApplication_ExplicitHubDefaultStaysFlat(t *testing.T) {
+	mod := storeModule(false)
+	mod.Placement = oam.PlacementHub
+	for version, line := range mod.Lines {
+		line.Placement = oam.PlacementHub
+		mod.Lines[version] = line
+	}
+	app, err := RenderApplication(mod, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"store-aux",
+		"store-v1-aux",
+		"store-v1-defs",
+		"store-v1beta1-defs",
+		"store-v2-aux",
+		"store-v2-defs",
+	}, componentNames(t, app))
+	spec := app["spec"].(map[string]interface{})
+	_, hasWorkflow := spec["workflow"]
+	require.False(t, hasWorkflow)
+}
+
+func TestRenderApplication_DisabledLineDoesNotPartition(t *testing.T) {
+	mod := &module.Module{
+		Name:    "store",
+		Version: "1.0.0",
+		Lines: map[string]module.Line{
+			"v1": {
+				APIVersion: "v1",
+				Enabled:    false,
+				Placement:  oam.PlacementRuntime,
+				Auxiliary:  []map[string]interface{}{placed("store-v1-defaults", oam.PlacementRuntime)},
+				Definitions: []map[string]interface{}{
+					definition("bucket"),
+				},
+			},
+			"v2": {
+				APIVersion:  "v2",
+				Enabled:     true,
+				Auxiliary:   []map[string]interface{}{auxObject("ConfigMap", "store-v2-defaults")},
+				Definitions: []map[string]interface{}{definition("bucket")},
+			},
+		},
+	}
+	app, err := RenderApplication(mod, "", nil)
+	require.NoError(t, err)
+	require.Equal(t, []string{"store-v2-aux", "store-v2-defs"}, componentNames(t, app))
+	spec := app["spec"].(map[string]interface{})
+	_, hasWorkflow := spec["workflow"]
+	require.False(t, hasWorkflow)
+}
+
+func TestRenderApplication_DisabledLineInvalidMarkerStillFails(t *testing.T) {
+	mod := &module.Module{
+		Name:    "store",
+		Version: "1.0.0",
+		Lines: map[string]module.Line{
+			"v1": {
+				APIVersion: "v1",
+				Enabled:    false,
+				Auxiliary:  []map[string]interface{}{placed("store-v1-defaults", "spoke")},
+				Definitions: []map[string]interface{}{
+					definition("bucket"),
+				},
+			},
+		},
+	}
+	_, err := RenderApplication(mod, "", nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "store-v1-defaults")
 }
 
 func TestRenderApplication_InvalidPlacementClassFails(t *testing.T) {

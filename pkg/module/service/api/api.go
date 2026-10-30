@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 // Package api holds the leaf types and injection seam shared between the module
-// render service and the CueX module provider. It imports only the standard
-// library so neither the provider nor the CueX compiler pulls in
-// pkg/module/service (which would create an import cycle through the CueX compiler).
+// render service and the CueX module provider. It does not import
+// pkg/module/service, which would cycle through the CueX compiler. It does
+// import the core API types, because ModuleRequest carries a Placement.
 package api
 
 import (

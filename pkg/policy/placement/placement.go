@@ -114,10 +114,11 @@ func SplitAux(base string, objects []map[string]interface{}, inherited ...string
 	return groups, nil
 }
 
-// Assemble builds the policies and the two deploy steps for components.
+// Assemble builds the policies and deploy steps for components.
 // Hub components always bind to the hub topology, which selects the local
 // cluster. Runtime components bind to the runtime topology when req is
-// non-nil, and to the hub topology otherwise. Both steps are always returned.
+// non-nil, and to the hub topology otherwise. A policy or step whose name
+// is empty is left out. When every name is set, both steps are returned.
 // req's namespace is not copied: placement here chooses clusters, not a
 // namespace.
 func Assemble(components []Component, req *v1alpha1.Placement, names Names) ([]map[string]interface{}, []map[string]interface{}) {
@@ -130,27 +131,47 @@ func Assemble(components []Component, req *v1alpha1.Placement, names Names) ([]m
 		runtimeNames = append(runtimeNames, c.Name)
 	}
 
+	var policies []map[string]interface{}
 	hubPlace := v1alpha1.Placement{Clusters: []string{pkgmulticluster.Local}}
-	policies := []map[string]interface{}{
-		policy(names.HubPolicy, v1alpha1.TopologyPolicyType, topologyProps(hubPlace)),
-		policy(names.HubOverride, v1alpha1.OverridePolicyType, map[string]interface{}{
+	if names.HubPolicy != "" {
+		policies = append(policies, policy(names.HubPolicy, v1alpha1.TopologyPolicyType, topologyProps(hubPlace)))
+	}
+	if names.HubOverride != "" {
+		policies = append(policies, policy(names.HubOverride, v1alpha1.OverridePolicyType, map[string]interface{}{
 			"selector": stringList(hubNames),
-		}),
+		}))
 	}
 	runtimeTopology := names.HubPolicy
 	if req != nil {
 		runtimeTopology = names.RuntimePolicy
-		policies = append(policies, policy(names.RuntimePolicy, v1alpha1.TopologyPolicyType, topologyProps(*req)))
+		if names.RuntimePolicy != "" {
+			policies = append(policies, policy(names.RuntimePolicy, v1alpha1.TopologyPolicyType, topologyProps(*req)))
+		}
 	}
-	policies = append(policies, policy(names.RuntimeOverride, v1alpha1.OverridePolicyType, map[string]interface{}{
-		"selector": stringList(runtimeNames),
-	}))
+	if names.RuntimeOverride != "" {
+		policies = append(policies, policy(names.RuntimeOverride, v1alpha1.OverridePolicyType, map[string]interface{}{
+			"selector": stringList(runtimeNames),
+		}))
+	}
 
-	steps := []map[string]interface{}{
-		deployStep(names.HubStep, []string{names.HubPolicy, names.HubOverride}),
-		deployStep(names.RuntimeStep, []string{runtimeTopology, names.RuntimeOverride}),
+	var steps []map[string]interface{}
+	if names.HubStep != "" {
+		steps = append(steps, deployStep(names.HubStep, named(names.HubPolicy, names.HubOverride)))
+	}
+	if names.RuntimeStep != "" {
+		steps = append(steps, deployStep(names.RuntimeStep, named(runtimeTopology, names.RuntimeOverride)))
 	}
 	return policies, steps
+}
+
+func named(values ...string) []string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func policy(name, typ string, properties map[string]interface{}) map[string]interface{} {
@@ -176,7 +197,11 @@ func topologyProps(p v1alpha1.Placement) map[string]interface{} {
 	if len(p.Clusters) > 0 {
 		props["clusters"] = stringList(p.Clusters)
 	}
-	if len(p.ClusterLabelSelector) > 0 {
+	// A nil selector is absent. An empty selector is present, and the topology
+	// policy treats a present selector as the cluster match, including an empty
+	// one, which matches every cluster. Omitting the empty map would drop the
+	// field and the policy would fall back to the local cluster.
+	if p.ClusterLabelSelector != nil {
 		sel := make(map[string]interface{}, len(p.ClusterLabelSelector))
 		for k, v := range p.ClusterLabelSelector {
 			sel[k] = v

@@ -90,12 +90,15 @@ func (r *rendererImpl) RenderModule(ctx context.Context, req api.ModuleRequest) 
 // second (pkg/utils/apply/apply.go).
 //
 // place is the installer's placement request. Nil means they did not ask.
-// An explicit placement marker on any auxiliary object, or a non-nil place,
+// An explicit placement marker on a module-level object or an enabled line,
+// a runtime default on the module or an enabled line, or a non-nil place,
 // partitions each auxiliary tier by class and adds the topology policies and
-// deploy steps that put each class where it belongs. An absent marker is hub,
-// so it does not by itself follow the request. With neither an explicit
-// marker nor a request, the Application is the flat shape this function has
-// always returned.
+// deploy steps that put each class where it belongs. A disabled line is
+// checked for a bad marker and then ignored, because it installs nothing.
+// An absent marker is hub, and so is an explicit hub default, so neither
+// leaves the flat shape on its own. With neither a runtime marker nor a
+// request, the Application is the flat shape this function has always
+// returned.
 func RenderApplication(mod *module.Module, definitionNamespace string, place *v1alpha1.Placement) (map[string]interface{}, error) {
 	if mod == nil || mod.Name == "" {
 		return nil, fmt.Errorf("render module: module has no name")
@@ -185,10 +188,13 @@ var modulePlacementNames = placement.Names{
 }
 
 // partitionTriggered reports whether this render leaves the flat shape.
-// An explicit annotation triggers it, and so does a module or line default of
-// runtime. The default class is hub, so an absent marker does not. An invalid
-// placement marker is an error even when it is not what triggers the
-// partition, so a bad value cannot render as if it were unmarked.
+// An explicit annotation on an installed object triggers it, and so does a
+// module or enabled-line default of runtime. The default class is hub, so an
+// absent marker does not, and neither does an explicit hub default: the flat
+// Application already installs on the local cluster. A disabled line is not
+// installed, so its marker does not change the shape. An invalid placement
+// marker is an error even on a disabled line, so a bad value cannot render
+// as if it were unmarked.
 func partitionTriggered(mod *module.Module, place *v1alpha1.Placement) (bool, error) {
 	found := false
 	if mod.Placement != "" {
@@ -200,34 +206,46 @@ func partitionTriggered(mod *module.Module, place *v1alpha1.Placement) (bool, er
 			found = true
 		}
 	}
-	for _, line := range mod.Lines {
-		if line.Placement == "" {
-			continue
-		}
-		class, err := placement.Normalize(line.Placement)
-		if err != nil {
-			return false, fmt.Errorf("render module: line %s: %w", line.APIVersion, err)
-		}
-		if line.Enabled && class == oam.PlacementRuntime {
-			found = true
-		}
+	marked, err := anyMarked(mod.Auxiliary)
+	if err != nil {
+		return false, err
 	}
-	groups := [][]map[string]interface{}{mod.Auxiliary}
-	for _, line := range mod.Lines {
-		groups = append(groups, line.Auxiliary)
+	if marked {
+		found = true
 	}
-	for _, objs := range groups {
-		for _, obj := range objs {
-			marked, err := placement.Marked(obj)
+	for _, line := range mod.Lines {
+		if line.Placement != "" {
+			class, err := placement.Normalize(line.Placement)
 			if err != nil {
-				return false, fmt.Errorf("render module: %w", err)
+				return false, fmt.Errorf("render module: line %s: %w", line.APIVersion, err)
 			}
-			if marked {
+			if line.Enabled && class == oam.PlacementRuntime {
 				found = true
 			}
 		}
+		marked, err := anyMarked(line.Auxiliary)
+		if err != nil {
+			return false, err
+		}
+		if line.Enabled && marked {
+			found = true
+		}
 	}
 	return place != nil || found, nil
+}
+
+func anyMarked(objs []map[string]interface{}) (bool, error) {
+	found := false
+	for _, obj := range objs {
+		marked, err := placement.Marked(obj)
+		if err != nil {
+			return false, fmt.Errorf("render module: %w", err)
+		}
+		if marked {
+			found = true
+		}
+	}
+	return found, nil
 }
 
 // renderPartitioned splits every auxiliary tier into the classes it actually

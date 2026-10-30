@@ -106,6 +106,18 @@ template: {
 		_namespace: "namespace is no longer accepted: a module's definitions install into the namespace of the Application that installs it"
 	}
 
+	// Checked here, not inside parameter, so an open schema (neither field
+	// set yet) is not an error. A set placement still has to name clusters
+	// or a selector, and not both.
+	if parameter.placement != _|_ {
+		if parameter.placement.clusters != _|_ && parameter.placement.clusterLabelSelector != _|_ {
+			_placement: "set clusters or clusterLabelSelector" & 1
+		}
+		if parameter.placement.clusters == _|_ && parameter.placement.clusterLabelSelector == _|_ {
+			_placement: "set clusters or clusterLabelSelector" & 1
+		}
+	}
+
 	_render: module.#Render & {
 		$params: {
 			module:    parameter.module
@@ -134,13 +146,7 @@ template: {
 		placement?: {
 			clusters?: [...string]
 			clusterLabelSelector?: [string]: string
-			allowEmpty?:           bool
-			if clusters != _|_ && clusterLabelSelector != _|_ {
-				_one: "set clusters or clusterLabelSelector" & 1
-			}
-			if clusters == _|_ && clusterLabelSelector == _|_ {
-				_one: "set clusters or clusterLabelSelector" & 1
-			}
+			allowEmpty?: bool
 		}
 	}
 }
