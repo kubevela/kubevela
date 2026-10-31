@@ -162,12 +162,16 @@ func CollectResources(ctx context.Context, params *ListParams) (*ListResult[quer
 			object.SetAPIVersion(opt.Filter.APIVersion)
 			object.SetKind(opt.Filter.Kind)
 			if err := cli.Get(ctx, apimachinerytypes.NamespacedName{Namespace: res.Namespace, Name: res.Name}, object); err == nil {
+				addInfo, err := additionalInfo(*object)
+				if err != nil {
+					klog.Errorf("check additionalInfo for resource apiVersion=%s kind=%s namespace=%s name=%s failure %s, skip this resource", res.APIVersion, res.Kind, res.Namespace, res.Name, err.Error())
+				}
 				resources = append(resources, buildResourceItem(res, querytypes.Workload{
 					APIVersion: app.APIVersion,
 					Kind:       app.Kind,
 					Name:       app.Name,
 					Namespace:  app.Namespace,
-				}, object))
+				}, object, addInfo))
 			} else {
 				klog.Errorf("failed to get the service:%s", err.Error())
 			}
