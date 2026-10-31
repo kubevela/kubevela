@@ -261,7 +261,7 @@ func (n *NacosData) write(ctx context.Context, configReader icontext.ReadConfigP
 		return err
 	}
 	defer closeClient()
-	_, err = cli.PublishConfig(vo.ConfigParam{
+	published, err := cli.PublishConfig(vo.ConfigParam{
 		DataId:  n.Metadata.DataID,
 		Group:   n.Metadata.Group,
 		Content: string(n.Content),
@@ -271,6 +271,12 @@ func (n *NacosData) write(ctx context.Context, configReader icontext.ReadConfigP
 	})
 	if err != nil {
 		return fmt.Errorf("fail to publish the config to the nacos server:%w", err)
+	}
+	// The SDK answers a publish the server refuses (credentials, permissions, server-side
+	// validation) with false and no error, and drops the server's reason; the content is not
+	// there, so it is a failure to report and retry.
+	if !published {
+		return fmt.Errorf("fail to publish the config %s/%s: the nacos server refused it (check the endpoint's credentials and permissions)", n.Metadata.Group, n.Metadata.DataID)
 	}
 	return nil
 }

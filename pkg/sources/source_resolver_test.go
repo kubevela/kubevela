@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apitypes "github.com/oam-dev/kubevela/apis/types"
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 )
@@ -171,6 +172,7 @@ func TestResolveSourceUsesStaleCacheOnRefreshFailure(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cacheKey,
 			Namespace: CacheNamespace(),
+			Labels:    map[string]string{apitypes.LabelSourceDefinitionName: "t"},
 			Annotations: map[string]string{
 				sourceCacheSyncAtKey: time.Now().Add(-time.Hour).Format(time.RFC3339),
 			},
@@ -216,6 +218,7 @@ func TestResolveSourceFailsOnStaleRefreshFailureWhenPolicyFail(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cacheKey,
 			Namespace: CacheNamespace(),
+			Labels:    map[string]string{apitypes.LabelSourceDefinitionName: "t"},
 			Annotations: map[string]string{
 				sourceCacheSyncAtKey: time.Now().Add(-time.Hour).Format(time.RFC3339),
 			},

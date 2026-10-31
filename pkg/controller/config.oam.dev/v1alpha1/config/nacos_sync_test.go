@@ -50,6 +50,7 @@ type fakeNacos struct {
 	store     map[string]string
 	publishes []vo.ConfigParam
 	failing   error // every publish fails with it while set
+	refusing  bool  // every publish is refused (false, no error) while set
 	reads     int
 	built     int
 	closed    int
@@ -70,6 +71,10 @@ func (f *fakeNacos) PublishConfig(p vo.ConfigParam) (bool, error) {
 	f.publishes = append(f.publishes, p)
 	if f.failing != nil {
 		return false, f.failing
+	}
+	if f.refusing {
+		// what the SDK answers a publish the server refuses (wrong credentials): no error
+		return false, nil
 	}
 	f.store[f.key(p)] = p.Content
 	return true, nil
@@ -127,6 +132,12 @@ func (f *fakeNacos) setFailing(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.failing = err
+}
+
+func (f *fakeNacos) setRefusing(refusing bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refusing = refusing
 }
 
 // nacosTemplateCUE is the shape of pkg/config/testdata/mysql-db-nacos.cue with the
@@ -417,7 +428,21 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		Expect(fake.publishCount()).Should(Equal(1))
 	})
 
-	It("reads a sensitive endpoint config", func() {
+	nacosMessage := func(cfg *configv1alpha1.Config) string {
+		var got configv1alpha1.Config
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		return got.Status.GetCondition(configv1alpha1.ConditionNacosSynced).Message
+	}
+
+	endpointSecretMarked := func(name string) func() bool {
+		return func() bool {
+			var secret corev1.Secret
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: name}, &secret)).Should(Succeed())
+			return legacyconfig.NacosEndpointMarked(&secret)
+		}
+	}
+
+	It("refuses a sensitive legacy endpoint Secret until its owner marks it", func() {
 		sensitive := legacyEndpoint("nacos-e")
 		sensitive.Annotations = map[string]string{apitypes.AnnotationConfigSensitive: "true"}
 		Expect(k8sClient.Create(ctx, sensitive)).Should(Succeed())
@@ -425,12 +450,95 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		cfg := newConfig("nc-db-e", "nc-app-e", 3306)
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(Equal("False/EndpointUnreadable"))
+		Expect(nacosMessage(cfg)).Should(ContainSubstring("vela-system/nacos-e"))
+		Expect(nacosMessage(cfg)).Should(ContainSubstring(apitypes.AnnotationConfigNacosEndpoint))
+		Expect(fake.clientsBuilt()).Should(Equal(0), "no client is built from an unmarked sensitive endpoint")
+		var got configv1alpha1.Config
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		Expect(got.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+
+		By("the owner marks the Secret and the endpoint Secret watch re-syncs")
+		patch := client.MergeFrom(sensitive.DeepCopy())
+		sensitive.Annotations[apitypes.AnnotationConfigNacosEndpoint] = "true"
+		Expect(k8sClient.Patch(ctx, sensitive, patch)).Should(Succeed())
 		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(HavePrefix("True/"))
 		Expect(fake.publishCount()).Should(Equal(1))
 		Expect(fake.lastPublish().Content).Should(Equal("mysqlHost = db\nmysqlPort = 3306\n"))
+
+		By("the owner takes the mark back: a synced Config has no requeue, so only the endpoint Secret watch refuses it")
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(sensitive), sensitive)).Should(Succeed())
+		patch = client.MergeFrom(sensitive.DeepCopy())
+		delete(sensitive.Annotations, apitypes.AnnotationConfigNacosEndpoint)
+		Expect(k8sClient.Patch(ctx, sensitive, patch)).Should(Succeed())
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(Equal("False/EndpointUnreadable"))
 	})
 
-	It("reads an endpoint Config that keeps its properties in a Secret", func() {
+	It("takes the marker off the Secret of a Config in Error once its owner removes it", func() {
+		props := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "nacos-e5-props", Namespace: "vela-system"},
+			Data:       map[string][]byte{"properties": []byte(`{"servers":[{"ipAddr":"127.0.0.1","port":8848}]}`)},
+		}
+		Expect(k8sClient.Create(ctx, props)).Should(Succeed())
+		By("an endpoint Config created already marked")
+		endpoint := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "nacos-e5", Namespace: "vela-system",
+				Annotations: map[string]string{apitypes.AnnotationConfigNacosEndpoint: "true"}},
+			Spec: configv1alpha1.ConfigSpec{
+				PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "nacos-e5-props"}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, endpoint)).Should(Succeed())
+		var gotEndpoint configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(endpoint), configv1alpha1.ConfigPhaseAvailable, &gotEndpoint)
+		Expect(endpointSecretMarked("nacos-e5")()).Should(BeTrue())
+		availableTemplate("nc-app-e5", nacosTemplateCUE("nacos-e5"))
+		cfg := newConfig("nc-db-e5", "nc-app-e5", 3306)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(HavePrefix("True/"))
+
+		By("the endpoint Config goes to Error: its properties Secret is gone")
+		Expect(k8sClient.Delete(ctx, props)).Should(Succeed())
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(endpoint), configv1alpha1.ConfigPhaseError, &gotEndpoint)
+
+		By("the owner removes the marker: it leaves the Secret, and the consumer is refused")
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(endpoint), endpoint)).Should(Succeed())
+		cfgPatch := client.MergeFrom(endpoint.DeepCopy())
+		delete(endpoint.Annotations, apitypes.AnnotationConfigNacosEndpoint)
+		Expect(k8sClient.Patch(ctx, endpoint, cfgPatch)).Should(Succeed())
+		Eventually(endpointSecretMarked("nacos-e5"), 15*time.Second, time.Second).Should(BeFalse())
+		Eventually(nacosSynced(cfg), 30*time.Second, time.Second).Should(Equal("False/EndpointUnreadable"))
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(endpoint), &gotEndpoint)).Should(Succeed())
+		Expect(gotEndpoint.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseError))
+	})
+
+	It("keeps a marked legacy endpoint served through its migration to a Config", func() {
+		legacy := legacyEndpoint("nacos-e6")
+		delete(legacy.Labels, apitypes.LabelConfigType) // template-less, so the migration needs no template
+		legacy.Annotations = map[string]string{
+			apitypes.AnnotationConfigSensitive:     "true",
+			apitypes.AnnotationConfigNacosEndpoint: "true",
+		}
+		Expect(k8sClient.Create(ctx, legacy)).Should(Succeed())
+		availableTemplate("nc-app-e6", nacosTemplateCUE("nacos-e6"))
+		cfg := newConfig("nc-db-e6", "nc-app-e6", 3306)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(HavePrefix("True/"))
+
+		report, err := legacyconfig.NewMigrator(k8sClient).MigrateConfig(ctx, "vela-system", "nacos-e6", legacyconfig.MigrationOptions{})
+		Expect(err).Should(Succeed())
+		Expect(report.Results[0].Outcome).Should(Equal(legacyconfig.MigrationAdopted))
+		var migrated configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKey{Namespace: "vela-system", Name: "nacos-e6"}, configv1alpha1.ConfigPhaseAvailable, &migrated)
+		Expect(legacyconfig.NacosEndpointMarked(&migrated)).Should(BeTrue())
+		var secret corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: "nacos-e6"}, &secret)).Should(Succeed())
+		Expect(metav1.IsControlledBy(&secret, &migrated)).Should(BeTrue())
+		Consistently(endpointSecretMarked("nacos-e6"), 5*time.Second, time.Second).Should(BeTrue())
+		Expect(nacosSynced(cfg)()).Should(HavePrefix("True/"))
+	})
+
+	It("serves an endpoint Config kept in a Secret only while the Config is marked", func() {
 		props := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "nacos-e2-props", Namespace: "vela-system"},
 			Data:       map[string][]byte{"properties": []byte(`{"servers":[{"ipAddr":"127.0.0.1","port":8848}]}`)},
@@ -451,6 +559,70 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 
 		availableTemplate("nc-app-e2", nacosTemplateCUE("nacos-e2"))
 		cfg := newConfig("nc-db-e2", "nc-app-e2", 3306)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(Equal("False/EndpointUnreadable"))
+		Expect(nacosMessage(cfg)).Should(ContainSubstring(apitypes.AnnotationConfigNacosEndpoint))
+
+		By("marking the Secret by hand grants nothing: the marker follows the Config")
+		patch := client.MergeFrom(endpointSecret.DeepCopy())
+		metav1.SetMetaDataAnnotation(&endpointSecret.ObjectMeta, apitypes.AnnotationConfigNacosEndpoint, "true")
+		Expect(k8sClient.Patch(ctx, &endpointSecret, patch)).Should(Succeed())
+		Eventually(endpointSecretMarked("nacos-e2"), 15*time.Second, time.Second).Should(BeFalse())
+
+		By("the owner marks the Config: the marker reaches its Secret and the endpoint is served")
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(endpoint), endpoint)).Should(Succeed())
+		cfgPatch := client.MergeFrom(endpoint.DeepCopy())
+		metav1.SetMetaDataAnnotation(&endpoint.ObjectMeta, apitypes.AnnotationConfigNacosEndpoint, "true")
+		Expect(k8sClient.Patch(ctx, endpoint, cfgPatch)).Should(Succeed())
+		Eventually(endpointSecretMarked("nacos-e2"), 15*time.Second, time.Second).Should(BeTrue())
+		Eventually(nacosSynced(cfg), 30*time.Second, time.Second).Should(HavePrefix("True/"))
+		Expect(fake.publishCount()).Should(Equal(1))
+
+		By("the owner removes the marker: the Secret loses it and the endpoint is refused again")
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(endpoint), endpoint)).Should(Succeed())
+		cfgPatch = client.MergeFrom(endpoint.DeepCopy())
+		delete(endpoint.Annotations, apitypes.AnnotationConfigNacosEndpoint)
+		Expect(k8sClient.Patch(ctx, endpoint, cfgPatch)).Should(Succeed())
+		Eventually(endpointSecretMarked("nacos-e2"), 15*time.Second, time.Second).Should(BeFalse())
+		Eventually(nacosSynced(cfg), 30*time.Second, time.Second).Should(Equal("False/EndpointUnreadable"))
+		Expect(fake.publishCount()).Should(Equal(1))
+	})
+
+	It("does not let a template's output mark the Secret it renders", func() {
+		availableTemplate("nc-endpoint-self-marking", `
+template: {
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		metadata: annotations: "config.oam.dev/nacos-endpoint": "true"
+	}
+	parameter: {
+		servers: [...{ipAddr: string, port: int}]
+	}
+}
+`)
+		props := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "nacos-e3-props", Namespace: "vela-system"},
+			Data:       map[string][]byte{"properties": []byte(`{"servers":[{"ipAddr":"127.0.0.1","port":8848}]}`)},
+		}
+		Expect(k8sClient.Create(ctx, props)).Should(Succeed())
+		endpoint := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "nacos-e3", Namespace: "vela-system"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef:    &configv1alpha1.ConfigTemplateReference{Name: "nc-endpoint-self-marking", Namespace: ns},
+				PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "nacos-e3-props"}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, endpoint)).Should(Succeed())
+		var gotEndpoint configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(endpoint), configv1alpha1.ConfigPhaseAvailable, &gotEndpoint)
+		Expect(endpointSecretMarked("nacos-e3")()).Should(BeFalse())
+	})
+
+	It("still serves an unmarked endpoint config that is not sensitive", func() {
+		Expect(k8sClient.Create(ctx, legacyEndpoint("nacos-e4"))).Should(Succeed())
+		availableTemplate("nc-app-e4", nacosTemplateCUE("nacos-e4"))
+		cfg := newConfig("nc-db-e4", "nc-app-e4", 3306)
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
 		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(HavePrefix("True/"))
@@ -479,6 +651,29 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		fake.setFailing(nil)
 		Eventually(nacosSynced(cfg), 60*time.Second, time.Second).Should(HavePrefix("True/"))
 		Expect(fake.lastPublish().Content).Should(Equal("mysqlHost = db\nmysqlPort = 3306\n"))
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(HaveLen(64))
+	})
+
+	It("records a publish Nacos refuses as PublishFailed and retries it, never as Published", func() {
+		Expect(k8sClient.Create(ctx, legacyEndpoint("nacos-f2"))).Should(Succeed())
+		availableTemplate("nc-app-f2", nacosTemplateCUE("nacos-f2"))
+		fake.setRefusing(true)
+		cfg := newConfig("nc-db-f2", "nc-app-f2", 3306)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(Equal("False/PublishFailed"))
+		var got configv1alpha1.Config
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		Expect(got.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+		Expect(got.Status.GetCondition(configv1alpha1.ConditionNacosSynced).Message).Should(ContainSubstring("fail to publish the config DEFAULT_GROUP/nc-db-f2: the nacos server refused it"))
+		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(BeEmpty(), "no successful sync recorded")
+		By("the requeue keeps trying while Nacos keeps refusing")
+		Eventually(fake.publishCount, 15*time.Second, time.Second).Should(BeNumerically(">=", 2))
+
+		By("the server accepts and the next retry publishes")
+		fake.setRefusing(false)
+		Eventually(nacosSynced(cfg), 60*time.Second, time.Second).Should(Equal("True/Published"))
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
 		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(HaveLen(64))
 	})
