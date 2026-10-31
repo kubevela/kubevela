@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -390,23 +391,51 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 	if !entry.exists {
 		return nil
 	}
-	return DeleteManagedResource(ctx, h.Client, mr, entry.obj, h.owner, h.policies.GarbageCollect)
+	// a copy: a retry overwrites it
+	return DeleteManagedResource(ctx, h.Client, mr, entry.obj.DeepCopy(), h.owner, h.policies.GarbageCollect)
 }
 
 // DeleteManagedResource lets owner go of a resource it manages: if others share it, owner
 // leaves the sharer list and control passes to the next sharer; if it is to be kept (skip-GC,
 // an orphaning owner, or the garbage-collect policy), owner's marks are removed; otherwise it
-// is deleted. garbageCollectPolicy may be nil.
+// is deleted. garbageCollectPolicy may be nil. On a conflict, obj is read again and the
+// decision retaken.
 func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, owner resourcetracker.Tracked, garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec) error {
 	_ctx := pkgmulticluster.WithCluster(ctx, mr.Cluster)
+	uid := obj.GetUID()
+	refresh := false
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if refresh {
+			// as the keeper: the requester may not be allowed to get
+			latest := &unstructured.Unstructured{}
+			latest.SetGroupVersionKind(obj.GroupVersionKind())
+			if err := cli.Get(asSelf(_ctx), client.ObjectKeyFromObject(obj), latest); err != nil {
+				if kerrors.IsNotFound(err) {
+					return nil
+				}
+				return errors.Wrapf(err, "failed to get resource %s", mr.ResourceKey())
+			}
+			if uid != "" && latest.GetUID() != uid {
+				return nil // replaced by another object: the one owner held is gone
+			}
+			obj.Object = latest.Object
+		}
+		refresh = true
+		return deleteManagedResource(_ctx, cli, mr, obj, owner, garbageCollectPolicy)
+	})
+}
+
+func deleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, owner resourcetracker.Tracked, garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec) error {
+	var lastSharer bool
 	if annotations := obj.GetAnnotations(); annotations != nil && annotations[oam.AnnotationAppSharedBy] != "" {
 		sharedBy := apply.RemoveSharer(annotations[oam.AnnotationAppSharedBy], owner.Key())
 		if sharedBy != "" {
-			if err := UpdateSharedManagedResourceOwner(_ctx, cli, obj, sharedBy); err != nil {
+			if err := UpdateSharedManagedResourceOwner(ctx, cli, obj, sharedBy); err != nil {
 				return errors.Wrapf(err, "failed to remove sharer from resource %s", mr.ResourceKey())
 			}
 			return nil
 		}
+		lastSharer = true
 		kubeutil.RemoveAnnotations(obj, []string{oam.AnnotationAppSharedBy})
 	}
 
@@ -418,10 +447,19 @@ func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.Ma
 
 	if mr.SkipGC || owner.Orphaning() || isOrphan {
 		owner.Release(obj)
-		return errors.Wrapf(cli.Update(_ctx, obj), "skipping deletion for resource")
+		return errors.Wrapf(cli.Update(ctx, obj), "skipping deletion for resource")
 	}
 
-	if err := cli.Delete(_ctx, obj, opts...); err != nil && !kerrors.IsNotFound(err) {
+	// guard against a replaced object, and a sharer joining the last one
+	preconditions := client.Preconditions{}
+	if uid := obj.GetUID(); uid != "" {
+		preconditions.UID = &uid
+	}
+	if rv := obj.GetResourceVersion(); lastSharer && rv != "" {
+		preconditions.ResourceVersion = &rv
+	}
+	opts = append(opts, preconditions)
+	if err := cli.Delete(ctx, obj, opts...); err != nil && !kerrors.IsNotFound(err) {
 		return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
 	}
 	return nil
