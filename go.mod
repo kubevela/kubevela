@@ -330,7 +330,7 @@ replace (
 	cloud.google.com/go => cloud.google.com/go v0.100.2
 	github.com/distribution/distribution/v3 => github.com/distribution/distribution/v3 v3.1.2
 	github.com/docker/cli => github.com/docker/cli v24.0.9+incompatible
-	github.com/docker/docker => github.com/docker/docker v28.3.3+incompatible
+	github.com/docker/docker => github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/docker-credential-helpers => github.com/docker/docker-credential-helpers v0.7.0
 	github.com/go-kit/kit => github.com/go-kit/kit v0.12.0
 	github.com/moby/sys/user => github.com/moby/sys/user v0.4.1
