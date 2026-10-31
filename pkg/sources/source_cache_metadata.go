@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -30,6 +31,22 @@ import (
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/render"
 )
+
+// IsSourceCacheEntry reports whether a Secret carries the mark every source cache write
+// stamps (ApplySourceCacheMetadata always records the SourceDefinition), so a store reads
+// only its own entries and not any Secret that happens to have the cache key as its name.
+// It tells the cache's Secrets from others, not a forged one from a real one: whoever can
+// write Secrets in the cache namespace can rewrite a real entry's data anyway, so that write
+// access is the trust boundary of every store.
+func IsSourceCacheEntry(obj metav1.Object) bool {
+	return obj.GetLabels()[apitypes.LabelSourceDefinitionName] != ""
+}
+
+// NotSourceCacheEntry is the stores' one answer to a Secret of the cache key's name that
+// does not carry the mark: they neither read it nor write over it.
+func NotSourceCacheEntry(obj metav1.Object) error {
+	return fmt.Errorf("secret %s/%s is not a source cache entry: no %s label", obj.GetNamespace(), obj.GetName(), apitypes.LabelSourceDefinitionName)
+}
 
 // ApplySourceCacheMetadata stamps identity and lifetime metadata onto a source
 // cache object so a context-free GC sweep can reason about it. It is strictly

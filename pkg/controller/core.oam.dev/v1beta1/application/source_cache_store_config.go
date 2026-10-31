@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/oam-dev/kubevela/pkg/sources"
@@ -94,6 +95,12 @@ func sourceTemplateRefsByType(ctx context.Context, cli client.Client, af *appfil
 
 // Read returns a cache entry and its freshness, a missing entry as a miss.
 //
+// Only an entry this store wrote is read: a Secret with the source cache's mark that the
+// Config of the same name controls (adoptCacheSecret). Anything else of the name, a Secret
+// planted in the cache namespace among them, is an error, which the resolver logs and treats
+// as a miss: it fetches the source and serves no stale value from it. The window between an
+// entry's first write and its adoption reads the same way and heals on the next write.
+//
 // The entry's Secret is read directly, not through the config factory: its Config keeps
 // the values in spec.propertiesFrom, so the Config controller marks the Secret sensitive,
 // and the factory's readers refuse a sensitive config. The mark keeps the values from
@@ -105,6 +112,12 @@ func (s *configAPISourceCacheStore) Read(ctx context.Context, cacheKey string, t
 			return velaprocess.SourceCacheRead{}, nil
 		}
 		return velaprocess.SourceCacheRead{}, err
+	}
+	if !sources.IsSourceCacheEntry(&secret) {
+		return velaprocess.SourceCacheRead{}, sources.NotSourceCacheEntry(&secret)
+	}
+	if owner := metav1.GetControllerOf(&secret); owner == nil || !config.IsConfigOwnerRef(*owner) || owner.Name != cacheKey {
+		return velaprocess.SourceCacheRead{}, fmt.Errorf("secret %s/%s is not a source cache entry: the Config %s does not control it", secret.Namespace, secret.Name, cacheKey)
 	}
 	properties, err := config.SecretInputProperties(&secret)
 	if err != nil {
@@ -138,6 +151,9 @@ func (s *configAPISourceCacheStore) Write(ctx context.Context, cacheKey, sourceT
 	templateName := meta.TemplateName
 	if templateName == "" {
 		templateName = s.templateBySource[sourceType]
+	}
+	if err := s.refuseForeignSecret(ctx, cacheKey); err != nil {
+		return err
 	}
 	template := config.NamespacedName{}
 	if templateName != "" {
@@ -198,6 +214,29 @@ func (s *configAPISourceCacheStore) Write(ctx context.Context, cacheKey, sourceT
 	// Config exists - which is after the Secret it points at. A second write,
 	// but only on a cache miss, and only until the reference is in place.
 	return s.adoptCacheSecret(ctx, declared, cacheKey)
+}
+
+// refuseForeignSecret refuses to write over a Secret of the cache key's name that the cache
+// did not write: one without the source cache's mark, or one something other than the
+// entry's Config controls. The factory's own guard (the template label) does not hold for a
+// source with no schema, whose entries name no template, so a foreign Secret would be merged
+// into and adopted. A marked Secret nothing controls yet is an entry whose adoption has not
+// happened, and the write completes it.
+func (s *configAPISourceCacheStore) refuseForeignSecret(ctx context.Context, cacheKey string) error {
+	if s.client == nil {
+		return nil
+	}
+	var secret corev1.Secret
+	if err := s.client.Get(ctx, client.ObjectKey{Namespace: sources.CacheNamespace(), Name: cacheKey}, &secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if !sources.IsSourceCacheEntry(&secret) {
+		return sources.NotSourceCacheEntry(&secret)
+	}
+	if owner := metav1.GetControllerOf(&secret); owner != nil && (!config.IsConfigOwnerRef(*owner) || owner.Name != cacheKey) {
+		return fmt.Errorf("secret %s/%s is not a source cache entry: %s %s controls it", secret.Namespace, secret.Name, owner.Kind, owner.Name)
+	}
+	return nil
 }
 
 // adoptCacheSecret points the entry's Secret at the Config that declares it, so
