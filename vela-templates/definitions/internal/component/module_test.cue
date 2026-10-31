@@ -70,6 +70,60 @@ _rendered: $returns: application: {
 	expect: calls: "vela/module": "#Render": [{$params: namespace: "team-a", ...}]
 }
 
+"placement clusters pass through to module render": test.#ComponentRender & {
+	definition: "module"
+	context: {
+		name:      "widget"
+		namespace: "team-a"
+	}
+	parameter: placement: {
+		clusters: ["spoke"]
+		allowEmpty: true
+	}
+	mocks: "vela/module": "#Render": _rendered
+	expect: calls: "vela/module": "#Render": [{$params: placement: {
+		clusters: ["spoke"]
+		allowEmpty: true
+	}, ...
+	}]
+}
+
+"placement clusterLabelSelector passes through to module render": test.#ComponentRender & {
+	definition: "module"
+	context: {
+		name:      "widget"
+		namespace: "team-a"
+	}
+	parameter: placement: clusterLabelSelector: tier: "runtime"
+	mocks: "vela/module": "#Render": _rendered
+	expect: calls: "vela/module": "#Render": [{$params: placement: clusterLabelSelector: tier: "runtime", ...}]
+}
+
+"an empty placement is refused": test.#ComponentRender & {
+	definition: "module"
+	context: {
+		name:      "widget"
+		namespace: "team-a"
+	}
+	parameter: placement: {}
+	mocks: "vela/module": "#Render": _rendered
+	expect: error: =~"set clusters or clusterLabelSelector"
+}
+
+"placement rejects clusters and a selector together": test.#ComponentRender & {
+	definition: "module"
+	context: {
+		name:      "widget"
+		namespace: "team-a"
+	}
+	parameter: placement: {
+		clusters: ["spoke"]
+		clusterLabelSelector: tier: "runtime"
+	}
+	mocks: "vela/module": "#Render": _rendered
+	expect: error: =~"set clusters or clusterLabelSelector"
+}
+
 "a namespace property is refused": test.#ComponentRender & {
 	definition: "module"
 	context: {

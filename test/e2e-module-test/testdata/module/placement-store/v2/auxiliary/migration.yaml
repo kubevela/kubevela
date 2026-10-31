@@ -1,0 +1,7 @@
+# No annotation. The v2 field says hub, ahead of the module field.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placement-store-v2-migration
+data:
+  role: v2-migration

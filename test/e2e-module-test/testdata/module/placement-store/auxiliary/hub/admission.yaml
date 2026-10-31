@@ -1,0 +1,7 @@
+# No annotation. hub/ stamps hub, ahead of the module field.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placement-store-admission
+data:
+  role: admission
