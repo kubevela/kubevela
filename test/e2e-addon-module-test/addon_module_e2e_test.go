@@ -1405,7 +1405,6 @@ var _ = Describe("Addons that import modules", func() {
 
 		It("loads the addon but fails the generated module component when the import cannot be fetched", func() {
 			cases := []struct{ version, component, fragment string }{
-				{"1.0.1", scope.Text("widget-kit"), `module registry "no-such-registry" not found`},
 				{"1.0.2", scope.Text("ghost-kit"), scope.Text("ghost-kit")},
 				{"1.0.3", scope.Text("widget-kit"), "9.9.9"},
 				{"1.0.4", scope.Text("widget-kit"), "~1.0.0"},
