@@ -29,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
@@ -66,6 +67,10 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 
 	seen := []string{cd.Name}
 	current := cd
+	currentTemplate := childTemplateOf(tmpl, cd)
+	// The parent's workload only describes what the child renders while every
+	// level up to it still merges the parent's output.
+	outputMerged := true
 	for depth := 0; current.Spec.Extends != ""; depth++ {
 		name := current.Spec.Extends
 		if err := checkChain(seen, name, depth, current.Name); err != nil {
@@ -91,9 +96,16 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 		stored.Status = v1beta1.ComponentDefinitionStatus{}
 		tmpl.AncestorComponentDefinitions[name] = stored
 
-		inheritComponentAttributes(tmpl, cd, parent)
+		if outputMerged {
+			outputMerged, err = inherit.Inherits(inherit.Level{Name: current.Name, Template: currentTemplate}, "output")
+			if err != nil {
+				return err
+			}
+		}
+		inheritComponentAttributes(tmpl, cd, parent, outputMerged)
 		seen = append(seen, name)
 		current = parent
+		currentTemplate = parent.Spec.Schematic.CUE.Template
 	}
 	return nil
 }
@@ -203,21 +215,44 @@ func inheritanceEnabled(name, extends string) error {
 // declare a field wins and a boolean is true if any of them set it. Folding a
 // pair at a time instead would let a grandparent answer for a level that had
 // already spoken.
-func inheritComponentAttributes(tmpl *Template, child, parent *v1beta1.ComponentDefinition) {
-	if child.Spec.Workload.Definition.Kind == "" && child.Spec.Workload.Type == "" {
-		child.Spec.Workload = parent.Spec.Workload
-		tmpl.Reference = parent.Spec.Workload
-	}
-	if child.Spec.PodSpecPath == "" {
-		child.Spec.PodSpecPath = parent.Spec.PodSpecPath
-	}
-	if child.Spec.RevisionLabel == "" {
-		child.Spec.RevisionLabel = parent.Spec.RevisionLabel
-	}
-	if len(child.Spec.ChildResourceKinds) == 0 {
-		child.Spec.ChildResourceKinds = parent.Spec.ChildResourceKinds
+//
+// The workload and what describes it are taken only while the child still
+// merges the parent's output. The webhook stamps autodetect on a definition
+// that declares none, so that counts as silence too.
+func inheritComponentAttributes(tmpl *Template, child, parent *v1beta1.ComponentDefinition, outputMerged bool) {
+	if outputMerged {
+		if workloadUnset(child.Spec.Workload) && !workloadUnset(parent.Spec.Workload) {
+			child.Spec.Workload = parent.Spec.Workload
+			tmpl.Reference = parent.Spec.Workload
+		}
+		if child.Spec.PodSpecPath == "" {
+			child.Spec.PodSpecPath = parent.Spec.PodSpecPath
+		}
+		if child.Spec.RevisionLabel == "" {
+			child.Spec.RevisionLabel = parent.Spec.RevisionLabel
+		}
+		if len(child.Spec.ChildResourceKinds) == 0 {
+			child.Spec.ChildResourceKinds = parent.Spec.ChildResourceKinds
+		}
 	}
 	tmpl.AncestorStatus = append(tmpl.AncestorStatus, snippetsOf(parent.Spec.Status))
+}
+
+func workloadUnset(w common.WorkloadTypeDescriptor) bool {
+	return w.Definition == (common.WorkloadGVK{}) &&
+		(w.Type == "" || w.Type == types.AutoDetectWorkloadDefinition)
+}
+
+// childTemplateOf is the template the child renders with, which may have come
+// from spec.extension rather than the CUE schematic.
+func childTemplateOf(tmpl *Template, cd *v1beta1.ComponentDefinition) string {
+	if tmpl.TemplateStr != "" {
+		return tmpl.TemplateStr
+	}
+	if cd.Spec.Schematic == nil || cd.Spec.Schematic.CUE == nil {
+		return ""
+	}
+	return cd.Spec.Schematic.CUE.Template
 }
 
 // snippetsOf reads a definition's status CUE, which composes at evaluation time
