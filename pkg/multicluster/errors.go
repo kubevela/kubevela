@@ -26,6 +26,8 @@ import (
 var (
 	// ErrClusterExists cluster already exists
 	ErrClusterExists = ClusterManagementError(fmt.Errorf("cluster already exists"))
+	// ErrClusterOverwriteCancelled overwriting an existing cluster is declined
+	ErrClusterOverwriteCancelled = ClusterManagementError(fmt.Errorf("overwriting the existing cluster is cancelled"))
 	// ErrClusterNotExists cluster not exists
 	ErrClusterNotExists = ClusterManagementError(fmt.Errorf("no such cluster"))
 	// ErrReservedLocalClusterName reserved cluster name is used
