@@ -41,6 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 // MigrationOutcome is what happened to one legacy object during a migration run.
@@ -429,18 +430,13 @@ func isLegacyConfig(secret *corev1.Secret) bool {
 	if secret.Labels[types.LabelConfigCatalog] != types.VelaCoreConfig {
 		return false
 	}
-	if isSourceCacheEntry(secret) {
+	if sources.IsSourceCacheEntry(secret) {
 		return false
 	}
 	if isConfigCRDOwned(secret) && secret.Annotations[types.AnnotationConfigMigratedTo] == "" {
 		return false
 	}
 	return true
-}
-
-func isSourceCacheEntry(secret *corev1.Secret) bool {
-	_, generated := secret.Labels[types.LabelSourceDefinitionName]
-	return generated
 }
 
 func templateNamespaceOf(secret *corev1.Secret) string {
@@ -583,7 +579,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		finish(MigrationSkipped, reasonOptedOut)
 		return
 	}
-	if isSourceCacheEntry(secret) {
+	if sources.IsSourceCacheEntry(secret) {
 		finish(MigrationSkipped, reasonSourceCacheEntry)
 		return
 	}
@@ -761,6 +757,11 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		},
 		Spec: configv1alpha1.ConfigSpec{Alias: legacy.Alias, Description: legacy.Description},
 	}
+	// the owner's leave to serve as a Nacos endpoint moves to the Config, which the
+	// controller carries back to the Secret
+	if NacosEndpointMarked(secret) {
+		cfg.Annotations = map[string]string{types.AnnotationConfigNacosEndpoint: NacosEndpointAnnotationValue}
+	}
 	raw := secret.Data[SaveInputPropertiesKey]
 	if string(raw) == "null" {
 		raw = nil
@@ -804,6 +805,12 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		SecretRef: configv1alpha1.SecretKeySelector{Name: propsSecret.Name},
 	}
 	return cfg, propsSecret, nil, nil
+}
+
+// NacosEndpointMarked reports whether a Config CR or a config Secret carries the owner's
+// leave to serve as a Nacos endpoint while sensitive.
+func NacosEndpointMarked(obj metav1.Object) bool {
+	return obj.GetAnnotations()[types.AnnotationConfigNacosEndpoint] == NacosEndpointAnnotationValue
 }
 
 // SecretSensitive reports whether a config Secret is marked sensitive. For a legacy
