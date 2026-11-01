@@ -18,6 +18,7 @@ package docgen
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,16 +30,23 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/pkg/util/singleton"
+
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -468,4 +476,100 @@ storage: {storageTTL: "30m"}
 		}
 		assert.Equal(t, "(none - one cache entry for the whole cluster)", byName["keyInputs"])
 	})
+}
+
+func newTraitRevision(ns, defName, version, param string, revision int64) *corev1beta1.DefinitionRevision {
+	return &corev1beta1.DefinitionRevision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-v%s", defName, version),
+			Namespace: ns,
+			Labels:    map[string]string{oam.LabelTraitDefinitionName: defName},
+		},
+		Spec: corev1beta1.DefinitionRevisionSpec{
+			Revision:       revision,
+			DefinitionType: commontypes.TraitType,
+			TraitDefinition: corev1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: defName, Namespace: ns},
+				Spec: corev1beta1.TraitDefinitionSpec{
+					Version: version,
+					Schematic: &commontypes.Schematic{CUE: &commontypes.CUE{
+						Template: fmt.Sprintf("parameter: {\n\t%s: string\n}\n", param),
+					}},
+				},
+			},
+		},
+	}
+}
+
+func TestGetCapabilityFromDefinitionVersion(t *testing.T) {
+	ctx := context.Background()
+	// Parameter extraction builds the cuex compiler, whose kube config loader is
+	// config.GetConfigOrDie: without a kubeconfig it would end the test binary.
+	// Restore nil afterwards rather than reading the previous value (that runs the loader).
+	t.Cleanup(func() { singleton.KubeConfig.Set(nil) })
+	singleton.KubeConfig.Set(&rest.Config{Host: "http://127.0.0.1:1"})
+	sharedPolicy := &corev1beta1.DefinitionRevision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "shared-policy-v1.0.0",
+			Namespace: "default",
+			Labels:    map[string]string{oam.LabelPolicyDefinitionName: "shared"},
+		},
+		Spec: corev1beta1.DefinitionRevisionSpec{
+			Revision:       1,
+			DefinitionType: commontypes.PolicyType,
+			PolicyDefinition: corev1beta1.PolicyDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "shared", Namespace: "default"},
+				Spec: corev1beta1.PolicyDefinitionSpec{
+					Version: "1.0.0",
+					Schematic: &commontypes.Schematic{CUE: &commontypes.CUE{
+						Template: "parameter: {\n\tpolicyParam: string\n}\n",
+					}},
+				},
+			},
+		},
+	}
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(
+		newTraitRevision("default", "mytrait", "1.0.0", "oldParam", 1),
+		newTraitRevision("default", "mytrait", "1.2.0", "newParam", 2),
+		newTraitRevision(types.DefaultKubeVelaNS, "systrait", "2.0.0", "sysParam", 1),
+		newTraitRevision("default", "shared", "1.0.0", "traitParam", 1),
+		sharedPolicy,
+	).Build()
+	c := common.Args{}
+	c.SetClient(cli)
+
+	for _, v := range []string{"1.2.0", "v1.2.0"} {
+		capability, err := GetCapabilityFromDefinitionVersion(ctx, c, "default", "mytrait", v)
+		require.NoError(t, err, v)
+		assert.Contains(t, capability.CueTemplate, "newParam", v)
+		assert.NotContains(t, capability.CueTemplate, "oldParam", v)
+		assert.Equal(t, types.TypeTrait, capability.Type)
+	}
+
+	capability, err := GetCapabilityFromDefinitionVersion(ctx, c, "default", "mytrait", "1.0.0")
+	require.NoError(t, err)
+	assert.Contains(t, capability.CueTemplate, "oldParam")
+
+	_, err = GetCapabilityFromDefinitionVersion(ctx, c, "default", "mytrait", "9.9.9")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no mytrait with version 9.9.9 found")
+
+	// Only present in vela-system: found through the fallback when ns is default.
+	capability, err = GetCapabilityFromDefinitionVersion(ctx, c, "default", "systrait", "2.0.0")
+	require.NoError(t, err)
+	assert.Contains(t, capability.CueTemplate, "sysParam")
+
+	// No fallback for a namespace other than default.
+	_, err = GetCapabilityFromDefinitionVersion(ctx, c, "other", "systrait", "2.0.0")
+	require.Error(t, err)
+
+	// The same name and version across kinds is ambiguous.
+	_, err = GetCapabilityFromDefinitionVersion(ctx, c, "default", "shared", "1.0.0")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "more than one definition type")
+
+	// The integer revision path keeps working.
+	capability, err = GetCapabilityFromDefinitionRevision(ctx, c, "default", "mytrait", 2)
+	require.NoError(t, err)
+	assert.Contains(t, capability.CueTemplate, "newParam")
 }

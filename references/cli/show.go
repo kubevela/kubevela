@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -104,6 +105,8 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 > vela show webservice --location zh --i18n https://kubevela.io/reference-i18n.json
 6. Show doc for a specified revision, it must exist in control plane cluster:
 > vela show webservice --revision v1
+   A semantic version (spec.version of the definition) selects the matching revision:
+> vela show webservice --revision 1.2.3
 7. Generate docs for all capabilities into folder $HOME/.vela/reference/docs/
 > vela show
 8. Generate all docs and start a doc server
@@ -129,22 +132,17 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 					return err
 				}
 			}
-			var ver int
-			if revision != "" {
-				// v1, 1, both need to work
-				version := strings.TrimPrefix(revision, "v")
-				ver, err = strconv.Atoi(version)
-				if err != nil {
-					return fmt.Errorf("invalid revision: %w", err)
-				}
+			rev, version, err := parseShowRevision(revision)
+			if err != nil {
+				return err
 			}
 			if webSite || generateDocOnly {
 				return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
 			}
 			if path != "" || showFormat == "md" || showFormat == "markdown" {
-				return ShowReferenceMarkdown(ctx, c, ioStreams, capabilityName, path, location, i18nPath, namespace, int64(ver))
+				return ShowReferenceMarkdown(ctx, c, ioStreams, capabilityName, path, location, i18nPath, namespace, rev, version)
 			}
-			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace, location, i18nPath, int64(ver))
+			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace, location, i18nPath, rev, version)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType:  getShowCommandType(order),
@@ -154,7 +152,7 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 
 	cmd.Flags().BoolVarP(&webSite, "web", "", false, "start web doc site")
 	cmd.Flags().StringVarP(&showFormat, "format", "", "", "specify format of output data, by default it's a pretty human readable format, you can specify markdown(md)")
-	cmd.Flags().StringVarP(&revision, "revision", "r", "", "Get the specified revision of a definition. Use def get to list revisions.")
+	cmd.Flags().StringVarP(&revision, "revision", "r", "", "Get the specified revision of a definition: a revision number (2, v2) or a semantic version from spec.version (1.2.3, v1.2.3). Use def get to list revisions.")
 	cmd.Flags().StringVarP(&path, "path", "p", "", "Specify the path for of the doc generated from definition.")
 	cmd.Flags().StringVarP(&location, "location", "l", "", "specify the location for of the doc generated from definition, now supported options 'zh', 'en'. ")
 	cmd.Flags().StringVarP(&i18nPath, "i18n", "", "https://kubevela.io/reference-i18n.json", "specify the location for of the doc generated from definition, now supported options 'zh', 'en'. ")
@@ -462,7 +460,7 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 }
 
 // ShowReferenceConsole will show capability reference in console
-func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns, location, i18nPath string, rev int64) error {
+func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns, location, i18nPath string, rev int64, version string) error {
 	cli, err := c.GetClient()
 	if err != nil {
 		return err
@@ -471,7 +469,7 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 	// importing vela/registry or vela/velaconfig cannot have its parameters
 	// extracted without it, and fails with "parameter not exist".
 	ref := &docgen.ConsoleReference{Compiler: providers.DefaultCompiler.Get()}
-	paserRef, err := genRefParser(capabilityName, ns, location, i18nPath, rev)
+	paserRef, err := genRefParser(capabilityName, ns, location, i18nPath, rev, version)
 	if err != nil {
 		return err
 	}
@@ -481,13 +479,13 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 }
 
 // ShowReferenceMarkdown will show capability in "markdown" format
-func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityNameOrPath, outputPath, location, i18nPath, ns string, rev int64) error {
+func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityNameOrPath, outputPath, location, i18nPath, ns string, rev int64, version string) error {
 	cli, err := c.GetClient()
 	if err != nil {
 		return err
 	}
 	ref := &docgen.MarkdownReference{}
-	parseRef, err := genRefParser(capabilityNameOrPath, ns, location, i18nPath, rev)
+	parseRef, err := genRefParser(capabilityNameOrPath, ns, location, i18nPath, rev, version)
 	if err != nil {
 		return err
 	}
@@ -502,7 +500,28 @@ func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil
 	return nil
 }
 
-func genRefParser(capabilityNameOrPath, ns, location, i18nPath string, rev int64) (docgen.ParseReference, error) {
+// parseShowRevision parses the --revision flag. A plain integer, optionally prefixed
+// with "v" (2, v2), is a DefinitionRevision number. A dotted semantic version
+// (1.2.3, v1.2.3) selects the revision whose definition has that spec.version.
+func parseShowRevision(s string) (int64, string, error) {
+	if s == "" {
+		return 0, "", nil
+	}
+	trimmed := strings.TrimPrefix(s, "v")
+	// Check for an integer first: semver also accepts "2", but a bare number must
+	// stay a revision number for backward compatibility.
+	if rev, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+		return rev, "", nil
+	}
+	if strings.Contains(trimmed, ".") {
+		if _, err := semver.NewVersion(trimmed); err == nil {
+			return 0, trimmed, nil
+		}
+	}
+	return 0, "", fmt.Errorf("invalid revision %q, use a revision number (2, v2) or a semantic version (1.2.3, v1.2.3)", s)
+}
+
+func genRefParser(capabilityNameOrPath, ns, location, i18nPath string, rev int64, version string) (docgen.ParseReference, error) {
 	ref := docgen.ParseReference{}
 	if location != "" {
 		docgen.LoadI18nData(i18nPath)
@@ -515,7 +534,7 @@ func genRefParser(capabilityNameOrPath, ns, location, i18nPath string, rev int64
 		ref.Local = &docgen.FromLocal{Paths: []string{localFilePath}}
 	} else {
 		ref.DefinitionName = capabilityNameOrPath
-		ref.Remote = &docgen.FromCluster{Namespace: ns, Rev: rev}
+		ref.Remote = &docgen.FromCluster{Namespace: ns, Rev: rev, Version: version}
 	}
 	switch strings.ToLower(location) {
 	case "zh", "cn", "chinese":

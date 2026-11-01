@@ -92,7 +92,12 @@ func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) (
 			}
 		} else {
 			var rcap *types.Capability
-			if ref.Remote.Rev == 0 {
+			if ref.Remote.Version != "" {
+				rcap, err = GetCapabilityFromDefinitionVersion(ctx, c, ref.Remote.Namespace, ref.DefinitionName, ref.Remote.Version)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get version %s of capability %s: %w", ref.Remote.Version, ref.DefinitionName, err)
+				}
+			} else if ref.Remote.Rev == 0 {
 				rcap, err = GetCapabilityByName(ctx, c, ref.DefinitionName, ref.Remote.Namespace)
 				if err != nil {
 					return nil, fmt.Errorf("failed to get capability %s: %w", ref.DefinitionName, err)
