@@ -119,10 +119,11 @@ flowchart TB
 
 Every tool maps to a code path the CLI already has. Handlers call the packages those
 commands use, such as the query collector for resource trees and the dry-run package for
-renders. `diff_application` renders both sides with the dry-run package, as live-diff
-does, and compares the objects field by field, because live-diff returns text for a
-terminal and the risk classifier needs structured changes. Handlers never shell out and
-never call a model.
+renders. Like live-diff, `diff_application` compares the document with the stored
+ApplicationRevision, rendering that base with the definitions the revision recorded, so a
+definition updated since then shows up in the change set and is named as its source. It
+compares objects field by field, because live-diff returns text for a terminal and the risk
+classifier needs structured changes. Handlers never shell out and never call a model.
 
 ### Principles
 
@@ -426,7 +427,9 @@ skills.
 
 `vela` writes no client configuration, so it never tracks client formats or versions.
 `vela mcp config` prints the server entry, either as the `mcpServers` JSON block most
-clients accept or as the server command and arguments that go after a client's own `mcp add`:
+clients accept or as the server command and arguments that go after a client's own `mcp add`,
+POSIX shell-quoted so `eval` rebuilds exactly those arguments; a test round-trips hostile
+values through a real shell:
 
 ```text
 $ eval "claude mcp add --scope user kubevela -- $(vela mcp config --format command --namespace team-a)"
