@@ -28,6 +28,7 @@ import (
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 func stepsOf(types ...string) []wfTypesv1alpha1.WorkflowStep {
@@ -205,6 +206,44 @@ spec:
 			h.call("diff_application", map[string]any{"application": shopDoc("evil.io/nginx:1.26", 5, "")}, &out)
 			Expect(out.Risk.Class).To(Equal(RiskHigh))
 			Expect(rulesOf(out.Risk)).To(ConsistOf("image-repository", "scaling"))
+		})
+
+		Context("when the revision recorded its definitions", func() {
+			// withRecorded stores a webservice snapshot in shop-v1, as the
+			// controller does, so the base renders as what is running.
+			withRecorded := func(template string) []client.Object {
+				objs := shopRunning()
+				rev := objs[1].(*v1beta1.ApplicationRevision)
+				rev.Spec.ComponentDefinitions = map[string]*v1beta1.ComponentDefinition{"webservice": {
+					ObjectMeta: metav1.ObjectMeta{Name: "webservice", Namespace: types.DefaultKubeVelaNS},
+					Spec: v1beta1.ComponentDefinitionSpec{
+						Version:   "2.1.0",
+						Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: template}},
+					},
+				}}
+				return append(platformFixtures(), objs...)
+			}
+
+			It("renders the base with them and reports no change when nothing drifted", func() {
+				h = startHarness(Options{}, withRecorded(webserviceTemplate)...)
+				var out DiffOutput
+				h.call("diff_application", map[string]any{"application": shopDoc("nginx:1.26", 2, "")}, &out)
+				Expect(out.ChangeSet.Resources).To(BeEmpty())
+				Expect(out.Evidence).To(ContainElement(ContainSubstring("with the definitions it recorded (1)")))
+				Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("changed since")))
+			})
+
+			It("shows what a changed definition will change on apply and says where it came from", func() {
+				older := strings.Replace(webserviceTemplate, "\t\tports: [{containerPort: parameter.port}]\n", "", 1)
+				Expect(older).NotTo(Equal(webserviceTemplate))
+				h = startHarness(Options{}, withRecorded(older)...)
+				var out DiffOutput
+				h.call("diff_application", map[string]any{"application": shopDoc("nginx:1.26", 2, "")}, &out)
+				Expect(out.ChangeSet.Resources).To(HaveLen(1), "the running objects lack the port today's definition adds")
+				Expect(out.ChangeSet.Resources[0].Action).To(Equal(ActionModify))
+				Expect(toJSON(out.ChangeSet.Resources[0].Fields)).To(ContainSubstring("ports"))
+				Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("definition ComponentDefinition webservice changed since shop-v1")))
+			})
 		})
 
 		It("reports no change and no rules for an identical document", func() {

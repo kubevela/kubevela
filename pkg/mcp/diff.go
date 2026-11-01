@@ -22,11 +22,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -163,7 +168,7 @@ func (d *deps) diffApplication(ctx context.Context, _ *sdk.CallToolRequest, in D
 		return nil, out, errNoConfig
 	}
 
-	baseApp, baseName, live, err := d.loadBase(ctx, cli, app, in.Revision)
+	baseApp, baseName, baseDefs, live, err := d.loadBase(ctx, cli, app, in.Revision)
 	if err != nil {
 		return nil, out, err
 	}
@@ -176,11 +181,21 @@ func (d *deps) diffApplication(ctx context.Context, _ *sdk.CallToolRequest, in D
 	}
 	var base *rendered
 	if baseApp != nil {
-		base, err = d.render(ctx, baseApp, defs)
+		base, err = d.render(ctx, baseApp, baseDefs)
 		if err != nil {
 			return nil, out, fmt.Errorf("render base %s: %w", baseName, err)
 		}
-		out.Evidence = append(out.Evidence, fmt.Sprintf("base rendered from ApplicationRevision %s/%s with the cluster's current definitions", app.Namespace, baseName))
+		switch {
+		case len(baseDefs) > 0:
+			out.Evidence = append(out.Evidence, fmt.Sprintf("base rendered from ApplicationRevision %s/%s with the definitions it recorded (%d)", app.Namespace, baseName, len(baseDefs)))
+		case live != nil && live.Status.LatestRevision == nil && in.Revision == "":
+			out.Evidence = append(out.Evidence, fmt.Sprintf("base rendered from the %s with the cluster's current definitions", baseName))
+		default:
+			out.Evidence = append(out.Evidence, fmt.Sprintf("base rendered from ApplicationRevision %s/%s with the cluster's current definitions, as it recorded none", app.Namespace, baseName))
+		}
+		for _, name := range driftedDefinitions(ctx, cli, baseDefs) {
+			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("definition %s changed since %s; part of this change set comes from the definition, not the document", name, baseName))
+		}
 	} else {
 		out.Evidence = append(out.Evidence, fmt.Sprintf("no Application %s/%s exists; compared against nothing", app.Namespace, app.Name))
 	}
@@ -188,44 +203,113 @@ func (d *deps) diffApplication(ctx context.Context, _ *sdk.CallToolRequest, in D
 	out.ChangeSet = buildChangeSet(base, target)
 	out.Risk = classify(out.ChangeSet)
 	out.Token, out.ExpiresAt = d.issueToken(app, in.Application, baseName, live, out.ChangeSet, out.Risk)
+	warnings := out.Meta.Warnings
 	out.Meta = d.meta(ctx)
+	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
 	out.Meta.Source = SourceRendered
 	return nil, out, nil
 }
 
 // loadBase returns the Application spec the target is compared with: the
 // named revision, else the live Application's latest revision, else nil
-// for a new Application. It also returns the live Application, or nil, so
-// the token can bind the exact object an apply must still find. The
-// allowlist was checked by parsePlanInput.
-func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.Application, revision string) (*v1beta1.Application, string, *v1beta1.Application, error) {
+// for a new Application. For a revision it also returns the definitions
+// that revision recorded, so the base renders as what is running rather
+// than as today's definitions would render it. It also returns the live
+// Application, or nil, so the token can bind the exact object an apply
+// must still find. The allowlist was checked by parsePlanInput.
+func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.Application, revision string) (*v1beta1.Application, string, []*unstructured.Unstructured, *v1beta1.Application, error) {
 	live := &v1beta1.Application{}
 	err := cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, live)
 	switch {
 	case apierrors.IsNotFound(err):
 		live = nil
 	case err != nil:
-		return nil, "", nil, fmt.Errorf("get application %s/%s: %w", app.Namespace, app.Name, err)
+		return nil, "", nil, nil, fmt.Errorf("get application %s/%s: %w", app.Namespace, app.Name, err)
+	}
+	if revision == "" {
+		switch {
+		case live == nil:
+			return nil, baseNew, nil, nil, nil
+		case live.Status.LatestRevision == nil:
+			// Exists but was never rendered: compare with its current spec so
+			// the reader sees what changes relative to what was submitted.
+			return live, "spec of " + live.Name + " (no revision yet)", nil, live, nil
+		}
+		revision = live.Status.LatestRevision.Name
 	}
 	rev := &v1beta1.ApplicationRevision{}
-	if revision != "" {
-		if err := cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: revision}, rev); err != nil {
-			return nil, "", nil, fmt.Errorf("get ApplicationRevision %s/%s: %w", app.Namespace, revision, err)
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: revision}, rev); err != nil {
+		return nil, "", nil, nil, fmt.Errorf("get ApplicationRevision %s/%s: %w", app.Namespace, revision, err)
+	}
+	defs, err := revisionDefinitions(rev)
+	if err != nil {
+		return nil, "", nil, nil, fmt.Errorf("read definitions recorded in ApplicationRevision %s/%s: %w", app.Namespace, revision, err)
+	}
+	return baseFromRevision(rev, app), rev.Name, defs, live, nil
+}
+
+// revisionDefinitions returns the definition snapshots a revision recorded,
+// as objects the dry-run parser uses instead of the cluster's copies.
+func revisionDefinitions(rev *v1beta1.ApplicationRevision) ([]*unstructured.Unstructured, error) {
+	var objs []client.Object
+	for _, def := range rev.Spec.ComponentDefinitions {
+		if def != nil {
+			def := def.DeepCopy()
+			def.TypeMeta = metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ComponentDefinitionKind}
+			objs = append(objs, def)
 		}
-		return baseFromRevision(rev, app), rev.Name, live, nil
 	}
-	switch {
-	case live == nil:
-		return nil, baseNew, nil, nil
-	case live.Status.LatestRevision == nil:
-		// Exists but was never rendered: compare with its current spec so
-		// the reader sees what changes relative to what was submitted.
-		return live, "spec of " + live.Name + " (no revision yet)", live, nil
+	for _, def := range rev.Spec.TraitDefinitions {
+		if def != nil {
+			def := def.DeepCopy()
+			def.TypeMeta = metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.TraitDefinitionKind}
+			objs = append(objs, def)
+		}
 	}
-	if err := cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: live.Status.LatestRevision.Name}, rev); err != nil {
-		return nil, "", nil, fmt.Errorf("get ApplicationRevision %s/%s: %w", app.Namespace, live.Status.LatestRevision.Name, err)
+	for _, def := range rev.Spec.PolicyDefinitions {
+		def := def.DeepCopy()
+		def.TypeMeta = metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.PolicyDefinitionKind}
+		objs = append(objs, def)
 	}
-	return baseFromRevision(rev, app), rev.Name, live, nil
+	for _, def := range rev.Spec.WorkflowStepDefinitions {
+		if def != nil {
+			def := def.DeepCopy()
+			def.TypeMeta = metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.WorkflowStepDefinitionKind}
+			objs = append(objs, def)
+		}
+	}
+	out := make([]*unstructured.Unstructured, 0, len(objs))
+	for _, o := range objs {
+		m, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
+		if err != nil {
+			return nil, err
+		}
+		u := &unstructured.Unstructured{Object: m}
+		u.SetResourceVersion("")
+		out = append(out, u)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].GetKind()+"/"+out[i].GetName() < out[j].GetKind()+"/"+out[j].GetName()
+	})
+	return out, nil
+}
+
+// driftedDefinitions names the recorded definitions whose spec differs from
+// the cluster's current copy. A definition that can no longer be read is
+// left out: the render of the target reports it if it matters.
+func driftedDefinitions(ctx context.Context, cli client.Client, recorded []*unstructured.Unstructured) []string {
+	var drifted []string
+	for _, def := range recorded {
+		current := &unstructured.Unstructured{}
+		current.SetGroupVersionKind(def.GroupVersionKind())
+		if err := cli.Get(ctx, client.ObjectKey{Namespace: def.GetNamespace(), Name: def.GetName()}, current); err != nil {
+			continue
+		}
+		if !equality.Semantic.DeepEqual(def.Object["spec"], current.Object["spec"]) {
+			drifted = append(drifted, def.GetKind()+" "+def.GetName())
+		}
+	}
+	return drifted
 }
 
 // baseFromRevision lifts the Application a revision recorded, giving it

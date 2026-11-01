@@ -19,6 +19,9 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -117,6 +120,41 @@ func TestMCPConfigCommandFormatQuotes(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, `'/opt/vela tools/vela' mcp --namespace team-a --allow-write --direct-namespace dev --production-pattern '^live$'`, strings.TrimSpace(out))
 	require.Equal(t, `'it'\''s'`, shellQuote("it's"))
+}
+
+// evalArgs runs line through eval in a real shell, as the documented
+// registration command does, and returns the arguments the shell built.
+// It runs in an empty directory so a command that escaped quoting would
+// leave a file behind.
+func evalArgs(t *testing.T, line string) []string {
+	t.Helper()
+	sh, err := exec.LookPath("sh")
+	if err != nil || runtime.GOOS == "windows" {
+		t.Skip("needs a POSIX shell")
+	}
+	dir := t.TempDir()
+	cmd := exec.Command(sh, "-c", `eval "set -- $1"; printf '%s\000' "$@"`, "sh", line)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	require.NoError(t, err)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Empty(t, entries, "nothing in the quoted text ran")
+	return strings.Split(strings.TrimSuffix(string(out), "\000"), "\000")
+}
+
+func TestMCPConfigCommandSurvivesEval(t *testing.T) {
+	for _, v := range []string{"$(touch pwned)", "`touch pwned`", "a; touch pwned", "line\nbreak", "it's", "*", "~/x", "a b", "-n"} {
+		require.Equal(t, []string{v}, evalArgs(t, shellQuote(v)), v)
+	}
+	require.Equal(t, []string{""}, evalArgs(t, shellQuote("")))
+
+	pattern := `$(touch pwned)|'x'`
+	out, err := runMCPConfig(t, "--format", "command", "--allow-write", "--direct-namespace", "dev", "--production-pattern", pattern)
+	require.NoError(t, err)
+	require.Equal(t,
+		[]string{"/opt/vela tools/vela", "mcp", "--allow-write", "--direct-namespace", "dev", "--production-pattern", pattern},
+		evalArgs(t, strings.TrimSpace(out)))
 }
 
 func TestMCPConfigRefusesWhatTheServerWould(t *testing.T) {
