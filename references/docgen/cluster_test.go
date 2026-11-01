@@ -528,9 +528,17 @@ func TestGetCapabilityFromDefinitionVersion(t *testing.T) {
 			},
 		},
 	}
+	// Two revisions carrying the same spec.version: the lower revision's name sorts
+	// first, so returning the first match instead of the highest revision fails.
+	staleDup := newTraitRevision("default", "mytrait", "1.3.0", "staleParam", 3)
+	staleDup.Name = "mytrait-v1.3.0-a"
+	latestDup := newTraitRevision("default", "mytrait", "1.3.0", "latestParam", 4)
+	latestDup.Name = "mytrait-v1.3.0-b"
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(
 		newTraitRevision("default", "mytrait", "1.0.0", "oldParam", 1),
 		newTraitRevision("default", "mytrait", "1.2.0", "newParam", 2),
+		staleDup,
+		latestDup,
 		newTraitRevision(types.DefaultKubeVelaNS, "systrait", "2.0.0", "sysParam", 1),
 		newTraitRevision("default", "shared", "1.0.0", "traitParam", 1),
 		sharedPolicy,
@@ -549,6 +557,12 @@ func TestGetCapabilityFromDefinitionVersion(t *testing.T) {
 	capability, err := GetCapabilityFromDefinitionVersion(ctx, c, "default", "mytrait", "1.0.0")
 	require.NoError(t, err)
 	assert.Contains(t, capability.CueTemplate, "oldParam")
+
+	// Duplicate versions resolve to the highest revision.
+	capability, err = GetCapabilityFromDefinitionVersion(ctx, c, "default", "mytrait", "1.3.0")
+	require.NoError(t, err)
+	assert.Contains(t, capability.CueTemplate, "latestParam")
+	assert.NotContains(t, capability.CueTemplate, "staleParam")
 
 	_, err = GetCapabilityFromDefinitionVersion(ctx, c, "default", "mytrait", "9.9.9")
 	require.Error(t, err)
