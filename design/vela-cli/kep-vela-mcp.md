@@ -119,9 +119,10 @@ flowchart TB
 
 Every tool maps to a code path the CLI already has. Handlers call the packages those
 commands use, such as the query collector for resource trees and the dry-run package for
-renders. Where the logic exists only inside a cobra `RunE`, as live-diff's does, `pkg/mcp`
-carries its own tested implementation rather than shelling out. Handlers never shell out
-and never call a model.
+renders. `diff_application` renders both sides with the dry-run package, as live-diff
+does, and compares the objects field by field, because live-diff returns text for a
+terminal and the risk classifier needs structured changes. Handlers never shell out and
+never call a model.
 
 ### Principles
 
@@ -194,7 +195,7 @@ incident. Four rules make that trust checkable rather than assumed.
   "velaCore": "v1.11.0",
   "velaCLI": "v1.11.0",
   "kubernetes": {"local": "v1.31.4", "prod-us-west": "v1.30.8"},
-  "featureGates": {"RestrictDefinitionNamespaces": true},
+  "featureGates": {"ZstdApplicationRevision": true},
   "observedAt": "2026-10-13T09:42:17Z",
   "source": "live",
   "truncated": false,
@@ -271,8 +272,8 @@ manifests for the repository or the user's own pipeline, as gitops mode does for
 Platform teams label definitions with `definition.oam.dev/provides` (for example
 `postgres`) and mark defaults with the `definition.oam.dev/default-for` annotation.
 `list_definitions` filters by `provides` and marks the default for the namespace. With a
-default the agent uses it and names the alternatives; with none and options that differ
-materially, it asks in chat, keeping confirmation prompts for writes. Unlabelled
+default the agent uses it and names the alternatives; with several and no default, it asks
+in chat, keeping confirmation prompts for writes. Unlabelled
 definitions, which today includes the built-in ones, are still listed with their
 descriptions, and the agent compares those when no label applies.
 
@@ -428,7 +429,7 @@ skills.
 clients accept or as the server command and arguments that go after a client's own `mcp add`:
 
 ```text
-$ claude mcp add kubevela -- $(vela mcp config --format command --namespace team-a)
+$ eval "claude mcp add --scope user kubevela -- $(vela mcp config --format command --namespace team-a)"
 ```
 
 Per-client steps, skills installation and the companion servers, with the exact
@@ -615,7 +616,7 @@ state whether traffic changed. Deterministic, one round trip per cluster.
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
-| P0, KubeVela 1.12 | `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp config`, with per-client steps in `kubevela/skills`; developer, SRE, platform-engineer and defkit-author skills; six documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
+| P0, KubeVela 1.12 | `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp config`, with per-client steps in `kubevela/skills`; developer, SRE, platform-engineer and defkit-author skills; the documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
 | P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; one adopter runs the trigger recipe |
 | P2, after VelaUX catch-up | VelaUX backend plugin over streamable HTTP; per-caller tool filtering; read-only assistant panel | Hosted client logs in through VelaUX and gets the same allow or deny as the CLI |
 | P3, after the Cluster Infrastructure KEP | Cluster-fleet tools from the Future scope section; cluster-plane handles; `kubevela-cluster-operator` skill | Fleet scenarios pass on three model families; a rollout started through an agent pauses at every approval the KEP defines |
