@@ -513,7 +513,9 @@ func parseShowRevision(s string) (int64, string, error) {
 	if rev, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
 		return rev, "", nil
 	}
-	if strings.Contains(trimmed, ".") {
+	// semver.NewVersion accepts its own optional "v" prefix, so reject a second
+	// one here ("vv1.2.3") to allow only 1.2.3 or v1.2.3.
+	if strings.Contains(trimmed, ".") && !strings.HasPrefix(trimmed, "v") {
 		if _, err := semver.NewVersion(trimmed); err == nil {
 			return 0, trimmed, nil
 		}

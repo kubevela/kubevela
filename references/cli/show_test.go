@@ -224,12 +224,16 @@ func TestParseShowRevision(t *testing.T) {
 		"not a version":      {in: "abc", wantErr: true},
 		"bare v":             {in: "v", wantErr: true},
 		"wildcard not exact": {in: "1.x", wantErr: true},
+		"double v semver":    {in: "vv1.2.3", wantErr: true},
+		"double v revision":  {in: "vv2", wantErr: true},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			rev, version, err := parseShowRevision(tc.in)
 			if tc.wantErr {
 				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "revision number (2, v2)")
+				assert.Contains(t, err.Error(), "semantic version (1.2.3, v1.2.3)")
 				return
 			}
 			assert.NoError(t, err)
