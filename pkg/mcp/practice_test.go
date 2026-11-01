@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -69,6 +70,13 @@ func practiceFixtures() []client.Object {
 		deployment("both", "web", true),
 		deployment("both", "legacy", false),
 		namespace("fresh", map[string]string{deliveryDefaultLabel: "something-else"}),
+		namespace("batch", nil),
+		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "migrate", Namespace: "batch"}},
+		namespace("cron", nil),
+		&v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "report", Namespace: "cron"}},
+		&batchv1.CronJob{ObjectMeta: metav1.ObjectMeta{Name: "report", Namespace: "cron", Labels: map[string]string{oam.LabelAppName: "report"}}},
+		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "report-29001", Namespace: "cron",
+			OwnerReferences: []metav1.OwnerReference{{APIVersion: "batch/v1", Kind: "CronJob", Name: "report", UID: "cron-uid"}}}},
 	)
 }
 
@@ -101,6 +109,8 @@ var _ = Describe("delivery practice", func() {
 		Entry("KubeVela with a declared default", "vela", StyleKubeVela, 1, 1, 1, StyleKubeVela),
 		Entry("both side by side", "both", StyleMixed, 1, 2, 1, ""),
 		Entry("blank, ignoring an unknown declared value", "fresh", StyleEmpty, 0, 0, 0, ""),
+		Entry("a plain Job is existing practice, not a blank start", "batch", StyleKubernetes, 0, 1, 0, ""),
+		Entry("a Job an Application's CronJob started is counted through its owner", "cron", StyleKubeVela, 1, 1, 1, ""),
 	)
 
 	It("omits the report without a namespace and reports a denied access review", func() {

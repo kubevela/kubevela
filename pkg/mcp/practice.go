@@ -54,8 +54,9 @@ type DeliveryPractice struct {
 	Namespace string `json:"namespace"`
 	// Applications counts KubeVela Applications in the namespace.
 	Applications int `json:"applications" jsonschema:"KubeVela Applications in the namespace."`
-	// Workloads counts Deployments, StatefulSets, DaemonSets and CronJobs.
-	Workloads int `json:"workloads" jsonschema:"Deployments, StatefulSets, DaemonSets and CronJobs in the namespace."`
+	// Workloads counts Deployments, StatefulSets, DaemonSets, CronJobs and
+	// Jobs that no other object owns.
+	Workloads int `json:"workloads" jsonschema:"Deployments, StatefulSets, DaemonSets, CronJobs and Jobs no other object owns, in the namespace."`
 	// WorkloadsManagedByApplications counts the workloads KubeVela labels as
 	// rendered by an Application.
 	WorkloadsManagedByApplications int `json:"workloadsManagedByApplications" jsonschema:"Workloads that an Application rendered and manages."`
@@ -100,6 +101,7 @@ func (d *deps) deliveryPractice(ctx context.Context, namespace string) (*Deliver
 		{"StatefulSet", &appsv1.StatefulSetList{}},
 		{"DaemonSet", &appsv1.DaemonSetList{}},
 		{"CronJob", &batchv1.CronJobList{}},
+		{"Job", &batchv1.JobList{}},
 	}
 	for _, w := range workloads {
 		if err := cli.List(ctx, w.list, opts...); err != nil {
@@ -160,6 +162,15 @@ func countManaged(list client.ObjectList) (total, managed int, more bool) {
 	case *batchv1.CronJobList:
 		for i := range l.Items {
 			visit(&l.Items[i])
+		}
+		more = l.Continue != ""
+	case *batchv1.JobList:
+		// A Job another object owns, such as one a CronJob started, is
+		// already counted through its owner.
+		for i := range l.Items {
+			if len(l.Items[i].OwnerReferences) == 0 {
+				visit(&l.Items[i])
+			}
 		}
 		more = l.Continue != ""
 	}
