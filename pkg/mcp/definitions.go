@@ -57,7 +57,7 @@ type DefinitionSummary struct {
 	// DefaultFor lists the namespaces where the platform made it the default.
 	DefaultFor []string `json:"defaultFor,omitempty" jsonschema:"Namespaces where the platform made this the default among definitions providing the same capability; * means every namespace."`
 	// Default is set when it is the default for the namespace asked about.
-	Default bool `json:"default,omitempty" jsonschema:"True when this is the platform default for the namespace in the request. Use it and name the alternatives; ask the user only when no option is default and they differ materially."`
+	Default bool `json:"default,omitempty" jsonschema:"True when this is the platform default for the namespace in the request. Use it and name the alternatives; when several fit and none is default, ask the user to choose."`
 }
 
 const (

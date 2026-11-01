@@ -175,7 +175,7 @@ var (
 		vela mcp config
 
 		# Claude Code, read and plan tools, restricted to one namespace
-		claude mcp add kubevela -- $(vela mcp config --format command --namespace team-a)
+		eval "claude mcp add --scope user kubevela -- $(vela mcp config --format command --namespace team-a)"
 
 		# Allow writes, with confirmed direct mode only in dev
 		vela mcp config --allow-write --direct-namespace dev`))
