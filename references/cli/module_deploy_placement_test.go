@@ -72,14 +72,14 @@ func settledOwnedApp(phase oamcommon.ApplicationPhase, generation, observed int6
 	return objs
 }
 
-// waitOn runs waitForModule against the given objects and returns its error
-// and output.
-func waitOn(objs []client.Object, timeout time.Duration) (error, string) {
+// waitOn runs waitForModule against the given objects and returns its output
+// and error.
+func waitOn(objs []client.Object, timeout time.Duration) (string, error) {
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(objs...).Build()
 	var out bytes.Buffer
 	o := &moduleDeployOptions{module: "s3", namespace: velatypes.DefaultKubeVelaNS, timeout: timeout, pollInterval: time.Millisecond}
 	err := o.waitForModule(context.Background(), cli, &out)
-	return err, out.String()
+	return out.String(), err
 }
 
 var _ = Describe("vela module deploy placement flags", func() {
@@ -153,7 +153,7 @@ var _ = Describe("vela module deploy waiting on a placed module", func() {
 	// A runtime step whose selector matches no cluster fails while the hub
 	// tiers are healthy: deploy reports the step, not a success.
 	It("waits for the owned workflow and names the failed step", func() {
-		err, out := waitOn(settledOwnedApp(oamcommon.ApplicationRunningWorkflow, 1, 1, []workflowv1alpha1.StepStatus{
+		out, err := waitOn(settledOwnedApp(oamcommon.ApplicationRunningWorkflow, 1, 1, []workflowv1alpha1.StepStatus{
 			{Name: "deploy-module-hub", Phase: workflowv1alpha1.WorkflowStepPhaseSucceeded},
 			{Name: "deploy-module-runtime", Phase: workflowv1alpha1.WorkflowStepPhaseFailed, Message: "failed to find any cluster matches given labels"},
 		}), 30*time.Millisecond)
@@ -163,7 +163,7 @@ var _ = Describe("vela module deploy waiting on a placed module", func() {
 	})
 
 	It("does not count a status from before the latest change", func() {
-		err, out := waitOn(settledOwnedApp(oamcommon.ApplicationRunning, 2, 1, nil), 30*time.Millisecond)
+		out, err := waitOn(settledOwnedApp(oamcommon.ApplicationRunning, 2, 1, nil), 30*time.Millisecond)
 		Expect(err).To(HaveOccurred())
 		Expect(out).NotTo(ContainSubstring("is installed"))
 	})
@@ -174,16 +174,20 @@ var _ = Describe("vela module deploy waiting on a placed module", func() {
 	It("accepts tiers that went to no cluster", func() {
 		objs := settledOwnedApp(oamcommon.ApplicationRunning, 3, 3, nil)
 		owned := objs[1].(*v1beta1.Application)
-		owned.Status.Services = owned.Status.Services[1:]
-		err, out := waitOn(objs, time.Second)
+		owned.Status.Services = []oamcommon.ApplicationComponentStatus{
+			{Name: "s3-xrd", Healthy: true, Message: "Established"},
+			{Name: "s3-v1-defs", Healthy: true},
+		}
+		out, err := waitOn(objs, time.Second)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(out).To(ContainSubstring("Not placed"))
+		Expect(out).To(MatchRegexp(`s3-v1-comp\s+Not placed`), "the runtime tier went to no cluster")
+		Expect(out).To(MatchRegexp(`s3-xrd\s+Healthy`), "the hub tiers still report")
 		Expect(out).To(ContainSubstring("is installed"))
 	})
 
 	It("stops at once on a terminal owned workflow", func() {
 		start := time.Now()
-		err, _ := waitOn(settledOwnedApp(oamcommon.ApplicationWorkflowFailed, 4, 4, []workflowv1alpha1.StepStatus{
+		_, err := waitOn(settledOwnedApp(oamcommon.ApplicationWorkflowFailed, 4, 4, []workflowv1alpha1.StepStatus{
 			{Name: "deploy-module-runtime", Phase: workflowv1alpha1.WorkflowStepPhaseFailed, Message: "failed to get cluster spoke-9"},
 		}), time.Minute)
 		Expect(err).To(MatchError(ContainSubstring(string(oamcommon.ApplicationWorkflowFailed))))
@@ -192,7 +196,7 @@ var _ = Describe("vela module deploy waiting on a placed module", func() {
 	})
 
 	It("ignores a failed step from before the latest change", func() {
-		err, out := waitOn(settledOwnedApp(oamcommon.ApplicationWorkflowFailed, 2, 1, []workflowv1alpha1.StepStatus{
+		out, err := waitOn(settledOwnedApp(oamcommon.ApplicationWorkflowFailed, 2, 1, []workflowv1alpha1.StepStatus{
 			{Name: "deploy-module-runtime", Phase: workflowv1alpha1.WorkflowStepPhaseFailed, Message: "stale failure"},
 		}), 30*time.Millisecond)
 		Expect(err).To(MatchError(ContainSubstring("timed out")))
@@ -211,7 +215,7 @@ var _ = Describe("vela module deploy waiting on a placed module", func() {
 		deployApp.Generation = 2
 		deployApp.Status.ObservedGeneration = 2
 		deployApp.Status.LatestRevision = &oamcommon.Revision{Name: "module-s3-deploy-v2"}
-		err, out := waitOn(objs, 30*time.Millisecond)
+		out, err := waitOn(objs, 30*time.Millisecond)
 		Expect(err).To(MatchError(ContainSubstring("timed out")))
 		Expect(err.Error()).NotTo(ContainSubstring("previous request failed"))
 		Expect(out).NotTo(ContainSubstring("previous request failed"))
@@ -225,7 +229,7 @@ var _ = Describe("vela module deploy waiting on a placed module", func() {
 			{Name: "deploy-module-runtime", Phase: workflowv1alpha1.WorkflowStepPhaseFailed, Message: "failed to find any cluster matches given labels"},
 		})
 		objs[0].(*v1beta1.Application).Status.Phase = oamcommon.ApplicationRunningWorkflow
-		err, out := waitOn(objs, 30*time.Millisecond)
+		out, err := waitOn(objs, 30*time.Millisecond)
 		Expect(err).To(MatchError(ContainSubstring("deploy-module-runtime failed")))
 		Expect(out).To(ContainSubstring("Step deploy-module-runtime failed"))
 	})

@@ -466,7 +466,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 
 	appendAuxComponents(appMap, groups)
 	ensureAddonComponentStateKeepPolicy(appMap)
-	pinModuleComponentsToHub(appMap, componentNames(moduleComps))
+	pinModuleComponentsToHub(appMap, append(componentNames(moduleComps), componentNames(inlineModuleComps)...))
 	sanitizeManifest(appMap)
 	suppressLastAppliedConfig(appMap)
 

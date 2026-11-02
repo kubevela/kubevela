@@ -19,6 +19,7 @@ package service
 import (
 	"encoding/json"
 
+	wfv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -78,6 +79,28 @@ var _ = Describe("applyAddonPlacement", func() {
 
 		Expect(err).To(MatchError(`addon "fluxcd" places itself with its topology policy "deploy-fluxcd", so placement cannot be set; use the addon's own parameters instead`))
 		Expect(app.Spec.Policies).To(HaveLen(1), "nothing is added when the request is refused")
+	})
+
+	It("refuses an addon that writes its own workflow", func() {
+		app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Workflow: &v1beta1.Workflow{Steps: []wfv1alpha1.WorkflowStep{
+			{WorkflowStepBase: wfv1alpha1.WorkflowStepBase{Name: "apply", Type: "apply-component"}},
+		}}}}
+
+		err := applyAddonPlacement(app, "custom", &v1alpha1.Placement{Clusters: []string{"spoke-b"}}, nil)
+
+		Expect(err).To(MatchError(`addon "custom" defines its own workflow, so placement cannot be set; use the addon's own parameters instead`))
+		Expect(app.Spec.Policies).To(BeEmpty(), "nothing is added when the request is refused")
+	})
+
+	It("does not reuse a policy name the addon already has", func() {
+		app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{
+			{Name: "addon-placement", Type: v1alpha1.OverridePolicyType},
+		}}}
+
+		Expect(applyAddonPlacement(app, "platform", &v1alpha1.Placement{Clusters: []string{"spoke-a"}}, nil)).To(Succeed())
+
+		Expect(app.Spec.Policies).To(HaveLen(2))
+		Expect(app.Spec.Policies[1].Name).To(Equal("addon-placement-2"))
 	})
 
 	It("changes nothing without a request", func() {

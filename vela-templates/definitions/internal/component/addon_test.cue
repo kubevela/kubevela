@@ -90,3 +90,17 @@ _rendered: $returns: {
 	} @exact()
 	}]
 }
+
+"a cluster list passes through to the render": test.#ComponentRender & {
+	definition: "addon"
+	context: {
+		name:      "platform"
+		namespace: "team-a"
+	}
+	parameter: placement: clusters: ["spoke-a", "spoke-b"]
+	mocks: "vela/addon": "#Render": _rendered
+	expect: calls: "vela/addon": "#Render": [{$params: placement: {
+		clusters: ["spoke-a", "spoke-b"]
+	} @exact(), ...
+	}]
+}

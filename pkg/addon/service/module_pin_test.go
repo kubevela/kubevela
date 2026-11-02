@@ -68,7 +68,7 @@ var _ = Describe("pinModuleComponentsToHub", func() {
 		]`), "the module components get their own hub topology; everything else keeps the addon's")
 		Expect(asJSON(spec["workflow"])).To(MatchJSON(`{"steps":[
 			{"name":"deploy-topo-runtime","type":"deploy","properties":{"policies":["patch-all","addon-components","topo-runtime"]}},
-			{"name":"deploy-addon-modules","type":"deploy","properties":{"policies":["addon-modules-hub","addon-modules"]}}
+			{"name":"deploy-addon-modules","type":"deploy","properties":{"policies":["patch-all","addon-modules-hub","addon-modules"]}}
 		]}`), "one step per addon topology, as the default workflow would, then the modules on the hub")
 		Expect(asJSON(spec["components"])).To(MatchJSON(`[
 			{"name":"addon-resources","type":"k8s-objects"},
@@ -89,6 +89,28 @@ var _ = Describe("pinModuleComponentsToHub", func() {
 			{"name":"deploy-east","type":"deploy","properties":{"policies":["addon-components","east"]}},
 			{"name":"deploy-west","type":"deploy","properties":{"policies":["addon-components","west"]}},
 			{"name":"deploy-addon-modules","type":"deploy","properties":{"policies":["addon-modules-hub","addon-modules"]}}
+		]}`))
+	})
+
+	It("picks names the addon does not use yet", func() {
+		app := addonAppMap(pinComponents, `[
+			{"name":"addon-modules","type":"topology","properties":{"clusters":["spoke-a"]}},
+			{"name":"addon-components","type":"override","properties":{"components":[{"type":"k8s-objects"}]}}
+		]`)
+
+		pinModuleComponentsToHub(app, []string{"store"})
+
+		spec := specOf(app)
+		Expect(asJSON(spec["policies"])).To(MatchJSON(`[
+			{"name":"addon-modules","type":"topology","properties":{"clusters":["spoke-a"]}},
+			{"name":"addon-components","type":"override","properties":{"components":[{"type":"k8s-objects"}]}},
+			{"name":"addon-components-2","type":"override","properties":{"selector":["addon-resources","addon-secret"]}},
+			{"name":"addon-modules-hub","type":"topology","properties":{"clusters":["local"]}},
+			{"name":"addon-modules-2","type":"override","properties":{"selector":["store"]}}
+		]`))
+		Expect(asJSON(spec["workflow"])).To(MatchJSON(`{"steps":[
+			{"name":"deploy-addon-modules","type":"deploy","properties":{"policies":["addon-components","addon-components-2","addon-modules"]}},
+			{"name":"deploy-addon-modules-2","type":"deploy","properties":{"policies":["addon-components","addon-modules-hub","addon-modules-2"]}}
 		]}`))
 	})
 

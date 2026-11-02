@@ -118,7 +118,7 @@ template: {
 		// Where the addon installs, in the same form as a type: module
 		// component's placement. Its imported modules follow it, keeping their
 		// hub objects on the hub. Set clusters or clusterLabelSelector. Refused
-		// for an addon that defines its own topology policy.
+		// for an addon that defines its own topology policy or workflow.
 		placement?: {
 			clusters?: [...string]
 			clusterLabelSelector?: [string]: string

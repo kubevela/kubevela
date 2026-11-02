@@ -44,8 +44,8 @@ type AddonRequest struct {
 	Namespace string
 	// Placement is where the installer wants the addon. Nil means the addon
 	// places itself, if at all. An addon that defines its own topology policy
-	// refuses it; one that does not gets a topology from it, and so do its
-	// imported modules that set no placement of their own.
+	// or workflow refuses it; one that does not gets a topology from it, and so
+	// do its imported modules that set no placement of their own.
 	Placement *v1alpha1.Placement
 }
 

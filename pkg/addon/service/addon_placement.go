@@ -28,7 +28,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/policy/placement"
 )
 
-// addonPlacementPolicy names the topology policy a type: addon placement adds.
+// addonPlacementPolicy is the base name of the topology policy a type: addon
+// placement adds. A name the addon already uses gets a numeric suffix.
 const addonPlacementPolicy = "addon-placement"
 
 // applyAddonPlacement turns the installer's placement on a type: addon
@@ -38,16 +39,22 @@ const addonPlacementPolicy = "addon-placement"
 //
 // An addon that defines its own topology policy decides where it goes, usually
 // from its own parameters, so a placement request is refused rather than
-// silently replacing or ignoring the author's topology. A nil place changes
-// nothing.
+// silently replacing or ignoring the author's topology. An addon that defines
+// its own workflow is refused too: its deploy steps name their own policies,
+// so the new topology would never take effect. A nil place changes nothing.
 func applyAddonPlacement(app *v1beta1.Application, addonName string, place *v1alpha1.Placement, moduleComps []common2.ApplicationComponent) error {
 	if place == nil {
 		return nil
 	}
+	used := make(map[string]bool, len(app.Spec.Policies))
 	for _, p := range app.Spec.Policies {
 		if p.Type == v1alpha1.TopologyPolicyType {
 			return fmt.Errorf("addon %q places itself with its topology policy %q, so placement cannot be set; use the addon's own parameters instead", addonName, p.Name)
 		}
+		used[p.Name] = true
+	}
+	if wf := app.Spec.Workflow; wf != nil && (wf.Ref != "" || len(wf.Steps) > 0) {
+		return fmt.Errorf("addon %q defines its own workflow, so placement cannot be set; use the addon's own parameters instead", addonName)
 	}
 	props := placement.TopologyProperties(*place)
 	raw, err := json.Marshal(props)
@@ -55,7 +62,7 @@ func applyAddonPlacement(app *v1beta1.Application, addonName string, place *v1al
 		return fmt.Errorf("encode placement for addon %q: %w", addonName, err)
 	}
 	app.Spec.Policies = append(app.Spec.Policies, v1beta1.AppPolicy{
-		Name:       addonPlacementPolicy,
+		Name:       claimName(addonPlacementPolicy, used),
 		Type:       v1alpha1.TopologyPolicyType,
 		Properties: &runtime.RawExtension{Raw: raw},
 	})

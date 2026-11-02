@@ -109,6 +109,12 @@ var _ = Describe("Addons that place an imported module", func() {
 				"a deploy step waits only for components it deploys, so the step order replaces dependsOn")
 		})
 
+		It("deploys the addon's own resources through its topology", func() {
+			marker, err := getConfigMap(ctx, systemNS, scope.Text("placement-import-marker"))
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(marker.Data).Should(HaveKeyWithValue("source", "resources/marker.yaml"))
+		})
+
 		It("renders the module's runtime policy from the forwarded placement", func() {
 			owned := mustGetApp(ctx, systemNS, moduleApp)
 			Expect(owned.Labels).Should(HaveKeyWithValue(oam.LabelAppCluster, "local"), "the module Application was deployed through a topology policy")
@@ -146,6 +152,12 @@ var _ = Describe("Addons that place an imported module", func() {
 			Expect(policyProperties(app, "addon-placement")).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
 			Expect(workflowSteps(app)).Should(HaveKeyWithValue("deploy-addon-modules", []interface{}{"addon-modules-hub", "addon-modules"}),
 				"the module component stays on the hub")
+		})
+
+		It("deploys the addon's own resources through the placement", func() {
+			marker, err := getConfigMap(ctx, systemNS, scope.Text("placement-plain-marker"))
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(marker.Data).Should(HaveKeyWithValue("source", "resources/marker.yaml"))
 		})
 
 		It("gives the import with no placement of its own the addon's placement", func() {
