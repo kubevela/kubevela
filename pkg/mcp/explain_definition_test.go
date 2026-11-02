@@ -224,6 +224,12 @@ parameter: {}
 		Expect(dynamic.Dynamic).To(BeTrue())
 	})
 
+	It("detects $super as a reference, not as text in a comment or a string", func() {
+		Expect(refersToParent("parameter: $super.parameter & {port: int}\n")).To(BeTrue())
+		Expect(refersToParent("// mentions $super in a comment\nparameter: name: string\n")).To(BeFalse())
+		Expect(refersToParent("parameter: note: *\"$super is not a reference here\" | string\n")).To(BeFalse())
+	})
+
 	It("tolerates a template that does not parse", func() {
 		facts := inspectTemplate("output: {")
 		Expect(facts.Err).NotTo(BeEmpty())

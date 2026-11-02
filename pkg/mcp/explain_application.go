@@ -69,6 +69,8 @@ type ResourceSummary struct {
 	Name      string         `json:"name"`
 	Latest    bool           `json:"latest" jsonschema:"False for objects only an outdated revision still holds."`
 	Health    ResourceHealth `json:"health" jsonschema:"Health of the managed object itself."`
+	// Untraced is set when the server did not read the object's tree.
+	Untraced bool `json:"untraced,omitempty" jsonschema:"True when the server listed this object but did not read it or its descendants, because it reached its bound on cluster and namespace pairs. Its health is unknown, not missing."`
 	// Unhealthy lists descendants whose health is not Healthy, as
 	// "Kind/name: status reason message".
 	Unhealthy []string `json:"unhealthy,omitempty" jsonschema:"Descendants that are not healthy, as Kind/name with status and reason."`
@@ -154,15 +156,15 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 		out.Policies = append(out.Policies, PolicySpec{Name: p.Name, Type: p.Type, Properties: rawToRedactedMap(p.Properties)})
 	}
 
-	applied, withheld, treeNotes, err := d.listAppliedResources(ctx, app, "", "")
+	applied, info, err := d.listAppliedResources(ctx, app, "", "")
 	if err != nil {
 		out.Unknowns = append(out.Unknowns, "managed resources: "+redactLine(err.Error()))
 	}
-	if withheld > 0 {
-		out.Unknowns = append(out.Unknowns, withheldWarning(withheld)[0])
+	if info.withheld > 0 {
+		out.Unknowns = append(out.Unknowns, withheldWarning(info.withheld)[0])
 	}
-	if len(treeNotes) > 0 {
-		out.Unknowns = append(out.Unknowns, treeNotes...)
+	if len(info.notes) > 0 {
+		out.Unknowns = append(out.Unknowns, info.notes...)
 	}
 	byComponent := map[string][]querytypes.AppliedResource{}
 	clusters := map[string]bool{}
@@ -206,7 +208,7 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 			out.Findings = append(out.Findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("component %q uses type %q which is not published on this cluster", c.Name, c.Type), Evidence: appRef})
 		}
 		for _, res := range byComponent[c.Name] {
-			rs := summarizeResource(res)
+			rs := summarizeResource(res, info.untraced[appliedKey(res)])
 			ce.Resources = append(ce.Resources, rs)
 			out.Findings = append(out.Findings, resourceFindings(c.Name, rs)...)
 		}
@@ -218,7 +220,7 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 
 	events, eventNotes, eventsCut := d.applicationEvents(ctx, cli, app, applied)
 	out.Unknowns = append(out.Unknowns, eventNotes...)
-	truncated := eventsCut
+	truncated := eventsCut || len(info.untraced) > 0
 	out.Events = events
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%d Event objects involving the application or its resources", len(events)))
 	for _, e := range events {
@@ -250,13 +252,18 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 
 // summarizeResource reduces a managed resource's tree to its root health,
 // unhealthy descendants and pod phase counts.
-func summarizeResource(res querytypes.AppliedResource) ResourceSummary {
+func summarizeResource(res querytypes.AppliedResource, untraced bool) ResourceSummary {
 	rs := ResourceSummary{
 		Cluster:   clusterName(res.Cluster),
 		Kind:      res.Kind,
 		Namespace: res.Namespace,
 		Name:      res.Name,
 		Latest:    res.Latest,
+	}
+	if untraced {
+		rs.Untraced = true
+		rs.Health = ResourceHealth{Status: "Unknown", Reason: "not traced: the server's bound on cluster and namespace pairs was reached"}
+		return rs
 	}
 	if res.ResourceTree == nil {
 		rs.Health = ResourceHealth{Status: "Unknown", Reason: "resource not found in cluster"}
@@ -290,6 +297,10 @@ func summarizeResource(res querytypes.AppliedResource) ResourceSummary {
 func resourceFindings(component string, rs ResourceSummary) []Finding {
 	var findings []Finding
 	ref := fmt.Sprintf("%s %s/%s in cluster %s", rs.Kind, rs.Namespace, rs.Name, rs.Cluster)
+	// Not reading an object is not evidence about it; the unknowns say why.
+	if rs.Untraced {
+		return nil
+	}
 	if rs.Health.Status != string(querytypes.HealthStatusHealthy) {
 		severity := SeverityError
 		if rs.Health.Status == string(querytypes.HealthStatusProgressing) {

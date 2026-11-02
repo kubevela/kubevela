@@ -187,7 +187,7 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 
 	out.Parameters, out.Required, err = parameterSchema(ctx, facts.template)
 	if err != nil {
-		inherited := facts.extends != "" || strings.Contains(facts.template, "$super")
+		inherited := facts.extends != "" || refersToParent(facts.template)
 		if inspected.Err == "" && !inherited {
 			return nil, out, fmt.Errorf("parameter schema for %s %q: %w", facts.summary.Type, facts.summary.Name, err)
 		}

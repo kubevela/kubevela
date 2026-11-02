@@ -96,7 +96,8 @@ type ListDefinitionsInput struct {
 	Type string `json:"type,omitempty" jsonschema:"Limit to one definition type: component, trait, policy or workflow-step. Empty lists all four."`
 	// Namespace limits the result to one namespace plus the system namespace.
 	Namespace string `json:"namespace,omitempty" jsonschema:"Namespace to list in addition to the system namespace. Empty lists every namespace the caller can read. Also decides which definition is marked default."`
-	// Provides keeps only definitions labelled as providing a capability.
+	// Provides keeps definitions that provide a capability: labelled ones, and
+	// unlabelled ones whose name or description mentions it.
 	Provides string `json:"provides,omitempty" jsonschema:"Keep definitions that provide this capability, such as postgres, to compare alternatives: those the platform labels with it, and unlabelled ones whose name or description mentions it, which matchedBy marks."`
 }
 
@@ -211,7 +212,7 @@ func (d *deps) describeDefinition(ctx context.Context, _ *sdk.CallToolRequest, i
 	if err != nil {
 		// A definition that extends another refers to its parent as $super,
 		// and its schema only exists once the chain is composed at render.
-		if strings.Contains(template, "$super") {
+		if refersToParent(template) {
 			return nil, out, fmt.Errorf("%s %q extends another definition, and its parameter schema is composed with its parent's when it renders, which this tool cannot do yet. Describe the parent definition, and check a draft with dryrun_application, which renders the full chain", summary.Type, summary.Name)
 		}
 		return nil, out, fmt.Errorf("parameter schema for %s %q: %w", summary.Type, summary.Name, err)

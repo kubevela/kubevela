@@ -119,6 +119,24 @@ func inspectTemplate(template string) templateFacts {
 	return facts
 }
 
+// refersToParent reports whether a template references $super, the parent
+// of a definition that extends another. It reads identifiers, so the word
+// in a comment or a string does not count.
+func refersToParent(template string) bool {
+	f, err := parser.ParseFile("definition.cue", template)
+	if err != nil {
+		return false
+	}
+	found := false
+	ast.Walk(f, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == "$super" {
+			found = true
+		}
+		return !found
+	}, nil)
+	return found
+}
+
 // producedResource recognises output, outputs.<name> and patch structs and
 // reads their literal apiVersion and kind.
 func producedResource(path []string, value ast.Expr) (ProducedResource, bool) {

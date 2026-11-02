@@ -152,7 +152,7 @@ func (d *deps) getManagedResource(ctx context.Context, _ *sdk.CallToolRequest, i
 	out.Application, out.Namespace = app.Name, app.Namespace
 	out.Evidence = []string{applicationEvidence(app)}
 
-	applied, withheld, treeNotes, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
+	applied, info, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
 	if err != nil {
 		return nil, out, err
 	}
@@ -172,8 +172,11 @@ func (d *deps) getManagedResource(ctx context.Context, _ *sdk.CallToolRequest, i
 		return nil, out, fmt.Errorf("%s %q is not managed by application %s/%s; only managed objects are read", kindLabel(in.Kind), in.ResourceName, app.Namespace, app.Name)
 	}
 	out.Meta = d.meta(ctx)
-	out.Meta.Warnings = append(out.Meta.Warnings, withheldWarning(withheld)...)
-	out.Meta.Warnings = append(out.Meta.Warnings, treeNotes...)
+	out.Meta.Warnings = append(out.Meta.Warnings, withheldWarning(info.withheld)...)
+	out.Meta.Warnings = append(out.Meta.Warnings, info.notes...)
+	if len(info.untraced) > 0 {
+		out.Meta.Truncated = true
+	}
 	if w := d.remoteReadWarning(ctx, clusters); w != "" {
 		out.Meta.Warnings = append(out.Meta.Warnings, w)
 	}
@@ -205,10 +208,24 @@ func withheldWarning(withheld int) []string {
 // an Application can record objects anywhere a topology or read-only
 // policy points, and the allowlist must hold for those too. Cluster-scoped
 // objects have no namespace and are withheld under an allowlist.
-func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Application, component, cluster string) ([]querytypes.AppliedResource, int, []string, error) {
+// appliedInfo is what listAppliedResources knows beyond the resources
+// themselves: how many it withheld, notes for the caller to surface, and
+// which resources it listed without tracing their tree.
+type appliedInfo struct {
+	withheld int
+	notes    []string
+	untraced map[string]bool
+}
+
+// appliedKey identifies a managed resource for appliedInfo.untraced.
+func appliedKey(r querytypes.AppliedResource) string {
+	return clusterName(r.Cluster) + "/" + r.Namespace + "/" + r.Kind + "/" + r.Name
+}
+
+func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Application, component, cluster string) ([]querytypes.AppliedResource, appliedInfo, error) {
 	cli := d.f.Client()
 	if cli == nil {
-		return nil, 0, nil, errNoConfig
+		return nil, appliedInfo{}, errNoConfig
 	}
 	opt := query.Option{
 		Name:      app.Name,
@@ -226,7 +243,7 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 		opt.WithTree = false
 		recorded, err := query.NewAppCollector(cli, opt).ListApplicationResources(ctx, app)
 		if err != nil {
-			return nil, 0, nil, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
+			return nil, appliedInfo{}, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 		}
 		withheld := 0
 		allowed := []querytypes.AppliedResource{}
@@ -238,7 +255,7 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 			allowed = append(allowed, recorded[i])
 		}
 		if len(allowed) == 0 {
-			return allowed, withheld, nil, nil
+			return allowed, appliedInfo{withheld: withheld}, nil
 		}
 		// One tree pass per allowed cluster and namespace: the collector's
 		// filter then skips every other recorded object before reading it.
@@ -258,7 +275,7 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 		// Each scope is a collector pass, so they are bounded. Resources in
 		// scopes past the bound are listed without a tree and reported.
 		var kept []querytypes.AppliedResource
-		var notes []string
+		info := appliedInfo{withheld: withheld, untraced: map[string]bool{}}
 		if len(scopes) > maxTreeScopes {
 			skipped := map[scope]bool{}
 			for _, sc := range scopes[maxTreeScopes:] {
@@ -271,9 +288,10 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 				}
 				if skipped[sc] {
 					kept = append(kept, r)
+					info.untraced[appliedKey(r)] = true
 				}
 			}
-			notes = append(notes, fmt.Sprintf("the Application spans %d cluster and namespace pairs; resource trees were built for the first %d, and %d resources elsewhere are listed without one", len(scopes), maxTreeScopes, len(kept)))
+			info.notes = append(info.notes, fmt.Sprintf("the Application spans %d cluster and namespace pairs; this server traces resource trees in the first %d, so %d resources in further pairs are listed but not traced. Narrow by cluster or component to trace them", len(scopes), maxTreeScopes, len(kept)))
 			scopes = scopes[:maxTreeScopes]
 		}
 		for _, sc := range scopes {
@@ -282,17 +300,17 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 			o.Filter.Cluster, o.Filter.ClusterNamespace = sc.cluster, sc.namespace
 			applied, err := query.NewAppCollector(cli, o).ListApplicationResources(ctx, app)
 			if err != nil {
-				return nil, withheld, nil, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
+				return nil, info, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 			}
 			kept = append(kept, applied...)
 		}
-		return kept, withheld, notes, nil
+		return kept, info, nil
 	}
 	applied, err := query.NewAppCollector(cli, opt).ListApplicationResources(ctx, app)
 	if err != nil {
-		return nil, 0, nil, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
+		return nil, appliedInfo{}, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 	}
-	return applied, 0, nil, nil
+	return applied, appliedInfo{}, nil
 }
 
 // attachLiveObject reads the selected object from its cluster. Secrets are

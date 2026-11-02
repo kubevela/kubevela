@@ -28,6 +28,7 @@ import (
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
 )
 
 func event(name, kind, object, eventType, reason, message string, when time.Time) *corev1.Event {
@@ -128,6 +129,17 @@ var _ = Describe("explain_application", func() {
 			ContainSubstring("ComponentDefinition vela-system/webservice"),
 			ContainSubstring("Event objects involving the application"),
 		))
+	})
+
+	It("reports a resource it did not trace as unknown, not missing, and raises no finding for it", func() {
+		res := querytypes.AppliedResource{Cluster: "eu", Kind: "Deployment", Namespace: "team-a", Name: "web"}
+		rs := summarizeResource(res, true)
+		Expect(rs.Untraced).To(BeTrue())
+		Expect(rs.Health.Status).To(Equal("Unknown"))
+		Expect(rs.Health.Reason).To(ContainSubstring("not traced"))
+		Expect(rs.Health.Reason).NotTo(ContainSubstring("not found"))
+		Expect(resourceFindings("web", rs)).To(BeEmpty())
+		Expect(summarizeResource(res, false).Health.Reason).To(ContainSubstring("not found"), "a missing tree that was traced is still reported missing")
 	})
 
 	It("reads events for cluster-scoped objects from the default namespace", func() {

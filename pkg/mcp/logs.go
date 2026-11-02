@@ -101,7 +101,7 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	out.Application, out.Namespace = app.Name, app.Namespace
 	out.Evidence = []string{applicationEvidence(app)}
 
-	applied, withheld, treeNotes, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
+	applied, info, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
 	if err != nil {
 		return nil, out, err
 	}
@@ -120,11 +120,17 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		}
 	}
 	if len(targets) == 0 {
+		if len(info.untraced) > 0 {
+			return nil, out, fmt.Errorf("no pods were found in the cluster and namespace pairs this server traced; %d resources of %s/%s were not traced: %s", len(info.untraced), app.Namespace, app.Name, strings.Join(info.notes, "; "))
+		}
 		return nil, out, fmt.Errorf("application %s/%s has no pods matching the filter", app.Namespace, app.Name)
 	}
 	meta := d.meta(ctx)
-	meta.Warnings = append(meta.Warnings, withheldWarning(withheld)...)
-	meta.Warnings = append(meta.Warnings, treeNotes...)
+	meta.Warnings = append(meta.Warnings, withheldWarning(info.withheld)...)
+	meta.Warnings = append(meta.Warnings, info.notes...)
+	if len(info.untraced) > 0 {
+		meta.Truncated = true
+	}
 	clusters := map[string]bool{}
 	for _, t := range targets {
 		clusters[t.cluster] = true
