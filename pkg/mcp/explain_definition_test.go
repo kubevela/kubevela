@@ -166,6 +166,22 @@ var _ = Describe("explain_definition", func() {
 		Expect(out.RestrictedBySelector).To(Equal("tier=apps"))
 	})
 
+	It("explains an inherited definition with its metadata and a schema limitation, not an error", func() {
+		child := &v1beta1.ComponentDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "webservice-plus", Namespace: types.DefaultKubeVelaNS, Annotations: map[string]string{types.AnnoDefinitionDescription: "webservice with defaults"}},
+			Spec: v1beta1.ComponentDefinitionSpec{
+				Extends:   "webservice",
+				Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: "parameter: $super.parameter & {port: *8080 | int}\n"}},
+			},
+		}
+		h = startHarness(Options{}, append(explainFixtures(), child)...)
+		var out ExplainDefinitionOutput
+		res := h.call("explain_definition", map[string]any{"name": "webservice-plus", "type": "component"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Extends).To(Equal("webservice"))
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("extends another")))
+	})
+
 	It("returns the definition's metadata and the inspection error for a template that does not parse", func() {
 		broken := &v1beta1.ComponentDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: "broken", Namespace: types.DefaultKubeVelaNS, Annotations: map[string]string{types.AnnoDefinitionDescription: "half written"}},

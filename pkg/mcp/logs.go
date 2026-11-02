@@ -101,7 +101,7 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	out.Application, out.Namespace = app.Name, app.Namespace
 	out.Evidence = []string{applicationEvidence(app)}
 
-	applied, withheld, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
+	applied, withheld, treeNotes, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
 	if err != nil {
 		return nil, out, err
 	}
@@ -124,6 +124,7 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	}
 	meta := d.meta(ctx)
 	meta.Warnings = append(meta.Warnings, withheldWarning(withheld)...)
+	meta.Warnings = append(meta.Warnings, treeNotes...)
 	clusters := map[string]bool{}
 	for _, t := range targets {
 		clusters[t.cluster] = true
@@ -216,9 +217,8 @@ func readLines(r io.Reader, budget int) ([]string, bool, error) {
 		}
 	}
 	lines := []string{}
-	text := strings.TrimSuffix(string(data), "\n")
-	if text != "" {
-		for _, line := range strings.Split(text, "\n") {
+	if len(data) > 0 {
+		for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
 			lines = append(lines, redactLine(strings.TrimSuffix(line, "\r")))
 		}
 	}

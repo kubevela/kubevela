@@ -128,6 +128,8 @@ type rendered struct {
 	policyResources []RenderedResource
 	objects         map[string]*unstructured.Unstructured // key: group/kind/namespace/name
 	policies        []RenderedPolicy
+	// duplicates lists identities two rendered objects shared.
+	duplicates []string
 }
 
 func (d *deps) dryRunApplication(ctx context.Context, _ *sdk.CallToolRequest, in DryRunInput) (*sdk.CallToolResult, DryRunOutput, error) {
@@ -324,6 +326,11 @@ func (d *deps) render(ctx context.Context, app *v1beta1.Application, defs []*uns
 		r.policies = append(r.policies, RenderedPolicy{APIVersion: p.GetAPIVersion(), Kind: p.GetKind(), Name: p.GetName(), Object: redactObject(p.DeepCopy().Object)})
 		r.policyResources = append(r.policyResources, r.keep(p.GetName(), "policy", app.Namespace, p))
 	}
+	if len(r.duplicates) > 0 {
+		// The controller would apply one over the other; a diff or a server
+		// check of either would describe the wrong object.
+		return nil, fmt.Errorf("render %s/%s: more than one component, trait or policy renders %s", app.Namespace, app.Name, strings.Join(r.duplicates, ", "))
+	}
 	return r, nil
 }
 
@@ -340,7 +347,11 @@ func (r *rendered) keep(owner, source, defaultNS string, obj *unstructured.Unstr
 	if ns == "" && !clusterScopedKind(obj.GetKind()) {
 		ns = defaultNS
 	}
-	r.objects[resourceKey(obj.GetAPIVersion(), obj.GetKind(), ns, obj.GetName())] = obj
+	key := resourceKey(obj.GetAPIVersion(), obj.GetKind(), ns, obj.GetName())
+	if _, dup := r.objects[key]; dup {
+		r.duplicates = append(r.duplicates, fmt.Sprintf("%s %s/%s", obj.GetKind(), ns, obj.GetName()))
+	}
+	r.objects[key] = obj
 	return RenderedResource{
 		Component:  owner,
 		Source:     source,

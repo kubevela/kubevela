@@ -102,8 +102,8 @@ type GetPlatformInfoOutput struct {
 // getPlatformInfo never fails on a partial lookup: whatever could be read is
 // returned and the lookup error is repeated in the envelope's warnings.
 func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in GetPlatformInfoInput) (*sdk.CallToolResult, GetPlatformInfoOutput, error) {
-	info, _ := d.cachedPlatform(ctx)
-	out := GetPlatformInfoOutput{platformInfo: info, Meta: d.meta(ctx)}
+	info, err := d.cachedPlatform(ctx)
+	out := GetPlatformInfoOutput{platformInfo: info, Meta: metaFrom(info, err)}
 	if in.Namespace != "" {
 		practice, warnings, err := d.deliveryPractice(ctx, in.Namespace)
 		if err != nil {

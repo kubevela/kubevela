@@ -101,6 +101,9 @@ type diffRecord struct {
 	localDefinitions int
 	// targetNamespaces are the namespaces the target render writes into.
 	targetNamespaces []string
+	// opaqueSteps are workflow step types whose writes the render does not
+	// show, such as apply-object or webhook steps.
+	opaqueSteps []string
 	// promptNonce is set when apply_application asks the user to confirm.
 	// The answering call must echo it, so a confirmation is only accepted
 	// for a prompt this server issued.
@@ -259,6 +262,33 @@ func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.App
 	return baseFromRevision(rev, app), rev.Name, defs, live, nil
 }
 
+// renderedSteps are the workflow step types whose effects the dry-run
+// render already shows, or that write nothing.
+var renderedSteps = map[string]bool{"deploy": true, "apply-component": true, "builtin-apply-component": true, "apply-application": true, "suspend": true, "step-group": true}
+
+// opaqueSteps lists the declared step types the render cannot see into.
+func opaqueSteps(app *v1beta1.Application) []string {
+	if app.Spec.Workflow == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var out []string
+	note := func(t string) {
+		if !renderedSteps[t] && !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	for _, s := range app.Spec.Workflow.Steps {
+		note(s.Type)
+		for _, sub := range s.SubSteps {
+			note(sub.Type)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // renderedNamespaces lists the namespaces a render writes objects into.
 func renderedNamespaces(r *rendered) []string {
 	seen := map[string]bool{}
@@ -409,6 +439,7 @@ func (d *deps) issueToken(app *v1beta1.Application, document, base string, live 
 
 		localDefinitions: localDefs,
 		targetNamespaces: namespaces,
+		opaqueSteps:      opaqueSteps(app),
 	}
 	if live != nil {
 		rec.liveGeneration, rec.liveMeta = live.Generation, intentMeta(live)

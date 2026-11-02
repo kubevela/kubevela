@@ -165,6 +165,9 @@ func (d *deps) applyApplication(ctx context.Context, req *sdk.CallToolRequest, i
 			return nil, out, fmt.Errorf("the Application renders objects into namespace %s, which this server may not write; nothing was applied", ns)
 		}
 	}
+	if len(d.opts.Namespaces) > 0 && len(rec.opaqueSteps) > 0 {
+		return nil, out, fmt.Errorf("the workflow runs %s, whose writes the diff cannot see, and this server restricts namespaces, so it cannot vouch that they stay inside them; nothing was applied. Use mode gitops", strings.Join(rec.opaqueSteps, ", "))
+	}
 	if !clientCanElicit(req) {
 		return nil, out, fmt.Errorf("direct mode needs a client that can ask the user to confirm (MCP elicitation), and this client cannot; nothing was applied. Use mode gitops instead")
 	}

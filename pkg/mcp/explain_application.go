@@ -25,6 +25,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -153,12 +154,15 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 		out.Policies = append(out.Policies, PolicySpec{Name: p.Name, Type: p.Type, Properties: rawToRedactedMap(p.Properties)})
 	}
 
-	applied, withheld, err := d.listAppliedResources(ctx, app, "", "")
+	applied, withheld, treeNotes, err := d.listAppliedResources(ctx, app, "", "")
 	if err != nil {
 		out.Unknowns = append(out.Unknowns, "managed resources: "+redactLine(err.Error()))
 	}
 	if withheld > 0 {
 		out.Unknowns = append(out.Unknowns, withheldWarning(withheld)[0])
+	}
+	if len(treeNotes) > 0 {
+		out.Unknowns = append(out.Unknowns, treeNotes...)
 	}
 	byComponent := map[string][]querytypes.AppliedResource{}
 	clusters := map[string]bool{}
@@ -365,11 +369,18 @@ func applicationFindings(app *v1beta1.Application, wf *WorkflowDetail, appRef st
 func (d *deps) applicationEvents(ctx context.Context, cli client.Client, app *v1beta1.Application, applied []querytypes.AppliedResource) ([]EventSummary, []string, bool) {
 	type scope struct{ cluster, namespace string }
 	involved := map[scope]map[string]bool{{localCluster, app.Namespace}: {"Application/" + app.Name: true}}
+	skipped := map[string]bool{}
 	for i := range applied {
 		for _, n := range flattenTree(applied[i].ResourceTree, 0, "", nil) {
+			// Kubernetes records events for cluster-scoped objects in the
+			// default namespace.
 			ns := n.Namespace
 			if ns == "" {
-				ns = app.Namespace
+				ns = metav1.NamespaceDefault
+			}
+			if d.namespaceAllowed(ns) != nil {
+				skipped[ns] = true
+				continue
 			}
 			sc := scope{clusterName(n.Cluster), ns}
 			if involved[sc] == nil {
@@ -389,6 +400,10 @@ func (d *deps) applicationEvents(ctx context.Context, cli client.Client, app *v1
 	events := []EventSummary{}
 	var notes []string
 	cut := false
+	for ns := range skipped {
+		notes = append(notes, fmt.Sprintf("events in namespace %s were not read: it is outside this server's allowed namespaces", ns))
+	}
+	sort.Strings(notes)
 	for _, sc := range scopes {
 		cctx := ctx
 		if sc.cluster != localCluster {

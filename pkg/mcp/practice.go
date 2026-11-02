@@ -63,7 +63,8 @@ type DeliveryPractice struct {
 	// WorkloadsManagedByApplications counts the workloads KubeVela labels as
 	// rendered by an Application.
 	WorkloadsManagedByApplications int `json:"workloadsManagedByApplications" jsonschema:"Workloads that an Application rendered and manages."`
-	// Style summarises the counts: kubevela, kubernetes, mixed or empty.
+	// Style summarises the counts: kubevela, kubernetes, mixed, empty, or
+	// unknown when a count failed or was cut off.
 	Style string `json:"style" jsonschema:"kubevela when every workload comes from an Application, kubernetes when none does, mixed when both exist, empty when there are no workloads or Applications, unknown when a count failed or was cut off and the style cannot be trusted. Follow it for new work; on unknown, ask."`
 	// DeclaredDefault is the platform's declared default for new work.
 	DeclaredDefault string `json:"declaredDefault,omitempty" jsonschema:"The platform team's declared default for new work in this namespace, kubevela or kubernetes. Use it instead of asking on a blank start."`
@@ -121,7 +122,7 @@ func (d *deps) deliveryPractice(ctx context.Context, namespace string) (*Deliver
 	p.Style = deliveryStyle(p)
 	if incomplete || p.Truncated {
 		p.Style = StyleUnknown
-		warnings = append(warnings, "the workload counts are incomplete, so the delivery style is unknown; ask the user how this namespace delivers")
+		warnings = append(warnings, "the Application or workload counts are incomplete, so the delivery style is unknown; ask the user how this namespace delivers")
 	}
 
 	var ns corev1.Namespace

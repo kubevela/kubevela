@@ -58,7 +58,7 @@ type DefinitionSummary struct {
 	DefaultFor []string `json:"defaultFor,omitempty" jsonschema:"Namespaces where the platform made this the default among definitions providing the same capability; * means every namespace."`
 	// Default is set when it is the default for the namespace asked about.
 	// MatchedBy says how a provides filter matched this definition.
-	MatchedBy string `json:"matchedBy,omitempty" jsonschema:"How a provides filter matched: label when the definition carries the provides label, name or description when it has no label but mentions the capability there. Confirm the latter from its description before relying on it."`
+	MatchedBy string `json:"matchedBy,omitempty" jsonschema:"Set by list_definitions when it filters by provides: label when the definition carries the provides label, name or description when it has no label but mentions the capability there. Confirm the latter from its description before relying on it."`
 	Default   bool   `json:"default,omitempty" jsonschema:"True when this is the platform default for the namespace in the request. Use it and name the alternatives; when several fit and none is default, ask the user to choose."`
 }
 
@@ -97,7 +97,7 @@ type ListDefinitionsInput struct {
 	// Namespace limits the result to one namespace plus the system namespace.
 	Namespace string `json:"namespace,omitempty" jsonschema:"Namespace to list in addition to the system namespace. Empty lists every namespace the caller can read. Also decides which definition is marked default."`
 	// Provides keeps only definitions labelled as providing a capability.
-	Provides string `json:"provides,omitempty" jsonschema:"Keep only definitions the platform labels as providing this capability, such as postgres, to compare alternatives."`
+	Provides string `json:"provides,omitempty" jsonschema:"Keep definitions that provide this capability, such as postgres, to compare alternatives: those the platform labels with it, and unlabelled ones whose name or description mentions it, which matchedBy marks."`
 }
 
 // ListDefinitionsOutput is the structured result of list_definitions.
@@ -141,11 +141,15 @@ func (d *deps) listDefinitions(ctx context.Context, _ *sdk.CallToolRequest, in L
 	if cli == nil {
 		return nil, out, errNoConfig
 	}
+	var cut []string
 	for _, ns := range d.listNamespaces(in.Namespace) {
 		for _, t := range typesToList {
-			items, err := d.listDefinitionType(ctx, cli, t, ns)
+			items, more, err := d.listDefinitionType(ctx, cli, t, ns)
 			if err != nil {
 				return nil, out, fmt.Errorf("list %s definitions in %q: %w", t, nsLabel(ns), err)
+			}
+			if more {
+				cut = append(cut, fmt.Sprintf("more than %d %s definitions in %s; only the first %d were read, so a provides filter may miss later ones", maxListItems, t, nsLabel(ns), maxListItems))
 			}
 			for _, item := range items {
 				if in.Provides != "" {
@@ -168,14 +172,17 @@ func (d *deps) listDefinitions(ctx context.Context, _ *sdk.CallToolRequest, in L
 		}
 		return a.Name < b.Name
 	})
-	truncated := false
+	truncated := len(cut) > 0
 	if len(out.Definitions) > maxListItems {
 		out.Definitions, truncated = out.Definitions[:maxListItems], true
 	}
 	out.Meta = d.meta(ctx)
+	out.Meta.Warnings = append(out.Meta.Warnings, cut...)
 	if truncated {
 		out.Meta.Truncated = true
-		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("more than %d definitions; narrow by type or namespace", maxListItems))
+		if len(out.Definitions) == maxListItems {
+			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("more than %d definitions; narrow by type or namespace", maxListItems))
+		}
 	}
 	return nil, out, nil
 }
@@ -245,18 +252,22 @@ func (d *deps) listNamespaces(requested string) []string {
 	return append(nss, d.opts.SystemNamespace)
 }
 
-func (d *deps) listDefinitionType(ctx context.Context, cli client.Client, defType, ns string) ([]DefinitionSummary, error) {
-	opts := []client.ListOption{client.Limit(int64(maxListItems) + 1)}
+// listDefinitionType lists one type in one namespace, up to maxListItems,
+// and reports whether more exist.
+func (d *deps) listDefinitionType(ctx context.Context, cli client.Client, defType, ns string) ([]DefinitionSummary, bool, error) {
+	opts := []client.ListOption{client.Limit(int64(maxListItems))}
 	if ns != "" {
 		opts = append(opts, client.InNamespace(ns))
 	}
 	var out []DefinitionSummary
+	more := false
 	switch defType {
 	case DefinitionTypeComponent:
 		var l v1beta1.ComponentDefinitionList
 		if err := cli.List(ctx, &l, opts...); err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		more = l.Continue != ""
 		for i := range l.Items {
 			it := &l.Items[i]
 			out = append(out, summarize(defType, &it.ObjectMeta, it.Spec.Version, it.Status.LatestRevision))
@@ -264,8 +275,9 @@ func (d *deps) listDefinitionType(ctx context.Context, cli client.Client, defTyp
 	case DefinitionTypeTrait:
 		var l v1beta1.TraitDefinitionList
 		if err := cli.List(ctx, &l, opts...); err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		more = l.Continue != ""
 		for i := range l.Items {
 			it := &l.Items[i]
 			out = append(out, summarize(defType, &it.ObjectMeta, it.Spec.Version, it.Status.LatestRevision))
@@ -273,8 +285,9 @@ func (d *deps) listDefinitionType(ctx context.Context, cli client.Client, defTyp
 	case DefinitionTypePolicy:
 		var l v1beta1.PolicyDefinitionList
 		if err := cli.List(ctx, &l, opts...); err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		more = l.Continue != ""
 		for i := range l.Items {
 			it := &l.Items[i]
 			out = append(out, summarize(defType, &it.ObjectMeta, it.Spec.Version, it.Status.LatestRevision))
@@ -282,14 +295,15 @@ func (d *deps) listDefinitionType(ctx context.Context, cli client.Client, defTyp
 	case DefinitionTypeWorkflowStep:
 		var l v1beta1.WorkflowStepDefinitionList
 		if err := cli.List(ctx, &l, opts...); err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		more = l.Continue != ""
 		for i := range l.Items {
 			it := &l.Items[i]
 			out = append(out, summarize(defType, &it.ObjectMeta, it.Spec.Version, it.Status.LatestRevision))
 		}
 	}
-	return out, nil
+	return out, more, nil
 }
 
 // findDefinition looks a definition up by name, trying the requested

@@ -36,7 +36,9 @@ import (
 
 const (
 	maxRevisionsListed = 10
-	maxConsumersListed = 20
+	// maxRevisionsScanned bounds the revisions read to find the newest.
+	maxRevisionsScanned = 2000
+	maxConsumersListed  = 20
 	// maxConsumerScan bounds the Applications read per namespace when
 	// counting consumers; the count says when it hit the bound.
 	maxConsumerScan = 2000
@@ -185,13 +187,19 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 
 	out.Parameters, out.Required, err = parameterSchema(ctx, facts.template)
 	if err != nil {
-		if inspected.Err == "" {
+		inherited := facts.extends != "" || strings.Contains(facts.template, "$super")
+		if inspected.Err == "" && !inherited {
 			return nil, out, fmt.Errorf("parameter schema for %s %q: %w", facts.summary.Type, facts.summary.Name, err)
+		}
+		if inherited {
+			out.Meta.Warnings = append(out.Meta.Warnings, "this definition extends another, so its parameter schema is composed with the parent's at render; describe the parent, and render drafts with dryrun_application")
 		}
 		// The template does not parse: return what the object says about
 		// itself with the inspection error instead of failing outright.
 		out.Parameters, out.Required = map[string]any{}, []string{}
-		out.Meta.Warnings = append(out.Meta.Warnings, "parameter schema unavailable: the template does not parse")
+		if inspected.Err != "" {
+			out.Meta.Warnings = append(out.Meta.Warnings, "parameter schema unavailable: the template does not parse")
+		}
 	}
 
 	var revsCut bool
@@ -346,17 +354,33 @@ func healthRules(s *oamcommon.Status) HealthRules {
 // listDefinitionRevisions returns the newest revisions first, capped, and
 // whether any were left out.
 func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *definitionFacts) ([]RevisionSummary, bool, error) {
-	var list v1beta1.DefinitionRevisionList
-	if err := cli.List(ctx, &list, client.InNamespace(facts.summary.Namespace), client.MatchingLabels{facts.revLabel: facts.summary.Name}, client.Limit(int64(maxListItems))); err != nil {
-		return nil, false, err
-	}
-	revs := make([]RevisionSummary, 0, len(list.Items))
-	for i := range list.Items {
-		r := &list.Items[i]
-		revs = append(revs, RevisionSummary{Name: r.Name, Revision: r.Spec.Revision, Hash: r.Spec.RevisionHash, CreatedAt: timePtr(r.CreationTimestamp.Time)})
+	// The API returns revisions in no useful order, so every page up to the
+	// scan bound is read before the newest are chosen.
+	var revs []RevisionSummary
+	cut, next := false, ""
+	for {
+		var list v1beta1.DefinitionRevisionList
+		opts := []client.ListOption{client.InNamespace(facts.summary.Namespace), client.MatchingLabels{facts.revLabel: facts.summary.Name}, client.Limit(int64(maxListItems))}
+		if next != "" {
+			opts = append(opts, client.Continue(next))
+		}
+		if err := cli.List(ctx, &list, opts...); err != nil {
+			return nil, false, err
+		}
+		for i := range list.Items {
+			r := &list.Items[i]
+			revs = append(revs, RevisionSummary{Name: r.Name, Revision: r.Spec.Revision, Hash: r.Spec.RevisionHash, CreatedAt: timePtr(r.CreationTimestamp.Time)})
+		}
+		next = list.Continue
+		if next == "" {
+			break
+		}
+		if len(revs) >= maxRevisionsScanned {
+			cut = true
+			break
+		}
 	}
 	sort.Slice(revs, func(i, j int) bool { return revs[i].Revision > revs[j].Revision })
-	cut := list.Continue != ""
 	if len(revs) > maxRevisionsListed {
 		revs, cut = revs[:maxRevisionsListed], true
 	}

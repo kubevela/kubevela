@@ -413,6 +413,29 @@ spec:
 			Expect(prompt.messages).To(BeEmpty())
 		})
 
+		It("refuses direct on a restricted server when the workflow runs steps the diff cannot see into", func() {
+			opts := writeOptions()
+			opts.Namespaces = []string{"team-a"}
+			applyObject := &v1beta1.WorkflowStepDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "apply-object", Namespace: types.DefaultKubeVelaNS},
+				Spec:       v1beta1.WorkflowStepDefinitionSpec{Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: "parameter: {}\n"}}},
+			}
+			h = startHarnessWithClient(opts, prompt.clientOptions(), append(append(platformFixtures(), shopRunning()...), applyObject)...)
+			doc := shopDoc("nginx:1.27", 2, `  workflow:
+    steps:
+    - name: deploy
+      type: apply-component
+      properties:
+        component: shop
+    - name: extra
+      type: apply-object
+`)
+			d := diff(doc)
+			res, _ := apply(doc, d.Token, ModeDirect)
+			Expect(errorText(res)).To(ContainSubstring("the workflow runs apply-object"))
+			Expect(prompt.messages).To(BeEmpty())
+		})
+
 		It("shows Application-level changes in the prompt and does not treat them as a no-op", func() {
 			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
 			doc := shopDoc("nginx:1.26", 2, `  workflow:

@@ -315,6 +315,39 @@ spec:
 				}
 				Expect(kinds).To(ContainElement("ResourceQuota"), "policy objects reach the API server check")
 				Expect(len(*seen)).To(Equal(len(out.ServerCheck.Objects)))
+
+				var d DiffOutput
+				res = h.call("diff_application", map[string]any{"application": doc, "definitions": []string{policyDef}}, &d)
+				Expect(res.IsError).To(BeFalse(), toJSON(res))
+				changed := []string{}
+				for _, rc := range d.ChangeSet.Resources {
+					changed = append(changed, rc.Kind+"/"+rc.Name)
+				}
+				Expect(changed).To(ContainElement("ResourceQuota/team-quota"), "policy output is part of the change set")
+			})
+
+			It("refuses a render where two outputs share one identity", func() {
+				dupDef := `apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: shadow
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        output: {apiVersion: "apps/v1", kind: "Deployment", metadata: name: "shop"}
+        parameter: copies: *1 | int
+`
+				h = startHarness(Options{}, platformFixtures()...)
+				doc := strings.Replace(shopDoc("nginx:1.27", 1, `  policies:
+  - name: shadow
+    type: shadow
+    properties:
+      copies: 1
+`), "    traits:\n    - type: scaler\n      properties:\n        replicas: 1\n", "", 1)
+				res := h.call("dryrun_application", map[string]any{"application": doc, "definitions": []string{dupDef}}, nil)
+				Expect(errorText(res)).To(ContainSubstring("more than one component, trait or policy renders Deployment team-a/shop"))
 			})
 
 			It("does not send objects in a namespace outside the allowlist", func() {

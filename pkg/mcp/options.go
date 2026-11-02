@@ -39,6 +39,9 @@ var (
 	maxObjectBytes = 256 << 10
 	// maxTreeNodes caps the descendants listed under one managed resource.
 	maxTreeNodes = 200
+	// maxTreeScopes caps the cluster and namespace pairs a restricted
+	// server builds resource trees for, one collector pass each.
+	maxTreeScopes = 10
 )
 
 // ToolClass says what a tool may do. The class decides whether a tool is

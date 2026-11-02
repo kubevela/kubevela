@@ -73,6 +73,15 @@ var _ = Describe("redaction", func() {
 		Expect(lines).To(Equal([]string{"one"}))
 	})
 
+	It("keeps a lone blank line", func() {
+		lines, truncated, err := readLines(strings.NewReader("\n"), 1<<10)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeFalse())
+		Expect(lines).To(Equal([]string{""}))
+		lines, _, _ = readLines(strings.NewReader(""), 1<<10)
+		Expect(lines).To(BeEmpty())
+	})
+
 	It("keeps a final line without a newline that fits the budget exactly", func() {
 		lines, truncated, err := readLines(strings.NewReader("one\ntwo"), 7)
 		Expect(err).NotTo(HaveOccurred())

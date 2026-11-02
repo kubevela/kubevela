@@ -25,6 +25,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 func event(name, kind, object, eventType, reason, message string, when time.Time) *corev1.Event {
@@ -125,6 +128,29 @@ var _ = Describe("explain_application", func() {
 			ContainSubstring("ComponentDefinition vela-system/webservice"),
 			ContainSubstring("Event objects involving the application"),
 		))
+	})
+
+	It("reads events for cluster-scoped objects from the default namespace", func() {
+		objs := explainAppFixtures()
+		for _, o := range objs {
+			if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+				rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+					ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "v1", Kind: "Namespace", Name: "web-data"}},
+					OAMObjectReference:     oamcommon.OAMObjectReference{Component: "web"},
+				})
+			}
+		}
+		ev := event("ns-event", "Namespace", "web-data", corev1.EventTypeWarning, "QuotaExceeded", "quota exceeded", time.Now())
+		ev.Namespace, ev.InvolvedObject.Namespace = "default", ""
+		objs = append(objs, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "web-data"}}, ev)
+		h = startHarness(Options{}, objs...)
+		var out ExplainApplicationOutput
+		h.call("explain_application", map[string]any{"name": "web", "namespace": "team-a"}, &out)
+		reasons := []string{}
+		for _, e := range out.Events {
+			reasons = append(reasons, e.Object+" "+e.Reason)
+		}
+		Expect(reasons).To(ContainElement("Namespace/web-data QuotaExceeded"))
 	})
 
 	It("says when more events involve the application than are listed", func() {

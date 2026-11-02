@@ -100,6 +100,12 @@ func newDeps(f velacmd.Factory, opts Options) *deps {
 // still more useful than no answer.
 func (d *deps) meta(ctx context.Context) Meta {
 	info, err := d.cachedPlatform(ctx)
+	return metaFrom(info, err)
+}
+
+// metaFrom builds an envelope from a platform read the caller already has,
+// so one response never mixes two reads.
+func metaFrom(info platformInfo, err error) Meta {
 	m := Meta{
 		VelaCLI:    info.VelaCLI,
 		VelaCore:   info.VelaCore,
