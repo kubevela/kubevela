@@ -17,6 +17,7 @@ limitations under the License.
 package mcp
 
 import (
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -122,8 +123,23 @@ var _ = Describe("explain_application", func() {
 		Expect(out.Evidence).To(ContainElements(
 			ContainSubstring("Application team-a/web generation 3"),
 			ContainSubstring("ComponentDefinition vela-system/webservice"),
-			ContainSubstring("Event objects in namespace team-a"),
+			ContainSubstring("Event objects involving the application"),
 		))
+	})
+
+	It("says when more events involve the application than are listed", func() {
+		objs := explainAppFixtures()
+		now := time.Now()
+		for i := 0; i < maxEventsListed+5; i++ {
+			objs = append(objs, event(fmt.Sprintf("burst-%d", i), "Pod", "web-abc-1", corev1.EventTypeNormal, "Pulled", "pulled", now.Add(-time.Duration(i)*time.Minute)))
+		}
+		h = startHarness(Options{}, objs...)
+		var out ExplainApplicationOutput
+		h.call("explain_application", map[string]any{"name": "web", "namespace": "team-a"}, &out)
+		Expect(out.Events).To(HaveLen(maxEventsListed))
+		Expect(out.Meta.Truncated).To(BeTrue())
+		Expect(out.Unknowns).To(ContainElement(ContainSubstring("more events involve the application")))
+		Expect(out.Events[0].Cluster).To(Equal("local"))
 	})
 
 	It("explains a failed application without managed resources", func() {

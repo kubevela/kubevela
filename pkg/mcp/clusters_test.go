@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ocmclusterv1 "open-cluster-management.io/api/cluster/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -90,6 +91,25 @@ var _ = Describe("cluster and addon tools", func() {
 		Expect(raw).NotTo(BeNil())
 		Expect(toJSON(raw)).NotTo(ContainSubstring("never-returned"))
 		Expect(toJSON(raw)).NotTo(ContainSubstring("10.0.0.1"), "endpoint lives in secret data, which is not read")
+	})
+
+	It("does not call an OCM cluster usable without a client config", func() {
+		usable := &ocmclusterv1.ManagedCluster{ObjectMeta: metav1.ObjectMeta{Name: "edge-a"}, Spec: ocmclusterv1.ManagedClusterSpec{
+			HubAcceptsClient:            true,
+			ManagedClusterClientConfigs: []ocmclusterv1.ClientConfig{{URL: "https://edge-a.example:6443"}},
+		}}
+		noConfig := &ocmclusterv1.ManagedCluster{ObjectMeta: metav1.ObjectMeta{Name: "edge-b"}, Spec: ocmclusterv1.ManagedClusterSpec{HubAcceptsClient: true}}
+		h = startHarness(Options{}, append(clusterFixtures(), usable, noConfig)...)
+		var out ListClustersOutput
+		h.call("list_clusters", nil, &out)
+		byName := map[string]ClusterSummary{}
+		for _, c := range out.Clusters {
+			byName[c.Name] = c
+		}
+		Expect(byName["edge-a"].Accepted).To(BeTrue())
+		Expect(byName["edge-b"].Accepted).To(BeFalse())
+		Expect(byName["edge-b"].Note).To(ContainSubstring("no client config"))
+		Expect(toJSON(out)).NotTo(ContainSubstring("edge-a.example"), "client config URLs are not returned")
 	})
 
 	It("lists enabled addons with version, phase, health and clusters", func() {

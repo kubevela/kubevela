@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -45,7 +46,7 @@ func namespace(name string, labels map[string]string) *corev1.Namespace {
 func deployment(ns, name string, managed bool) *appsv1.Deployment {
 	d := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if managed {
-		d.Labels = map[string]string{oam.LabelAppName: name}
+		d.Labels = map[string]string{oam.LabelAppName: name, oam.LabelAppNamespace: ns, oam.LabelAppComponent: name}
 	}
 	return d
 }
@@ -72,9 +73,11 @@ func practiceFixtures() []client.Object {
 		namespace("fresh", map[string]string{deliveryDefaultLabel: "something-else"}),
 		namespace("batch", nil),
 		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "migrate", Namespace: "batch"}},
+		namespace("copied", nil),
+		&appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "legacy", Namespace: "copied", Labels: map[string]string{oam.LabelAppName: "legacy"}}},
 		namespace("cron", nil),
 		&v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "report", Namespace: "cron"}},
-		&batchv1.CronJob{ObjectMeta: metav1.ObjectMeta{Name: "report", Namespace: "cron", Labels: map[string]string{oam.LabelAppName: "report"}}},
+		&batchv1.CronJob{ObjectMeta: metav1.ObjectMeta{Name: "report", Namespace: "cron", Labels: map[string]string{oam.LabelAppName: "report", oam.LabelAppNamespace: "cron", oam.LabelAppComponent: "report"}}},
 		&batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "report-29001", Namespace: "cron",
 			OwnerReferences: []metav1.OwnerReference{{APIVersion: "batch/v1", Kind: "CronJob", Name: "report", UID: "cron-uid"}}}},
 	)
@@ -111,7 +114,22 @@ var _ = Describe("delivery practice", func() {
 		Entry("blank, ignoring an unknown declared value", "fresh", StyleEmpty, 0, 0, 0, ""),
 		Entry("a plain Job is existing practice, not a blank start", "batch", StyleKubernetes, 0, 1, 0, ""),
 		Entry("a Job an Application's CronJob started is counted through its owner", "cron", StyleKubeVela, 1, 1, 1, ""),
+		Entry("a workload carrying only the name label is not taken for Application-managed", "copied", StyleKubernetes, 0, 1, 0, ""),
 	)
+
+	It("reports the style as unknown when a count could not be read", func() {
+		funcs := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if _, ok := list.(*appsv1.StatefulSetList); ok {
+				return errors.New("forbidden")
+			}
+			return c.List(ctx, list, opts...)
+		}}
+		h = startHarnessIntercepted(Options{AccessReview: allowAll(true)}, nil, funcs, practiceFixtures()...)
+		var out GetPlatformInfoOutput
+		h.call("get_platform_info", map[string]any{"namespace": "plain"}, &out)
+		Expect(out.Practice.Style).To(Equal(StyleUnknown))
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("delivery style is unknown")))
+	})
 
 	It("omits the report without a namespace and reports a denied access review", func() {
 		h = startHarness(Options{AccessReview: allowAll(false)}, practiceFixtures()...)
@@ -205,15 +223,34 @@ var _ = Describe("definition alternatives", func() {
 		}
 	})
 
-	It("treats a star as every namespace and leaves unlabelled definitions out of a provides filter", func() {
+	It("treats a star as every namespace and leaves unrelated definitions out of a provides filter", func() {
 		objs := fixtures()
 		objs[len(objs)-1].(*v1beta1.ComponentDefinition).Annotations[defaultForAnnotation] = "*"
 		h = startHarness(Options{}, objs...)
 		var out ListDefinitionsOutput
 		h.call("list_definitions", map[string]any{"provides": "postgres"}, &out)
+		Expect(out.Definitions).To(HaveLen(2), "both labelled definitions, and nothing unrelated")
 		for _, d := range out.Definitions {
 			Expect(d.Default).To(Equal(d.Name == "aurora-postgres"), d.Name)
-			Expect(d.Name).NotTo(Equal("webservice"))
+			Expect(d.MatchedBy).To(Equal("label"))
 		}
+	})
+
+	It("includes an unlabelled definition whose description mentions the capability, and says how it matched", func() {
+		legacy := &v1beta1.ComponentDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "rds", Namespace: types.DefaultKubeVelaNS, Annotations: map[string]string{types.AnnoDefinitionDescription: "Managed PostgreSQL on RDS"}},
+			Spec:       v1beta1.ComponentDefinitionSpec{Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: "parameter: {}\n"}}},
+		}
+		h = startHarness(Options{}, append(fixtures(), legacy)...)
+		var out ListDefinitionsOutput
+		h.call("list_definitions", map[string]any{"provides": "postgres"}, &out)
+		byName := map[string]DefinitionSummary{}
+		for _, d := range out.Definitions {
+			byName[d.Name] = d
+		}
+		Expect(byName).To(HaveKey("rds"))
+		Expect(byName["rds"].MatchedBy).To(Equal("description"))
+		Expect(byName["rds"].Description).To(ContainSubstring("PostgreSQL"))
+		Expect(byName).NotTo(HaveKey("webservice"))
 	})
 })

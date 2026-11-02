@@ -54,6 +54,8 @@ type ClusterSummary struct {
 	Local        bool              `json:"local"`
 	Source       string            `json:"source"`
 	Labels       map[string]string `json:"labels,omitempty"`
+	// Note explains why a listed cluster cannot be used.
+	Note string `json:"note,omitempty" jsonschema:"Why KubeVela cannot deploy to this cluster, when accepted is false."`
 }
 
 // ListClustersOutput is the structured result of list_clusters.
@@ -78,8 +80,12 @@ func (d *deps) listClusters(ctx context.Context, _ *sdk.CallToolRequest, _ ListC
 	ns := multicluster.ClusterGatewaySecretNamespace
 	secrets := &metav1.PartialObjectMetadataList{}
 	secrets.SetGroupVersionKind(schema.GroupVersionKind{Group: corev1.GroupName, Version: "v1", Kind: "SecretList"})
-	if err := cli.List(ctx, secrets, client.InNamespace(ns), client.HasLabels{clustercommon.LabelKeyClusterCredentialType}); err != nil {
+	if err := cli.List(ctx, secrets, client.InNamespace(ns), client.HasLabels{clustercommon.LabelKeyClusterCredentialType}, client.Limit(int64(maxListItems))); err != nil {
 		return nil, out, fmt.Errorf("list cluster secrets metadata in %s: %w", ns, err)
+	}
+	truncated := secrets.Continue != ""
+	if truncated {
+		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("more than %d cluster secrets; only the first %d are listed", maxListItems, maxListItems))
 	}
 	for i := range secrets.Items {
 		s := &secrets.Items[i]
@@ -96,18 +102,31 @@ func (d *deps) listClusters(ctx context.Context, _ *sdk.CallToolRequest, _ ListC
 	out.Evidence = []string{fmt.Sprintf("%d Secret objects in namespace %s labelled %s, metadata only", len(secrets.Items), ns, clustercommon.LabelKeyClusterCredentialType)}
 
 	var managed ocmclusterv1.ManagedClusterList
-	switch err := cli.List(ctx, &managed); {
+	switch err := cli.List(ctx, &managed, client.Limit(int64(maxListItems))); {
 	case err == nil:
+		if managed.Continue != "" {
+			truncated = true
+			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("more than %d ManagedClusters; only the first %d are listed", maxListItems, maxListItems))
+		}
 		for i := range managed.Items {
 			mc := &managed.Items[i]
-			out.Clusters = append(out.Clusters, ClusterSummary{
+			// KubeVela builds a cluster from the client config; without one
+			// an accepted ManagedCluster still cannot be deployed to.
+			cs := ClusterSummary{
 				Name:     mc.Name,
 				Alias:    text(mc.Annotations[v1alpha1.AnnotationClusterAlias]),
 				Type:     string(v1alpha1.CredentialTypeOCMManagedCluster),
-				Accepted: mc.Spec.HubAcceptsClient,
+				Accepted: mc.Spec.HubAcceptsClient && len(mc.Spec.ManagedClusterClientConfigs) > 0,
 				Source:   "ManagedCluster",
 				Labels:   redactStringMap(mc.Labels),
-			})
+			}
+			switch {
+			case !mc.Spec.HubAcceptsClient:
+				cs.Note = "the hub has not accepted this cluster"
+			case len(mc.Spec.ManagedClusterClientConfigs) == 0:
+				cs.Note = "no client config, so KubeVela cannot reach it"
+			}
+			out.Clusters = append(out.Clusters, cs)
 		}
 		out.Evidence = append(out.Evidence, fmt.Sprintf("%d ManagedCluster objects", len(managed.Items)))
 	case velaerrors.IsCRDNotExists(err):
@@ -124,6 +143,7 @@ func (d *deps) listClusters(ctx context.Context, _ *sdk.CallToolRequest, _ ListC
 	warnings := out.Meta.Warnings
 	out.Meta = d.meta(ctx)
 	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
+	out.Meta.Truncated = out.Meta.Truncated || truncated
 	return nil, out, nil
 }
 
@@ -159,22 +179,26 @@ func (d *deps) listAddons(ctx context.Context, _ *sdk.CallToolRequest, _ ListAdd
 	if cli == nil {
 		return nil, out, errNoConfig
 	}
-	addons, err := enabledAddons(ctx, cli, d.opts.SystemNamespace)
+	addons, more, err := enabledAddons(ctx, cli, d.opts.SystemNamespace)
 	if err != nil {
 		return nil, out, err
 	}
 	out.Addons = addons
 	out.Evidence = []string{fmt.Sprintf("Applications in namespace %s labelled %s", d.opts.SystemNamespace, oam.LabelAddonName)}
 	out.Meta = d.meta(ctx)
+	if more {
+		out.Meta.Truncated = true
+		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("more than %d addon Applications; only the first %d are listed", maxListItems, maxListItems))
+	}
 	return nil, out, nil
 }
 
 // enabledAddons reads the Applications addons install, the same source
 // vela addon list uses for the enabled column.
-func enabledAddons(ctx context.Context, cli client.Client, systemNamespace string) ([]AddonSummary, error) {
+func enabledAddons(ctx context.Context, cli client.Client, systemNamespace string) ([]AddonSummary, bool, error) {
 	var list v1beta1.ApplicationList
 	if err := cli.List(ctx, &list, client.InNamespace(systemNamespace), client.HasLabels{oam.LabelAddonName, oam.LabelAddonVersion}, client.Limit(int64(maxListItems))); err != nil {
-		return nil, fmt.Errorf("list addon applications in %s: %w", systemNamespace, err)
+		return nil, false, fmt.Errorf("list addon applications in %s: %w", systemNamespace, err)
 	}
 	addons := []AddonSummary{}
 	for i := range list.Items {
@@ -202,5 +226,5 @@ func enabledAddons(ctx context.Context, cli client.Client, systemNamespace strin
 		addons = append(addons, a)
 	}
 	sort.Slice(addons, func(i, j int) bool { return addons[i].Name < addons[j].Name })
-	return addons, nil
+	return addons, list.Continue != "", nil
 }

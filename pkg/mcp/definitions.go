@@ -57,7 +57,30 @@ type DefinitionSummary struct {
 	// DefaultFor lists the namespaces where the platform made it the default.
 	DefaultFor []string `json:"defaultFor,omitempty" jsonschema:"Namespaces where the platform made this the default among definitions providing the same capability; * means every namespace."`
 	// Default is set when it is the default for the namespace asked about.
-	Default bool `json:"default,omitempty" jsonschema:"True when this is the platform default for the namespace in the request. Use it and name the alternatives; when several fit and none is default, ask the user to choose."`
+	// MatchedBy says how a provides filter matched this definition.
+	MatchedBy string `json:"matchedBy,omitempty" jsonschema:"How a provides filter matched: label when the definition carries the provides label, name or description when it has no label but mentions the capability there. Confirm the latter from its description before relying on it."`
+	Default   bool   `json:"default,omitempty" jsonschema:"True when this is the platform default for the namespace in the request. Use it and name the alternatives; when several fit and none is default, ask the user to choose."`
+}
+
+// providesMatch reports how a definition matches a provides filter. A
+// labelled definition matches only by its label; an unlabelled one, which
+// today includes every built-in, matches when its name or description
+// mentions the capability.
+func providesMatch(def DefinitionSummary, capability string) string {
+	if def.Provides != "" {
+		if def.Provides == capability {
+			return "label"
+		}
+		return ""
+	}
+	c := strings.ToLower(capability)
+	switch {
+	case strings.Contains(strings.ToLower(def.Name), c):
+		return "name"
+	case strings.Contains(strings.ToLower(def.Description), c):
+		return "description"
+	}
+	return ""
 }
 
 const (
@@ -125,8 +148,10 @@ func (d *deps) listDefinitions(ctx context.Context, _ *sdk.CallToolRequest, in L
 				return nil, out, fmt.Errorf("list %s definitions in %q: %w", t, nsLabel(ns), err)
 			}
 			for _, item := range items {
-				if in.Provides != "" && item.Provides != in.Provides {
-					continue
+				if in.Provides != "" {
+					if item.MatchedBy = providesMatch(item, in.Provides); item.MatchedBy == "" {
+						continue
+					}
 				}
 				item.Default = defaultIn(item.DefaultFor, in.Namespace)
 				out.Definitions = append(out.Definitions, item)

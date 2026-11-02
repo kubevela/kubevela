@@ -38,6 +38,9 @@ const (
 	StyleKubernetes = "kubernetes"
 	StyleMixed      = "mixed"
 	StyleEmpty      = "empty"
+	// StyleUnknown is reported when a count failed or was cut off, so the
+	// counts cannot support a recommendation.
+	StyleUnknown = "unknown"
 
 	// deliveryDefaultLabel is the namespace label a platform team sets to
 	// declare how new work there is delivered: kubevela or kubernetes.
@@ -61,7 +64,7 @@ type DeliveryPractice struct {
 	// rendered by an Application.
 	WorkloadsManagedByApplications int `json:"workloadsManagedByApplications" jsonschema:"Workloads that an Application rendered and manages."`
 	// Style summarises the counts: kubevela, kubernetes, mixed or empty.
-	Style string `json:"style" jsonschema:"kubevela when every workload comes from an Application, kubernetes when none does, mixed when both exist, empty when there are no workloads or Applications. Follow it for new work."`
+	Style string `json:"style" jsonschema:"kubevela when every workload comes from an Application, kubernetes when none does, mixed when both exist, empty when there are no workloads or Applications, unknown when a count failed or was cut off and the style cannot be trusted. Follow it for new work; on unknown, ask."`
 	// DeclaredDefault is the platform's declared default for new work.
 	DeclaredDefault string `json:"declaredDefault,omitempty" jsonschema:"The platform team's declared default for new work in this namespace, kubevela or kubernetes. Use it instead of asking on a blank start."`
 	// CanCreatePlainWorkloads is whether the caller may create Deployments.
@@ -103,9 +106,11 @@ func (d *deps) deliveryPractice(ctx context.Context, namespace string) (*Deliver
 		{"CronJob", &batchv1.CronJobList{}},
 		{"Job", &batchv1.JobList{}},
 	}
+	incomplete := false
 	for _, w := range workloads {
 		if err := cli.List(ctx, w.list, opts...); err != nil {
 			warnings = append(warnings, fmt.Sprintf("%s count unavailable: %s", w.kind, redactLine(err.Error())))
+			incomplete = true
 			continue
 		}
 		total, managed, more := countManaged(w.list)
@@ -114,6 +119,10 @@ func (d *deps) deliveryPractice(ctx context.Context, namespace string) (*Deliver
 		p.Truncated = p.Truncated || more
 	}
 	p.Style = deliveryStyle(p)
+	if incomplete || p.Truncated {
+		p.Style = StyleUnknown
+		warnings = append(warnings, "the workload counts are incomplete, so the delivery style is unknown; ask the user how this namespace delivers")
+	}
 
 	var ns corev1.Namespace
 	switch err := cli.Get(ctx, client.ObjectKey{Name: namespace}, &ns); {
@@ -137,9 +146,12 @@ func (d *deps) deliveryPractice(ctx context.Context, namespace string) (*Deliver
 // countManaged counts items and those carrying the label KubeVela stamps on
 // every object an Application renders.
 func countManaged(list client.ObjectList) (total, managed int, more bool) {
+	// KubeVela stamps the Application's name and namespace and the
+	// component on everything it renders; one label alone can be a copy.
 	visit := func(m metav1.Object) {
 		total++
-		if m.GetLabels()[oam.LabelAppName] != "" {
+		l := m.GetLabels()
+		if l[oam.LabelAppName] != "" && l[oam.LabelAppNamespace] != "" && l[oam.LabelAppComponent] != "" {
 			managed++
 		}
 	}

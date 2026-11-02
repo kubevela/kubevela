@@ -29,11 +29,15 @@ import (
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/multicluster"
 	querytypes "github.com/oam-dev/kubevela/pkg/utils/types"
 )
 
 const (
 	maxEventsListed = 20
+	// maxEventsScanned bounds how many Event objects are read per cluster
+	// and namespace while looking for the ones that involve the Application.
+	maxEventsScanned = 2000
 
 	// SeverityError marks a finding that explains why the application is not
 	// serving as declared.
@@ -67,6 +71,8 @@ type ResourceSummary struct {
 	// Unhealthy lists descendants whose health is not Healthy, as
 	// "Kind/name: status reason message".
 	Unhealthy []string `json:"unhealthy,omitempty" jsonschema:"Descendants that are not healthy, as Kind/name with status and reason."`
+	// UnhealthyOmitted counts unhealthy descendants past the listing cap.
+	UnhealthyOmitted int `json:"unhealthyOmitted,omitempty" jsonschema:"Unhealthy descendants not listed because the list reached its cap. Pod counts and restarts still cover every descendant."`
 	// Pods counts descendant pods by the status column the tree computes.
 	Pods map[string]int `json:"pods,omitempty" jsonschema:"Descendant pods counted by status."`
 	// Restarts sums container restarts across descendant pods.
@@ -93,6 +99,7 @@ type ComponentExplanation struct {
 // EventSummary is a Kubernetes event about the application or one of its
 // managed resources.
 type EventSummary struct {
+	Cluster string     `json:"cluster,omitempty" jsonschema:"Cluster the event was recorded in."`
 	Object  string     `json:"object"`
 	Type    string     `json:"type"`
 	Reason  string     `json:"reason"`
@@ -205,16 +212,14 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 
 	out.Findings = append(applicationFindings(app, out.Workflow, appRef), out.Findings...)
 
-	events, err := d.applicationEvents(ctx, cli, app, applied)
-	if err != nil {
-		out.Unknowns = append(out.Unknowns, "events: "+redactLine(err.Error()))
-	} else {
-		out.Events = events
-		out.Evidence = append(out.Evidence, fmt.Sprintf("%d Event objects in namespace %s involving the application or its resources", len(events), app.Namespace))
-		for _, e := range events {
-			if e.Type == corev1.EventTypeWarning {
-				out.Findings = append(out.Findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("warning event %s on %s, seen %d times", e.Reason, e.Object, e.Count), Observed: e.Message, Evidence: "Event on " + e.Object})
-			}
+	events, eventNotes, eventsCut := d.applicationEvents(ctx, cli, app, applied)
+	out.Unknowns = append(out.Unknowns, eventNotes...)
+	truncated := eventsCut
+	out.Events = events
+	out.Evidence = append(out.Evidence, fmt.Sprintf("%d Event objects involving the application or its resources", len(events)))
+	for _, e := range events {
+		if e.Type == corev1.EventTypeWarning {
+			out.Findings = append(out.Findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("warning event %s on %s, seen %d times", e.Reason, e.Object, e.Count), Observed: e.Message, Evidence: "Event on " + e.Object})
 		}
 	}
 	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
@@ -227,6 +232,15 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 	if w := d.remoteReadWarning(ctx, clusters); w != "" {
 		out.Meta.Warnings = append(out.Meta.Warnings, w)
 	}
+	for _, c := range out.Components {
+		for _, r := range c.Resources {
+			if r.UnhealthyOmitted > 0 {
+				truncated = true
+				out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("%s %s has %d more unhealthy descendants than are listed", r.Kind, r.Name, r.UnhealthyOmitted))
+			}
+		}
+	}
+	out.Meta.Truncated = out.Meta.Truncated || truncated
 	return nil, out, nil
 }
 
@@ -259,10 +273,11 @@ func summarizeResource(res querytypes.AppliedResource) ResourceSummary {
 			rs.Restarts += intValue(n.Info["Restarts"])
 		}
 		if n.Health.Status != string(querytypes.HealthStatusHealthy) {
-			rs.Unhealthy = append(rs.Unhealthy, fmt.Sprintf("%s/%s: %s", n.Kind, n.Name, joinParts(n.Health.Status, n.Health.Reason, n.Health.Message)))
-		}
-		if len(rs.Unhealthy) >= maxTreeNodes {
-			break
+			if len(rs.Unhealthy) < maxTreeNodes {
+				rs.Unhealthy = append(rs.Unhealthy, fmt.Sprintf("%s/%s: %s", n.Kind, n.Name, joinParts(n.Health.Status, n.Health.Reason, n.Health.Message)))
+			} else {
+				rs.UnhealthyOmitted++
+			}
 		}
 	}
 	return rs
@@ -342,41 +357,70 @@ func applicationFindings(app *v1beta1.Application, wf *WorkflowDetail, appRef st
 	return findings
 }
 
-// applicationEvents lists events in the application's namespace that involve
-// the Application or any resource in its trees. Filtering happens client
-// side so it works against any API server and the fake client alike.
-func (d *deps) applicationEvents(ctx context.Context, cli client.Client, app *v1beta1.Application, applied []querytypes.AppliedResource) ([]EventSummary, error) {
-	involved := map[string]bool{"Application/" + app.Name: true}
+// applicationEvents lists the events that involve the Application or any
+// object in its trees, read in each cluster and namespace those objects live
+// in. Filtering happens client side so it works against any API server and
+// the fake client alike. It returns notes for what could not be read and
+// whether anything was left out.
+func (d *deps) applicationEvents(ctx context.Context, cli client.Client, app *v1beta1.Application, applied []querytypes.AppliedResource) ([]EventSummary, []string, bool) {
+	type scope struct{ cluster, namespace string }
+	involved := map[scope]map[string]bool{{localCluster, app.Namespace}: {"Application/" + app.Name: true}}
 	for i := range applied {
 		for _, n := range flattenTree(applied[i].ResourceTree, 0, "", nil) {
-			if n.Namespace == "" || n.Namespace == app.Namespace {
-				involved[n.Kind+"/"+n.Name] = true
+			ns := n.Namespace
+			if ns == "" {
+				ns = app.Namespace
+			}
+			sc := scope{clusterName(n.Cluster), ns}
+			if involved[sc] == nil {
+				involved[sc] = map[string]bool{}
+			}
+			involved[sc][n.Kind+"/"+n.Name] = true
+		}
+	}
+	scopes := make([]scope, 0, len(involved))
+	for sc := range involved {
+		scopes = append(scopes, sc)
+	}
+	sort.Slice(scopes, func(i, j int) bool {
+		return scopes[i].cluster+"/"+scopes[i].namespace < scopes[j].cluster+"/"+scopes[j].namespace
+	})
+
+	events := []EventSummary{}
+	var notes []string
+	cut := false
+	for _, sc := range scopes {
+		cctx := ctx
+		if sc.cluster != localCluster {
+			cctx = multicluster.ContextWithClusterName(ctx, sc.cluster)
+		}
+		scanned, next := 0, ""
+		for {
+			var list corev1.EventList
+			opts := []client.ListOption{client.InNamespace(sc.namespace), client.Limit(int64(maxListItems))}
+			if next != "" {
+				opts = append(opts, client.Continue(next))
+			}
+			if err := cli.List(cctx, &list, opts...); err != nil {
+				notes = append(notes, fmt.Sprintf("events in %s/%s: %s", sc.cluster, sc.namespace, redactLine(err.Error())))
+				break
+			}
+			for i := range list.Items {
+				if e := summarizeEvent(&list.Items[i], sc.cluster, involved[sc]); e != nil {
+					events = append(events, *e)
+				}
+			}
+			scanned += len(list.Items)
+			next = list.Continue
+			if next == "" {
+				break
+			}
+			if scanned >= maxEventsScanned {
+				cut = true
+				notes = append(notes, fmt.Sprintf("events in %s/%s: stopped after %d; older events were not read", sc.cluster, sc.namespace, scanned))
+				break
 			}
 		}
-	}
-	var list corev1.EventList
-	if err := cli.List(ctx, &list, client.InNamespace(app.Namespace), client.Limit(int64(maxListItems))); err != nil {
-		return nil, err
-	}
-	events := []EventSummary{}
-	for i := range list.Items {
-		e := &list.Items[i]
-		key := e.InvolvedObject.Kind + "/" + e.InvolvedObject.Name
-		if !involved[key] {
-			continue
-		}
-		last := e.LastTimestamp.Time
-		if last.IsZero() {
-			last = e.EventTime.Time
-		}
-		if last.IsZero() && e.Series != nil {
-			last = e.Series.LastObservedTime.Time
-		}
-		count := e.Count
-		if count == 0 && e.Series != nil {
-			count = e.Series.Count
-		}
-		events = append(events, EventSummary{Object: key, Type: e.Type, Reason: text(e.Reason), Message: text(e.Message), Count: count, Last: timePtr(last)})
 	}
 	sort.SliceStable(events, func(i, j int) bool {
 		li, lj := time.Time{}, time.Time{}
@@ -389,9 +433,32 @@ func (d *deps) applicationEvents(ctx context.Context, cli client.Client, app *v1
 		return li.After(lj)
 	})
 	if len(events) > maxEventsListed {
+		cut = true
+		notes = append(notes, fmt.Sprintf("%d more events involve the application than the %d newest listed", len(events)-maxEventsListed, maxEventsListed))
 		events = events[:maxEventsListed]
 	}
-	return events, nil
+	return events, notes, cut
+}
+
+// summarizeEvent returns the event when its object is one of the involved
+// ones, else nil.
+func summarizeEvent(e *corev1.Event, cluster string, involved map[string]bool) *EventSummary {
+	key := e.InvolvedObject.Kind + "/" + e.InvolvedObject.Name
+	if !involved[key] {
+		return nil
+	}
+	last := e.LastTimestamp.Time
+	if last.IsZero() {
+		last = e.EventTime.Time
+	}
+	if last.IsZero() && e.Series != nil {
+		last = e.Series.LastObservedTime.Time
+	}
+	count := e.Count
+	if count == 0 && e.Series != nil {
+		count = e.Series.Count
+	}
+	return &EventSummary{Cluster: cluster, Object: key, Type: e.Type, Reason: text(e.Reason), Message: text(e.Message), Count: count, Last: timePtr(last)}
 }
 
 // intValue reads a number that may have crossed a JSON boundary.
