@@ -338,7 +338,7 @@ func TestMixedAddonRendersBothInlineAndImportedModules(t *testing.T) {
 	}
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 
-	importComps, err := RenderModuleComponents(pkg, nil, nil)
+	importComps, err := RenderModuleComponents(pkg, nil, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, importComps, 1)
 	assert.Equal(t, "aws-efs", importComps[0].Name)

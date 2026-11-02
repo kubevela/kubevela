@@ -245,8 +245,9 @@ func (r *rendererImpl) restConfig() *rest.Config {
 
 // cacheKey builds the resolve-once cache key from every input that can change
 // the rendered output, including SkipVersionValidate so a validated request and
-// a skipped request never alias to the same cached result, and Namespace, which
-// the render records on the owned Application.
+// a skipped request never alias to the same cached result, Namespace, which
+// the render records on the owned Application, and Placement, which adds a
+// topology to it and is copied onto its imported modules.
 //
 // It reports false when the properties cannot be hashed, in which case the
 // request must not participate in the cache at all: any placeholder key would be
@@ -256,7 +257,11 @@ func cacheKey(req api.AddonRequest) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return fmt.Sprintf("%s|%s|%s|%t|%s|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, req.Namespace, hash), true
+	place, err := json.Marshal(req.Placement)
+	if err != nil {
+		return "", false
+	}
+	return fmt.Sprintf("%s|%s|%s|%t|%s|%s|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, req.Namespace, hash, place), true
 }
 
 // hashProperties returns a stable SHA-256 hex digest of the properties map.
@@ -375,9 +380,12 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		return nil, fmt.Errorf("render resources for addon %q: %w", req.Name, err)
 	}
 	dependsOn := componentNames(resourceComps)
-	moduleComps, err := pkgaddon.RenderModuleComponents(installPkg, app.Spec.Components, dependsOn)
+	moduleComps, err := pkgaddon.RenderModuleComponents(installPkg, app.Spec.Components, dependsOn, app.Spec.Policies)
 	if err != nil {
 		return nil, fmt.Errorf("render module components for addon %q: %w", req.Name, err)
+	}
+	if err := applyAddonPlacement(app, req.Name, req.Placement, moduleComps); err != nil {
+		return nil, err
 	}
 	// Seed inline naming with moduleComps' names too, not just
 	// app.Spec.Components: RenderModuleComponents may have already claimed a
@@ -458,6 +466,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 
 	appendAuxComponents(appMap, groups)
 	ensureAddonComponentStateKeepPolicy(appMap)
+	pinModuleComponentsToHub(appMap, componentNames(moduleComps))
 	sanitizeManifest(appMap)
 	suppressLastAppliedConfig(appMap)
 

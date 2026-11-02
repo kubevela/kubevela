@@ -16,13 +16,16 @@ limitations under the License.
 
 // Package api holds the leaf types and injection seam shared between the
 // render-only addon service and the CueX addon provider. It imports only the
-// standard library so neither the provider nor the CueX compiler pulls in
-// pkg/addon (which would create an import cycle).
+// standard library and the core API types (AddonRequest carries a Placement),
+// so neither the provider nor the CueX compiler pulls in pkg/addon (which
+// would create an import cycle).
 package api
 
 import (
 	"context"
 	"sync"
+
+	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 )
 
 // AddonRequest is the resolved input for rendering one addon.
@@ -39,6 +42,11 @@ type AddonRequest struct {
 	// Application always lives in vela-system, so this is the only record of
 	// where the addon's modules install their definitions.
 	Namespace string
+	// Placement is where the installer wants the addon. Nil means the addon
+	// places itself, if at all. An addon that defines its own topology policy
+	// refuses it; one that does not gets a topology from it, and so do its
+	// imported modules that set no placement of their own.
+	Placement *v1alpha1.Placement
 }
 
 // AddonResult is the rendered output: the addon Application (with its

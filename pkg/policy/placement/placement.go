@@ -60,7 +60,7 @@ type Names struct {
 // Validate checks an installer's placement request. A nil request is valid and
 // means the installer did not ask. A set request names clusters or a
 // clusterLabelSelector, not both. An empty selector is valid and matches every
-// cluster. An empty cluster list is not, because topologyProps would drop it
+// cluster. An empty cluster list is not, because TopologyProperties would drop it
 // and the runtime class would land on the local cluster without saying so.
 func Validate(p *v1alpha1.Placement) error {
 	if p == nil {
@@ -160,7 +160,7 @@ func Assemble(components []Component, req *v1alpha1.Placement, names Names) ([]m
 	var policies []map[string]interface{}
 	hubPlace := v1alpha1.Placement{Clusters: []string{pkgmulticluster.Local}}
 	if names.HubPolicy != "" {
-		policies = append(policies, policy(names.HubPolicy, v1alpha1.TopologyPolicyType, topologyProps(hubPlace)))
+		policies = append(policies, policy(names.HubPolicy, v1alpha1.TopologyPolicyType, TopologyProperties(hubPlace)))
 	}
 	if names.HubOverride != "" {
 		policies = append(policies, policy(names.HubOverride, v1alpha1.OverridePolicyType, map[string]interface{}{
@@ -171,7 +171,7 @@ func Assemble(components []Component, req *v1alpha1.Placement, names Names) ([]m
 	if req != nil {
 		runtimeTopology = names.RuntimePolicy
 		if names.RuntimePolicy != "" {
-			policies = append(policies, policy(names.RuntimePolicy, v1alpha1.TopologyPolicyType, topologyProps(*req)))
+			policies = append(policies, policy(names.RuntimePolicy, v1alpha1.TopologyPolicyType, TopologyProperties(*req)))
 		}
 	}
 	if names.RuntimeOverride != "" {
@@ -218,7 +218,9 @@ func deployStep(name string, policies []string) map[string]interface{} {
 	}
 }
 
-func topologyProps(p v1alpha1.Placement) map[string]interface{} {
+// TopologyProperties is p as topology policy properties. An empty
+// clusterLabelSelector is kept: it matches every cluster.
+func TopologyProperties(p v1alpha1.Placement) map[string]interface{} {
 	props := map[string]interface{}{}
 	if len(p.Clusters) > 0 {
 		props["clusters"] = stringList(p.Clusters)
