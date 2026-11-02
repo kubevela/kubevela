@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -39,6 +40,7 @@ import (
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // moduleDeployClient returns a fake client seeded with a module registry
@@ -182,7 +184,7 @@ func moduleApps(phase oamcommon.ApplicationPhase, tiers []string, services []oam
 	ownedApp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{Name: "module-s3", Namespace: velatypes.DefaultKubeVelaNS},
 		Spec:       v1beta1.ApplicationSpec{Components: comps},
-		Status:     oamcommon.AppStatus{Services: services},
+		Status:     oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning, Services: services},
 	}
 	return []client.Object{deployApp, ownedApp}
 }
@@ -221,11 +223,21 @@ func TestFirstUnhealthyTier(t *testing.T) {
 			services: healthyTierServices(),
 			wantTier: "",
 		},
+		"one cluster of a tier unhealthy": {
+			services: []oamcommon.ApplicationComponentStatus{
+				{Name: "s3-xrd", Cluster: "spoke-2", Healthy: false, Message: "crd not established"},
+				{Name: "s3-xrd", Cluster: "spoke", Healthy: true},
+				{Name: "s3-v1-comp", Healthy: true},
+				{Name: "s3-v1-defs", Healthy: true},
+			},
+			wantTier:    "s3-xrd",
+			wantMessage: "crd not established",
+		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			tier, message := firstUnhealthyTier([]string{"s3-xrd", "s3-v1-comp", "s3-v1-defs"}, tc.services)
+			tier, message := firstUnhealthyTier([]string{"s3-xrd", "s3-v1-comp", "s3-v1-defs"}, tc.services, false)
 			assert.Equal(t, tc.wantTier, tier)
 			if tc.wantMessage != "" {
 				assert.Contains(t, message, tc.wantMessage)
@@ -254,7 +266,7 @@ func TestWaitForModuleReportsResolvedVersion(t *testing.T) {
 			Annotations: map[string]string{velatypes.AnnoDefinitionModuleVersion: "1.2.0"},
 		},
 		Spec:   v1beta1.ApplicationSpec{Components: comps},
-		Status: oamcommon.AppStatus{Services: healthyTierServices()},
+		Status: oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning, Services: healthyTierServices()},
 	}
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(deployApp, ownedApp).Build()
 	var out bytes.Buffer
@@ -348,4 +360,183 @@ func TestWaitForModuleWaitsForOwnedApp(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "was not created")
 	assert.Contains(t, out.String(), "Rendering module")
+}
+
+// dryRunPlacement runs deploy --dry-run with the given placement flags and
+// returns the placement property on the printed type: module component, or
+// nil when the component carries none.
+func dryRunPlacement(t *testing.T, o *moduleDeployOptions) map[string]interface{} {
+	t.Helper()
+	var out bytes.Buffer
+	o.module, o.registry, o.namespace, o.dryRun = "placement-kit", "catalog", velatypes.DefaultKubeVelaNS, true
+	o.fetch = func(_ context.Context, _, _, _ string) (*pkgmodule.Module, error) { return stubModule(), nil }
+	require.NoError(t, o.run(context.Background(), moduleDeployClient(t, "catalog"), &out))
+
+	var printed v1beta1.Application
+	require.NoError(t, yaml.Unmarshal(out.Bytes(), &printed))
+	var props map[string]interface{}
+	require.NoError(t, json.Unmarshal(printed.Spec.Components[0].Properties.Raw, &props))
+	place, _ := props["placement"].(map[string]interface{})
+	return place
+}
+
+func TestModuleDeployDryRunPrintsPlacement(t *testing.T) {
+	testCases := map[string]struct {
+		opts moduleDeployOptions
+		want map[string]interface{}
+	}{
+		"no placement flags": {
+			opts: moduleDeployOptions{},
+			want: nil,
+		},
+		"clusters": {
+			opts: moduleDeployOptions{clusters: []string{"spoke-a", "spoke-b"}},
+			want: map[string]interface{}{"clusters": []interface{}{"spoke-a", "spoke-b"}},
+		},
+		"cluster selector": {
+			opts: moduleDeployOptions{clusterSelector: map[string]string{"tier": "runtime"}},
+			want: map[string]interface{}{"clusterLabelSelector": map[string]interface{}{"tier": "runtime"}},
+		},
+		"allow empty with a selector": {
+			opts: moduleDeployOptions{clusterSelector: map[string]string{"tier": "runtime"}, allowEmpty: true},
+			want: map[string]interface{}{"clusterLabelSelector": map[string]interface{}{"tier": "runtime"}, "allowEmpty": true},
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			o := tc.opts
+			assert.Equal(t, tc.want, dryRunPlacement(t, &o))
+		})
+	}
+}
+
+func TestModuleDeployRejectsBadPlacementFlags(t *testing.T) {
+	testCases := map[string]struct {
+		opts moduleDeployOptions
+		want string
+	}{
+		"clusters and selector together": {
+			opts: moduleDeployOptions{clusters: []string{"spoke"}, clusterSelector: map[string]string{"tier": "runtime"}},
+			want: "--clusters and --cluster-selector cannot be used together",
+		},
+		"allow empty alone": {
+			opts: moduleDeployOptions{allowEmpty: true},
+			want: "--allow-empty needs --clusters or --cluster-selector",
+		},
+		"blank cluster name": {
+			opts: moduleDeployOptions{clusters: []string{"spoke", ""}},
+			want: "placement clusters must not contain an empty name",
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			cli := moduleDeployClient(t, "catalog")
+			o := tc.opts
+			o.module, o.registry, o.namespace = "placement-kit", "catalog", velatypes.DefaultKubeVelaNS
+			o.fetch = func(_ context.Context, _, _, _ string) (*pkgmodule.Module, error) {
+				t.Fatal("a bad placement must fail before the module is fetched")
+				return nil, nil
+			}
+
+			err := o.run(context.Background(), cli, &bytes.Buffer{})
+
+			require.Error(t, err)
+			assert.Equal(t, tc.want, err.Error())
+			assert.Equal(t, 0, countApplications(t, cli), "nothing may be applied when validation fails")
+		})
+	}
+}
+
+func TestModuleDeployPlacementFlags(t *testing.T) {
+	cmd := NewModuleDeployCommand(common.Args{}, cmdutil.IOStreams{Out: &bytes.Buffer{}})
+	require.NoError(t, cmd.ParseFlags([]string{
+		"--clusters", "spoke-a,spoke-b",
+		"--cluster-selector", "tier=runtime,region=west",
+		"--allow-empty",
+	}))
+
+	clusters, err := cmd.Flags().GetStringSlice("clusters")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"spoke-a", "spoke-b"}, clusters)
+	selector, err := cmd.Flags().GetStringToString("cluster-selector")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"tier": "runtime", "region": "west"}, selector)
+	allowEmpty, err := cmd.Flags().GetBool("allow-empty")
+	require.NoError(t, err)
+	assert.True(t, allowEmpty)
+}
+
+// settledOwnedApp returns the deploy Application, running, and an owned
+// Application with every tier but the last one healthy, in the given phase and
+// generation, with the given workflow steps.
+func settledOwnedApp(phase oamcommon.ApplicationPhase, generation, observed int64, steps []workflowv1alpha1.StepStatus) []client.Object {
+	objs := moduleApps(oamcommon.ApplicationRunning, moduleTiers, healthyTierServices())
+	owned := objs[1].(*v1beta1.Application)
+	owned.Generation = generation
+	owned.Status.Phase = phase
+	owned.Status.ObservedGeneration = observed
+	if steps != nil {
+		owned.Status.Workflow = &oamcommon.WorkflowStatus{}
+		for _, st := range steps {
+			owned.Status.Workflow.Steps = append(owned.Status.Workflow.Steps, workflowv1alpha1.WorkflowStepStatus{StepStatus: st})
+		}
+	}
+	return objs
+}
+
+// TestWaitForModuleWaitsForTheOwnedWorkflow asserts deploy does not report
+// success while the owned Application's workflow has not finished, even when
+// every tier it reports is healthy. A runtime step whose selector matches no
+// cluster fails while the hub tiers are healthy, and the error names the step.
+func TestWaitForModuleWaitsForTheOwnedWorkflow(t *testing.T) {
+	steps := []workflowv1alpha1.StepStatus{
+		{Name: "deploy-module-hub", Phase: workflowv1alpha1.WorkflowStepPhaseSucceeded},
+		{Name: "deploy-module-runtime", Phase: workflowv1alpha1.WorkflowStepPhaseFailed,
+			Message: "failed to find any cluster matches given labels"},
+	}
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).
+		WithObjects(settledOwnedApp(oamcommon.ApplicationRunningWorkflow, 1, 1, steps)...).Build()
+	var out bytes.Buffer
+	o := &moduleDeployOptions{module: "s3", namespace: velatypes.DefaultKubeVelaNS, timeout: 30 * time.Millisecond, pollInterval: time.Millisecond}
+
+	err := o.waitForModule(context.Background(), cli, &out)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "deploy-module-runtime")
+	assert.Contains(t, err.Error(), "failed to find any cluster matches given labels")
+	assert.NotContains(t, out.String(), "is installed")
+}
+
+// TestWaitForModuleWaitsForTheCurrentGeneration asserts a status from before
+// the latest change does not count: a redeploy with new placement must wait
+// for the controller to reconcile the new spec.
+func TestWaitForModuleWaitsForTheCurrentGeneration(t *testing.T) {
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).
+		WithObjects(settledOwnedApp(oamcommon.ApplicationRunning, 2, 1, nil)...).Build()
+	var out bytes.Buffer
+	o := &moduleDeployOptions{module: "s3", namespace: velatypes.DefaultKubeVelaNS, timeout: 30 * time.Millisecond, pollInterval: time.Millisecond}
+
+	err := o.waitForModule(context.Background(), cli, &out)
+
+	require.Error(t, err)
+	assert.NotContains(t, out.String(), "is installed")
+}
+
+// TestWaitForModuleAcceptsUnplacedTiers asserts a tier that deployed to no
+// cluster does not hold deploy forever. With --allow-empty and no matching
+// cluster, the runtime tiers never report a status; once the owned
+// Application has finished at its current generation, they show as not placed.
+func TestWaitForModuleAcceptsUnplacedTiers(t *testing.T) {
+	objs := settledOwnedApp(oamcommon.ApplicationRunning, 3, 3, nil)
+	owned := objs[1].(*v1beta1.Application)
+	owned.Status.Services = owned.Status.Services[1:] // s3-xrd went to no cluster
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(objs...).Build()
+	var out bytes.Buffer
+	o := &moduleDeployOptions{module: "s3", namespace: velatypes.DefaultKubeVelaNS, timeout: time.Second, pollInterval: time.Millisecond}
+
+	err := o.waitForModule(context.Background(), cli, &out)
+
+	require.NoError(t, err)
+	assert.Contains(t, out.String(), "Not placed")
+	assert.Contains(t, out.String(), "is installed")
 }

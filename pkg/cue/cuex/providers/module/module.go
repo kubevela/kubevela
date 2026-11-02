@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/module/service/api"
+	"github.com/oam-dev/kubevela/pkg/policy/placement"
 )
 
 // ProviderName is the CUE #provider value.
@@ -78,6 +79,11 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 		return nil, fmt.Errorf("module-as-component is disabled; enable the EnableModuleComponent feature gate to use type: module components")
 	}
 	p := params.Params
+	// Checked before the validation-only return, so admission rejects a bad
+	// placement with the same message a render would give.
+	if err := placement.Validate(p.Placement); err != nil {
+		return nil, err
+	}
 	if validation.IsValidationOnly(ctx) {
 		return placeholderReturns(p), nil
 	}

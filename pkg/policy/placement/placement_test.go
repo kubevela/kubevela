@@ -198,3 +198,30 @@ func names(objs []map[string]interface{}) []string {
 func selector(policy map[string]interface{}) []interface{} {
 	return policy["properties"].(map[string]interface{})["selector"].([]interface{})
 }
+
+func TestValidate(t *testing.T) {
+	require.NoError(t, Validate(nil), "no placement request is valid")
+	require.NoError(t, Validate(&v1alpha1.Placement{Clusters: []string{"spoke"}}))
+	require.NoError(t, Validate(&v1alpha1.Placement{ClusterLabelSelector: map[string]string{"tier": "runtime"}}))
+	require.NoError(t, Validate(&v1alpha1.Placement{ClusterLabelSelector: map[string]string{}}),
+		"an empty selector matches every cluster")
+
+	testCases := map[string]struct {
+		place *v1alpha1.Placement
+		want  string
+	}{
+		"neither":         {&v1alpha1.Placement{}, "placement must set clusters or clusterLabelSelector"},
+		"only allowEmpty": {&v1alpha1.Placement{AllowEmpty: true}, "placement must set clusters or clusterLabelSelector"},
+		"both": {&v1alpha1.Placement{Clusters: []string{"spoke"}, ClusterLabelSelector: map[string]string{"tier": "runtime"}},
+			"placement must set clusters or clusterLabelSelector, not both"},
+		"empty cluster list": {&v1alpha1.Placement{Clusters: []string{}}, "placement clusters must name at least one cluster"},
+		"blank cluster name": {&v1alpha1.Placement{Clusters: []string{"spoke", ""}}, "placement clusters must not contain an empty name"},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := Validate(tc.place)
+			require.Error(t, err)
+			require.Equal(t, tc.want, err.Error())
+		})
+	}
+}

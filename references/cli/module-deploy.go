@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gosuri/uitable"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,10 +35,12 @@ import (
 	"sigs.k8s.io/yaml"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
 	modulesvc "github.com/oam-dev/kubevela/pkg/module/service"
+	"github.com/oam-dev/kubevela/pkg/policy/placement"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -55,6 +58,9 @@ type moduleComponentProperties struct {
 	Module   string `json:"module"`
 	Registry string `json:"registry"`
 	Version  string `json:"version"`
+	// Placement is omitted when the installer passed no placement flags, so
+	// the printed manifest stays what it was before the flags existed.
+	Placement *v1alpha1.Placement `json:"placement,omitempty"`
 }
 
 // moduleDeployAppName is the name of the Application the deploy command
@@ -76,12 +82,14 @@ func ownedModuleAppName(moduleName string) string {
 // buildModuleApplication builds the one-component Application that installs a
 // module. The registry name is the resolved one, not the raw flag, so the
 // applied manifest records which registry was chosen. version selects the
-// module package version; empty installs latest.
-func buildModuleApplication(moduleName, registryName, namespace, version string) (*v1beta1.Application, error) {
+// module package version; empty installs latest. place is the installer's
+// cluster request; nil leaves the placement property off.
+func buildModuleApplication(moduleName, registryName, namespace, version string, place *v1alpha1.Placement) (*v1beta1.Application, error) {
 	props, err := json.Marshal(moduleComponentProperties{
-		Module:   moduleName,
-		Registry: registryName,
-		Version:  version,
+		Module:    moduleName,
+		Registry:  registryName,
+		Version:   version,
+		Placement: place,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the module component properties: %w", err)
@@ -122,6 +130,10 @@ const (
 	moduleDeployTimeoutFlag  = "timeout"
 	moduleDeployVersionFlag  = "version"
 
+	moduleDeployClustersFlag        = "clusters"
+	moduleDeployClusterSelectorFlag = "cluster-selector"
+	moduleDeployAllowEmptyFlag      = "allow-empty"
+
 	// defaultModuleDeployTimeout is how long deploy waits for every tier to
 	// become healthy before giving up.
 	defaultModuleDeployTimeout = 5 * time.Minute
@@ -140,10 +152,16 @@ type moduleDeployOptions struct {
 	dryRun    bool
 	// version selects the module package version to install; empty installs
 	// the latest published version.
-	version      string
-	timeout      time.Duration
-	pollInterval time.Duration
-	fetch        func(ctx context.Context, registry, moduleName, version string) (*pkgmodule.Module, error)
+	version string
+	// clusters, clusterSelector and allowEmpty become the placement property
+	// on the module component. Runtime objects follow it; hub objects and
+	// definitions stay on the local cluster.
+	clusters        []string
+	clusterSelector map[string]string
+	allowEmpty      bool
+	timeout         time.Duration
+	pollInterval    time.Duration
+	fetch           func(ctx context.Context, registry, moduleName, version string) (*pkgmodule.Module, error)
 }
 
 // NewModuleDeployCommand returns the vela module deploy command. It builds and
@@ -162,7 +180,13 @@ func NewModuleDeployCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	vela module deploy s3 --registry catalog -n platform
 
   Print the Application without applying it, capturing it for GitOps:
-	vela module deploy s3 --dry-run > s3-module.yaml`,
+	vela module deploy s3 --dry-run > s3-module.yaml
+
+  Put the module's runtime objects on two managed clusters:
+	vela module deploy s3 --clusters spoke-a,spoke-b
+
+  Put them on every cluster with a label, even when none match yet:
+	vela module deploy s3 --cluster-selector tier=runtime --allow-empty`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cli, err := c.GetClient()
@@ -183,6 +207,9 @@ func NewModuleDeployCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	cmd.Flags().StringVar(&o.registry, moduleDeployRegistryFlag, "", "The module registry to deploy from. Empty means the configured default.")
 	cmd.Flags().StringVar(&o.version, moduleDeployVersionFlag, "", "The module package version (OCI/ECR tag) to install. Empty installs the latest published version.")
 	cmd.Flags().BoolVar(&o.dryRun, moduleDeployDryRunFlag, false, "Print the Application without applying it.")
+	cmd.Flags().StringSliceVar(&o.clusters, moduleDeployClustersFlag, nil, "The clusters to put the module's runtime objects on. Hub objects and definitions stay on the local cluster.")
+	cmd.Flags().StringToStringVar(&o.clusterSelector, moduleDeployClusterSelectorFlag, nil, "Put the module's runtime objects on the clusters with these labels, as k=v[,k=v]. Cannot be used with --clusters.")
+	cmd.Flags().BoolVar(&o.allowEmpty, moduleDeployAllowEmptyFlag, false, "Do not fail when --clusters or --cluster-selector selects no cluster.")
 	cmd.Flags().DurationVar(&o.timeout, moduleDeployTimeoutFlag, defaultModuleDeployTimeout, "How long to wait for the module to become healthy.")
 	addNamespaceAndEnvArg(cmd)
 	cmd.SetOut(ioStreams.Out)
@@ -204,6 +231,10 @@ func (o *moduleDeployOptions) run(ctx context.Context, cli client.Client, out io
 	if o.timeout <= 0 {
 		o.timeout = defaultModuleDeployTimeout
 	}
+	place, err := o.placement()
+	if err != nil {
+		return err
+	}
 
 	store := pkgmodule.NewStore(cli)
 	reg, err := pkgmodule.ResolveRegistry(ctx, store, o.registry)
@@ -219,7 +250,7 @@ func (o *moduleDeployOptions) run(ctx context.Context, cli client.Client, out io
 		return err
 	}
 
-	app, err := buildModuleApplication(o.module, reg.Name, o.namespace, o.version)
+	app, err := buildModuleApplication(o.module, reg.Name, o.namespace, o.version, place)
 	if err != nil {
 		return err
 	}
@@ -238,6 +269,32 @@ func (o *moduleDeployOptions) run(ctx context.Context, cli client.Client, out io
 	fmt.Fprintf(out, "Applied Application %s/%s\n", app.Namespace, app.Name)
 
 	return o.waitForModule(ctx, cli, out)
+}
+
+// placement builds the placement property from the flags. It returns nil when
+// no placement flag is set. It reports flag misuse by flag name, then applies
+// the same check the module provider applies to a component property.
+func (o *moduleDeployOptions) placement() (*v1alpha1.Placement, error) {
+	hasClusters, hasSelector := len(o.clusters) > 0, len(o.clusterSelector) > 0
+	switch {
+	case hasClusters && hasSelector:
+		return nil, fmt.Errorf("--%s and --%s cannot be used together", moduleDeployClustersFlag, moduleDeployClusterSelectorFlag)
+	case !hasClusters && !hasSelector:
+		if o.allowEmpty {
+			return nil, fmt.Errorf("--%s needs --%s or --%s", moduleDeployAllowEmptyFlag, moduleDeployClustersFlag, moduleDeployClusterSelectorFlag)
+		}
+		return nil, nil
+	}
+	place := &v1alpha1.Placement{AllowEmpty: o.allowEmpty}
+	if hasClusters {
+		place.Clusters = o.clusters
+	} else {
+		place.ClusterLabelSelector = o.clusterSelector
+	}
+	if err := placement.Validate(place); err != nil {
+		return nil, err
+	}
+	return place, nil
 }
 
 // waitForModule polls the deploy Application and the owned module Application
@@ -269,6 +326,7 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		var tiers []string
 		var services []oamcommon.ApplicationComponentStatus
 		var ownedApp v1beta1.Application
+		ownedSettled := false
 		// The owned Application lives in the system namespace whatever namespace
 		// the definitions install into, so it is read from there, not o.namespace.
 		ownedName := ownedModuleAppName(o.module)
@@ -282,19 +340,25 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		default:
 			tiers = moduleTierNames(&ownedApp)
 			services = ownedApp.Status.Services
+			ownedSettled = appSettled(&ownedApp)
 		}
 
 		table := "Rendering module (install tiers are not known yet)..."
 		if len(tiers) > 0 {
-			table = renderModuleTierTable(tiers, services)
+			table = renderModuleTierTable(tiers, services, ownedSettled)
+			// A failed step from before the latest change is stale; show it only
+			// once the controller has reconciled the current spec.
+			if step, msg := failedStep(&ownedApp); step != "" && ownedApp.Status.ObservedGeneration == ownedApp.Generation {
+				table += fmt.Sprintf("\nStep %s failed: %s", step, msg)
+			}
 		}
 		if table != lastTable {
 			fmt.Fprintln(out, table)
 			lastTable = table
 		}
 
-		tier, message := firstUnhealthyTier(tiers, services)
-		if tier == "" && len(tiers) > 0 && deployApp.Status.Phase == oamcommon.ApplicationRunning {
+		tier, message := firstUnhealthyTier(tiers, services, ownedSettled)
+		if tier == "" && len(tiers) > 0 && appSettled(&deployApp) && ownedSettled {
 			if resolved := ownedApp.Annotations[velatypes.AnnoDefinitionModuleVersion]; resolved != "" {
 				fmt.Fprintf(out, "Module %q (version %s) is installed in namespace %q\n", o.module, resolved, o.namespace)
 			} else {
@@ -308,9 +372,14 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 				return fmt.Errorf("timed out after %s waiting for module %q: the owned Application %s/%s was not created; deploy Application is in phase %s: %s",
 					o.timeout, o.module, velatypes.DefaultKubeVelaNS, ownedName, deployApp.Status.Phase, moduleComponentMessage(&deployApp))
 			}
+			if step, msg := failedStep(&ownedApp); step != "" {
+				return fmt.Errorf("timed out after %s waiting for module %q: Application %s/%s step %s failed: %s",
+					o.timeout, o.module, velatypes.DefaultKubeVelaNS, ownedName, step, msg)
+			}
 			if tier == "" {
-				return fmt.Errorf("timed out after %s waiting for module %q: every tier is healthy but Application %s/%s is in phase %s",
-					o.timeout, o.module, o.namespace, deployApp.Name, deployApp.Status.Phase)
+				return fmt.Errorf("timed out after %s waiting for module %q: every tier is healthy but Application %s/%s is in phase %s and Application %s/%s is in phase %s",
+					o.timeout, o.module, o.namespace, deployApp.Name, deployApp.Status.Phase,
+					velatypes.DefaultKubeVelaNS, ownedName, ownedApp.Status.Phase)
 			}
 			return fmt.Errorf("timed out after %s waiting for module %q: tier %q is not ready: %s",
 				o.timeout, o.module, tier, message)
@@ -322,6 +391,42 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		case <-time.After(o.pollInterval):
 		}
 	}
+}
+
+// appSettled reports whether the controller has reconciled app's latest spec and
+// finished its workflow. A status from before the latest change does not count,
+// so a redeploy waits for the new spec instead of reading the old result.
+func appSettled(app *v1beta1.Application) bool {
+	return app.Status.Phase == oamcommon.ApplicationRunning && app.Status.ObservedGeneration == app.Generation
+}
+
+// failedStep returns the first failed workflow step on app and its message, or
+// an empty name. A runtime step whose cluster selector matches nothing fails
+// here while every hub tier is healthy.
+func failedStep(app *v1beta1.Application) (string, string) {
+	if app.Status.Workflow == nil {
+		return "", ""
+	}
+	for _, st := range app.Status.Workflow.Steps {
+		if st.Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+			return st.Name, st.Message
+		}
+	}
+	return "", ""
+}
+
+// tierStatuses folds the owned Application's services into one status per
+// tier. A tier placed on several clusters reports once per cluster, and it is
+// healthy only when every cluster reports it healthy.
+func tierStatuses(services []oamcommon.ApplicationComponentStatus) map[string]oamcommon.ApplicationComponentStatus {
+	byName := make(map[string]oamcommon.ApplicationComponentStatus, len(services))
+	for _, svc := range services {
+		if prev, seen := byName[svc.Name]; seen && !prev.Healthy {
+			continue
+		}
+		byName[svc.Name] = svc
+	}
+	return byName
 }
 
 // moduleComponentMessage returns the message of the deploy Application's module
@@ -337,17 +442,17 @@ func moduleComponentMessage(app *v1beta1.Application) string {
 
 // renderModuleTierTable renders every expected tier with its reported health. A
 // tier the owned Application has not reported yet is Pending, so the operator
-// sees the whole install shape from the first poll.
-func renderModuleTierTable(tiers []string, services []oamcommon.ApplicationComponentStatus) string {
-	byName := make(map[string]oamcommon.ApplicationComponentStatus, len(services))
-	for _, svc := range services {
-		byName[svc.Name] = svc
-	}
+// sees the whole install shape from the first poll. Once the owned Application
+// has settled, an unreported tier went to no cluster and is Not placed.
+func renderModuleTierTable(tiers []string, services []oamcommon.ApplicationComponentStatus, settled bool) string {
+	byName := tierStatuses(services)
 	table := uitable.New()
 	table.AddRow("TIER", "STATUS", "MESSAGE")
 	for _, tier := range tiers {
 		svc, reported := byName[tier]
 		switch {
+		case !reported && settled:
+			table.AddRow(tier, "Not placed", "no cluster selected")
 		case !reported:
 			table.AddRow(tier, "Pending", "")
 		case svc.Healthy:
@@ -361,15 +466,15 @@ func renderModuleTierTable(tiers []string, services []oamcommon.ApplicationCompo
 
 // firstUnhealthyTier returns the first tier that is not healthy and why, or an
 // empty tier name when every tier is healthy. Tiers are checked in install
-// order, so the tier named is the one the install is actually stuck on.
-func firstUnhealthyTier(tiers []string, services []oamcommon.ApplicationComponentStatus) (string, string) {
-	byName := make(map[string]oamcommon.ApplicationComponentStatus, len(services))
-	for _, svc := range services {
-		byName[svc.Name] = svc
-	}
+// order, so the tier named is the one the install is actually stuck on. When
+// settled is set, an unreported tier went to no cluster and is skipped.
+func firstUnhealthyTier(tiers []string, services []oamcommon.ApplicationComponentStatus, settled bool) (string, string) {
+	byName := tierStatuses(services)
 	for _, tier := range tiers {
 		svc, reported := byName[tier]
 		switch {
+		case !reported && settled:
+			continue
 		case !reported:
 			return tier, "not reported yet"
 		case !svc.Healthy:

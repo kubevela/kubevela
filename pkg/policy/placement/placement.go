@@ -22,6 +22,7 @@ package placement
 
 import (
 	"fmt"
+	"slices"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 
@@ -53,6 +54,30 @@ type Names struct {
 	RuntimeOverride string
 	HubStep         string
 	RuntimeStep     string
+}
+
+// Validate checks an installer's placement request. A nil request is valid and
+// means the installer did not ask. A set request names clusters or a
+// clusterLabelSelector, not both. An empty selector is valid and matches every
+// cluster. An empty cluster list is not, because topologyProps would drop it
+// and the runtime class would land on the local cluster without saying so.
+func Validate(p *v1alpha1.Placement) error {
+	if p == nil {
+		return nil
+	}
+	hasClusters, hasSelector := p.Clusters != nil, p.ClusterLabelSelector != nil
+	switch {
+	case hasClusters && hasSelector:
+		return fmt.Errorf("placement must set clusters or clusterLabelSelector, not both")
+	case !hasClusters && !hasSelector:
+		return fmt.Errorf("placement must set clusters or clusterLabelSelector")
+	case hasClusters && len(p.Clusters) == 0:
+		return fmt.Errorf("placement clusters must name at least one cluster")
+	}
+	if slices.Contains(p.Clusters, "") {
+		return fmt.Errorf("placement clusters must not contain an empty name")
+	}
+	return nil
 }
 
 // Class reads oam.AnnotationPlacement on obj, then the first non-empty inherited default.

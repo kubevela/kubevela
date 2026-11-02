@@ -99,7 +99,9 @@ _rendered: $returns: application: {
 	expect: calls: "vela/module": "#Render": [{$params: placement: clusterLabelSelector: tier: "runtime", ...}]
 }
 
-"an empty placement is refused": test.#ComponentRender & {
+// The module provider rejects an empty placement and one that sets both
+// fields. The template hands either one to the provider unchanged.
+"an empty placement reaches the provider unchanged": test.#ComponentRender & {
 	definition: "module"
 	context: {
 		name:      "widget"
@@ -107,10 +109,10 @@ _rendered: $returns: application: {
 	}
 	parameter: placement: {}
 	mocks: "vela/module": "#Render": _rendered
-	expect: error: =~"set clusters or clusterLabelSelector"
+	expect: calls: "vela/module": "#Render": [{$params: placement: {}, ...}]
 }
 
-"placement rejects clusters and a selector together": test.#ComponentRender & {
+"clusters and a selector together reach the provider unchanged": test.#ComponentRender & {
 	definition: "module"
 	context: {
 		name:      "widget"
@@ -121,7 +123,11 @@ _rendered: $returns: application: {
 		clusterLabelSelector: tier: "runtime"
 	}
 	mocks: "vela/module": "#Render": _rendered
-	expect: error: =~"set clusters or clusterLabelSelector"
+	expect: calls: "vela/module": "#Render": [{$params: placement: {
+		clusters: ["spoke"]
+		clusterLabelSelector: tier: "runtime"
+	}, ...
+	}]
 }
 
 "a namespace property is refused": test.#ComponentRender & {

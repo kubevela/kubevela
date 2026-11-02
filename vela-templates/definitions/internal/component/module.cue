@@ -106,18 +106,10 @@ template: {
 		_namespace: "namespace is no longer accepted: a module's definitions install into the namespace of the Application that installs it"
 	}
 
-	// Checked here, not inside parameter, so an open schema (neither field
-	// set yet) is not an error. A set placement still has to name clusters
-	// or a selector, and not both.
-	if parameter.placement != _|_ {
-		if parameter.placement.clusters != _|_ && parameter.placement.clusterLabelSelector != _|_ {
-			_placement: "set clusters or clusterLabelSelector" & 1
-		}
-		if parameter.placement.clusters == _|_ && parameter.placement.clusterLabelSelector == _|_ {
-			_placement: "set clusters or clusterLabelSelector" & 1
-		}
-	}
-
+	// The module provider checks placement: a set placement names clusters or
+	// a clusterLabelSelector, not both. It runs during admission too, so the
+	// check is not repeated here, where CUE can only report it as a type
+	// conflict.
 	_render: module.#Render & {
 		$params: {
 			module:    parameter.module
