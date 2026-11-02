@@ -327,6 +327,10 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		var services []oamcommon.ApplicationComponentStatus
 		var ownedApp v1beta1.Application
 		ownedSettled := false
+		// Until the deploy Application has reconciled its latest spec, the owned
+		// Application still carries the result of the previous request, so
+		// neither its tiers nor its failures describe this deploy yet.
+		deploySettled := appSettled(&deployApp)
 		// The owned Application lives in the system namespace whatever namespace
 		// the definitions install into, so it is read from there, not o.namespace.
 		ownedName := ownedModuleAppName(o.module)
@@ -340,16 +344,18 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		default:
 			tiers = moduleTierNames(&ownedApp)
 			services = ownedApp.Status.Services
-			ownedSettled = appSettled(&ownedApp)
-			if err := terminalOwnedPhase(&ownedApp); err != nil {
-				return err
+			ownedSettled = deploySettled && appSettled(&ownedApp)
+			if deploySettled {
+				if err := terminalOwnedPhase(&ownedApp); err != nil {
+					return err
+				}
 			}
 		}
 
 		table := "Rendering module (install tiers are not known yet)..."
 		if len(tiers) > 0 {
 			table = renderModuleTierTable(tiers, services, ownedSettled)
-			if step, msg := failedStep(&ownedApp); step != "" {
+			if step, msg := failedStep(&ownedApp); step != "" && deploySettled {
 				table += fmt.Sprintf("\nStep %s failed: %s", step, msg)
 			}
 		}
@@ -359,7 +365,7 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		}
 
 		tier, message := firstUnhealthyTier(tiers, services, ownedSettled)
-		if tier == "" && len(tiers) > 0 && appSettled(&deployApp) && ownedSettled {
+		if tier == "" && len(tiers) > 0 && ownedSettled {
 			if resolved := ownedApp.Annotations[velatypes.AnnoDefinitionModuleVersion]; resolved != "" {
 				fmt.Fprintf(out, "Module %q (version %s) is installed in namespace %q\n", o.module, resolved, o.namespace)
 			} else {
@@ -373,7 +379,7 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 				return fmt.Errorf("timed out after %s waiting for module %q: the owned Application %s/%s was not created; deploy Application is in phase %s: %s",
 					o.timeout, o.module, velatypes.DefaultKubeVelaNS, ownedName, deployApp.Status.Phase, moduleComponentMessage(&deployApp))
 			}
-			if step, msg := failedStep(&ownedApp); step != "" {
+			if step, msg := failedStep(&ownedApp); step != "" && deploySettled {
 				return fmt.Errorf("timed out after %s waiting for module %q: Application %s/%s step %s failed: %s",
 					o.timeout, o.module, velatypes.DefaultKubeVelaNS, ownedName, step, msg)
 			}

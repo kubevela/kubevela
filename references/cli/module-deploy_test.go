@@ -580,3 +580,28 @@ func TestWaitForModuleIgnoresStaleFailedSteps(t *testing.T) {
 	assert.NotContains(t, err.Error(), "stale failure")
 	assert.NotContains(t, out.String(), "stale failure")
 }
+
+// TestWaitForModuleIgnoresOwnedFailureBeforeTheDeployAppSettles asserts a
+// redeploy does not report the owned Application's previous failure. Until
+// the deploy Application has reconciled its new spec, the owned Application
+// still carries the result of the old request, even at its own current
+// generation.
+func TestWaitForModuleIgnoresOwnedFailureBeforeTheDeployAppSettles(t *testing.T) {
+	steps := []workflowv1alpha1.StepStatus{
+		{Name: "deploy-module-runtime", Phase: workflowv1alpha1.WorkflowStepPhaseFailed, Message: "previous request failed"},
+	}
+	objs := settledOwnedApp(oamcommon.ApplicationWorkflowFailed, 4, 4, steps)
+	deployApp := objs[0].(*v1beta1.Application)
+	deployApp.Generation = 3
+	deployApp.Status.ObservedGeneration = 2
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(objs...).Build()
+	var out bytes.Buffer
+	o := &moduleDeployOptions{module: "s3", namespace: velatypes.DefaultKubeVelaNS, timeout: 30 * time.Millisecond, pollInterval: time.Millisecond}
+
+	err := o.waitForModule(context.Background(), cli, &out)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timed out")
+	assert.NotContains(t, err.Error(), "previous request failed")
+	assert.NotContains(t, out.String(), "previous request failed")
+}
