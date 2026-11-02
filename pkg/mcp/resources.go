@@ -239,16 +239,31 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 		if len(allowed) == 0 {
 			return allowed, withheld, nil
 		}
-		opt.WithTree = true
-		applied, err := query.NewAppCollector(cli, opt).ListApplicationResources(ctx, app)
-		if err != nil {
-			return nil, withheld, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
-		}
-		kept := applied[:0]
-		for i := range applied {
-			if applied[i].Namespace != "" && d.namespaceAllowed(applied[i].Namespace) == nil {
-				kept = append(kept, applied[i])
+		// One tree pass per allowed cluster and namespace: the collector's
+		// filter then skips every other recorded object before reading it.
+		type scope struct{ cluster, namespace string }
+		var scopes []scope
+		seen := map[scope]bool{}
+		for _, r := range allowed {
+			sc := scope{r.Cluster, r.Namespace}
+			if sc.cluster == "" {
+				sc.cluster = localCluster
 			}
+			if !seen[sc] {
+				seen[sc] = true
+				scopes = append(scopes, sc)
+			}
+		}
+		var kept []querytypes.AppliedResource
+		for _, sc := range scopes {
+			o := opt
+			o.WithTree = true
+			o.Filter.Cluster, o.Filter.ClusterNamespace = sc.cluster, sc.namespace
+			applied, err := query.NewAppCollector(cli, o).ListApplicationResources(ctx, app)
+			if err != nil {
+				return nil, withheld, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
+			}
+			kept = append(kept, applied...)
 		}
 		return kept, withheld, nil
 	}
@@ -278,12 +293,18 @@ func (d *deps) attachLiveObject(ctx context.Context, res *ManagedResource, out *
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s", res.Kind, res.Namespace, res.Name, res.Cluster, obj.GetResourceVersion()))
 	content := redactObject(obj.DeepCopy().Object)
 	if res.Kind == secretKind {
-		res.Object = map[string]any{
+		meta := map[string]any{
 			"apiVersion": content["apiVersion"],
 			"kind":       content["kind"],
 			"metadata":   content["metadata"],
 			"type":       content["type"],
 		}
+		if size := jsonSize(meta); size > maxObjectBytes {
+			res.ObjectNote = fmt.Sprintf("Secret metadata is %d bytes, over the %d byte limit; content is never returned", size, maxObjectBytes)
+			out.Meta.Truncated = true
+			return
+		}
+		res.Object = meta
 		res.ObjectNote = "Secret content is never returned; metadata only"
 		return
 	}

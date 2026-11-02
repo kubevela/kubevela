@@ -17,6 +17,7 @@ limitations under the License.
 package mcp
 
 import (
+	"context"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -24,6 +25,8 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -97,9 +100,29 @@ var _ = Describe("security properties", func() {
 
 			// Restricted to the Application's namespace: foreign and
 			// cluster-scoped objects are withheld and counted.
-			h = startHarness(Options{Namespaces: []string{"team-a"}}, objs...)
+			// The client records every read, so "never reads" is checked, not assumed.
+			var foreign []string
+			record := func(what string) { foreign = append(foreign, what) }
+			funcs := &interceptor.Funcs{
+				Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+					if key.Namespace == "kube-system" || (key.Namespace == "" && key.Name == "team-b") {
+						record("get " + key.String())
+					}
+					return c.Get(ctx, key, obj, opts...)
+				},
+				List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+					lo := &client.ListOptions{}
+					lo.ApplyOptions(opts)
+					if lo.Namespace == "kube-system" {
+						record("list in kube-system")
+					}
+					return c.List(ctx, list, opts...)
+				},
+			}
+			h = startHarnessIntercepted(Options{Namespaces: []string{"team-a"}}, nil, funcs, objs...)
 			var out GetManagedResourceOutput
 			res := h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a"}, &out)
+			Expect(foreign).To(BeEmpty(), "objects outside the allowlist are never read")
 			Expect(res.IsError).To(BeFalse())
 			Expect(out.Resources).To(HaveLen(2))
 			for _, r := range out.Resources {

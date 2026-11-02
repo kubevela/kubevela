@@ -285,7 +285,7 @@ spec:
 			})
 
 			It("checks and diffs the objects a policy renders, not only component output", func() {
-			policyDef := `apiVersion: core.oam.dev/v1beta1
+				policyDef := `apiVersion: core.oam.dev/v1beta1
 kind: PolicyDefinition
 metadata:
   name: quota
@@ -297,27 +297,27 @@ spec:
         output: {apiVersion: "v1", kind: "ResourceQuota", metadata: name: "team-quota", spec: hard: pods: parameter.pods}
         parameter: pods: string
 `
-			funcs, seen := recordCreates("")
-			h = startHarnessIntercepted(Options{}, nil, funcs, platformFixtures()...)
-			doc := shopDoc("nginx:1.27", 1, `  policies:
+				funcs, seen := recordCreates("")
+				h = startHarnessIntercepted(Options{}, nil, funcs, platformFixtures()...)
+				doc := shopDoc("nginx:1.27", 1, `  policies:
   - name: quota
     type: quota
     properties:
       pods: "10"
 `)
-			var out DryRunOutput
-			res := h.call("dryrun_application", map[string]any{"application": doc, "definitions": []string{policyDef}, "serverCheck": true}, &out)
-			Expect(res.IsError).To(BeFalse(), toJSON(res))
-			Expect(out.Policies).To(ContainElement(HaveField("Kind", "ResourceQuota")))
-			kinds := []string{}
-			for _, c := range out.ServerCheck.Objects {
-				kinds = append(kinds, c.Kind)
-			}
-			Expect(kinds).To(ContainElement("ResourceQuota"), "policy objects reach the API server check")
-			Expect(len(*seen)).To(Equal(len(out.ServerCheck.Objects)))
-		})
+				var out DryRunOutput
+				res := h.call("dryrun_application", map[string]any{"application": doc, "definitions": []string{policyDef}, "serverCheck": true}, &out)
+				Expect(res.IsError).To(BeFalse(), toJSON(res))
+				Expect(out.Policies).To(ContainElement(HaveField("Kind", "ResourceQuota")))
+				kinds := []string{}
+				for _, c := range out.ServerCheck.Objects {
+					kinds = append(kinds, c.Kind)
+				}
+				Expect(kinds).To(ContainElement("ResourceQuota"), "policy objects reach the API server check")
+				Expect(len(*seen)).To(Equal(len(out.ServerCheck.Objects)))
+			})
 
-		It("does not send objects in a namespace outside the allowlist", func() {
+			It("does not send objects in a namespace outside the allowlist", func() {
 				funcs, seen := recordCreates("")
 				h = startHarnessIntercepted(Options{Namespaces: []string{"team-a"}}, nil, funcs, platformFixtures()...)
 				elsewhere := strings.Replace(bucketCUE, "name: context.name", "name: context.name\n\t\t\tnamespace: \"shared\"", 1)
