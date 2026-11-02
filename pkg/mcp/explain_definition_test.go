@@ -148,6 +148,38 @@ var _ = Describe("explain_definition", func() {
 		Expect(out.Consumers.NamespacesScanned).To(Equal([]string{"team-b"}))
 	})
 
+	It("counts pinned references as consumers and reports restrictions on a component", func() {
+		objs := explainFixtures()
+		webservice := objs[1].(*v1beta1.ComponentDefinition)
+		webservice.Spec.Restrictions = &oamcommon.DefinitionRestrictions{
+			Namespaces:        []string{"team-*"},
+			NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"tier": "apps"}},
+		}
+		pinned := webApp()
+		pinned.Name = "pinned"
+		pinned.Spec.Components[0].Type = "webservice@v2"
+		h = startHarness(Options{}, append(objs, pinned)...)
+		var out ExplainDefinitionOutput
+		h.call("explain_definition", map[string]any{"name": "webservice", "type": "component"}, &out)
+		Expect(out.Consumers.Applications).To(ContainElement("team-a/pinned"))
+		Expect(out.RestrictedToNamespaces).To(Equal([]string{"team-*"}))
+		Expect(out.RestrictedBySelector).To(Equal("tier=apps"))
+	})
+
+	It("returns the definition's metadata and the inspection error for a template that does not parse", func() {
+		broken := &v1beta1.ComponentDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "broken", Namespace: types.DefaultKubeVelaNS, Annotations: map[string]string{types.AnnoDefinitionDescription: "half written"}},
+			Spec:       v1beta1.ComponentDefinitionSpec{Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: "output: {"}}},
+		}
+		h = startHarness(Options{}, append(explainFixtures(), broken)...)
+		var out ExplainDefinitionOutput
+		res := h.call("explain_definition", map[string]any{"name": "broken", "type": "component"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Description).To(Equal("half written"))
+		Expect(out.InspectionError).NotTo(BeEmpty())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("parameter schema unavailable")))
+	})
+
 	It("reports an unknown definition", func() {
 		h = startHarness(Options{}, explainFixtures()...)
 		res := h.call("explain_definition", map[string]any{"name": "ghost"}, nil)

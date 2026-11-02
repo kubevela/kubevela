@@ -20,10 +20,12 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -103,14 +105,16 @@ type ExplainDefinitionOutput struct {
 	Trait *TraitBehaviour `json:"trait,omitempty" jsonschema:"For traits: the workloads it applies to, what it conflicts with, and whether it restarts pods or manages the workload."`
 	// RestrictedToNamespaces lists where the definition may be used when
 	// the platform restricts it.
-	RestrictedToNamespaces []string           `json:"restrictedToNamespaces,omitempty" jsonschema:"Namespaces the definition may be used in, when the platform restricts it."`
-	Produces               []ProducedResource `json:"produces" jsonschema:"Kinds the template emits, read from the template without rendering."`
-	ParameterUsage         []ParameterUsage   `json:"parameterUsage" jsonschema:"Which template fields each parameter flows into."`
-	Parameters             map[string]any     `json:"parameters" jsonschema:"JSON Schema of the parameter block."`
-	Required               []string           `json:"required" jsonschema:"Top-level parameters with no default, which must be supplied."`
-	Health                 HealthRules        `json:"health" jsonschema:"Health and custom status rules, verbatim CUE."`
-	Revisions              []RevisionSummary  `json:"revisions" jsonschema:"DefinitionRevisions, newest first."`
-	Consumers              ConsumerSummary    `json:"consumers" jsonschema:"Applications that use this definition, within the namespaces the server may read."`
+	RestrictedToNamespaces []string `json:"restrictedToNamespaces,omitempty" jsonschema:"Namespaces the definition may be used in, when the platform restricts it."`
+	// RestrictedBySelector is the label selector restriction, if any.
+	RestrictedBySelector string             `json:"restrictedBySelector,omitempty" jsonschema:"Label selector that namespaces must match to use the definition, when the platform restricts it that way."`
+	Produces             []ProducedResource `json:"produces" jsonschema:"Kinds the template emits, read from the template without rendering."`
+	ParameterUsage       []ParameterUsage   `json:"parameterUsage" jsonschema:"Which template fields each parameter flows into."`
+	Parameters           map[string]any     `json:"parameters" jsonschema:"JSON Schema of the parameter block."`
+	Required             []string           `json:"required" jsonschema:"Top-level parameters with no default, which must be supplied."`
+	Health               HealthRules        `json:"health" jsonschema:"Health and custom status rules, verbatim CUE."`
+	Revisions            []RevisionSummary  `json:"revisions" jsonschema:"DefinitionRevisions, newest first."`
+	Consumers            ConsumerSummary    `json:"consumers" jsonschema:"Applications that use this definition, within the namespaces the server may read."`
 	// InspectionError is set when the template could not be parsed; the
 	// schema and metadata above are still valid.
 	InspectionError string   `json:"inspectionError,omitempty" jsonschema:"Set when the template could not be parsed; the schema and metadata are still valid."`
@@ -129,6 +133,7 @@ type definitionFacts struct {
 	workload    *WorkloadInfo
 	trait       *TraitBehaviour
 	restricted  []string
+	selector    string
 	health      HealthRules
 	revLabel    string
 	resourceVer string
@@ -162,6 +167,7 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 	out.Workload = facts.workload
 	out.Trait = facts.trait
 	out.RestrictedToNamespaces = facts.restricted
+	out.RestrictedBySelector = facts.selector
 	out.Health = facts.health
 	out.Evidence = []string{fmt.Sprintf("%s %s/%s resourceVersion %s", definitionKind(facts.summary.Type), facts.summary.Namespace, facts.summary.Name, facts.resourceVer)}
 
@@ -176,13 +182,23 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 
 	out.Parameters, out.Required, err = parameterSchema(ctx, facts.template)
 	if err != nil {
-		return nil, out, fmt.Errorf("parameter schema for %s %q: %w", facts.summary.Type, facts.summary.Name, err)
+		if inspected.Err == "" {
+			return nil, out, fmt.Errorf("parameter schema for %s %q: %w", facts.summary.Type, facts.summary.Name, err)
+		}
+		// The template does not parse: return what the object says about
+		// itself with the inspection error instead of failing outright.
+		out.Parameters, out.Required = map[string]any{}, []string{}
+		out.Meta.Warnings = append(out.Meta.Warnings, "parameter schema unavailable: the template does not parse")
 	}
 
-	out.Revisions, err = listDefinitionRevisions(ctx, cli, facts)
+	var revsCut bool
+	out.Revisions, revsCut, err = listDefinitionRevisions(ctx, cli, facts)
 	if err != nil {
 		out.Meta.Warnings = append(out.Meta.Warnings, "revision history unavailable: "+redactLine(err.Error()))
 	} else {
+		if revsCut {
+			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("revision history has more entries than the %d newest listed", maxRevisionsListed))
+		}
 		out.Evidence = append(out.Evidence, fmt.Sprintf("%d DefinitionRevision objects labelled %s=%s", len(out.Revisions), facts.revLabel, facts.summary.Name))
 	}
 	out.Consumers = d.countConsumers(ctx, cli, facts.summary.Type, facts.summary.Name)
@@ -190,6 +206,7 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 	warnings := out.Meta.Warnings
 	out.Meta = d.meta(ctx)
 	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
+	out.Meta.Truncated = out.Meta.Truncated || revsCut
 	return nil, out, nil
 }
 
@@ -240,6 +257,7 @@ func loadDefinitionFacts(ctx context.Context, cli client.Client, defType, ns, na
 		if o.Spec.Workload.Type != "" || o.Spec.Workload.Definition.Kind != "" {
 			f.workload = &WorkloadInfo{Type: o.Spec.Workload.Type, APIVersion: o.Spec.Workload.Definition.APIVersion, Kind: o.Spec.Workload.Definition.Kind}
 		}
+		f.restricted, f.selector = restrictionsOf(o.Spec.Restrictions)
 		return f, nil
 	case DefinitionTypeTrait:
 		var o v1beta1.TraitDefinition
@@ -266,38 +284,53 @@ func loadDefinitionFacts(ctx context.Context, cli client.Client, defType, ns, na
 				WorkloadRefPath:    o.Spec.WorkloadRefPath,
 			},
 		}
-		if o.Spec.Restrictions != nil {
-			f.restricted = o.Spec.Restrictions.Namespaces
-		}
+		f.restricted, f.selector = restrictionsOf(o.Spec.Restrictions)
 		return f, nil
 	case DefinitionTypePolicy:
 		var o v1beta1.PolicyDefinition
 		if err := cli.Get(ctx, key, &o); err != nil {
 			return nil, err
 		}
-		return &definitionFacts{
+		f := &definitionFacts{
 			summary:     summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision),
 			template:    cueTemplate(o.Spec.Schematic),
 			labels:      o.Labels,
 			annotations: o.Annotations,
 			revLabel:    oam.LabelPolicyDefinitionName,
 			resourceVer: o.ResourceVersion,
-		}, nil
+		}
+		f.restricted, f.selector = restrictionsOf(o.Spec.Restrictions)
+		return f, nil
 	case DefinitionTypeWorkflowStep:
 		var o v1beta1.WorkflowStepDefinition
 		if err := cli.Get(ctx, key, &o); err != nil {
 			return nil, err
 		}
-		return &definitionFacts{
+		f := &definitionFacts{
 			summary:     summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision),
 			template:    cueTemplate(o.Spec.Schematic),
 			labels:      o.Labels,
 			annotations: o.Annotations,
 			revLabel:    oam.LabelWorkflowStepDefinitionName,
 			resourceVer: o.ResourceVersion,
-		}, nil
+		}
+		f.restricted, f.selector = restrictionsOf(o.Spec.Restrictions)
+		return f, nil
 	}
 	return nil, fmt.Errorf("unknown definition type %q", defType)
+}
+
+// restrictionsOf returns a definition's namespace restriction: names or
+// globs, and a label selector, either of which may be empty.
+func restrictionsOf(r *oamcommon.DefinitionRestrictions) ([]string, string) {
+	if r == nil {
+		return nil, ""
+	}
+	selector := ""
+	if r.NamespaceSelector != nil {
+		selector = metav1.FormatLabelSelector(r.NamespaceSelector)
+	}
+	return r.Namespaces, text(selector)
 }
 
 func healthRules(s *oamcommon.Status) HealthRules {
@@ -307,11 +340,12 @@ func healthRules(s *oamcommon.Status) HealthRules {
 	return HealthRules{HealthPolicy: redactLine(s.HealthPolicy), CustomStatus: redactLine(s.CustomStatus), Details: redactLine(s.Details)}
 }
 
-// listDefinitionRevisions returns the newest revisions first, capped.
-func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *definitionFacts) ([]RevisionSummary, error) {
+// listDefinitionRevisions returns the newest revisions first, capped, and
+// whether any were left out.
+func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *definitionFacts) ([]RevisionSummary, bool, error) {
 	var list v1beta1.DefinitionRevisionList
-	if err := cli.List(ctx, &list, client.InNamespace(facts.summary.Namespace), client.MatchingLabels{facts.revLabel: facts.summary.Name}); err != nil {
-		return nil, err
+	if err := cli.List(ctx, &list, client.InNamespace(facts.summary.Namespace), client.MatchingLabels{facts.revLabel: facts.summary.Name}, client.Limit(int64(maxListItems))); err != nil {
+		return nil, false, err
 	}
 	revs := make([]RevisionSummary, 0, len(list.Items))
 	for i := range list.Items {
@@ -319,10 +353,11 @@ func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *defi
 		revs = append(revs, RevisionSummary{Name: r.Name, Revision: r.Spec.Revision, Hash: r.Spec.RevisionHash, CreatedAt: timePtr(r.CreationTimestamp.Time)})
 	}
 	sort.Slice(revs, func(i, j int) bool { return revs[i].Revision > revs[j].Revision })
+	cut := list.Continue != ""
 	if len(revs) > maxRevisionsListed {
-		revs = revs[:maxRevisionsListed]
+		revs, cut = revs[:maxRevisionsListed], true
 	}
-	return revs, nil
+	return revs, cut, nil
 }
 
 // countConsumers scans Applications in the allowed namespaces for uses of
@@ -361,25 +396,33 @@ func (d *deps) countConsumers(ctx context.Context, cli client.Client, defType, n
 	return sum
 }
 
+// baseType drops a version pin, so webservice@v1 counts as webservice.
+func baseType(t string) string {
+	if i := strings.Index(t, "@"); i >= 0 {
+		return t[:i]
+	}
+	return t
+}
+
 func usesDefinition(app *v1beta1.Application, defType, name string) bool {
 	switch defType {
 	case DefinitionTypeComponent:
 		for _, c := range app.Spec.Components {
-			if c.Type == name {
+			if baseType(c.Type) == name {
 				return true
 			}
 		}
 	case DefinitionTypeTrait:
 		for _, c := range app.Spec.Components {
 			for _, t := range c.Traits {
-				if t.Type == name {
+				if baseType(t.Type) == name {
 					return true
 				}
 			}
 		}
 	case DefinitionTypePolicy:
 		for _, p := range app.Spec.Policies {
-			if p.Type == name {
+			if baseType(p.Type) == name {
 				return true
 			}
 		}
@@ -388,11 +431,11 @@ func usesDefinition(app *v1beta1.Application, defType, name string) bool {
 			return false
 		}
 		for _, s := range app.Spec.Workflow.Steps {
-			if s.Type == name {
+			if baseType(s.Type) == name {
 				return true
 			}
 			for _, sub := range s.SubSteps {
-				if sub.Type == name {
+				if baseType(sub.Type) == name {
 					return true
 				}
 			}
