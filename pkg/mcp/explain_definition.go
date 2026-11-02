@@ -108,7 +108,7 @@ type ExplainDefinitionOutput struct {
 	RestrictedToNamespaces []string `json:"restrictedToNamespaces,omitempty" jsonschema:"Namespaces the definition may be used in, when the platform restricts it."`
 	// RestrictedBySelector is the label selector restriction, if any.
 	RestrictedBySelector string             `json:"restrictedBySelector,omitempty" jsonschema:"Label selector that namespaces must match to use the definition, when the platform restricts it that way."`
-	Produces             []ProducedResource `json:"produces" jsonschema:"Kinds the template emits, read from the template without rendering."`
+	Produces             []ProducedResource `json:"produces" jsonschema:"Kinds the template emits or patches, read from the template without rendering. An entry with no kind is built by an expression and is known only at render."`
 	ParameterUsage       []ParameterUsage   `json:"parameterUsage" jsonschema:"Which template fields each parameter flows into."`
 	Parameters           map[string]any     `json:"parameters" jsonschema:"JSON Schema of the parameter block."`
 	Required             []string           `json:"required" jsonschema:"Top-level parameters with no default, which must be supplied."`
@@ -179,6 +179,9 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 		out.ParameterUsage = inspected.Usage
 	}
 	out.InspectionError = inspected.Err
+	if inspected.Dynamic {
+		out.Meta.Warnings = append(out.Meta.Warnings, "the template computes top-level fields, so it may emit or patch objects that produces does not list; render it with dryrun_application to see them")
+	}
 
 	out.Parameters, out.Required, err = parameterSchema(ctx, facts.template)
 	if err != nil {

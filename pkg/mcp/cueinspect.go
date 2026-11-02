@@ -28,8 +28,10 @@ import (
 
 // ProducedResource is a Kubernetes kind a definition's template emits.
 type ProducedResource struct {
-	// Path is where the template declares it: output, outputs.<name> or
-	// patch for a trait that modifies the workload.
+	// Path is where the template declares it: output, outputs.<name>,
+	// patch for a trait that modifies the workload, or patchOutputs.<name>
+	// for one that modifies an auxiliary resource. An empty kind means the
+	// template computes it, so only a render can tell.
 	Path       string `json:"path"`
 	APIVersion string `json:"apiVersion,omitempty"`
 	Kind       string `json:"kind,omitempty"`
@@ -48,6 +50,10 @@ type templateFacts struct {
 	Produces []ProducedResource
 	Usage    []ParameterUsage
 	Err      string
+	// Dynamic is set when the template computes a top-level field name or
+	// embeds a value at the top level, so it can emit or patch more than
+	// static reading lists.
+	Dynamic bool
 }
 
 // inspectTemplate parses a definition template and reports the kinds it
@@ -64,6 +70,11 @@ func inspectTemplate(template string) templateFacts {
 		facts.Err = err.Error()
 		return facts
 	}
+	for _, decl := range f.Decls {
+		if _, ok := decl.(*ast.EmbedDecl); ok {
+			facts.Dynamic = true
+		}
+	}
 	usage := map[string]map[string]bool{}
 	var path []string
 	ast.Walk(f, func(n ast.Node) bool {
@@ -74,6 +85,9 @@ func inspectTemplate(template string) templateFacts {
 				name = "?"
 			}
 			path = append(path, name)
+			if len(path) == 1 && name == "?" {
+				facts.Dynamic = true
+			}
 			if res, ok := producedResource(path, x.Value); ok {
 				facts.Produces = append(facts.Produces, res)
 			}
@@ -112,16 +126,18 @@ func producedResource(path []string, value ast.Expr) (ProducedResource, bool) {
 	switch {
 	case len(path) == 1 && (path[0] == "output" || path[0] == "patch"):
 		where = path[0]
-	case len(path) == 2 && path[0] == "outputs":
-		where = "outputs." + path[1]
+	case len(path) == 2 && (path[0] == "outputs" || path[0] == "patchOutputs"):
+		where = path[0] + "." + path[1]
 	default:
 		return ProducedResource{}, false
 	}
+	res := ProducedResource{Path: where}
 	st, ok := value.(*ast.StructLit)
 	if !ok {
-		return ProducedResource{}, false
+		// Built from a reference or an expression: the surface exists, its
+		// kind is decided at render.
+		return res, true
 	}
-	res := ProducedResource{Path: where}
 	for _, decl := range st.Elts {
 		fld, ok := decl.(*ast.Field)
 		if !ok {

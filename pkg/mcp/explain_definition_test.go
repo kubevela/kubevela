@@ -188,6 +188,26 @@ var _ = Describe("explain_definition", func() {
 })
 
 var _ = Describe("template inspection", func() {
+	It("lists patchOutputs and surfaces built by expressions, and flags computed top-level fields", func() {
+		facts := inspectTemplate(`
+patch: base & {spec: replicas: 2}
+patchOutputs: ingress: {apiVersion: "networking.k8s.io/v1", kind: "Ingress"}
+parameter: {}
+`)
+		paths := map[string]ProducedResource{}
+		for _, p := range facts.Produces {
+			paths[p.Path] = p
+		}
+		Expect(paths).To(HaveKey("patch"), "an expression still patches the workload")
+		Expect(paths["patch"].Kind).To(BeEmpty())
+		Expect(paths["patchOutputs.ingress"].Kind).To(Equal("Ingress"))
+		Expect(facts.Dynamic).To(BeFalse())
+
+		dynamic := inspectTemplate("\"\\(parameter.name)\": {kind: \"ConfigMap\"}\nparameter: name: string\n")
+		Expect(dynamic.Err).To(BeEmpty())
+		Expect(dynamic.Dynamic).To(BeTrue())
+	})
+
 	It("tolerates a template that does not parse", func() {
 		facts := inspectTemplate("output: {")
 		Expect(facts.Err).NotTo(BeEmpty())
