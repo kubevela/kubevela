@@ -229,7 +229,9 @@ func registerTools(s *Server, d *deps) {
 		Name: "dryrun_application",
 		Description: "Render an Application document the way vela dry-run does, without saving it: every Kubernetes " +
 			"object each component and trait would produce, plus policy objects. Pass local definitions to render " +
-			"against definitions not yet on the cluster. Use it until the draft renders clean, then diff_application.",
+			"against definitions not yet on the cluster, such as the CUE vela def gen-module generates from a defkit " +
+			"module. Set serverCheck to have the API server validate every rendered object against the installed CRDs " +
+			"without storing it. Use it until the draft renders clean, then diff_application.",
 	}, d.dryRunApplication)
 
 	addTool(s, ToolClassPlan, &sdk.Tool{

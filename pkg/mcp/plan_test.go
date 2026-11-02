@@ -17,14 +17,18 @@ limitations under the License.
 package mcp
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -87,6 +91,62 @@ func shopRunning() []client.Object {
 	}
 }
 
+// bucketCUE is what vela def gen-module writes for a defkit component that
+// emits an ACK S3 Bucket. It is kept verbatim so the test feeds the server
+// the same text an author's generated file contains.
+const bucketCUE = `"aws-s3-bucket": {
+	type: "component"
+	annotations: {}
+	labels: {}
+	description: "S3 bucket provisioned by the ACK S3 controller"
+	attributes: {
+		workload: {
+			definition: {
+				apiVersion: "s3.services.k8s.aws/v1alpha1"
+				kind:       "Bucket"
+			}
+			type: "buckets.s3.services.k8s.aws"
+		}
+	}
+}
+template: {
+	output: {
+		apiVersion: "s3.services.k8s.aws/v1alpha1"
+		kind:       "Bucket"
+		metadata: {
+			name: context.name
+		}
+		spec: {
+			name: parameter.bucketName
+			versioning: {
+				status: parameter.versioning
+			}
+		}
+	}
+	parameter: {
+		// +usage=Globally unique S3 bucket name
+		bucketName!: string
+		// +usage=Enabled or Suspended
+		versioning: *"Suspended" | string
+	}
+}
+`
+
+func bucketDoc(bucket string) string {
+	return fmt.Sprintf(`apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: logs
+  namespace: team-a
+spec:
+  components:
+  - name: logs
+    type: aws-s3-bucket
+    properties:
+      bucketName: %s
+`, bucket)
+}
+
 var _ = Describe("plan tools", func() {
 	var h *harness
 
@@ -143,6 +203,98 @@ spec:
 			Expect(res.IsError).To(BeFalse(), toJSON(res))
 			Expect(out.Resources[0].Kind).To(Equal("Job"))
 			Expect(out.Evidence).To(ContainElement(ContainSubstring("1 local definitions took priority")))
+		})
+
+		It("renders against the CUE vela def gen-module generates for a defkit module", func() {
+			h = startHarness(Options{}, platformFixtures()...)
+			var out DryRunOutput
+			res := h.call("dryrun_application", map[string]any{"application": bucketDoc("acme-logs"), "definitions": []string{bucketCUE}}, &out)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			Expect(out.Resources).To(HaveLen(1))
+			Expect(out.Resources[0].Kind).To(Equal("Bucket"))
+			Expect(out.Resources[0].APIVersion).To(Equal("s3.services.k8s.aws/v1alpha1"))
+			Expect(toJSON(out.Resources[0].Object)).To(ContainSubstring(`"name":"acme-logs"`))
+			Expect(toJSON(out.Resources[0].Object)).To(ContainSubstring(`"status":"Suspended"`), "the defkit default applies")
+			Expect(out.ServerCheck).To(BeNil(), "the server check runs only on request")
+		})
+
+		Context("with serverCheck", func() {
+			// recordCreates captures the options of every create and can
+			// reject one kind the way a strict API server rejects an unknown field.
+			recordCreates := func(reject string) (*interceptor.Funcs, *[]client.CreateOptions) {
+				var seen []client.CreateOptions
+				return &interceptor.Funcs{Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+					o := client.CreateOptions{}
+					o.ApplyOptions(opts)
+					seen = append(seen, o)
+					if obj.GetObjectKind().GroupVersionKind().Kind == reject {
+						return apierrors.NewBadRequest(`strict decoding error: unknown field "spec.nmae"`)
+					}
+					return c.Create(ctx, obj, opts...)
+				}}, &seen
+			}
+			liveBucket := func() error {
+				u := &unstructured.Unstructured{}
+				u.SetAPIVersion("s3.services.k8s.aws/v1alpha1")
+				u.SetKind("Bucket")
+				return h.cli.Get(context.Background(), client.ObjectKey{Namespace: "team-a", Name: "logs"}, u)
+			}
+
+			It("sends each object as a strict dry run and stores nothing", func() {
+				funcs, seen := recordCreates("")
+				h = startHarnessIntercepted(Options{}, nil, funcs, platformFixtures()...)
+				var out DryRunOutput
+				res := h.call("dryrun_application", map[string]any{"application": bucketDoc("acme-logs"), "definitions": []string{bucketCUE}, "serverCheck": true}, &out)
+				Expect(res.IsError).To(BeFalse(), toJSON(res))
+				Expect(out.ServerCheck).NotTo(BeNil())
+				Expect(out.ServerCheck.Objects).To(ConsistOf(ObjectCheck{Kind: "Bucket", Namespace: "team-a", Name: "logs", Accepted: true}))
+				Expect(*seen).To(HaveLen(1))
+				Expect((*seen)[0].DryRun).To(ConsistOf(metav1.DryRunAll))
+				Expect((*seen)[0].FieldValidation).To(Equal("Strict"))
+				Expect(apierrors.IsNotFound(liveBucket())).To(BeTrue(), "a dry run stores nothing")
+			})
+
+			It("reports the API server's reason when an object is rejected", func() {
+				funcs, _ := recordCreates("Bucket")
+				h = startHarnessIntercepted(Options{}, nil, funcs, platformFixtures()...)
+				var out DryRunOutput
+				h.call("dryrun_application", map[string]any{"application": bucketDoc("acme-logs"), "definitions": []string{bucketCUE}, "serverCheck": true}, &out)
+				Expect(out.ServerCheck.Objects).To(HaveLen(1))
+				Expect(out.ServerCheck.Objects[0].Accepted).To(BeFalse())
+				Expect(out.ServerCheck.Objects[0].Message).To(ContainSubstring(`unknown field "spec.nmae"`))
+			})
+
+			It("checks an object that already exists as an update of the live copy", func() {
+				existing := &unstructured.Unstructured{}
+				existing.SetAPIVersion("s3.services.k8s.aws/v1alpha1")
+				existing.SetKind("Bucket")
+				existing.SetNamespace("team-a")
+				existing.SetName("logs")
+				Expect(unstructured.SetNestedField(existing.Object, "old-name", "spec", "name")).To(Succeed())
+				h = startHarness(Options{}, append(platformFixtures(), existing)...)
+				var out DryRunOutput
+				h.call("dryrun_application", map[string]any{"application": bucketDoc("acme-logs"), "definitions": []string{bucketCUE}, "serverCheck": true}, &out)
+				Expect(out.ServerCheck.Objects).To(ConsistOf(ObjectCheck{Kind: "Bucket", Namespace: "team-a", Name: "logs", Accepted: true}))
+				live := &unstructured.Unstructured{}
+				live.SetAPIVersion("s3.services.k8s.aws/v1alpha1")
+				live.SetKind("Bucket")
+				Expect(h.cli.Get(context.Background(), client.ObjectKey{Namespace: "team-a", Name: "logs"}, live)).To(Succeed())
+				name, _, _ := unstructured.NestedString(live.Object, "spec", "name")
+				Expect(name).To(Equal("old-name"), "the dry-run update left the live object alone")
+			})
+
+			It("does not send objects in a namespace outside the allowlist", func() {
+				funcs, seen := recordCreates("")
+				h = startHarnessIntercepted(Options{Namespaces: []string{"team-a"}}, nil, funcs, platformFixtures()...)
+				elsewhere := strings.Replace(bucketCUE, "name: context.name", "name: context.name\n\t\t\tnamespace: \"shared\"", 1)
+				Expect(elsewhere).NotTo(Equal(bucketCUE))
+				var out DryRunOutput
+				res := h.call("dryrun_application", map[string]any{"application": bucketDoc("acme-logs"), "definitions": []string{elsewhere}, "serverCheck": true}, &out)
+				Expect(res.IsError).To(BeFalse(), toJSON(res))
+				Expect(out.ServerCheck.Objects).To(BeEmpty())
+				Expect(out.ServerCheck.Skipped).To(ConsistOf(ContainSubstring("Bucket shared/logs")))
+				Expect(*seen).To(BeEmpty(), "nothing outside the allowlist reaches the API server")
+			})
 		})
 
 		It("rejects bad input", func() {
