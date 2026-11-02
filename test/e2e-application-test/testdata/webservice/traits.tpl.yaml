@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: ($name)
+  namespace: ($namespace)
+spec:
+  components:
+    - name: ($name)
+      type: webservice
+      properties:
+        image: oamdev/testapp:v1
+        ports:
+          - port: 8080
+      traits: (parse_yaml($traits))
