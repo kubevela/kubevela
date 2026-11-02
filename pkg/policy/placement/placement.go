@@ -23,6 +23,7 @@ package placement
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 
@@ -74,7 +75,7 @@ func Validate(p *v1alpha1.Placement) error {
 	case hasClusters && len(p.Clusters) == 0:
 		return fmt.Errorf("placement clusters must name at least one cluster")
 	}
-	if slices.Contains(p.Clusters, "") {
+	if slices.ContainsFunc(p.Clusters, func(c string) bool { return strings.TrimSpace(c) == "" }) {
 		return fmt.Errorf("placement clusters must not contain an empty name")
 	}
 	return nil

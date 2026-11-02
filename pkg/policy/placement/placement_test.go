@@ -214,8 +214,9 @@ func TestValidate(t *testing.T) {
 		"only allowEmpty": {&v1alpha1.Placement{AllowEmpty: true}, "placement must set clusters or clusterLabelSelector"},
 		"both": {&v1alpha1.Placement{Clusters: []string{"spoke"}, ClusterLabelSelector: map[string]string{"tier": "runtime"}},
 			"placement must set clusters or clusterLabelSelector, not both"},
-		"empty cluster list": {&v1alpha1.Placement{Clusters: []string{}}, "placement clusters must name at least one cluster"},
-		"blank cluster name": {&v1alpha1.Placement{Clusters: []string{"spoke", ""}}, "placement clusters must not contain an empty name"},
+		"empty cluster list":      {&v1alpha1.Placement{Clusters: []string{}}, "placement clusters must name at least one cluster"},
+		"blank cluster name":      {&v1alpha1.Placement{Clusters: []string{"spoke", ""}}, "placement clusters must not contain an empty name"},
+		"whitespace cluster name": {&v1alpha1.Placement{Clusters: []string{"spoke", "  "}}, "placement clusters must not contain an empty name"},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {

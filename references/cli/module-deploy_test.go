@@ -540,3 +540,43 @@ func TestWaitForModuleAcceptsUnplacedTiers(t *testing.T) {
 	assert.Contains(t, out.String(), "Not placed")
 	assert.Contains(t, out.String(), "is installed")
 }
+
+// TestWaitForModuleStopsOnTerminalOwnedWorkflow asserts a terminal phase on
+// the owned Application ends the wait at once, with the failed step's message,
+// the same way a terminal phase on the deploy Application does.
+func TestWaitForModuleStopsOnTerminalOwnedWorkflow(t *testing.T) {
+	steps := []workflowv1alpha1.StepStatus{
+		{Name: "deploy-module-runtime", Phase: workflowv1alpha1.WorkflowStepPhaseFailed, Message: "failed to get cluster spoke-9"},
+	}
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).
+		WithObjects(settledOwnedApp(oamcommon.ApplicationWorkflowFailed, 4, 4, steps)...).Build()
+	var out bytes.Buffer
+	o := &moduleDeployOptions{module: "s3", namespace: velatypes.DefaultKubeVelaNS, timeout: time.Minute, pollInterval: time.Millisecond}
+
+	start := time.Now()
+	err := o.waitForModule(context.Background(), cli, &out)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), string(oamcommon.ApplicationWorkflowFailed))
+	assert.Contains(t, err.Error(), "failed to get cluster spoke-9")
+	assert.Less(t, time.Since(start), 5*time.Second, "a terminal owned phase must not wait out the timeout")
+}
+
+// TestWaitForModuleIgnoresStaleFailedSteps asserts a failed step from before
+// the latest change is neither shown nor reported as the timeout's cause.
+func TestWaitForModuleIgnoresStaleFailedSteps(t *testing.T) {
+	steps := []workflowv1alpha1.StepStatus{
+		{Name: "deploy-module-runtime", Phase: workflowv1alpha1.WorkflowStepPhaseFailed, Message: "stale failure"},
+	}
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).
+		WithObjects(settledOwnedApp(oamcommon.ApplicationWorkflowFailed, 2, 1, steps)...).Build()
+	var out bytes.Buffer
+	o := &moduleDeployOptions{module: "s3", namespace: velatypes.DefaultKubeVelaNS, timeout: 30 * time.Millisecond, pollInterval: time.Millisecond}
+
+	err := o.waitForModule(context.Background(), cli, &out)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timed out")
+	assert.NotContains(t, err.Error(), "stale failure")
+	assert.NotContains(t, out.String(), "stale failure")
+}

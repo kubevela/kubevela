@@ -341,14 +341,15 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 			tiers = moduleTierNames(&ownedApp)
 			services = ownedApp.Status.Services
 			ownedSettled = appSettled(&ownedApp)
+			if err := terminalOwnedPhase(&ownedApp); err != nil {
+				return err
+			}
 		}
 
 		table := "Rendering module (install tiers are not known yet)..."
 		if len(tiers) > 0 {
 			table = renderModuleTierTable(tiers, services, ownedSettled)
-			// A failed step from before the latest change is stale; show it only
-			// once the controller has reconciled the current spec.
-			if step, msg := failedStep(&ownedApp); step != "" && ownedApp.Status.ObservedGeneration == ownedApp.Generation {
+			if step, msg := failedStep(&ownedApp); step != "" {
 				table += fmt.Sprintf("\nStep %s failed: %s", step, msg)
 			}
 		}
@@ -402,9 +403,11 @@ func appSettled(app *v1beta1.Application) bool {
 
 // failedStep returns the first failed workflow step on app and its message, or
 // an empty name. A runtime step whose cluster selector matches nothing fails
-// here while every hub tier is healthy.
+// here while every hub tier is healthy. A failed step from before the latest
+// change is stale, so nothing is returned until the controller has reconciled
+// the current spec.
 func failedStep(app *v1beta1.Application) (string, string) {
-	if app.Status.Workflow == nil {
+	if app.Status.Workflow == nil || app.Status.ObservedGeneration != app.Generation {
 		return "", ""
 	}
 	for _, st := range app.Status.Workflow.Steps {
@@ -413,6 +416,25 @@ func failedStep(app *v1beta1.Application) (string, string) {
 		}
 	}
 	return "", ""
+}
+
+// terminalOwnedPhase returns an error when the owned Application has stopped
+// in a terminal phase for its current spec. A failed step that KubeVela still
+// retries leaves the phase at runningWorkflow, so that case keeps waiting.
+func terminalOwnedPhase(app *v1beta1.Application) error {
+	if app.Status.ObservedGeneration != app.Generation {
+		return nil
+	}
+	switch app.Status.Phase {
+	case oamcommon.ApplicationWorkflowFailed, oamcommon.ApplicationWorkflowTerminated:
+		reason := "no failed step reported"
+		if step, msg := failedStep(app); step != "" {
+			reason = fmt.Sprintf("step %s failed: %s", step, msg)
+		}
+		return fmt.Errorf("application %s/%s is in phase %s: %s", app.Namespace, app.Name, app.Status.Phase, reason)
+	default:
+		return nil
+	}
 }
 
 // tierStatuses folds the owned Application's services into one status per
