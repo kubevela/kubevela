@@ -389,12 +389,13 @@ func (d *deps) applicationNamespaces(requested string) ([]string, error) {
 
 func summarizeApplication(app *v1beta1.Application) ApplicationSummary {
 	s := ApplicationSummary{
-		Name:        app.Name,
-		Namespace:   app.Namespace,
-		Phase:       string(app.Status.Phase),
-		Healthy:     applicationHealthy(app),
-		Components:  make([]ComponentRef, 0, len(app.Spec.Components)),
-		StatusStale: app.Status.ObservedGeneration != 0 && app.Status.ObservedGeneration < app.Generation,
+		Name:       app.Name,
+		Namespace:  app.Namespace,
+		Phase:      string(app.Status.Phase),
+		Healthy:    applicationHealthy(app),
+		Components: make([]ComponentRef, 0, len(app.Spec.Components)),
+		// A status no controller has written yet is stale too.
+		StatusStale: app.Status.ObservedGeneration < app.Generation,
 		CreatedAt:   app.CreationTimestamp.Time.UTC(),
 	}
 	for _, c := range app.Spec.Components {
@@ -453,7 +454,8 @@ func applicationHealthy(app *v1beta1.Application) bool {
 			return false
 		}
 		for _, t := range s.Traits {
-			if !t.Healthy {
+			// The controller's own health evaluation skips pending traits.
+			if !t.Pending && !t.Healthy {
 				return false
 			}
 		}

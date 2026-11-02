@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -70,5 +71,26 @@ var _ = Describe("redaction", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(truncated).To(BeTrue())
 		Expect(lines).To(Equal([]string{"one"}))
+	})
+
+	It("keeps a final line without a newline that fits the budget exactly", func() {
+		lines, truncated, err := readLines(strings.NewReader("one\ntwo"), 7)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeFalse(), "nothing was cut")
+		Expect(lines).To(Equal([]string{"one", "two"}))
+	})
+
+	It("defaults to a regular container, not an init container", func() {
+		pod := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{
+			"initContainers": []any{map[string]any{"name": "migrate"}},
+			"containers":     []any{map[string]any{"name": "app"}, map[string]any{"name": "sidecar"}},
+		}}}
+		Expect(containerNames(pod)).To(Equal([]string{"app", "sidecar", "migrate"}))
+	})
+
+	It("returns every pod with a name, so a name in two clusters is not resolved by sort order", func() {
+		targets := []podTarget{{cluster: "local", namespace: "team-a", name: "web-1"}, {cluster: "eu", namespace: "team-a", name: "web-1"}, {cluster: "eu", namespace: "team-a", name: "web-2"}}
+		Expect(selectPod(targets, "web-1")).To(HaveLen(2))
+		Expect(selectPod(targets, "web-2")).To(HaveLen(1))
 	})
 })

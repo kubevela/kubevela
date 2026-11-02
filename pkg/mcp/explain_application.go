@@ -311,7 +311,7 @@ func serviceFindings(component string, services []ServiceStatus, appRef string) 
 
 func applicationFindings(app *v1beta1.Application, wf *WorkflowDetail, appRef string) []Finding {
 	var findings []Finding
-	if app.Status.ObservedGeneration != 0 && app.Status.ObservedGeneration < app.Generation {
+	if app.Status.ObservedGeneration < app.Generation {
 		findings = append(findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("status describes generation %d but the spec is at generation %d; the controller has not reconciled the latest change", app.Status.ObservedGeneration, app.Generation), Evidence: appRef})
 	}
 	switch app.Status.Phase {

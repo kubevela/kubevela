@@ -93,7 +93,7 @@ func (d *deps) buildHandles(ctx context.Context, cli client.Client, app *v1beta1
 	h := Handles{
 		Namespace:       app.Namespace,
 		Application:     app.Name,
-		Labels:          map[string]string{oam.LabelAppName: app.Name},
+		Labels:          map[string]string{oam.LabelAppName: app.Name, oam.LabelAppNamespace: app.Namespace},
 		ComponentLabels: map[string]map[string]string{},
 		Pods:            []PodHandle{},
 	}
@@ -119,7 +119,7 @@ func (d *deps) buildHandles(ctx context.Context, cli client.Client, app *v1beta1
 		h.Pods = append(h.Pods, PodHandle{Cluster: p.cluster, Namespace: p.namespace, Name: p.name, Component: p.component})
 	}
 	for _, c := range app.Spec.Components {
-		h.ComponentLabels[c.Name] = map[string]string{oam.LabelAppName: app.Name, oam.LabelAppComponent: c.Name}
+		h.ComponentLabels[c.Name] = map[string]string{oam.LabelAppName: app.Name, oam.LabelAppNamespace: app.Namespace, oam.LabelAppComponent: c.Name}
 	}
 	h.LabelSelector = labelSelector(h.Labels)
 	h.MetricLabels = metricLabels(h.Labels)

@@ -17,11 +17,12 @@ limitations under the License.
 package mcp
 
 import (
-	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	corev1 "k8s.io/api/core/v1"
@@ -107,8 +108,15 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	targets := collectPods(applied)
 	if in.Pod != "" {
 		targets = selectPod(targets, in.Pod)
-		if len(targets) == 0 {
+		switch {
+		case len(targets) == 0:
 			return nil, out, fmt.Errorf("pod %q is not managed by application %s/%s", in.Pod, app.Namespace, app.Name)
+		case len(targets) > 1:
+			where := make([]string, 0, len(targets))
+			for _, t := range targets {
+				where = append(where, t.cluster+"/"+t.namespace)
+			}
+			return nil, out, fmt.Errorf("pod %q exists in %s; name the cluster to choose one", in.Pod, strings.Join(where, ", "))
 		}
 	}
 	if len(targets) == 0 {
@@ -129,6 +137,10 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		targets = targets[:maxLogPods]
 	}
 	opts := logOptions(in)
+	if in.TailLines > maxTailLines {
+		meta.Warnings = append(meta.Warnings, fmt.Sprintf("tailLines %d is above the maximum; %d lines per pod were read", in.TailLines, maxTailLines))
+		meta.Truncated = true
+	}
 	for _, t := range targets {
 		pl := d.readPodLogs(ctx, t, in.Container, opts)
 		if pl.Truncated {
@@ -190,22 +202,27 @@ func (d *deps) readPodLogs(ctx context.Context, t podTarget, container string, o
 }
 
 // readLines reads up to budget bytes of newline-separated text, redacting
-// each line. Truncated is set when the stream had more.
+// each line. Truncated is set only when the stream had more than the
+// budget; a line cut by the budget is dropped rather than returned partial.
 func readLines(r io.Reader, budget int) ([]string, bool, error) {
-	lines := []string{}
-	lr := &io.LimitedReader{R: r, N: int64(budget) + 1}
-	sc := bufio.NewScanner(lr)
-	sc.Buffer(make([]byte, 64<<10), budget)
-	read := 0
-	for sc.Scan() {
-		line := sc.Text()
-		read += len(line) + 1
-		if read > budget {
-			return lines, true, nil
+	data, err := io.ReadAll(&io.LimitedReader{R: r, N: int64(budget) + 1})
+	truncated := len(data) > budget
+	if truncated {
+		data = data[:budget]
+		if i := bytes.LastIndexByte(data, '\n'); i >= 0 {
+			data = data[:i]
+		} else {
+			data = nil
 		}
-		lines = append(lines, redactLine(line))
 	}
-	return lines, false, sc.Err()
+	lines := []string{}
+	text := strings.TrimSuffix(string(data), "\n")
+	if text != "" {
+		for _, line := range strings.Split(text, "\n") {
+			lines = append(lines, redactLine(strings.TrimSuffix(line, "\r")))
+		}
+	}
+	return lines, truncated, err
 }
 
 // collectPods walks every tree for Pod nodes. The collector already holds
@@ -236,6 +253,9 @@ func collectPods(applied []querytypes.AppliedResource) []podTarget {
 		if pods[i].cluster != pods[j].cluster {
 			return pods[i].cluster < pods[j].cluster
 		}
+		if pods[i].namespace != pods[j].namespace {
+			return pods[i].namespace < pods[j].namespace
+		}
 		return pods[i].name < pods[j].name
 	})
 	return pods
@@ -252,7 +272,8 @@ func podTargetFromNode(component string, n *querytypes.ResourceTreeNode) podTarg
 
 func containerNames(obj *unstructured.Unstructured) []string {
 	var names []string
-	for _, field := range []string{"initContainers", "containers"} {
+	// Regular containers first, so the default is the workload, not setup.
+	for _, field := range []string{"containers", "initContainers"} {
 		items, _, _ := unstructured.NestedSlice(obj.Object, "spec", field)
 		for _, it := range items {
 			if m, ok := it.(map[string]any); ok {
@@ -265,13 +286,16 @@ func containerNames(obj *unstructured.Unstructured) []string {
 	return names
 }
 
+// selectPod returns every target with the name; more than one means the
+// same pod name exists in several clusters or namespaces.
 func selectPod(targets []podTarget, name string) []podTarget {
+	var out []podTarget
 	for _, t := range targets {
 		if t.name == name {
-			return []podTarget{t}
+			out = append(out, t)
 		}
 	}
-	return nil
+	return out
 }
 
 // streamPodLogs is the default PodLogsFunc: a clientset on the factory's

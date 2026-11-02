@@ -21,8 +21,10 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -55,10 +57,10 @@ var _ = Describe("correlation handles", func() {
 			PodHandle{Cluster: "local", Namespace: "team-a", Name: "web-abc-1", Component: "web"},
 			PodHandle{Cluster: "local", Namespace: "team-a", Name: "web-abc-2", Component: "web"},
 		))
-		Expect(hd.Labels).To(Equal(map[string]string{"app.oam.dev/name": "web"}))
-		Expect(hd.LabelSelector).To(Equal("app.oam.dev/name=web"))
-		Expect(hd.MetricLabels).To(Equal(map[string]string{"app_oam_dev_name": "web"}))
-		Expect(hd.ComponentLabels).To(HaveKeyWithValue("db", map[string]string{"app.oam.dev/name": "web", "app.oam.dev/component": "db"}))
+		Expect(hd.Labels).To(Equal(map[string]string{"app.oam.dev/name": "web", "app.oam.dev/namespace": "team-a"}), "the namespace keeps same-named Applications apart")
+		Expect(hd.LabelSelector).To(Equal("app.oam.dev/name=web,app.oam.dev/namespace=team-a"))
+		Expect(hd.MetricLabels).To(Equal(map[string]string{"app_oam_dev_name": "web", "app_oam_dev_namespace": "team-a"}))
+		Expect(hd.ComponentLabels).To(HaveKeyWithValue("db", map[string]string{"app.oam.dev/name": "web", "app.oam.dev/namespace": "team-a", "app.oam.dev/component": "db"}))
 
 		started := time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC)
 		Expect(*hd.AppliedAt).To(BeTemporally("==", started))
@@ -94,9 +96,35 @@ var _ = Describe("correlation handles", func() {
 	})
 
 	It("lists only pods inside the namespace allowlist", func() {
-		h = startHarness(Options{Namespaces: []string{"team-a"}}, explainAppFixtures()...)
-		for _, p := range explain("web", "team-a").Handles.Pods {
-			Expect(p.Namespace).To(Equal("team-a"))
+		// The tracker also records a pod the Application owns in team-b.
+		objs := explainAppFixtures()
+		for _, o := range objs {
+			if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+				rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+					ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "v1", Kind: "Pod", Namespace: "team-b", Name: "spy"}},
+					OAMObjectReference:     oamcommon.OAMObjectReference{Component: "web"},
+				})
+			}
+		}
+		objs = append(objs, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "spy", Namespace: "team-b"}})
+		names := func(pods []PodHandle) []string {
+			out := []string{}
+			for _, p := range pods {
+				out = append(out, p.Namespace+"/"+p.Name)
+			}
+			return out
+		}
+
+		h = startHarness(Options{}, objs...)
+		Expect(names(explain("web", "team-a").Handles.Pods)).To(ContainElement("team-b/spy"), "unrestricted, the foreign pod is a handle")
+		h.close()
+
+		h = startHarness(Options{Namespaces: []string{"team-a"}}, objs...)
+		pods := names(explain("web", "team-a").Handles.Pods)
+		Expect(pods).NotTo(BeEmpty())
+		Expect(pods).NotTo(ContainElement("team-b/spy"))
+		for _, p := range pods {
+			Expect(p).To(HavePrefix("team-a/"))
 		}
 	})
 })
