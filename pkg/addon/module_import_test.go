@@ -191,19 +191,19 @@ func TestGetPatternFromItemRecognizesModulesImportsFile(t *testing.T) {
 
 func TestRenderModuleComponentsEmitsEnabledImport(t *testing.T) {
 	addon := &InstallPackage{
-		Meta: Meta{Name: "atmos-platform-storage"},
+		Meta: Meta{Name: "platform-storage"},
 		Imports: []ModuleImport{
 			{Module: "aws-s3", Enabled: true, Registry: "oam-modules", Version: "1.0.0"},
 		},
 	}
-	comps, err := RenderModuleComponents(addon, nil, []string{"atmos-platform-storage-resources"}, nil)
+	comps, err := RenderModuleComponents(addon, nil, []string{"platform-storage-resources"}, nil)
 	require.NoError(t, err)
 	require.Len(t, comps, 1)
 
 	c := comps[0]
 	assert.Equal(t, "aws-s3", c.Name)
 	assert.Equal(t, "module", c.Type)
-	assert.Equal(t, []string{"atmos-platform-storage-resources"}, c.DependsOn)
+	assert.Equal(t, []string{"platform-storage-resources"}, c.DependsOn)
 
 	var props map[string]interface{}
 	require.NoError(t, json.Unmarshal(c.Properties.Raw, &props))

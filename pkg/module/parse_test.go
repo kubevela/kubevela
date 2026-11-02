@@ -262,7 +262,7 @@ func TestParseModule_FS(t *testing.T) {
 		"auxiliary/xrd.yaml":            {Data: []byte("apiVersion: apiextensions.crossplane.io/v1\nkind: CompositeResourceDefinition\nmetadata:\n  name: xs3\n")},
 		"v1/_version.cue":               {Data: []byte(`apiVersion: "v1"`)},
 		"v1/auxiliary/composition.yaml": {Data: []byte("apiVersion: apiextensions.crossplane.io/v1\nkind: Composition\nmetadata:\n  name: s3\n")},
-		"v1/definitions/bucket.yaml":    {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n")},
+		"v1/definitions/bucket.yaml":    {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n")},
 	}
 	mod, err := ParseModule(fsys)
 	require.NoError(t, err)

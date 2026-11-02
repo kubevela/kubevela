@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@v4
         
       - name: Run KubeVela Unit Tests
-        uses: viskumar_gwre/kubevela-k8s-upgrade-unit-test-action@v1
+        uses: ./.github/actions/unit-test
         with:
           codecov-enable: 'true'
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
