@@ -41,9 +41,9 @@ var _ = Describe("Test FilterInternalMetadata", func() {
 	It("should filter out internal annotations and labels", func() {
 		metadata := map[string]string{
 			// User metadata - should be kept
-			"user.custom/annotation":   "keep",
-			"my-label":                 "keep",
-			"team":                     "platform",
+			"user.custom/annotation": "keep",
+			"my-label":               "keep",
+			"team":                   "platform",
 			"custom.example.dev/foo": "keep",
 
 			// Internal metadata - should be filtered out

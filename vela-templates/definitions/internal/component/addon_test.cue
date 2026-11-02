@@ -99,8 +99,10 @@ _rendered: $returns: {
 	}
 	parameter: placement: clusters: ["spoke-a", "spoke-b"]
 	mocks: "vela/addon": "#Render": _rendered
-	expect: calls: "vela/addon": "#Render": [{$params: placement: {
-		clusters: ["spoke-a", "spoke-b"]
-	} @exact(), ...
+	expect: calls: "vela/addon": "#Render": [{$params: {
+		placement: {
+			clusters: ["spoke-a", "spoke-b"]
+		} @exact()
+	}, ...
 	}]
 }
