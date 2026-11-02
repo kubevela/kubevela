@@ -40,6 +40,7 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
 	modulesvc "github.com/oam-dev/kubevela/pkg/module/service"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/policy/placement"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -327,10 +328,7 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		var services []oamcommon.ApplicationComponentStatus
 		var ownedApp v1beta1.Application
 		ownedSettled := false
-		// Until the deploy Application has reconciled its latest spec, the owned
-		// Application still carries the result of the previous request, so
-		// neither its tiers nor its failures describe this deploy yet.
-		deploySettled := appSettled(&deployApp)
+		ownedCurrent := false
 		// The owned Application lives in the system namespace whatever namespace
 		// the definitions install into, so it is read from there, not o.namespace.
 		ownedName := ownedModuleAppName(o.module)
@@ -344,8 +342,9 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		default:
 			tiers = moduleTierNames(&ownedApp)
 			services = ownedApp.Status.Services
-			ownedSettled = deploySettled && appSettled(&ownedApp)
-			if deploySettled {
+			ownedCurrent = ownedAppCurrent(&deployApp, &ownedApp)
+			ownedSettled = ownedCurrent && appSettled(&ownedApp)
+			if ownedCurrent {
 				if err := terminalOwnedPhase(&ownedApp); err != nil {
 					return err
 				}
@@ -355,7 +354,7 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		table := "Rendering module (install tiers are not known yet)..."
 		if len(tiers) > 0 {
 			table = renderModuleTierTable(tiers, services, ownedSettled)
-			if step, msg := failedStep(&ownedApp); step != "" && deploySettled {
+			if step, msg := failedStep(&ownedApp); step != "" && ownedCurrent {
 				table += fmt.Sprintf("\nStep %s failed: %s", step, msg)
 			}
 		}
@@ -365,7 +364,7 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		}
 
 		tier, message := firstUnhealthyTier(tiers, services, ownedSettled)
-		if tier == "" && len(tiers) > 0 && ownedSettled {
+		if tier == "" && len(tiers) > 0 && appSettled(&deployApp) && ownedSettled {
 			if resolved := ownedApp.Annotations[velatypes.AnnoDefinitionModuleVersion]; resolved != "" {
 				fmt.Fprintf(out, "Module %q (version %s) is installed in namespace %q\n", o.module, resolved, o.namespace)
 			} else {
@@ -379,7 +378,7 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 				return fmt.Errorf("timed out after %s waiting for module %q: the owned Application %s/%s was not created; deploy Application is in phase %s: %s",
 					o.timeout, o.module, velatypes.DefaultKubeVelaNS, ownedName, deployApp.Status.Phase, moduleComponentMessage(&deployApp))
 			}
-			if step, msg := failedStep(&ownedApp); step != "" && deploySettled {
+			if step, msg := failedStep(&ownedApp); step != "" && ownedCurrent {
 				return fmt.Errorf("timed out after %s waiting for module %q: Application %s/%s step %s failed: %s",
 					o.timeout, o.module, velatypes.DefaultKubeVelaNS, ownedName, step, msg)
 			}
@@ -405,6 +404,27 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 // so a redeploy waits for the new spec instead of reading the old result.
 func appSettled(app *v1beta1.Application) bool {
 	return app.Status.Phase == oamcommon.ApplicationRunning && app.Status.ObservedGeneration == app.Generation
+}
+
+// ownedAppCurrent reports whether the owned Application was written by the
+// deploy Application's latest spec. Until then it still carries the result of
+// the previous request, so neither its tiers nor its failures describe this
+// deploy. The deploy Application's own phase is not used: the module
+// component's health is the owned Application's health, so the deploy
+// Application never reaches running while the owned workflow is failing.
+func ownedAppCurrent(deployApp, ownedApp *v1beta1.Application) bool {
+	rev := deployApp.Status.LatestRevision
+	if rev == nil || rev.Name == "" || deployApp.Status.ObservedGeneration != deployApp.Generation {
+		return false
+	}
+	switch deployApp.Status.Phase {
+	case oamcommon.ApplicationStarting, oamcommon.ApplicationRendering:
+		// Only an error before the revision is finalized writes these phases,
+		// so latestRevision may still name the previous request.
+		return false
+	default:
+		return ownedApp.Labels[oam.LabelAppRevision] == rev.Name
+	}
 }
 
 // failedStep returns the first failed workflow step on app and its message, or

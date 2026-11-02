@@ -39,6 +39,7 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -175,16 +176,20 @@ func TestModuleDeployResolvesDefaultRegistry(t *testing.T) {
 func moduleApps(phase oamcommon.ApplicationPhase, tiers []string, services []oamcommon.ApplicationComponentStatus) []client.Object {
 	deployApp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{Name: "module-s3-deploy", Namespace: velatypes.DefaultKubeVelaNS},
-		Status:     oamcommon.AppStatus{Phase: phase},
+		Status:     oamcommon.AppStatus{Phase: phase, LatestRevision: &oamcommon.Revision{Name: "module-s3-deploy-v1"}},
 	}
 	comps := make([]oamcommon.ApplicationComponent, 0, len(tiers))
 	for _, tier := range tiers {
 		comps = append(comps, oamcommon.ApplicationComponent{Name: tier, Type: "k8s-objects"})
 	}
 	ownedApp := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{Name: "module-s3", Namespace: velatypes.DefaultKubeVelaNS},
-		Spec:       v1beta1.ApplicationSpec{Components: comps},
-		Status:     oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning, Services: services},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "module-s3",
+			Namespace: velatypes.DefaultKubeVelaNS,
+			Labels:    map[string]string{oam.LabelAppRevision: "module-s3-deploy-v1"},
+		},
+		Spec:   v1beta1.ApplicationSpec{Components: comps},
+		Status: oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning, Services: services},
 	}
 	return []client.Object{deployApp, ownedApp}
 }
@@ -253,7 +258,7 @@ func TestFirstUnhealthyTier(t *testing.T) {
 func TestWaitForModuleReportsResolvedVersion(t *testing.T) {
 	deployApp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{Name: "module-s3-deploy", Namespace: velatypes.DefaultKubeVelaNS},
-		Status:     oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning},
+		Status:     oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning, LatestRevision: &oamcommon.Revision{Name: "module-s3-deploy-v1"}},
 	}
 	comps := make([]oamcommon.ApplicationComponent, 0, len(moduleTiers))
 	for _, tier := range moduleTiers {
@@ -264,6 +269,7 @@ func TestWaitForModuleReportsResolvedVersion(t *testing.T) {
 			Name:        "module-s3",
 			Namespace:   velatypes.DefaultKubeVelaNS,
 			Annotations: map[string]string{velatypes.AnnoDefinitionModuleVersion: "1.2.0"},
+			Labels:      map[string]string{oam.LabelAppRevision: "module-s3-deploy-v1"},
 		},
 		Spec:   v1beta1.ApplicationSpec{Components: comps},
 		Status: oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning, Services: healthyTierServices()},
@@ -592,8 +598,9 @@ func TestWaitForModuleIgnoresOwnedFailureBeforeTheDeployAppSettles(t *testing.T)
 	}
 	objs := settledOwnedApp(oamcommon.ApplicationWorkflowFailed, 4, 4, steps)
 	deployApp := objs[0].(*v1beta1.Application)
-	deployApp.Generation = 3
+	deployApp.Generation = 2
 	deployApp.Status.ObservedGeneration = 2
+	deployApp.Status.LatestRevision = &oamcommon.Revision{Name: "module-s3-deploy-v2"}
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(objs...).Build()
 	var out bytes.Buffer
 	o := &moduleDeployOptions{module: "s3", namespace: velatypes.DefaultKubeVelaNS, timeout: 30 * time.Millisecond, pollInterval: time.Millisecond}
@@ -604,4 +611,28 @@ func TestWaitForModuleIgnoresOwnedFailureBeforeTheDeployAppSettles(t *testing.T)
 	assert.Contains(t, err.Error(), "timed out")
 	assert.NotContains(t, err.Error(), "previous request failed")
 	assert.NotContains(t, out.String(), "previous request failed")
+}
+
+// TestWaitForModuleReportsTheFailedStepWhileTheDeployAppWaits asserts the
+// owned Application's failure is reported even though the deploy Application
+// never reaches running: the module component's health is the owned
+// Application's health, so the deploy Application waits in runningWorkflow
+// while the runtime step fails and KubeVela retries it.
+func TestWaitForModuleReportsTheFailedStepWhileTheDeployAppWaits(t *testing.T) {
+	steps := []workflowv1alpha1.StepStatus{
+		{Name: "deploy-module-hub", Phase: workflowv1alpha1.WorkflowStepPhaseSucceeded},
+		{Name: "deploy-module-runtime", Phase: workflowv1alpha1.WorkflowStepPhaseFailed,
+			Message: "failed to find any cluster matches given labels"},
+	}
+	objs := settledOwnedApp(oamcommon.ApplicationRunningWorkflow, 1, 1, steps)
+	objs[0].(*v1beta1.Application).Status.Phase = oamcommon.ApplicationRunningWorkflow
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(objs...).Build()
+	var out bytes.Buffer
+	o := &moduleDeployOptions{module: "s3", namespace: velatypes.DefaultKubeVelaNS, timeout: 30 * time.Millisecond, pollInterval: time.Millisecond}
+
+	err := o.waitForModule(context.Background(), cli, &out)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "deploy-module-runtime failed")
+	assert.Contains(t, out.String(), "Step deploy-module-runtime failed")
 }
