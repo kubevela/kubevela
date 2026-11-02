@@ -264,8 +264,14 @@ func controllerVersion(deploy *appsv1.Deployment) string {
 		return v
 	}
 	if c := mainContainer(deploy); c != nil {
-		if i := strings.LastIndex(c.Image, ":"); i > 0 && !strings.Contains(c.Image[i:], "/") {
-			return c.Image[i+1:]
+		// A digest says nothing about the version; drop it and use the tag
+		// beside it, if there is one.
+		image := c.Image
+		if at := strings.Index(image, "@"); at >= 0 {
+			image = image[:at]
+		}
+		if i := strings.LastIndex(image, ":"); i > 0 && !strings.Contains(image[i:], "/") {
+			return image[i+1:]
 		}
 	}
 	return unknownVersion

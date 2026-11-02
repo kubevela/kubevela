@@ -113,6 +113,35 @@ var _ = Describe("vela mcp server", func() {
 			Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("kubernetes version: boom")))
 		})
 
+		DescribeTable("reads a version from the image, never from a digest",
+			func(image, want string) {
+				objs := platformFixtures()
+				deploy := objs[0].(*appsv1.Deployment)
+				delete(deploy.Labels, chartVersionLabel)
+				deploy.Spec.Template.Spec.Containers[0].Image = image
+				Expect(controllerVersion(deploy)).To(Equal(want))
+			},
+			Entry("tag", "oamdev/vela-core:v1.10.4", "v1.10.4"),
+			Entry("tag and digest", "oamdev/vela-core:v1.10.4@sha256:0123abcd", "v1.10.4"),
+			Entry("digest only", "oamdev/vela-core@sha256:0123abcd", unknownVersion),
+			Entry("registry with a port and no tag", "registry.local:5000/vela-core", unknownVersion),
+		)
+
+		It("does not cache a failed platform read", func() {
+			calls := 0
+			h = startHarness(Options{ServerVersion: func(*rest.Config) (string, error) {
+				calls++
+				if calls == 1 {
+					return "", errors.New("timeout")
+				}
+				return "v1.31.4", nil
+			}}, platformFixtures()...)
+			var first, second GetPlatformInfoOutput
+			h.call("list_definitions", nil, &first)
+			h.call("list_definitions", nil, &second)
+			Expect(second.Meta.Kubernetes).To(HaveKeyWithValue("local", "v1.31.4"), "the second call read again instead of reusing the failure")
+		})
+
 		It("falls back to the image tag when the chart label is missing and flags skew", func() {
 			objs := platformFixtures()
 			deploy := objs[0].(*appsv1.Deployment)

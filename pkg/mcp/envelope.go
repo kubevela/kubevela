@@ -72,11 +72,13 @@ type deps struct {
 	f    velacmd.Factory
 	opts Options
 
-	mu          sync.Mutex
-	platform    *platformInfo
-	platformAt  time.Time
-	platformErr error
-	cs          kubernetes.Interface
+	mu sync.Mutex
+	// platformMu guards the platform cache on its own, so a slow refresh
+	// does not hold up applies and log reads that take mu.
+	platformMu sync.Mutex
+	platform   *platformInfo
+	platformAt time.Time
+	cs         kubernetes.Interface
 	// diffs holds tokens issued by diff_application for apply_application.
 	diffs diffCache
 }
@@ -115,13 +117,18 @@ func (d *deps) meta(ctx context.Context) Meta {
 	return m
 }
 
+// cachedPlatform returns platform information, read at most once per
+// platformCacheTTL. Only a complete read is cached: a failed or cancelled
+// one is returned to its caller and the next call reads again.
 func (d *deps) cachedPlatform(ctx context.Context) (platformInfo, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.platformMu.Lock()
+	defer d.platformMu.Unlock()
 	if d.platform != nil && time.Since(d.platformAt) < platformCacheTTL {
-		return *d.platform, d.platformErr
+		return *d.platform, nil
 	}
 	info, err := d.readPlatform(ctx)
-	d.platform, d.platformAt, d.platformErr = &info, time.Now(), err
+	if err == nil && ctx.Err() == nil {
+		d.platform, d.platformAt = &info, time.Now()
+	}
 	return info, err
 }
