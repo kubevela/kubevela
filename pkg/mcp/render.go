@@ -67,7 +67,7 @@ type DryRunInput struct {
 	PlanInput
 	// ServerCheck sends each rendered object to the API server as a dry
 	// run, so a field the installed CRD does not define is caught here.
-	ServerCheck bool `json:"serverCheck,omitempty" jsonschema:"Also send each rendered object to the API server as a dry run with strict field validation, so it is checked against the installed CRDs and admission. Nothing is stored. Needs the CRDs installed and permission to create the objects."`
+	ServerCheck bool `json:"serverCheck,omitempty" jsonschema:"Also send each rendered object to the API server as a dry run with strict field validation, so it is checked against the installed CRDs and admission. Nothing is stored. Needs the CRDs installed and permission to create the objects. Acceptance means this API server accepted the request now; RBAC, admission and live state at apply time can still differ."`
 }
 
 // ObjectCheck is the API server's verdict on one rendered object.
@@ -115,7 +115,7 @@ type DryRunOutput struct {
 	Policies    []RenderedPolicy   `json:"policies" jsonschema:"Objects rendered by policies."`
 	Evidence    []string           `json:"evidence" jsonschema:"What was rendered and with which definitions."`
 	// ServerCheck is set when the caller asked for the API server dry run.
-	ServerCheck *ServerCheckResult `json:"serverCheck,omitempty" jsonschema:"The API server's verdict on each rendered object, when serverCheck was requested. A render that passes this can be applied to a cluster with the same CRDs."`
+	ServerCheck *ServerCheckResult `json:"serverCheck,omitempty" jsonschema:"The API server's verdict on each rendered object, when serverCheck was requested. Acceptance means the checked API server accepted the dry-run request; it is strong evidence the shape is right, not a promise that a later apply succeeds."`
 	Meta        Meta               `json:"meta"`
 }
 

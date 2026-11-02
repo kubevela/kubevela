@@ -63,7 +63,7 @@ var (
 		# Serve read-only tools over stdio for the current kubeconfig context
 		vela mcp
 
-		# Restrict every tool to two namespaces regardless of RBAC
+		# Restrict Application, resource and log reads to two namespaces
 		vela mcp --namespace team-a --namespace team-b
 
 		# Allow writes: pull-request YAML everywhere, direct writes confirmed in
