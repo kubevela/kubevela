@@ -270,7 +270,7 @@ func parseDefinition(doc string) (*unstructured.Unstructured, error) {
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 	if cueErr := def.FromCUEString(doc, nil); cueErr != nil {
 		if yamlErr != nil {
-			return nil, fmt.Errorf("neither a YAML definition (%v) nor a CUE definition (%v)", yamlErr, cueErr)
+			return nil, fmt.Errorf("neither a YAML definition (%w) nor a CUE definition (%w)", yamlErr, cueErr)
 		}
 		return nil, fmt.Errorf("not a CUE definition: %w", cueErr)
 	}
