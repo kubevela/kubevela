@@ -452,7 +452,7 @@ runs an observability stack and does not want a second one.
 | `kubevela-developer` | Discover before drafting, dry-run until clean, diff before apply, stop at the risk summary, never resume |
 | `kubevela-sre` | Explain first and take the handles; metrics, traces, logs through the observability MCP; managed objects through vela; rollback as a diffed change |
 | `kubevela-platform-engineer` | Consumers before changing a definition, render a sample of consumers, inventory conventions |
-| `kubevela-defkit-author` | defkit Go by default, CUE only on request; search the catalog first; real provider CRD shapes, ACK for AWS unless told otherwise; `go test`, `validate-module`, `gen-module`, dry-run with the server check; deliver by PR |
+| `kubevela-defkit-author` | defkit Go by default, CUE only on request; search the catalog first; real provider CRD shapes, using the provisioner the cluster already has and ACK for AWS only when there is none and the user names none; `go test`, `validate-module`, `gen-module`, dry-run with the server check; deliver by PR |
 
 Skills follow the agentskills.io layout so Claude Code, Codex, Cursor and Copilot load them
 unchanged. Third-party tool names live in a per-server appendix that `kubevela/skills`
