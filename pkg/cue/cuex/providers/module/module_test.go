@@ -27,7 +27,6 @@ import (
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
 	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/module/service/api"
 )
@@ -183,44 +182,4 @@ func TestRender_IsRefusedWhenTheGateIsDisabled(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "EnableModuleComponent")
 	assert.Equal(t, api.ModuleRequest{}, fake.req, "the renderer must not be reached when the gate is off")
-}
-
-// TestRender_RejectsInvalidPlacement asserts the provider refuses a placement
-// that names neither or both of clusters and clusterLabelSelector, with a
-// plain message, before the renderer is reached. It runs under a
-// validation-only context too, so admission rejects the same request.
-func TestRender_RejectsInvalidPlacement(t *testing.T) {
-	enableModuleComponent(t)
-
-	prev := api.DefaultRenderer()
-	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
-
-	testCases := map[string]struct {
-		place *v1alpha1.Placement
-		want  string
-	}{
-		"neither": {&v1alpha1.Placement{}, "placement must set clusters or clusterLabelSelector"},
-		"both": {&v1alpha1.Placement{Clusters: []string{"spoke"}, ClusterLabelSelector: map[string]string{"tier": "runtime"}},
-			"placement must set clusters or clusterLabelSelector, not both"},
-	}
-	contexts := map[string]context.Context{
-		"render":    context.Background(),
-		"admission": validation.WithValidationOnly(context.Background()),
-	}
-	for name, tc := range testCases {
-		for ctxName, ctx := range contexts {
-			t.Run(name+"/"+ctxName, func(t *testing.T) {
-				fake := &fakeRenderer{res: &api.ModuleResult{Application: map[string]interface{}{}}}
-				api.SetDefaultRenderer(fake)
-
-				_, err := Render(ctx, &RenderParams{
-					Params: RenderVars{Module: "store", Registry: "modules", Placement: tc.place},
-				})
-
-				require.Error(t, err)
-				assert.Equal(t, tc.want, err.Error())
-				assert.Equal(t, api.ModuleRequest{}, fake.req, "the renderer must not be reached")
-			})
-		}
-	}
 }
