@@ -33,6 +33,7 @@ import (
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func stepsOf(types ...string) []wfTypesv1alpha1.WorkflowStep {
@@ -283,7 +284,40 @@ spec:
 				Expect(name).To(Equal("old-name"), "the dry-run update left the live object alone")
 			})
 
-			It("does not send objects in a namespace outside the allowlist", func() {
+			It("checks and diffs the objects a policy renders, not only component output", func() {
+			policyDef := `apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: quota
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        output: {apiVersion: "v1", kind: "ResourceQuota", metadata: name: "team-quota", spec: hard: pods: parameter.pods}
+        parameter: pods: string
+`
+			funcs, seen := recordCreates("")
+			h = startHarnessIntercepted(Options{}, nil, funcs, platformFixtures()...)
+			doc := shopDoc("nginx:1.27", 1, `  policies:
+  - name: quota
+    type: quota
+    properties:
+      pods: "10"
+`)
+			var out DryRunOutput
+			res := h.call("dryrun_application", map[string]any{"application": doc, "definitions": []string{policyDef}, "serverCheck": true}, &out)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			Expect(out.Policies).To(ContainElement(HaveField("Kind", "ResourceQuota")))
+			kinds := []string{}
+			for _, c := range out.ServerCheck.Objects {
+				kinds = append(kinds, c.Kind)
+			}
+			Expect(kinds).To(ContainElement("ResourceQuota"), "policy objects reach the API server check")
+			Expect(len(*seen)).To(Equal(len(out.ServerCheck.Objects)))
+		})
+
+		It("does not send objects in a namespace outside the allowlist", func() {
 				funcs, seen := recordCreates("")
 				h = startHarnessIntercepted(Options{Namespaces: []string{"team-a"}}, nil, funcs, platformFixtures()...)
 				elsewhere := strings.Replace(bucketCUE, "name: context.name", "name: context.name\n\t\t\tnamespace: \"shared\"", 1)
@@ -396,6 +430,13 @@ spec:
 				Expect(toJSON(out.ChangeSet.Resources[0].Fields)).To(ContainSubstring("ports"))
 				Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("definition ComponentDefinition webservice changed since shop-v1")))
 			})
+		})
+
+		It("refuses a revision that belongs to another Application", func() {
+			other := &v1beta1.ApplicationRevision{ObjectMeta: metav1.ObjectMeta{Name: "billing-v4", Namespace: "team-a", Labels: map[string]string{oam.LabelAppName: "billing"}}}
+			h = startHarness(Options{}, append(append(platformFixtures(), shopRunning()...), other)...)
+			res := h.call("diff_application", map[string]any{"application": shopDoc("nginx:1.27", 2, ""), "revision": "billing-v4"}, nil)
+			Expect(errorText(res)).To(ContainSubstring("belongs to another Application"))
 		})
 
 		It("reports no change and no rules for an identical document", func() {

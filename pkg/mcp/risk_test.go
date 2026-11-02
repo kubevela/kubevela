@@ -17,6 +17,7 @@ limitations under the License.
 package mcp
 
 import (
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -98,6 +99,24 @@ var _ = DescribeTable("risk classifier",
 	Entry("policy change on an existing application is MEDIUM",
 		ChangeSet{PoliciesChanged: []string{"override-env"}},
 		RiskMedium, "policy-changed"),
+	Entry("a workflow change on its own is MEDIUM, so direct mode shows it",
+		ChangeSet{WorkflowChanged: true},
+		RiskMedium, "workflow-changed"),
+	Entry("a changed digest is MEDIUM, not a LOW tag bump",
+		ChangeSet{Resources: []ResourceChange{modify("Deployment", "web", field("spec.template.spec.containers[0].image", "nginx@sha256:aaaa", "nginx@sha256:bbbb"))}},
+		RiskMedium, "image-digest"),
+	Entry("moving from a tag to a digest is MEDIUM",
+		ChangeSet{Resources: []ResourceChange{modify("Deployment", "web", field("spec.template.spec.containers[0].image", "nginx:1.26", "nginx@sha256:bbbb"))}},
+		RiskMedium, "image-digest"),
+	Entry("a component change that renders the same objects is MEDIUM",
+		ChangeSet{ComponentsChanged: []string{"web"}},
+		RiskMedium, "component-spec"),
+	Entry("a component change that renders differently is judged by its fields",
+		ChangeSet{ComponentsChanged: []string{"web"}, Resources: []ResourceChange{{Component: "web", Kind: "Deployment", Name: "web", Action: ActionModify, Fields: []FieldChange{field("spec.template.spec.containers[0].image", "nginx:1.26", "nginx:1.27")}}}},
+		RiskLow, "image-tag"),
+	Entry("a sources change is MEDIUM",
+		ChangeSet{SourcesChanged: true},
+		RiskMedium, "sources-changed"),
 	Entry("no change is LOW with no rules",
 		ChangeSet{},
 		RiskLow),
@@ -133,6 +152,23 @@ var _ = Describe("change set", func() {
 		Expect(compareObjects(oldObj, oldObj)).To(BeNil())
 		Expect(compareObjects(nil, newObj).Action).To(Equal(ActionAdd))
 		Expect(compareObjects(oldObj, nil).Action).To(Equal(ActionRemove))
+	})
+
+	It("counts builtin-apply-component as the deploy step a gate must precede", func() {
+		app := func(steps ...string) *v1beta1.Application {
+			wf := &v1beta1.Workflow{}
+			for _, t := range steps {
+				wf.Steps = append(wf.Steps, wfTypesv1alpha1.WorkflowStep{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: t, Type: t}})
+			}
+			return &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Workflow: wf}}
+		}
+		Expect(hasGate(app("builtin-apply-component", "suspend"))).To(BeFalse(), "a suspend after the deploy is not a gate")
+		Expect(hasGate(app("suspend", "builtin-apply-component"))).To(BeTrue())
+	})
+
+	It("keys objects by API group so same-named kinds from two groups stay apart", func() {
+		Expect(resourceKey("networking.k8s.io/v1", "Ingress", "team-a", "web")).NotTo(Equal(resourceKey("extensions/v1beta1", "Ingress", "team-a", "web")))
+		Expect(resourceKey("apps/v1", "Deployment", "team-a", "web")).To(Equal(resourceKey("apps/v1beta2", "Deployment", "team-a", "web")), "a version bump is a change, not a removal")
 	})
 
 	It("never shows a Secret's payload, only that it changed", func() {

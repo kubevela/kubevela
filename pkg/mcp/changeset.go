@@ -80,6 +80,11 @@ type ChangeSet struct {
 	WorkflowChanged bool `json:"workflowChanged" jsonschema:"True when the declared workflow differs at all."`
 	// PoliciesChanged lists policy names whose type or properties changed.
 	PoliciesChanged []string `json:"policiesChanged,omitempty" jsonschema:"Names of policies whose type or properties changed."`
+	// ComponentsChanged lists components declared on both sides whose
+	// declaration differs, whether or not their rendered objects do.
+	ComponentsChanged []string `json:"componentsChanged,omitempty" jsonschema:"Components declared on both sides whose declaration differs, whether or not they render different objects."`
+	// SourcesChanged is true when spec.sources differs.
+	SourcesChanged bool `json:"sourcesChanged,omitempty" jsonschema:"True when the Application's sources differ."`
 }
 
 // ignoredLeaf lists paths that differ between every render and carry no
@@ -103,16 +108,20 @@ func buildChangeSet(base, target *rendered) ChangeSet {
 	if base == nil {
 		cs.NewApplication = true
 	}
-	owner := map[string]string{}
-	for _, r := range target.resources {
-		owner[resourceKey(r.Kind, r.Namespace, r.Name)] = r.Component
-	}
-	if base != nil {
-		for _, r := range base.resources {
-			if _, ok := owner[resourceKey(r.Kind, r.Namespace, r.Name)]; !ok {
-				owner[resourceKey(r.Kind, r.Namespace, r.Name)] = r.Component
+	owner, namespace := map[string]string{}, map[string]string{}
+	note := func(rs []RenderedResource) {
+		for _, r := range rs {
+			key := resourceKey(r.APIVersion, r.Kind, r.Namespace, r.Name)
+			if _, ok := owner[key]; !ok {
+				owner[key], namespace[key] = r.Component, r.Namespace
 			}
 		}
+	}
+	note(target.resources)
+	note(target.policyResources)
+	if base != nil {
+		note(base.resources)
+		note(base.policyResources)
 	}
 	keys := map[string]bool{}
 	for k := range target.objects {
@@ -139,6 +148,11 @@ func buildChangeSet(base, target *rendered) ChangeSet {
 			continue
 		}
 		rc.Component = owner[key]
+		// The namespace the render and the apply use, which a definition
+		// that leaves it blank does not carry on the object itself.
+		if ns := namespace[key]; ns != "" {
+			rc.Namespace = ns
+		}
 		cs.Resources = append(cs.Resources, *rc)
 	}
 	if base != nil {
@@ -146,6 +160,8 @@ func buildChangeSet(base, target *rendered) ChangeSet {
 		cs.PlacementChanged = placementChanged(base.app, target.app)
 		cs.PoliciesChanged = policiesChanged(base.app, target.app)
 		cs.WorkflowChanged = !reflect.DeepEqual(base.app.Spec.Workflow, target.app.Spec.Workflow)
+		cs.ComponentsChanged = componentsChanged(base.app, target.app)
+		cs.SourcesChanged = !reflect.DeepEqual(base.app.Spec.Sources, target.app.Spec.Sources)
 		cs.GateRemoved = hasGate(base.app) && !hasGate(target.app)
 	}
 	return cs
@@ -320,6 +336,29 @@ func componentDelta(oldApp, newApp *v1beta1.Application) (added, removed []strin
 	return added, removed
 }
 
+// componentsChanged names components declared on both sides whose
+// declaration differs: type, properties, traits, dependencies, inputs or
+// outputs.
+func componentsChanged(oldApp, newApp *v1beta1.Application) []string {
+	old := map[string]string{}
+	for _, c := range oldApp.Spec.Components {
+		raw, _ := json.Marshal(c)
+		old[c.Name] = string(raw)
+	}
+	var changed []string
+	for _, c := range newApp.Spec.Components {
+		prev, ok := old[c.Name]
+		if !ok {
+			continue
+		}
+		if raw, _ := json.Marshal(c); string(raw) != prev {
+			changed = append(changed, c.Name)
+		}
+	}
+	sort.Strings(changed)
+	return changed
+}
+
 func placementChanged(oldApp, newApp *v1beta1.Application) bool {
 	if oldApp.Namespace != newApp.Namespace {
 		return true
@@ -384,7 +423,7 @@ func hasGate(app *v1beta1.Application) bool {
 		switch s.Type {
 		case "suspend":
 			return true
-		case "deploy", "apply-component", "apply-application":
+		case "deploy", "apply-component", "builtin-apply-component", "apply-application":
 			return false
 		}
 	}

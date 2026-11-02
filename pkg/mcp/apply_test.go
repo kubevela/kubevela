@@ -28,7 +28,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
+	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 )
 
@@ -359,6 +361,86 @@ var _ = Describe("apply_application", func() {
 			res, _ := apply(doc, d.Token, ModeDirect)
 			Expect(errorText(res)).To(ContainSubstring("deleted and recreated since the diff"))
 			Expect(prompt.messages).To(BeEmpty())
+		})
+	})
+
+	Context("what a direct write must not trust", func() {
+		It("refuses direct for a diff that used local definitions, which the token does not bind", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
+			local := `apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: webservice
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        output: {apiVersion: "apps/v1", kind: "Deployment", spec: template: spec: containers: [{image: parameter.image}]}
+        parameter: image: string
+`
+			doc := shopDoc("nginx:1.27", 2, "")
+			var d DiffOutput
+			res := h.call("diff_application", map[string]any{"application": doc, "definitions": []string{local}}, &d)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			res, _ = apply(doc, d.Token, ModeDirect)
+			Expect(errorText(res)).To(ContainSubstring("local definitions"))
+			Expect(prompt.messages).To(BeEmpty())
+			_, out := apply(doc, d.Token, ModeGitOps)
+			Expect(out.YAML).NotTo(BeEmpty(), "the same token still produces a pull request")
+		})
+
+		It("refuses direct when the Application renders into a namespace outside the allowlist", func() {
+			shared := &v1beta1.ComponentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "shared-config", Namespace: types.DefaultKubeVelaNS},
+				Spec: v1beta1.ComponentDefinitionSpec{Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: `output: {apiVersion: "v1", kind: "ConfigMap", metadata: {name: context.name, namespace: "shared"}, data: a: "b"}
+parameter: {}
+`}}},
+			}
+			opts := writeOptions()
+			opts.Namespaces = []string{"team-a"}
+			h = startHarnessWithClient(opts, prompt.clientOptions(), append(platformFixtures(), shared)...)
+			doc := `apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata: {name: cfg, namespace: team-a}
+spec:
+  components:
+  - {name: cfg, type: shared-config}
+`
+			d := diff(doc)
+			res, _ := apply(doc, d.Token, ModeDirect)
+			Expect(errorText(res)).To(ContainSubstring("namespace shared"))
+			Expect(prompt.messages).To(BeEmpty())
+		})
+
+		It("shows Application-level changes in the prompt and does not treat them as a no-op", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
+			doc := shopDoc("nginx:1.26", 2, `  workflow:
+    steps:
+    - name: deploy
+      type: apply-component
+      properties:
+        component: shop
+`)
+			d := diff(doc)
+			Expect(d.ChangeSet.Resources).To(BeEmpty(), "the workflow change renders the same objects")
+			Expect(rulesOf(d.Risk)).To(ContainElement("workflow-changed"))
+			_, out := apply(doc, d.Token, ModeDirect)
+			Expect(out.Applied).To(BeTrue())
+			Expect(prompt.messages).To(HaveLen(1))
+			Expect(prompt.messages[0]).To(ContainSubstring("the workflow changes"))
+		})
+
+		It("leaves controller and server annotations out of the GitOps document", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), platformFixtures()...)
+			doc := shopDoc("nginx:1.27", 2, "") + `
+`
+			doc = strings.Replace(doc, "    mcp.oam.dev/initiator: forged@example.com", "    mcp.oam.dev/initiator: forged@example.com\n    oam.dev/kubevela-version: v1.11.0\n    team: shop", 1)
+			d := diff(doc)
+			_, out := apply(doc, d.Token, ModeGitOps)
+			Expect(out.YAML).To(ContainSubstring("team: shop"))
+			Expect(out.YAML).NotTo(ContainSubstring("kubevela-version"))
+			Expect(out.YAML).NotTo(ContainSubstring("mcp.oam.dev"))
 		})
 	})
 

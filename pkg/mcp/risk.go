@@ -95,6 +95,21 @@ func classify(cs ChangeSet) Risk {
 		for _, name := range cs.PoliciesChanged {
 			fire("policy-changed", RiskMedium, fmt.Sprintf("policy %q changed", name))
 		}
+		if cs.WorkflowChanged && !cs.GateRemoved {
+			fire("workflow-changed", RiskMedium, "the declared workflow differs from the running revision")
+		}
+		if cs.SourcesChanged {
+			fire("sources-changed", RiskMedium, "the Application's sources differ from the running revision")
+		}
+		rendersChanged := map[string]bool{}
+		for _, rc := range cs.Resources {
+			rendersChanged[rc.Component] = true
+		}
+		for _, name := range cs.ComponentsChanged {
+			if !rendersChanged[name] {
+				fire("component-spec", RiskMedium, fmt.Sprintf("component %q changed but renders the same objects; the change is in how it is deployed, not what", name))
+			}
+		}
 	}
 	for _, rc := range cs.Resources {
 		id := fmt.Sprintf("%s %s", rc.Kind, rc.Name)
@@ -147,10 +162,14 @@ func classifyField(fire func(rule, class, evidence string), id, kind string, f F
 	case statefulPath.MatchString(p):
 		fire("stateful", RiskHigh, at)
 	case imagePath.MatchString(p):
-		if sameRepository(fmt.Sprint(f.From), fmt.Sprint(f.To)) {
-			fire("image-tag", RiskLow, at)
-		} else {
+		from, to := fmt.Sprint(f.From), fmt.Sprint(f.To)
+		switch {
+		case !sameRepository(from, to):
 			fire("image-repository", RiskHigh, at+" changes the image repository, not only the tag")
+		case strings.Contains(from, "@") || strings.Contains(to, "@"):
+			fire("image-digest", RiskMedium, at+" changes a pinned digest, which says nothing about what the new image is")
+		default:
+			fire("image-tag", RiskLow, at)
 		}
 	case scalingPath.MatchString(p):
 		fire("scaling", RiskLow, at)

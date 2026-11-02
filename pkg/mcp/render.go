@@ -38,6 +38,10 @@ const (
 	maxApplicationBytes = 1 << 20
 	// maxLocalDefinitions bounds the definitions a caller may supply inline.
 	maxLocalDefinitions = 20
+	// maxDefinitionBytes and maxDefinitionsBytes bound what is parsed: one
+	// definition, and all of them together.
+	maxDefinitionBytes  = 256 << 10
+	maxDefinitionsBytes = 1 << 20
 	// maxRenderedBytes bounds the rendered objects one plan result carries;
 	// beyond it objects are listed without content.
 	maxRenderedBytes = 1 << 20
@@ -115,12 +119,15 @@ type DryRunOutput struct {
 	Meta        Meta               `json:"meta"`
 }
 
-// rendered is a dry-run result keyed for comparison.
+// rendered is a dry-run result keyed for comparison. Objects that policies
+// render are compared and checked like component output; policyResources
+// lists them so the change set and the server check reach them.
 type rendered struct {
-	app       *v1beta1.Application
-	resources []RenderedResource
-	objects   map[string]*unstructured.Unstructured // key: kind/namespace/name
-	policies  []RenderedPolicy
+	app             *v1beta1.Application
+	resources       []RenderedResource
+	policyResources []RenderedResource
+	objects         map[string]*unstructured.Unstructured // key: group/kind/namespace/name
+	policies        []RenderedPolicy
 }
 
 func (d *deps) dryRunApplication(ctx context.Context, _ *sdk.CallToolRequest, in DryRunInput) (*sdk.CallToolResult, DryRunOutput, error) {
@@ -167,8 +174,8 @@ func (d *deps) dryRunApplication(ctx context.Context, _ *sdk.CallToolRequest, in
 func (d *deps) serverCheck(ctx context.Context, r *rendered) *ServerCheckResult {
 	res := &ServerCheckResult{Objects: []ObjectCheck{}}
 	cli := d.f.Client()
-	for _, rr := range r.resources {
-		key := resourceKey(rr.Kind, rr.Namespace, rr.Name)
+	for _, rr := range append(append([]RenderedResource{}, r.resources...), r.policyResources...) {
+		key := resourceKey(rr.APIVersion, rr.Kind, rr.Namespace, rr.Name)
 		obj := r.objects[key]
 		if obj == nil {
 			continue
@@ -241,6 +248,16 @@ func (d *deps) parsePlanInput(in PlanInput) (*v1beta1.Application, []*unstructur
 	if len(in.Definitions) > maxLocalDefinitions {
 		return nil, nil, fmt.Errorf("%d local definitions supplied, at most %d are accepted", len(in.Definitions), maxLocalDefinitions)
 	}
+	total := 0
+	for i, doc := range in.Definitions {
+		if len(doc) > maxDefinitionBytes {
+			return nil, nil, fmt.Errorf("definitions[%d] is %d bytes; at most %d are accepted", i, len(doc), maxDefinitionBytes)
+		}
+		total += len(doc)
+	}
+	if total > maxDefinitionsBytes {
+		return nil, nil, fmt.Errorf("local definitions total %d bytes; at most %d are accepted", total, maxDefinitionsBytes)
+	}
 	defs := make([]*unstructured.Unstructured, 0, len(in.Definitions))
 	for i, doc := range in.Definitions {
 		obj, err := parseDefinition(doc)
@@ -305,6 +322,7 @@ func (d *deps) render(ctx context.Context, app *v1beta1.Application, defs []*uns
 			continue
 		}
 		r.policies = append(r.policies, RenderedPolicy{APIVersion: p.GetAPIVersion(), Kind: p.GetKind(), Name: p.GetName(), Object: redactObject(p.DeepCopy().Object)})
+		r.policyResources = append(r.policyResources, r.keep(p.GetName(), "policy", app.Namespace, p))
 	}
 	return r, nil
 }
@@ -313,25 +331,36 @@ func (r *rendered) add(component, source, defaultNS string, obj *unstructured.Un
 	if obj == nil {
 		return
 	}
+	r.resources = append(r.resources, r.keep(component, source, defaultNS, obj))
+}
+
+// keep records an object for comparison and returns its listing.
+func (r *rendered) keep(owner, source, defaultNS string, obj *unstructured.Unstructured) RenderedResource {
 	ns := obj.GetNamespace()
 	if ns == "" && !clusterScopedKind(obj.GetKind()) {
 		ns = defaultNS
 	}
-	key := resourceKey(obj.GetKind(), ns, obj.GetName())
-	r.objects[key] = obj
-	r.resources = append(r.resources, RenderedResource{
-		Component:  component,
+	r.objects[resourceKey(obj.GetAPIVersion(), obj.GetKind(), ns, obj.GetName())] = obj
+	return RenderedResource{
+		Component:  owner,
 		Source:     source,
 		APIVersion: obj.GetAPIVersion(),
 		Kind:       obj.GetKind(),
 		Namespace:  ns,
 		Name:       obj.GetName(),
 		Object:     redactObject(obj.DeepCopy().Object),
-	})
+	}
 }
 
-func resourceKey(kind, ns, name string) string {
-	return kind + "/" + ns + "/" + name
+// resourceKey identifies an object by API group, kind, namespace and name.
+// The version is left out so a definition that moves an object to a newer
+// version of the same API reads as a change, not a removal and an addition.
+func resourceKey(apiVersion, kind, ns, name string) string {
+	group := ""
+	if i := strings.Index(apiVersion, "/"); i >= 0 {
+		group = apiVersion[:i]
+	}
+	return group + "/" + kind + "/" + ns + "/" + name
 }
 
 // clusterScopedKind covers the kinds definitions commonly emit without a

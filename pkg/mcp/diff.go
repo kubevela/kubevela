@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const (
@@ -93,6 +94,13 @@ type diffRecord struct {
 	changeSet      ChangeSet
 	risk           Risk
 	createdAt      time.Time
+	// localDefinitions counts definitions the caller supplied to the diff.
+	// The token does not bind them, so a diff that used any cannot drive a
+	// direct write: its risk class came from definitions the cluster does
+	// not have.
+	localDefinitions int
+	// targetNamespaces are the namespaces the target render writes into.
+	targetNamespaces []string
 	// promptNonce is set when apply_application asks the user to confirm.
 	// The answering call must echo it, so a confirmation is only accepted
 	// for a prompt this server issued.
@@ -202,7 +210,7 @@ func (d *deps) diffApplication(ctx context.Context, _ *sdk.CallToolRequest, in D
 
 	out.ChangeSet = buildChangeSet(base, target)
 	out.Risk = classify(out.ChangeSet)
-	out.Token, out.ExpiresAt = d.issueToken(app, in.Application, baseName, live, out.ChangeSet, out.Risk)
+	out.Token, out.ExpiresAt = d.issueToken(app, in.Application, baseName, live, out.ChangeSet, out.Risk, len(defs), renderedNamespaces(target))
 	warnings := out.Meta.Warnings
 	out.Meta = d.meta(ctx)
 	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
@@ -241,11 +249,37 @@ func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.App
 	if err := cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: revision}, rev); err != nil {
 		return nil, "", nil, nil, fmt.Errorf("get ApplicationRevision %s/%s: %w", app.Namespace, revision, err)
 	}
+	if !revisionOf(rev, app.Name) {
+		return nil, "", nil, nil, fmt.Errorf("ApplicationRevision %s/%s belongs to another Application, not %s", app.Namespace, revision, app.Name)
+	}
 	defs, err := revisionDefinitions(rev)
 	if err != nil {
 		return nil, "", nil, nil, fmt.Errorf("read definitions recorded in ApplicationRevision %s/%s: %w", app.Namespace, revision, err)
 	}
 	return baseFromRevision(rev, app), rev.Name, defs, live, nil
+}
+
+// renderedNamespaces lists the namespaces a render writes objects into.
+func renderedNamespaces(r *rendered) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, rr := range append(append([]RenderedResource{}, r.resources...), r.policyResources...) {
+		if rr.Namespace != "" && !seen[rr.Namespace] {
+			seen[rr.Namespace] = true
+			out = append(out, rr.Namespace)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// revisionOf reports whether a revision records the named Application: by
+// the label the controller sets, else by the <name>-v<N> naming it uses.
+func revisionOf(rev *v1beta1.ApplicationRevision, name string) bool {
+	if owner, ok := rev.Labels[oam.LabelAppName]; ok {
+		return owner == name
+	}
+	return strings.HasPrefix(rev.Name, name+"-v")
 }
 
 // revisionDefinitions returns the definition snapshots a revision recorded,
@@ -275,6 +309,18 @@ func revisionDefinitions(rev *v1beta1.ApplicationRevision) ([]*unstructured.Unst
 		if def != nil {
 			def := def.DeepCopy()
 			def.TypeMeta = metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.WorkflowStepDefinitionKind}
+			objs = append(objs, def)
+		}
+	}
+	for _, def := range rev.Spec.WorkloadDefinitions {
+		def := def.DeepCopy()
+		def.TypeMeta = metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.WorkloadDefinitionKind}
+		objs = append(objs, def)
+	}
+	for _, def := range rev.Spec.SourceDefinitions {
+		if def != nil {
+			def := def.DeepCopy()
+			def.TypeMeta = metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.SourceDefinitionKind}
 			objs = append(objs, def)
 		}
 	}
@@ -332,7 +378,7 @@ func baseFromRevision(rev *v1beta1.ApplicationRevision, target *v1beta1.Applicat
 // object's resourceVersion and the exact submitted document. The document is
 // hashed as bytes, so an edit after the diff, however small, invalidates the
 // token, and so does any change to the live Application.
-func (d *deps) issueToken(app *v1beta1.Application, document, base string, live *v1beta1.Application, cs ChangeSet, risk Risk) (string, time.Time) {
+func (d *deps) issueToken(app *v1beta1.Application, document, base string, live *v1beta1.Application, cs ChangeSet, risk Risk, localDefs int, namespaces []string) (string, time.Time) {
 	specHash := sha256.Sum256([]byte(document))
 	liveRV, liveUID := "", ""
 	if live != nil {
@@ -360,6 +406,9 @@ func (d *deps) issueToken(app *v1beta1.Application, document, base string, live 
 		changeSet:  cs,
 		risk:       risk,
 		createdAt:  time.Now(),
+
+		localDefinitions: localDefs,
+		targetNamespaces: namespaces,
 	}
 	if live != nil {
 		rec.liveGeneration, rec.liveMeta = live.Generation, intentMeta(live)

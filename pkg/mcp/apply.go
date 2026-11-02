@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -153,7 +154,17 @@ func (d *deps) applyApplication(ctx context.Context, req *sdk.CallToolRequest, i
 		return nil, out, nil
 	}
 
-	// Direct: only with a confirmation the user answers in their client.
+	// Direct: only for a diff rendered with the cluster's own definitions,
+	// only into namespaces this server may touch, and only with a
+	// confirmation the user answers in their client.
+	if rec.localDefinitions > 0 {
+		return nil, out, fmt.Errorf("this diff used %d local definitions, which the token does not bind, so its risk class cannot vouch for a direct write; nothing was applied. Use mode gitops, or apply the definitions to the cluster and diff again", rec.localDefinitions)
+	}
+	for _, ns := range rec.targetNamespaces {
+		if err := d.namespaceAllowed(ns); err != nil {
+			return nil, out, fmt.Errorf("the Application renders objects into namespace %s, which this server may not write; nothing was applied", ns)
+		}
+	}
 	if !clientCanElicit(req) {
 		return nil, out, fmt.Errorf("direct mode needs a client that can ask the user to confirm (MCP elicitation), and this client cannot; nothing was applied. Use mode gitops instead")
 	}
@@ -412,6 +423,33 @@ func confirmationText(app *v1beta1.Application, rec diffRecord) string {
 	if len(resources) == 0 {
 		b.WriteString("  no rendered resources change\n")
 	}
+	cs := rec.changeSet
+	for _, line := range []struct {
+		names []string
+		what  string
+	}{
+		{cs.ComponentsAdded, "components added"},
+		{cs.ComponentsRemoved, "components removed"},
+		{cs.ComponentsChanged, "components changed"},
+		{cs.PoliciesChanged, "policies changed"},
+	} {
+		if len(line.names) > 0 {
+			fmt.Fprintf(&b, "  %s: %s\n", line.what, strings.Join(line.names, ", "))
+		}
+	}
+	for _, flag := range []struct {
+		set  bool
+		what string
+	}{
+		{cs.PlacementChanged, "placement changes"},
+		{cs.WorkflowChanged, "the workflow changes"},
+		{cs.GateRemoved, "an approval step is removed"},
+		{cs.SourcesChanged, "the sources change"},
+	} {
+		if flag.set {
+			fmt.Fprintf(&b, "  %s\n", flag.what)
+		}
+	}
 	rules := make([]string, 0, len(rec.risk.Rules))
 	for _, r := range rec.risk.Rules {
 		rules = append(rules, r.Rule)
@@ -452,7 +490,7 @@ func gitopsDocument(app *v1beta1.Application) (string, error) {
 	doc.Kind = v1beta1.ApplicationKind
 	doc.Name, doc.Namespace = app.Name, app.Namespace
 	doc.Labels = app.Labels
-	doc.Annotations = app.Annotations
+	doc.Annotations = intentAnnotations(app.Annotations)
 	doc.Spec = app.Spec
 	raw, err := yaml.Marshal(doc)
 	if err != nil {
@@ -466,6 +504,25 @@ func gitopsDocument(app *v1beta1.Application) (string, error) {
 		lines = append(lines, l)
 	}
 	return strings.TrimRight(strings.Join(lines, "\n"), "\n") + "\n", nil
+}
+
+// intentAnnotations drops what controllers, tools and this server write,
+// so a document copied from a live object does not commit their records.
+func intentAnnotations(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := map[string]string{}
+	for k, v := range in {
+		if strings.HasPrefix(k, mcpAnnotationPrefix) || slices.Contains(volatileAnnotations, k) {
+			continue
+		}
+		out[k] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // writeApplication creates a new Application or updates the live one with
@@ -597,8 +654,8 @@ func kubectlAppliedConfig(app *v1beta1.Application) (string, error) {
 // rendered resource, component, policy, placement or workflow change, and
 // every label and annotation it sets already present on the live object.
 func isNoop(cs ChangeSet, app, live *v1beta1.Application) bool {
-	if len(cs.Resources) > 0 || len(cs.ComponentsAdded) > 0 || len(cs.ComponentsRemoved) > 0 ||
-		len(cs.PoliciesChanged) > 0 || cs.PlacementChanged || cs.GateRemoved || cs.WorkflowChanged {
+	if len(cs.Resources) > 0 || len(cs.ComponentsAdded) > 0 || len(cs.ComponentsRemoved) > 0 || len(cs.ComponentsChanged) > 0 ||
+		len(cs.PoliciesChanged) > 0 || cs.PlacementChanged || cs.GateRemoved || cs.WorkflowChanged || cs.SourcesChanged {
 		return false
 	}
 	for k, v := range app.Labels {
