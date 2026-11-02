@@ -264,7 +264,7 @@ The server supplies facts; the agent follows principle 8:
 | Asked to migrate, either direction | Shows the conversion as a diff first |
 
 `get_platform_info` with a namespace reports the practice there (`kubevela`, `kubernetes`,
-`mixed` or `empty`), the default a platform team declared with the namespace label
+`mixed`, `empty`, or `unknown` when a count failed, so the agent asks), the default a platform team declared with the namespace label
 `app.oam.dev/delivery-default`, and whether the caller may create plain Deployments, so the
 agent never offers an approach that would fail. The server's own instructions stay neutral.
 Neither server writes plain Kubernetes objects: for that work the agent hands back the
@@ -274,9 +274,9 @@ Platform teams label definitions with `definition.oam.dev/provides` (for example
 `postgres`) and mark defaults with the `definition.oam.dev/default-for` annotation.
 `list_definitions` filters by `provides` and marks the default for the namespace. With a
 default the agent uses it and names the alternatives; with several and no default, it asks
-in chat, keeping confirmation prompts for writes. Unlabelled
-definitions, which today includes the built-in ones, are still listed with their
-descriptions, and the agent compares those when no label applies.
+in chat, keeping confirmation prompts for writes. Unlabelled definitions, which today
+includes the built-in ones, are returned by the same filter when their name or description
+mentions the capability, marked so the agent confirms them.
 
 ### Write modes
 
@@ -315,7 +315,10 @@ cannot misdescribe the change, and an agent that chains `diff_application` and
 the prompt. Accept applies; decline writes nothing and returns "declined by user". A
 client that does not support elicitation cannot use `direct`. That request is refused
 rather than downgraded, because a downgrade to `gated` would still write the Application:
-nothing is applied, and the response names the modes this client can use instead. The
+nothing is applied, and the response names the modes this client can use instead. Direct is
+refused the same way when the diff used local definitions the token does not bind, when the
+render writes outside `--namespace`, or when a restricted server would run workflow steps
+whose writes the diff cannot see. The
 HIGH-risk downgrade above is different: it is policy, the response states the mode that was
 used, and the hold still stops the change. Some harnesses accept prompts automatically in unattended modes. That is
 the user's choice, equivalent to `--yes` on the CLI; unattended automation belongs in
@@ -393,7 +396,8 @@ as enforcement.
 The **risk class** is the maximum over rules on the live-diff output, with every fired
 rule listed: image tag only is LOW; scaling is LOW; a new Application with no existing
 managed resources is LOW; config and env are MEDIUM; additions to an existing Application
-are MEDIUM; any deletion, replace, placement change, security-surface change, stateful
+are MEDIUM; policy, workflow and sources changes, image digest changes and component
+changes that render the same objects are MEDIUM; any deletion, replace, placement change, security-surface change, stateful
 change or removed gate is HIGH, including in a new Application. The classifier is a pure
 function with golden tests.
 
