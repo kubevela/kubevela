@@ -1,6 +1,7 @@
 name: "📝 Docs or chore"
 description: Propose a documentation update or maintenance change
 title: "[Docs/Chore]"
+labels: ["needs-triage"]
 body:
   - type: checkboxes
     id: existing-search
