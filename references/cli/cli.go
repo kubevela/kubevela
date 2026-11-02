@@ -138,7 +138,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		// aux
 		KubeCommandGroup(f, "1", ioStream),
 		CueXCommandGroup(f, "2"),
-		NewMCPCommand(f, "3"),
+		NewMCPCommand(f, "3", ioStream),
 		NewQlCommand(commandArgs, "4", ioStream),
 		NewCompletionCommand("5"),
 		NewHelpCommand("6"),

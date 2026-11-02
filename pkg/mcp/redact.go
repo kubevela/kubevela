@@ -141,9 +141,11 @@ func redactStringMap(m map[string]string) map[string]string {
 	return out
 }
 
-// redactObject prepares a live object for return: managedFields and
-// annotations that embed a serialized object are removed, ConfigMap data
-// is reduced to its keys, then the remainder is redacted like any other map.
+// redactObject prepares an object for return: managedFields and
+// annotations that embed a serialized object are removed, ConfigMap and
+// Secret payloads are reduced to their keys, then the remainder is redacted
+// like any other map. Rendered objects go through it as well as live ones,
+// so a Secret a definition renders never returns its values.
 func redactObject(content map[string]any) map[string]any {
 	if meta, ok := content["metadata"].(map[string]any); ok {
 		delete(meta, "managedFields")
@@ -153,8 +155,8 @@ func redactObject(content map[string]any) map[string]any {
 			}
 		}
 	}
-	if kind, _ := content["kind"].(string); kind == "ConfigMap" {
-		for _, field := range []string{"data", "binaryData"} {
+	if fields := payloadFields(content); fields != nil {
+		for _, field := range fields {
 			if data, ok := content[field].(map[string]any); ok {
 				keys := make([]any, 0, len(data))
 				for k := range data {
@@ -167,6 +169,18 @@ func redactObject(content map[string]any) map[string]any {
 	}
 	out, _ := redactMap(content).(map[string]any)
 	return out
+}
+
+// payloadFields names the fields whose values are never returned for this
+// kind: only their keys are.
+func payloadFields(content map[string]any) []string {
+	switch kind, _ := content["kind"].(string); kind {
+	case "ConfigMap":
+		return []string{"data", "binaryData"}
+	case "Secret":
+		return []string{"data", "stringData"}
+	}
+	return nil
 }
 
 // redactLine removes credential-shaped substrings and terminal or Unicode

@@ -292,12 +292,12 @@ var _ = Describe("security properties", func() {
 	})
 
 	It("registers apply_application only behind allow-write and never resume", func() {
-		h = startHarness(Options{AllowResume: true}, platformFixtures()...)
+		h = startHarness(Options{}, platformFixtures()...)
 		for _, t := range h.srv.Tools() {
 			Expect(t.Class).To(BeElementOf(ToolClassRead, ToolClassPlan), t.Name)
 		}
 		h.close()
-		h = startHarness(Options{AllowWrite: true, AllowResume: true}, platformFixtures()...)
+		h = startHarness(Options{AllowWrite: true}, platformFixtures()...)
 		writes := []string{}
 		for _, t := range h.srv.Tools() {
 			Expect(strings.HasPrefix(t.Name, "resume_")).To(BeFalse(), t.Name)

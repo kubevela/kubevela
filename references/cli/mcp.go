@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/mcp"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 var (
@@ -48,9 +49,7 @@ var (
 		system rather than a remembered one.
 
 		Tools are grouped into read, plan and write classes. Only read and plan
-		tools are available unless --allow-write is set, and resume_workflow is
-		gated separately by --allow-resume because resuming bypasses the approval
-		step a gated apply relies on. On the control plane the server acts with
+		tools are available unless --allow-write is set. On the control plane the server acts with
 		the caller's kubeconfig identity. Reads in other clusters go through
 		cluster-gateway, which forwards that identity only when its
 		ClientIdentityPenetration gate is on; results read from other clusters
@@ -79,7 +78,6 @@ var (
 type MCPOption struct {
 	Transport         string
 	AllowWrite        bool
-	AllowResume       bool
 	Namespaces        []string
 	DirectNamespaces  []string
 	ProductionPattern string
@@ -110,7 +108,6 @@ func (o *MCPOption) Run(f velacmd.Factory, cmd *cobra.Command) error {
 	srv, err := mcp.NewServer(f, mcp.Options{
 		Transport:         o.Transport,
 		AllowWrite:        o.AllowWrite,
-		AllowResume:       o.AllowResume,
 		Namespaces:        o.Namespaces,
 		DirectNamespaces:  o.DirectNamespaces,
 		ProductionPattern: o.ProductionPattern,
@@ -122,7 +119,7 @@ func (o *MCPOption) Run(f velacmd.Factory, cmd *cobra.Command) error {
 }
 
 // NewMCPCommand creates the `vela mcp` command.
-func NewMCPCommand(f velacmd.Factory, order string) *cobra.Command {
+func NewMCPCommand(f velacmd.Factory, order string, streams util.IOStreams) *cobra.Command {
 	o := &MCPOption{Transport: mcp.TransportStdio}
 	cmd := &cobra.Command{
 		Use:     "mcp",
@@ -144,7 +141,9 @@ func NewMCPCommand(f velacmd.Factory, order string) *cobra.Command {
 	cmd.Flags().StringVar(&o.Transport, "transport", o.Transport, "Transport to serve on. Only stdio is supported.")
 	addServerFlags(cmd, o)
 	cmd.AddCommand(NewMCPConfigCommand())
-	return velacmd.NewCommandBuilder(f, cmd).WithResponsiveWriter().Build()
+	// The server speaks on the process's stdin and stdout; the streams carry
+	// what vela mcp config prints, so embedding callers can capture it.
+	return velacmd.NewCommandBuilder(f, cmd).WithStreams(streams).WithResponsiveWriter().Build()
 }
 
 // addServerFlags registers the flags that shape what the server exposes.
@@ -154,7 +153,6 @@ func addServerFlags(cmd *cobra.Command, o *MCPOption) {
 	cmd.Flags().BoolVar(&o.AllowWrite, "allow-write", false, "Register apply_application. Without --direct-namespace it only returns YAML for a pull request. Off by default.")
 	cmd.Flags().StringArrayVar(&o.DirectNamespaces, "direct-namespace", nil, "Allow direct mode, confirmed by the user in their client, in this namespace. Repeat for more than one. Refused at start if it matches --production-pattern.")
 	cmd.Flags().StringVar(&o.ProductionPattern, "production-pattern", mcp.DefaultProductionPattern, "Regular expression for production namespace names, which never allow direct mode.")
-	cmd.Flags().BoolVar(&o.AllowResume, "allow-resume", false, "Register resume_workflow, which continues a workflow paused for approval. Off by default.")
 	cmd.Flags().StringArrayVar(&o.Namespaces, "namespace", nil, "Restrict Application, resource and log reads to this namespace, including resources an Application manages elsewhere. Repeat for more than one; empty means any namespace RBAC allows. Definitions, addons and clusters in the system namespace stay readable.")
 }
 
@@ -228,9 +226,6 @@ func (o *MCPConfigOption) ServerArgs() []string {
 	}
 	if o.ProductionPattern != "" && o.ProductionPattern != mcp.DefaultProductionPattern {
 		args = append(args, "--production-pattern", o.ProductionPattern)
-	}
-	if o.AllowResume {
-		args = append(args, "--allow-resume")
 	}
 	return args
 }

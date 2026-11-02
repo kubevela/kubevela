@@ -65,9 +65,6 @@ type Options struct {
 	// AllowWrite registers the write-class tools. Off by default so a fresh
 	// install cannot change a cluster.
 	AllowWrite bool
-	// AllowResume registers resume_workflow. It is separate from AllowWrite
-	// because resuming defeats the approval gate the write path relies on.
-	AllowResume bool
 	// Namespaces restricts every tool to these namespaces regardless of
 	// RBAC. Empty means no restriction beyond RBAC.
 	Namespaces []string

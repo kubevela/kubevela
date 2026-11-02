@@ -124,9 +124,37 @@ var _ = Describe("change set", func() {
 			paths = append(paths, f.Path)
 		}
 		Expect(paths).To(ConsistOf("spec.replicas", "spec.template.spec.containers[0].image", "spec.template.spec.containers[0].env[0].value"))
+		for _, f := range rc.Fields {
+			if f.Path == "spec.template.spec.containers[0].env[0].value" {
+				Expect(f.From).To(Equal(redactedValue), "an env value named like a secret is never shown")
+				Expect(f.To).To(Equal(redactedValue))
+			}
+		}
 		Expect(compareObjects(oldObj, oldObj)).To(BeNil())
 		Expect(compareObjects(nil, newObj).Action).To(Equal(ActionAdd))
 		Expect(compareObjects(oldObj, nil).Action).To(Equal(ActionRemove))
+	})
+
+	It("never shows a Secret's payload, only that it changed", func() {
+		secret := func(v string) *unstructured.Unstructured {
+			return &unstructured.Unstructured{Object: map[string]any{
+				"apiVersion": "v1", "kind": "Secret",
+				"metadata":   map[string]any{"name": "db", "namespace": "team-a"},
+				"stringData": map[string]any{"url": v},
+				"data":       map[string]any{"cert": v},
+			}}
+		}
+		rc := compareObjects(secret("postgres://u:old@db"), secret("postgres://u:new@db"))
+		Expect(rc).NotTo(BeNil())
+		Expect(rc.Fields).To(HaveLen(2))
+		for _, f := range rc.Fields {
+			Expect(f.From).To(Equal(redactedValue), f.Path)
+			Expect(f.To).To(Equal(redactedValue), f.Path)
+		}
+		shown := redactObject(secret("postgres://u:new@db").Object)
+		Expect(shown).NotTo(HaveKey("data"))
+		Expect(shown).NotTo(HaveKey("stringData"))
+		Expect(shown).To(HaveKeyWithValue("stringDataKeys", ConsistOf("url")))
 	})
 
 	It("ignores controller bookkeeping and empty maps left behind", func() {

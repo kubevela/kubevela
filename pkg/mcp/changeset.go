@@ -171,6 +171,11 @@ func compareObjects(oldObj, newObj *unstructured.Unstructured) *ResourceChange {
 		return rc
 	}
 	oldLeaves, newLeaves := leaves(oldObj.Object), leaves(newObj.Object)
+	// Changes are found on the raw objects; the values shown come from
+	// redacted copies, which carry the sibling context (an env entry's name)
+	// that a single leaf path does not.
+	oldShown, newShown := leaves(redactMap(oldObj.Object)), leaves(redactMap(newObj.Object))
+	secret := ref.GetKind() == "Secret"
 	paths := map[string]bool{}
 	for p := range oldLeaves {
 		paths[p] = true
@@ -196,7 +201,7 @@ func compareObjects(oldObj, newObj *unstructured.Unstructured) *ResourceChange {
 			rc.FieldsTruncated = true
 			break
 		}
-		rc.Fields = append(rc.Fields, FieldChange{Path: p, From: redactLeaf(p, from), To: redactLeaf(p, to)})
+		rc.Fields = append(rc.Fields, FieldChange{Path: p, From: shownLeaf(secret, p, from, oldShown), To: shownLeaf(secret, p, to, newShown)})
 	}
 	if len(rc.Fields) == 0 && !rc.FieldsTruncated {
 		return nil
@@ -258,6 +263,22 @@ func isIgnoredLeaf(p string) bool {
 	return strings.HasPrefix(p, "metadata.managedFields") || p == "metadata.resourceVersion" || p == "metadata.uid" || p == "metadata.generation" || p == "metadata.creationTimestamp"
 }
 
+// shownLeaf is the value a change reports for one side: nothing of a
+// Secret's payload, the redacted copy's value where redaction changed it,
+// and otherwise the raw value through the key and text rules.
+func shownLeaf(secret bool, path string, raw any, shown map[string]any) any {
+	if raw == nil {
+		return nil
+	}
+	if secret && (strings.HasPrefix(path, "data.") || strings.HasPrefix(path, "stringData.")) {
+		return redactedValue
+	}
+	if v, ok := shown[path]; ok && v == redactedValue {
+		return redactedValue
+	}
+	return redactLeaf(path, raw)
+}
+
 // redactLeaf applies the key and value redaction rules to one leaf.
 func redactLeaf(path string, v any) any {
 	if v == nil {
@@ -267,7 +288,7 @@ func redactLeaf(path string, v any) any {
 	if i := strings.LastIndex(path, "."); i >= 0 {
 		last = path[i+1:]
 	}
-	if secretKey.MatchString(last) || strings.Contains(path, "stringData") || strings.HasSuffix(path, "].value") && envNameIsSecret(path) {
+	if secretKey.MatchString(last) || strings.Contains(path, "stringData") {
 		return redactedValue
 	}
 	if s, ok := v.(string); ok {
@@ -279,11 +300,6 @@ func redactLeaf(path string, v any) any {
 	}
 	return v
 }
-
-// envNameIsSecret cannot see the sibling name from a leaf path, so env
-// values are left to the value patterns; it exists so the rule above reads
-// as intended and can grow when the comparison carries siblings.
-func envNameIsSecret(string) bool { return false }
 
 func componentDelta(oldApp, newApp *v1beta1.Application) (added, removed []string) {
 	oldNames, newNames := map[string]bool{}, map[string]bool{}

@@ -48,10 +48,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // G301: public documentation
 		log.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(page), 0o600); err != nil {
+	// A docs page other users and the site build read.
+	if err := os.WriteFile(path, []byte(page), 0o644); err != nil { //nolint:gosec // G306: public documentation
 		log.Fatal(err)
 	}
 	fmt.Println("wrote", path)
@@ -66,7 +67,7 @@ type tool struct {
 // listTools starts a server with every optional tool enabled and lists its
 // tools over an in-memory session.
 func listTools(ctx context.Context) ([]tool, error) {
-	srv, err := mcp.NewServer(velacmd.NewTestFactory(nil, nil), mcp.Options{AllowWrite: true, AllowResume: true})
+	srv, err := mcp.NewServer(velacmd.NewTestFactory(nil, nil), mcp.Options{AllowWrite: true})
 	if err != nil {
 		return nil, err
 	}

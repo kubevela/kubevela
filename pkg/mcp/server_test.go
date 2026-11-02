@@ -66,6 +66,11 @@ var _ = Describe("vela mcp server", func() {
 			Expect(names).NotTo(HaveKey("resume_workflow"))
 		})
 
+		It("refuses an empty namespace in the restriction, which would read as every namespace", func() {
+			_, err := NewServer(velacmd.NewTestFactory(nil, nil), Options{Namespaces: []string{"team-a", " "}})
+			Expect(err).To(MatchError(ContainSubstring("empty entry")))
+		})
+
 		It("refuses an unsupported transport", func() {
 			_, err := NewServer(velacmd.NewTestFactory(nil, nil), Options{Transport: "http"})
 			Expect(err).To(MatchError(ContainSubstring("not supported")))

@@ -30,19 +30,20 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/mcp"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 func TestNewMCPCommand(t *testing.T) {
-	cmd := NewMCPCommand(velacmd.NewTestFactory(nil, nil), "3")
+	cmd := NewMCPCommand(velacmd.NewTestFactory(nil, nil), "3", util.IOStreams{})
 	require.Equal(t, "mcp", cmd.Use)
 	require.Equal(t, types.TypeAuxiliary, cmd.Annotations[types.TagCommandType])
 	require.Equal(t, "3", cmd.Annotations[types.TagCommandOrder])
-	for _, name := range []string{"transport", "allow-write", "allow-resume", "namespace", "direct-namespace", "production-pattern"} {
+	for _, name := range []string{"transport", "allow-write", "namespace", "direct-namespace", "production-pattern"} {
 		require.NotNil(t, cmd.Flags().Lookup(name), "flag %s", name)
 	}
 	require.Equal(t, mcp.TransportStdio, cmd.Flags().Lookup("transport").DefValue)
 	require.Equal(t, "false", cmd.Flags().Lookup("allow-write").DefValue)
-	require.Equal(t, "false", cmd.Flags().Lookup("allow-resume").DefValue)
+	require.Nil(t, cmd.Flags().Lookup("allow-resume"), "no flag for a tool that does not exist")
 }
 
 func TestMCPCommandRejectsBadFlags(t *testing.T) {
@@ -54,7 +55,7 @@ func TestMCPCommandRejectsBadFlags(t *testing.T) {
 	}
 	for name, args := range cases {
 		t.Run(name, func(t *testing.T) {
-			cmd := NewMCPCommand(velacmd.NewTestFactory(nil, nil), "3")
+			cmd := NewMCPCommand(velacmd.NewTestFactory(nil, nil), "3", util.IOStreams{})
 			var buf bytes.Buffer
 			cmd.SetOut(&buf)
 			cmd.SetErr(&buf)
@@ -79,7 +80,7 @@ func runMCPConfig(t *testing.T, args ...string) (string, error) {
 	old := executablePath
 	executablePath = func() (string, error) { return "/opt/vela tools/vela", nil }
 	t.Cleanup(func() { executablePath = old })
-	cmd := NewMCPCommand(velacmd.NewTestFactory(nil, nil), "3")
+	cmd := NewMCPCommand(velacmd.NewTestFactory(nil, nil), "3", util.IOStreams{})
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)

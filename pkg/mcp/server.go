@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -54,6 +55,13 @@ func NewServer(f velacmd.Factory, opts Options) (*Server, error) {
 	opts.complete()
 	if opts.Transport != TransportStdio {
 		return nil, fmt.Errorf("transport %q is not supported; only %q is available", opts.Transport, TransportStdio)
+	}
+	// An empty entry would read as "every namespace" in the list handlers,
+	// so it is refused here and not only by the CLI.
+	for _, ns := range opts.Namespaces {
+		if strings.TrimSpace(ns) == "" {
+			return nil, fmt.Errorf("namespace restriction contains an empty entry")
+		}
 	}
 	if err := CheckDirectNamespaces(opts.DirectNamespaces, opts.ProductionPattern); err != nil {
 		return nil, err
@@ -251,8 +259,6 @@ func registerTools(s *Server, d *deps) {
 				"writes only after they accept. Never answer that prompt for the user. Report the mode used.",
 		}, d.applyApplication)
 	}
-	// resume_workflow arrives with gated mode; AllowResume is parsed now so
-	// the command's contract is stable.
 }
 
 // CheckDirectNamespaces refuses a direct allowlist that contains a
