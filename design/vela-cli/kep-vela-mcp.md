@@ -167,7 +167,7 @@ classifier needs structured changes. Handlers never shell out and never call a m
 | `get_logs` | read | VelaQL `component-pod` + bounded, redacted tail | P0 |
 | `list_clusters` | read | `vela cluster list`; never credentials | P0 |
 | `list_addons` | read | `vela addon list` | P0 |
-| `dryrun_application` | plan | `vela dry-run`, including `-d` local definitions | P0 |
+| `dryrun_application` | plan | `vela dry-run`, including local definitions such as the CUE `vela def gen-module` writes for a defkit module; optionally sends each rendered object to the API server as a strict dry run, storing nothing, to check it against the installed CRDs | P0 |
 | `diff_application` | plan | `vela live-diff` + risk classifier; returns token | P0 |
 | `apply_application` | write | `vela up` under mode policy | P0, flag |
 | `find_definition_consumers` | read | Applications by component and trait type | P1 |
@@ -452,7 +452,7 @@ runs an observability stack and does not want a second one.
 | `kubevela-developer` | Discover before drafting, dry-run until clean, diff before apply, stop at the risk summary, never resume |
 | `kubevela-sre` | Explain first and take the handles; metrics, traces, logs through the observability MCP; managed objects through vela; rollback as a diffed change |
 | `kubevela-platform-engineer` | Consumers before changing a definition, render a sample of consumers, inventory conventions |
-| `kubevela-defkit-author` | Search the catalog first, defkit builders, `go test`, `def vet`, dry-run with local definitions, deliver by PR |
+| `kubevela-defkit-author` | defkit Go by default, CUE only on request; search the catalog first; real provider CRD shapes, ACK for AWS unless told otherwise; `go test`, `validate-module`, `gen-module`, dry-run with the server check; deliver by PR |
 
 Skills follow the agentskills.io layout so Claude Code, Codex, Cursor and Copilot load them
 unchanged. Third-party tool names live in a per-server appendix that `kubevela/skills`
