@@ -29,6 +29,8 @@ import (
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/placement"
 )
 
@@ -276,9 +278,12 @@ func resolvePlacement(module string, place *ImportPlacement, policies []v1beta1.
 			return nil, fmt.Errorf("modules/_imports.cue: module %q: placement.fromPolicy %q: %w", module, place.FromPolicy, err)
 		}
 	}
-	selector := spec.ClusterLabelSelector
-	if selector == nil {
-		selector = spec.DeprecatedClusterSelector
+	// Read the selector the way the topology policy itself does, so the module
+	// goes where the addon goes: the deprecated clusterSelector spelling counts
+	// only while the DeprecatedPolicySpec feature gate is on.
+	selector := policy.GetClusterLabelSelectorInTopology(&spec)
+	if spec.Clusters == nil && selector == nil && spec.DeprecatedClusterSelector != nil {
+		return nil, fmt.Errorf("modules/_imports.cue: module %q: placement.fromPolicy %q: the policy sets the deprecated clusterSelector, which is ignored unless the %s feature gate is on; use clusterLabelSelector", module, place.FromPolicy, features.DeprecatedPolicySpec)
 	}
 	resolved := &v1alpha1.Placement{Clusters: spec.Clusters, ClusterLabelSelector: selector, AllowEmpty: spec.AllowEmpty}
 	if err := placement.Validate(resolved); err != nil {

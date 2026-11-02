@@ -22,8 +22,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 // importWithPlacement is an _imports.cue with one import whose placement field
@@ -119,13 +122,27 @@ var _ = Describe("RenderModuleComponents placement", func() {
 		Expect(got).To(Equal(map[string]interface{}{"clusters": []interface{}{"spoke"}, "allowEmpty": true}))
 	})
 
-	It("reads the deprecated clusterSelector spelling as clusterLabelSelector", func() {
+	// The topology policy reads the deprecated clusterSelector spelling only
+	// while the DeprecatedPolicySpec gate is on. fromPolicy reads it the same
+	// way, so the module never goes to clusters the addon itself does not.
+	It("reads the deprecated clusterSelector spelling while the DeprecatedPolicySpec gate is on", func() {
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultMutableFeatureGate, features.DeprecatedPolicySpec, true)
 		policies := []v1beta1.AppPolicy{
 			addonPolicy("by-label", "topology", map[string]interface{}{"clusterSelector": map[string]interface{}{"tier": "runtime"}}),
 		}
 		got, ok := renderedPlacement(&ImportPlacement{FromPolicy: "by-label"}, policies)
 		Expect(ok).To(BeTrue())
 		Expect(got).To(Equal(map[string]interface{}{"clusterLabelSelector": map[string]interface{}{"tier": "runtime"}}))
+	})
+
+	It("refuses the deprecated clusterSelector spelling while the DeprecatedPolicySpec gate is off", func() {
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultMutableFeatureGate, features.DeprecatedPolicySpec, false)
+		policies := []v1beta1.AppPolicy{
+			addonPolicy("by-label", "topology", map[string]interface{}{"clusterSelector": map[string]interface{}{"tier": "runtime"}}),
+		}
+		addon := &InstallPackage{Imports: []ModuleImport{{Module: "store", Enabled: true, Placement: &ImportPlacement{FromPolicy: "by-label"}}}}
+		_, err := RenderModuleComponents(addon, nil, nil, policies)
+		Expect(err).To(MatchError(`modules/_imports.cue: module "store": placement.fromPolicy "by-label": the policy sets the deprecated clusterSelector, which is ignored unless the DeprecatedPolicySpec feature gate is on; use clusterLabelSelector`))
 	})
 
 	DescribeTable("rejects a fromPolicy that cannot be resolved",
