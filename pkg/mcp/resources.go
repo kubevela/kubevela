@@ -376,7 +376,10 @@ func viewManagedResource(res querytypes.AppliedResource) ManagedResource {
 }
 
 // attachSecretMetadata reads a Secret through the metadata-only API, so
-// the request itself never returns data or type.
+// the request itself never returns data or type. The Factory's client is an
+// uncached controller-runtime client, which routes PartialObjectMetadata to
+// its metadata client; that client asks the API server for
+// "as=PartialObjectMetadata", so the response carries no Secret data.
 func (d *deps) attachSecretMetadata(ctx context.Context, key client.ObjectKey, res *ManagedResource, out *GetManagedResourceOutput) {
 	pm := &metav1.PartialObjectMetadata{}
 	pm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind(secretKind))
