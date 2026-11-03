@@ -1390,6 +1390,12 @@ var _ = Describe("Helmchart valuesFrom", Label("core-helm"), func() {
 		return entry
 	}
 
+	// valuesFromConvergeTimeout bounds the waits for the shared Application below
+	// to converge. It carries fourteen releases, and with the suites running in
+	// parallel a slow run has needed close to three minutes; a run that is
+	// already converged passes on the first poll.
+	const valuesFromConvergeTimeout = 3 * time.Minute
+
 	// Each merge case is its own release in one Application, so the cases share
 	// one Application and one teardown. Release names contain "podinfo", so the
 	// chart names each Deployment after its release.
@@ -1554,14 +1560,14 @@ replicaCount: 2
 				}
 				g.Expect(healthy).ShouldNot(BeNil(), "no status for podinfo-health")
 				g.Expect(*healthy).Should(BeTrue())
-			}).WithTimeout(60 * time.Second).Should(Succeed())
+			}).WithTimeout(valuesFromConvergeTimeout).Should(Succeed())
 		})
 
 		It("should bring the Application with every release to running", func() {
 			EventuallyReconciled(h.Ctx, h.App, func(g Gomega) {
 				g.Expect(k8sClient.Get(h.Ctx, h.AppKey, h.App)).Should(Succeed())
 				g.Expect(h.App.Status.Phase).Should(Equal(common2.ApplicationRunning))
-			}).WithTimeout(2 * time.Minute).WithPolling(3 * time.Second).Should(Succeed())
+			}).WithTimeout(valuesFromConvergeTimeout).WithPolling(3 * time.Second).Should(Succeed())
 		})
 
 		It("should recreate a CM-backed Deployment with the same values after it is deleted", func() {
