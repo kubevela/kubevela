@@ -35,6 +35,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -204,7 +205,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 	// here is removed again. The scenario namespaces are this file's own; in
 	// vela-system only this file's names are touched.
 	AfterEach(func() {
-		for _, ns := range []string{"mig-one", "mig-one-other", "mig-team-a", "mig-team-b", "mig-cfg", "mig-cfg-all", "mig-all", "mig-all-1", "mig-all-2"} {
+		for _, ns := range []string{"mig-one", "mig-one-other", "mig-team-a", "mig-team-b", "mig-cfg", "mig-cfg-all", "mig-all", "mig-all-1", "mig-all-2", "mig-gitops"} {
 			for _, obj := range []client.Object{&configv1alpha1.Config{}, &configv1alpha1.ConfigTemplate{}, &v1beta1.Application{}, &corev1.Secret{}, &corev1.ConfigMap{}} {
 				Expect(client.IgnoreNotFound(k8sClient.DeleteAllOf(ctx, obj, client.InNamespace(ns)))).Should(Succeed())
 			}
@@ -695,6 +696,116 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			_, err = migrator.MigrateTemplate(ctx, ns, "bogus", MigrationOptions{})
 			Expect(err).Should(MatchError("found a configmap but is not a config template"))
 			Expect(apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "bogus"}, &configv1alpha1.ConfigTemplate{}))).Should(BeTrue())
+		})
+	})
+
+	Context("GitOps-managed legacy objects (issue #7410 section 5)", func() {
+		const ns = "mig-gitops"
+		BeforeEach(func() {
+			ensureNamespace(ns)
+		})
+
+		// managedBy returns the field managers of obj's managedFields entries that own key.
+		managedBy := func(obj metav1.Object, key string) []string {
+			var managers []string
+			for _, entry := range obj.GetManagedFields() {
+				if entry.FieldsV1 != nil && strings.Contains(string(entry.FieldsV1.Raw), key) {
+					managers = append(managers, entry.Manager)
+				}
+			}
+			return managers
+		}
+
+		drain := func(recorder *record.FakeRecorder) []string {
+			var events []string
+			for len(recorder.Events) > 0 {
+				events = append(events, <-recorder.Events)
+			}
+			return events
+		}
+
+		It("adopts a Flux-applied template and config under migration's own field manager and says so", func() {
+			cm := writeLegacyTemplate(ns, "flux-t", legacyTemplateCUE("flux-t", "namespace", false, ""))
+			cm.Labels[fluxKustomizationLabel] = "configs"
+			Expect(k8sClient.Update(ctx, cm)).Should(Succeed())
+			secret := writeLegacyConfig(ns, "flux-t", ns, "cfg-flux")
+			setLabel := func(s *corev1.Secret) { s.Labels[fluxKustomizationLabel] = "configs" }
+			setLabel(secret)
+			Expect(k8sClient.Update(ctx, secret)).Should(Succeed())
+			data := getSecret(ns, "cfg-flux").Data
+
+			recorder := &objectRecorder{}
+			report, err := migrator.MigrateTemplate(ctx, ns, "flux-t", MigrationOptions{Recorder: recorder})
+			Expect(err).Should(Succeed())
+			Expect(report.Count(MigrationAdopted)).Should(Equal(2))
+
+			note := "is managed by Flux (label " + fluxKustomizationLabel + ")"
+			Expect(resultFor(report, "ConfigMap", ns, "flux-t").Reason).Should(ContainSubstring("the legacy ConfigMap " + note + ": keep this ConfigTemplate where it is kept instead"))
+			Expect(resultFor(report, "Secret", ns, "cfg-flux").Reason).Should(ContainSubstring("the legacy Secret " + note + ": keep this Config where it is kept instead"))
+			var gitops []recordedEvent
+			for _, e := range recorder.events {
+				if e.reason == EventMigratedGitOpsManaged {
+					gitops = append(gitops, e)
+				}
+			}
+			Expect(gitops).Should(HaveLen(2))
+			Expect(gitops[0].object).Should(BeAssignableToTypeOf(&configv1alpha1.ConfigTemplate{}), "on the new ConfigTemplate")
+			Expect(gitops[0].object.GetName()).Should(Equal("flux-t"))
+			Expect(gitops[0].message).Should(HavePrefix("the legacy ConfigMap " + note))
+			Expect(gitops[1].object).Should(BeAssignableToTypeOf(&configv1alpha1.Config{}), "on the new Config")
+			Expect(gitops[1].object.GetName()).Should(Equal("cfg-flux"))
+			Expect(gitops[1].message).Should(HavePrefix("the legacy Secret " + note))
+
+			adopted := getSecret(ns, "cfg-flux")
+			Expect(adopted.Data).Should(Equal(data), "adoption leaves the data alone")
+			Expect(managedBy(adopted, `"f:ownerReferences"`)).Should(ConsistOf("kubevela-config-migration"))
+			Expect(managedBy(adopted, `"f:`+types.AnnotationConfigMigratedTo+`"`)).Should(ConsistOf("kubevela-config-migration"))
+			Expect(managedBy(adopted, `"f:`+SaveInputPropertiesKey+`"`)).ShouldNot(ContainElement("kubevela-config-migration"), "the data stays its writer's")
+			var adoptedCM corev1.ConfigMap
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cm), &adoptedCM)).Should(Succeed())
+			Expect(managedBy(&adoptedCM, `"f:`+types.AnnotationConfigMigratedTo+`"`)).Should(ConsistOf("kubevela-config-migration"))
+		})
+
+		It("reports managed-by=Helm as Helm, and app.kubernetes.io/instance on its own as possible", func() {
+			writeLegacyTemplate(ns, "inst-t", legacyTemplateCUE("inst-t", "namespace", false, ""))
+			helm := writeLegacyConfig(ns, "inst-t", ns, "cfg-helm")
+			helm.Labels[managedByLabel] = "Helm"
+			Expect(k8sClient.Update(ctx, helm)).Should(Succeed())
+			bare := writeLegacyConfig(ns, "inst-t", ns, "cfg-instance")
+			bare.Labels[instanceLabel] = "configs"
+			Expect(k8sClient.Update(ctx, bare)).Should(Succeed())
+
+			report, err := migrator.MigrateTemplate(ctx, ns, "inst-t", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(resultFor(report, "Secret", ns, "cfg-helm").Reason).Should(ContainSubstring("is managed by Helm (label app.kubernetes.io/managed-by=Helm)"))
+			Expect(resultFor(report, "Secret", ns, "cfg-instance").Reason).Should(ContainSubstring("may be managed by Argo CD (label tracking) or another tool (label app.kubernetes.io/instance): if so"))
+		})
+
+		It("records no MigratedGitOpsManaged Event for an object no tool marks, and none on a dry run", func() {
+			writeLegacyTemplate(ns, "plain-g", legacyTemplateCUE("plain-g", "namespace", false, ""))
+			writeLegacyConfig(ns, "plain-g", ns, "cfg-plain-g")
+			argo := writeLegacyConfig(ns, "plain-g", ns, "cfg-argo")
+			setAnnotation(argo, argoCDTrackingIDAnnotation, "configs:/Secret:mig-gitops/cfg-argo")
+			Expect(k8sClient.Update(ctx, argo)).Should(Succeed())
+
+			dry := record.NewFakeRecorder(20)
+			report, err := migrator.MigrateTemplate(ctx, ns, "plain-g", MigrationOptions{DryRun: true, Recorder: dry})
+			Expect(err).Should(Succeed())
+			Expect(resultFor(report, "Secret", ns, "cfg-argo").Reason).Should(ContainSubstring("is managed by Argo CD (annotation argocd.argoproj.io/tracking-id)"), "the dry run's report says it")
+			Expect(dry.Events).Should(BeEmpty())
+
+			recorder := record.NewFakeRecorder(20)
+			_, err = migrator.MigrateTemplate(ctx, ns, "plain-g", MigrationOptions{Recorder: recorder})
+			Expect(err).Should(Succeed())
+			events := drain(recorder)
+			gitops := 0
+			for _, e := range events {
+				if strings.Contains(e, EventMigratedGitOpsManaged) {
+					gitops++
+					Expect(e).Should(ContainSubstring("Argo CD"))
+				}
+			}
+			Expect(gitops).Should(Equal(1), "only cfg-argo: %v", events)
 		})
 	})
 
@@ -1249,3 +1360,26 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 		Expect(apierrors.IsNotFound(migrator.own(ctx, cfg, u, false))).Should(BeTrue())
 	})
 })
+
+// objectRecorder keeps each Event with the object it is recorded on; record.FakeRecorder
+// names the object by its TypeMeta, which a typed object read back from the API server lacks.
+type objectRecorder struct {
+	events []recordedEvent
+}
+
+type recordedEvent struct {
+	reason, message string
+	object          client.Object
+}
+
+func (r *objectRecorder) Event(object runtime.Object, _, reason, message string) {
+	r.events = append(r.events, recordedEvent{reason, message, object.(client.Object)})
+}
+
+func (r *objectRecorder) Eventf(object runtime.Object, eventType, reason, messageFmt string, args ...interface{}) {
+	r.Event(object, eventType, reason, fmt.Sprintf(messageFmt, args...))
+}
+
+func (r *objectRecorder) AnnotatedEventf(object runtime.Object, _ map[string]string, eventType, reason, messageFmt string, args ...interface{}) {
+	r.Eventf(object, eventType, reason, messageFmt, args...)
+}

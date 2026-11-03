@@ -67,6 +67,11 @@ const (
 	EventMigrationFailed   = "MigrationFailed"
 )
 
+// migrationFieldOwner is the field manager of every write migration makes, so a GitOps tool
+// that applies the legacy objects server-side sees the owner references and annotations
+// migration adds owned by another manager, not as drift in its own fields.
+var migrationFieldOwner = client.FieldOwner("kubevela-config-migration")
+
 const (
 	reasonAlreadyMigrated   = "already migrated"
 	reasonOptedOut          = "opted out"
@@ -476,10 +481,17 @@ func withMigrationLabel(labels map[string]string) map[string]string {
 func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.ConfigMap, bound []corev1.Secret, opts MigrationOptions, report *MigrationReport) {
 	name := strings.TrimPrefix(cm.Name, TemplateConfigMapNamePrefix)
 	res := MigrationResult{Kind: kindConfigMap, Namespace: cm.Namespace, Name: name}
+	note := gitOpsNote(cm, kindConfigMap, configv1alpha1.ConfigTemplateKind)
 	finish := func(outcome MigrationOutcome, reason string) {
+		if outcome == MigrationAdopted && note != "" {
+			reason += "; " + note
+		}
 		res.Outcome, res.Reason = outcome, reason
 		report.add(res)
 		m.recordOutcome(opts, cm, res)
+		if outcome == MigrationAdopted && note != "" {
+			m.event(opts, res.Target, corev1.EventTypeNormal, EventMigratedGitOpsManaged, note)
+		}
 	}
 
 	if optedOut(cm) {
@@ -551,7 +563,7 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 		finish(MigrationAdopted, reason)
 		return
 	}
-	if err := m.cli.Create(ctx, ct); err != nil {
+	if err := m.cli.Create(ctx, ct, migrationFieldOwner); err != nil {
 		finish(MigrationFailed, err.Error())
 		return
 	}
@@ -567,10 +579,17 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 // its distribution Application.
 func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secret, opts MigrationOptions, report *MigrationReport) {
 	res := MigrationResult{Kind: kindSecret, Namespace: secret.Namespace, Name: secret.Name}
+	note := gitOpsNote(secret, kindSecret, configv1alpha1.ConfigKind)
 	finish := func(outcome MigrationOutcome, reason string) {
+		if outcome == MigrationAdopted && note != "" {
+			reason += "; " + note
+		}
 		res.Outcome, res.Reason = outcome, reason
 		report.add(res)
 		m.recordOutcome(opts, secret, res)
+		if outcome == MigrationAdopted && note != "" {
+			m.event(opts, res.Target, corev1.EventTypeNormal, EventMigratedGitOpsManaged, note)
+		}
 	}
 
 	// What is not a legacy config is settled before any Config lookup: the Secret a
@@ -657,7 +676,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		return
 	}
 	if propsSecret != nil {
-		if err := m.cli.Create(ctx, propsSecret); err != nil && !apierrors.IsAlreadyExists(err) {
+		if err := m.cli.Create(ctx, propsSecret, migrationFieldOwner); err != nil && !apierrors.IsAlreadyExists(err) {
 			finish(MigrationFailed, fmt.Sprintf("properties Secret %s: %v", propsSecret.Name, err))
 			return
 		}
@@ -700,7 +719,7 @@ func (m *Migrator) createConfig(ctx context.Context, cfg *configv1alpha1.Config)
 	var err error
 	backoff := pendingBackoff
 	for {
-		if err = m.cli.Create(ctx, cfg); err == nil || !strings.Contains(err.Error(), pendingTemplatePhrase) || backoff.Steps <= 1 {
+		if err = m.cli.Create(ctx, cfg, migrationFieldOwner); err == nil || !strings.Contains(err.Error(), pendingTemplatePhrase) || backoff.Steps <= 1 {
 			return err
 		}
 		select {
@@ -992,7 +1011,7 @@ func (m *Migrator) adopt(ctx context.Context, cfg *configv1alpha1.Config, secret
 	distribution := DefaultDistributionName(cfg.Name)
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: distribution}, &v1beta1.Application{}); {
 	case err == nil:
-		if err := SetDistributionOwner(ctx, m.cli, cfg.Namespace, cfg.Name, distribution); err != nil {
+		if err := SetDistributionOwner(ctx, m.cli, cfg.Namespace, cfg.Name, distribution, migrationFieldOwner); err != nil {
 			return err
 		}
 	case apierrors.IsNotFound(err):
@@ -1038,7 +1057,7 @@ func (m *Migrator) own(ctx context.Context, cfg *configv1alpha1.Config, obj clie
 	if !changed {
 		return nil
 	}
-	return m.cli.Patch(ctx, obj, client.MergeFrom(orig))
+	return m.cli.Patch(ctx, obj, client.MergeFrom(orig), migrationFieldOwner)
 }
 
 // markAdoptBy writes the mark the Config controller adopts the Secret on (see
@@ -1046,7 +1065,7 @@ func (m *Migrator) own(ctx context.Context, cfg *configv1alpha1.Config, obj clie
 func (m *Migrator) markAdoptBy(ctx context.Context, secret *corev1.Secret, configName string) error {
 	orig := secret.DeepCopy()
 	setAnnotation(secret, types.AnnotationConfigAdoptBy, configName)
-	return m.cli.Patch(ctx, secret, client.MergeFrom(orig))
+	return m.cli.Patch(ctx, secret, client.MergeFrom(orig), migrationFieldOwner)
 }
 
 // unmarkAdoptBy takes the mark back when no Config followed it.
@@ -1059,7 +1078,7 @@ func (m *Migrator) unmarkAdoptBy(ctx context.Context, secret *corev1.Secret) err
 	}
 	orig := secret.DeepCopy()
 	delete(secret.Annotations, types.AnnotationConfigAdoptBy)
-	return m.cli.Patch(ctx, secret, client.MergeFrom(orig))
+	return m.cli.Patch(ctx, secret, client.MergeFrom(orig), migrationFieldOwner)
 }
 
 // applicationMarkKeys are the labels an Application's dispatcher leaves on what it applies:
@@ -1104,7 +1123,7 @@ func dropStaleConfigOwner(obj metav1.Object, cfg *configv1alpha1.Config) {
 func (m *Migrator) annotateMigratedTo(ctx context.Context, obj client.Object, uid k8stypes.UID) error {
 	orig := obj.DeepCopyObject().(client.Object)
 	setAnnotation(obj, types.AnnotationConfigMigratedTo, string(uid))
-	return m.cli.Patch(ctx, obj, client.MergeFrom(orig))
+	return m.cli.Patch(ctx, obj, client.MergeFrom(orig), migrationFieldOwner)
 }
 
 func setAnnotation(obj metav1.Object, key, value string) {
