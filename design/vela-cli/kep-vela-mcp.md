@@ -177,7 +177,8 @@ classifier needs structured changes. Handlers never shell out and never call a m
 | `resume_workflow` | write | `vela workflow resume`; separate flag; denies the recorded initiator | P1, flag |
 
 Deliberately absent: raw Kubernetes get and patch, exec, port-forward, addon enable,
-cluster join, definition apply, Secret reads.
+cluster join, definition apply, and reading Secret data; a managed Secret's metadata is the
+only Secret read a tool returns.
 
 `explain_application`, `get_application` and `get_logs` return **correlation handles**:
 cluster, namespace, pod names, the label set KubeVela stamps on rendered resources,
