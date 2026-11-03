@@ -141,6 +141,11 @@ func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) {
 		g.collectImportsFromValue(helper.Collection())
 	}
 
+	// Check let bindings
+	for _, lb := range tpl.GetLetBindings() {
+		g.collectImportsFromValue(lb.Expr())
+	}
+
 	// Check parameters for import requirements (e.g. StringParam with MinLen/MaxLen needs "strings")
 	for _, param := range c.GetParams() {
 		if ir, ok := param.(ImportRequirer); ok {

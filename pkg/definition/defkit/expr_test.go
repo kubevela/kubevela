@@ -252,6 +252,26 @@ var _ = Describe("Expressions", func() {
 			Expect(fn.Args()[0]).To(Equal(list1))
 			Expect(fn.Args()[1]).To(Equal(list2))
 		})
+
+		It("should create StdlibCall qualified by the last import path element", func() {
+			name := defkit.String("name")
+			fn := defkit.StdlibCall("crypto/md5", "Sum", name)
+			Expect(fn.Package()).To(Equal("md5"))
+			Expect(fn.Function()).To(Equal("Sum"))
+			Expect(fn.Args()).To(Equal([]defkit.Value{name}))
+			Expect(fn.RequiredImports()).To(Equal([]string{"crypto/md5"}))
+
+			Expect(defkit.StdlibCall("strings", "SliceRunes").RequiredImports()).To(Equal([]string{"strings"}))
+		})
+
+		It("should panic on a malformed StdlibCall import path or function name", func() {
+			for _, imp := range []string{"", "crypto/", "/md5", "crypto//md5", "Crypto/md5", "md5 ", `md5"`} {
+				Expect(func() { defkit.StdlibCall(imp, "Sum") }).To(PanicWith(ContainSubstring("import path")), imp)
+			}
+			for _, fn := range []string{"", "sum", "Sum()", "md5.Sum", "Sum Two"} {
+				Expect(func() { defkit.StdlibCall("crypto/md5", fn) }).To(PanicWith(ContainSubstring("function name")), fn)
+			}
+		})
 	})
 
 	Context("ArrayElement", func() {

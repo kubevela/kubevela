@@ -16,6 +16,12 @@ limitations under the License.
 
 package defkit
 
+import (
+	"fmt"
+	"path"
+	"regexp"
+)
+
 // Literal represents a literal value in an expression.
 type Literal struct {
 	val any
@@ -367,7 +373,7 @@ func (c *MapHasKeyCondition) Key() string { return c.key }
 
 // CUEFunc represents a call to a CUE standard library function.
 type CUEFunc struct {
-	pkg  string // e.g., "strconv", "strings", "list"
+	pkg  string // import path, e.g., "strconv", "strings", "crypto/md5"
 	fn   string // e.g., "FormatInt", "ToLower"
 	args []Value
 }
@@ -383,14 +389,38 @@ func (c *CUEFunc) RequiredImports() []string {
 	return nil
 }
 
-// Package returns the CUE package name.
-func (c *CUEFunc) Package() string { return c.pkg }
+// Package returns the CUE package qualifier, e.g. "md5" for "crypto/md5".
+func (c *CUEFunc) Package() string { return path.Base(c.pkg) }
 
 // Function returns the function name.
 func (c *CUEFunc) Function() string { return c.fn }
 
 // Args returns the function arguments.
 func (c *CUEFunc) Args() []Value { return c.args }
+
+var (
+	stdlibImportPathRe = regexp.MustCompile(`^[a-z][a-z0-9]*(/[a-z][a-z0-9]*)*$`)
+	stdlibFuncNameRe   = regexp.MustCompile(`^[A-Z][A-Za-z0-9_]*$`)
+)
+
+// StdlibCall creates a call to any CUE standard library function, for the
+// ones without a dedicated wrapper. importPath is the package import path and
+// the call is qualified by its last element, so
+// StdlibCall("crypto/md5", "Sum", v) imports "crypto/md5" and emits md5.Sum(v).
+// It panics if importPath or fn is not a valid package path or exported name.
+func StdlibCall(importPath, fn string, args ...Value) *CUEFunc {
+	if !stdlibImportPathRe.MatchString(importPath) {
+		panic(fmt.Sprintf("defkit: invalid CUE standard library import path %q", importPath))
+	}
+	if !stdlibFuncNameRe.MatchString(fn) {
+		panic(fmt.Sprintf("defkit: invalid CUE standard library function name %q", fn))
+	}
+	return &CUEFunc{
+		pkg:  importPath,
+		fn:   fn,
+		args: args,
+	}
+}
 
 // StrconvFormatInt creates a strconv.FormatInt(v, base) expression.
 // In CUE: strconv.FormatInt(v, 10)

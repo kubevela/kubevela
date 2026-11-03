@@ -572,6 +572,10 @@ func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
 		scan.collectImportsFromValue(helper.Collection())
 	}
 
+	for _, lb := range tpl.GetLetBindings() {
+		scan.collectImportsFromValue(lb.Expr())
+	}
+
 	// Resource operations in output / outputs / patch.
 	if output := tpl.GetOutput(); output != nil {
 		scan.collectImportsFromResource(output)
