@@ -162,7 +162,7 @@ classifier needs structured changes. Handlers never shell out and never call a m
 | `list_applications` | read | `vela ls` | P0 |
 | `get_application` | read | Live Application + status; endpoints from VelaQL `endpoints` view | P0 |
 | `explain_application` | read | `status --tree --detail`, VelaQL `resource-tree`, events; dependency walk; every claim cites an object | P0 |
-| `get_managed_resource` | read | ResourceTracker-scoped live GET of any managed object in its cluster; refuses unmanaged objects; refuses Secret kinds before the GET and returns only metadata for them | P0 |
+| `get_managed_resource` | read | ResourceTracker-scoped live GET of any managed object in its cluster; refuses unmanaged objects; reads a Secret through the metadata API and returns only its metadata, never its data | P0 |
 | `get_workflow` | read | `vela workflow` status | P0 |
 | `get_logs` | read | VelaQL `component-pod` + bounded, redacted tail | P0 |
 | `list_clusters` | read | `vela cluster list`; never credentials | P0 |
