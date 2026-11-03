@@ -1,0 +1,45 @@
+# A config a workflow step writes (on 1.11, a legacy Secret), and an Application that consumes the
+# plain config with read-config and writes its value into a ConfigMap.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: up-writer
+  namespace: up-seed
+spec:
+  components: []
+  workflow:
+    steps:
+      - name: write
+        type: create-config
+        properties:
+          name: up-workflow
+          template: up-seed/up-plain
+          namespace: up-seed
+          config: {value: v-workflow}
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: up-reader
+  namespace: up-seed
+  annotations: {app.oam.dev/publishVersion: "1"}
+spec:
+  components: []
+  workflow:
+    steps:
+      - name: read
+        type: read-config
+        properties: {name: up-plain-cfg, namespace: up-seed}
+        outputs:
+          - name: value
+            valueFrom: output.config.value
+      - name: show
+        type: apply-object
+        inputs:
+          - from: value
+            parameterKey: value.data.value
+        properties:
+          value:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata: {name: up-reader-out, namespace: up-seed}
