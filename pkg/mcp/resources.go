@@ -24,7 +24,10 @@ import (
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -313,40 +316,27 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 	return applied, appliedInfo{}, nil
 }
 
-// attachLiveObject reads the selected object from its cluster. Secrets are
-// reduced to metadata before anything leaves the handler; the GET itself
-// still happens so a missing Secret is reported as missing.
+// attachLiveObject reads the selected object from its cluster. A Secret is
+// read as metadata only, so its data never reaches this process.
 func (d *deps) attachLiveObject(ctx context.Context, res *ManagedResource, out *GetManagedResourceOutput) {
-	obj := &unstructured.Unstructured{}
-	obj.SetAPIVersion(res.APIVersion)
-	obj.SetKind(res.Kind)
 	key := client.ObjectKey{Namespace: res.Namespace, Name: res.Name}
 	cctx := ctx
 	if res.Cluster != "" && res.Cluster != localCluster {
 		cctx = multicluster.ContextWithClusterName(ctx, res.Cluster)
 	}
+	if res.Kind == secretKind {
+		d.attachSecretMetadata(cctx, key, res, out)
+		return
+	}
+	obj := &unstructured.Unstructured{}
+	obj.SetAPIVersion(res.APIVersion)
+	obj.SetKind(res.Kind)
 	if err := d.f.Client().Get(cctx, key, obj); err != nil {
 		res.ObjectNote = "live read failed: " + redactLine(err.Error())
 		return
 	}
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s", res.Kind, res.Namespace, res.Name, res.Cluster, obj.GetResourceVersion()))
 	content := redactObject(obj.DeepCopy().Object)
-	if res.Kind == secretKind {
-		meta := map[string]any{
-			"apiVersion": content["apiVersion"],
-			"kind":       content["kind"],
-			"metadata":   content["metadata"],
-			"type":       content["type"],
-		}
-		if size := jsonSize(meta); size > maxObjectBytes {
-			res.ObjectNote = fmt.Sprintf("Secret metadata is %d bytes, over the %d byte limit; content is never returned", size, maxObjectBytes)
-			out.Meta.Truncated = true
-			return
-		}
-		res.Object = meta
-		res.ObjectNote = "Secret content is never returned; metadata only"
-		return
-	}
 	if res.Kind == "ConfigMap" {
 		res.ObjectNote = "ConfigMap values are not returned, only their keys; read values through the Kubernetes MCP under its own policy"
 	}
@@ -383,6 +373,31 @@ func viewManagedResource(res querytypes.AppliedResource) ManagedResource {
 		m.Tree = deriveFromPods(flattenTree(res.ResourceTree, 0, "", nil))
 	}
 	return m
+}
+
+// attachSecretMetadata reads a Secret through the metadata-only API, so
+// the request itself never returns data or type.
+func (d *deps) attachSecretMetadata(ctx context.Context, key client.ObjectKey, res *ManagedResource, out *GetManagedResourceOutput) {
+	pm := &metav1.PartialObjectMetadata{}
+	pm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind(secretKind))
+	if err := d.f.Client().Get(ctx, key, pm); err != nil {
+		res.ObjectNote = "live read failed: " + redactLine(err.Error())
+		return
+	}
+	out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s, metadata only", res.Kind, res.Namespace, res.Name, res.Cluster, pm.GetResourceVersion()))
+	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pm)
+	if err != nil {
+		res.ObjectNote = "Secret metadata could not be read: " + redactLine(err.Error())
+		return
+	}
+	meta := redactObject(map[string]any{"apiVersion": "v1", "kind": secretKind, "metadata": raw["metadata"]})
+	if size := jsonSize(meta); size > maxObjectBytes {
+		res.ObjectNote = fmt.Sprintf("Secret metadata is %d bytes, over the %d byte limit; content is never returned", size, maxObjectBytes)
+		out.Meta.Truncated = true
+		return
+	}
+	res.Object = meta
+	res.ObjectNote = "Secret content is never read or returned; metadata only"
 }
 
 // flattenTree appends n and its descendants depth-first.

@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -161,8 +162,15 @@ var _ = Describe("get_managed_resource", func() {
 		Expect(out.Evidence).To(ContainElement(ContainSubstring("Deployment team-a/web in cluster local resourceVersion 77")))
 	})
 
-	It("returns only metadata for a Secret", func() {
-		h = startHarness(Options{}, managedFixtures()...)
+	It("returns only metadata for a Secret, read through the metadata API", func() {
+		metadataReads := 0
+		funcs := &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if pm, partial := obj.(*metav1.PartialObjectMetadata); partial && pm.GetObjectKind().GroupVersionKind().Kind == "Secret" {
+				metadataReads++
+			}
+			return c.Get(ctx, key, obj, opts...)
+		}}
+		h = startHarnessIntercepted(Options{}, nil, funcs, managedFixtures()...)
 		var out GetManagedResourceOutput
 		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Secret", "resourceName": "web-creds"}, &out)
 		Expect(out.Resources).To(HaveLen(1))
@@ -171,6 +179,8 @@ var _ = Describe("get_managed_resource", func() {
 		Expect(obj).NotTo(HaveKey("data"))
 		Expect(obj).NotTo(HaveKey("stringData"))
 		Expect(out.Resources[0].ObjectNote).To(ContainSubstring("metadata only"))
+		Expect(metadataReads).To(Equal(1), "the live read of the Secret asks for metadata only")
+		Expect(toJSON(out)).NotTo(ContainSubstring("hunter2"), "no Secret value appears anywhere in the result")
 	})
 
 	It("refuses objects the application does not manage", func() {
