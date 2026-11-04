@@ -1,0 +1,37 @@
+{{- $tpl := .Values.workflow.httpDeny.configTemplateName }}
+{{- if and .Values.workflow.httpDeny.installConfigTemplate $tpl }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-template-{{ $tpl }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    config.oam.dev/catalog: velacore-config
+    config.oam.dev/scope: system
+  annotations:
+    config.oam.dev/alias: Workflow HTTP Denylist
+    config.oam.dev/description: Additional host, IP, and CIDR destinations denied for workflow HTTP requests.
+    config.oam.dev/sensitive: "false"
+data:
+  expanded-writer: |
+    nacos: null
+  template: |
+{{ .Files.Get "config-templates/workflow-http-deny.cue" | replace "vela-core-http-deny" $tpl | indent 4 }}
+---
+{{- end }}
+{{- if and .Values.workflow.httpDeny.defaultConfig.enabled $tpl }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.workflow.httpDeny.defaultConfig.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    config.oam.dev/catalog: velacore-config
+    config.oam.dev/type: {{ $tpl }}
+    config.oam.dev/scope: system
+data:
+  denyHosts: |-
+{{ join "\n" .Values.workflow.httpDeny.defaultConfig.denyHosts | indent 4 }}
+  denyCIDRs: |-
+{{ join "\n" .Values.workflow.httpDeny.defaultConfig.denyCIDRs | indent 4 }}
+{{- end }}
