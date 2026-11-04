@@ -196,6 +196,38 @@ var _ = Describe("Test PolicyDefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeTrue(), "denied: %s", resp.Result.Message)
 		})
+		It("Test Application-scoped cue template importing a package of its render compiler is accepted", func() {
+			// Application-scoped policies render with the upstream default
+			// compiler, not the workload one, and only the former has
+			// "vela/util". The handler has to pick the compiler by scope.
+			pd.Spec = v1beta1.PolicyDefinitionSpec{
+				Scope: v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `import "vela/util"
+
+shortName: util.#Truncate & {
+	$params: {
+		value:     "my-app"
+		maxLength: 20
+	}
+}
+`,
+					},
+				},
+			}
+			pdRaw, _ = json.Marshal(pd)
+
+			req = admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: pdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue(), "denied: %s", resp.Result.Message)
+		})
 		It("Test cue template validation failed", func() {
 			pd.Spec = v1beta1.PolicyDefinitionSpec{
 				Schematic: &common.Schematic{

@@ -17,6 +17,7 @@ limitations under the License.
 package application
 
 import (
+	"context"
 	"fmt"
 
 	"cuelang.org/go/cue"
@@ -44,12 +45,13 @@ func (r *PolicyValidationResult) IsValid() bool {
 
 // ValidatePolicyDefinition validates a PolicyDefinition.
 // cueTemplate and val are the effective (post-upgrade) template and its
-// compiled cue.Value, computed once by the caller: this function and
+// compiled cue.Value, computed once by the caller with
+// webhookutils.CompilePolicyTemplate: this function and
 // validateNoRequiredParameters both check against them rather than each
 // compiling the template again. Neither is read when the policy has no CUE
 // schematic, since that case is rejected before either is touched.
 // Returns validation result with errors (blocking) and warnings (informational)
-func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition, cueTemplate string, val cue.Value) *PolicyValidationResult {
+func ValidatePolicyDefinition(ctx context.Context, policy *v1beta1.PolicyDefinition, cueTemplate string, val cue.Value) *PolicyValidationResult {
 	result := &PolicyValidationResult{
 		Errors:   []string{},
 		Warnings: []string{},
@@ -64,7 +66,7 @@ func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition, cueTemplate stri
 	// Validate global policies have specific requirements
 	if policy.Spec.Global {
 		// No required parameters
-		if err := validateNoRequiredParameters(policy, val); err != nil {
+		if err := validateNoRequiredParameters(ctx, policy, cueTemplate, val); err != nil {
 			result.Errors = append(result.Errors, err.Error())
 		}
 
@@ -154,13 +156,21 @@ func isASTBoolExpr(expr ast.Expr) bool {
 
 // validateNoRequiredParameters checks that all parameters have default values
 // For global policies, ALL parameters must have defaults since users can't provide values.
-// val is the already-compiled template. One that carries an error is refused
-// rather than skipped: the CUE validation tolerates some errors, such as a
-// reference to context, that still leave the parameters unreadable, and a
-// global policy whose parameters cannot be read cannot be shown to need none.
-func validateNoRequiredParameters(policy *v1beta1.PolicyDefinition, val cue.Value) error {
+// val is the already-compiled template. One that carries an error usually
+// reads context, which only a render supplies, so the parameters are read from
+// the template compiled with context opened instead. If that is still in error
+// the policy is refused rather than skipped: a global policy whose parameters
+// cannot be read cannot be shown to need none.
+func validateNoRequiredParameters(ctx context.Context, policy *v1beta1.PolicyDefinition, cueTemplate string, val cue.Value) error {
 	if val.Err() != nil {
-		return errors.Wrap(val.Err(), "failed to compile CUE template")
+		opened, err := webhookutils.CompileOpenPolicyTemplate(ctx, policy.Spec.Scope, cueTemplate)
+		if err == nil {
+			err = opened.Err()
+		}
+		if err != nil {
+			return errors.Wrap(err, "failed to compile CUE template")
+		}
+		val = opened
 	}
 
 	paramField := val.LookupPath(cue.ParsePath("parameter"))
