@@ -272,6 +272,27 @@ func (g *CUEGenerator) collectImportsFromValue(v interface{}) {
 		for _, arg := range val.Args() {
 			g.collectImportsFromValue(arg)
 		}
+	// Conditions whose operands are values, such as a comparison of a
+	// strings.ToLower call.
+	case *Comparison:
+		g.collectImportsFromValue(val.Left())
+		g.collectImportsFromValue(val.Right())
+	case *LogicalExpr:
+		for _, sub := range val.Conditions() {
+			g.collectImportsFromValue(sub)
+		}
+	case *AllConditionsCondition:
+		for _, sub := range val.Conditions() {
+			g.collectImportsFromValue(sub)
+		}
+	case *NotExpr:
+		g.collectImportsFromValue(val.Cond())
+	case *LenValueCondition:
+		g.collectImportsFromValue(val.Source())
+	case *RegexMatchCondition:
+		g.collectImportsFromValue(val.Source())
+	case *HasExposedPortsCondition:
+		g.collectImportsFromValue(val.Ports())
 	}
 }
 
@@ -3416,12 +3437,80 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 // uses CUE chained-if syntax (e.g. `guard if inner`). These conditions cannot
 // be placed inside `(…) && (…)` — compound conditions must join with ` if `
 // instead of ` && ` when any operand uses chained guards.
+//
+// An AND renders as a chain when any of its operands does. Or, Not and
+// AbsentOrEmpty operands render in value form (see conditionToCUEValue), so
+// they never chain.
 func usesChainedGuard(c Condition) bool {
-	switch c.(type) {
+	switch c := c.(type) {
 	case *ArrayContainsCondition, *LenCondition:
 		return true
+	case *LogicalExpr:
+		return c.Op() == OpAnd && anyChainedGuard(c.Conditions())
+	case *AllConditionsCondition:
+		return anyChainedGuard(c.Conditions())
 	}
 	return false
+}
+
+func anyChainedGuard(conds []Condition) bool {
+	for _, c := range conds {
+		if usesChainedGuard(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// conditionToCUEValue renders a condition as a boolean expression, for use
+// where a value is needed (config.enabled) or as an operand of || or !. A
+// chained guard is only valid as a comprehension clause, so it is wrapped in a
+// list comprehension that yields true when the guard and the condition hold:
+//
+//	[if parameter["X"] != _|_ if list.Contains(parameter["X"], v) {true}, false][0]
+//
+// AbsentOrEmpty gets one clause per branch, so both "absent" and "set and
+// empty" yield true.
+func (g *CUEGenerator) conditionToCUEValue(c Condition) string {
+	if aoe, ok := c.(*AbsentOrEmptyCondition); ok {
+		var sb strings.Builder
+		sb.WriteString("[")
+		for _, branch := range aoe.Branches() {
+			sb.WriteString(fmt.Sprintf("if %s {true}, ", g.conditionToCUE(branch)))
+		}
+		sb.WriteString("false][0]")
+		return sb.String()
+	}
+	if usesChainedGuard(c) {
+		return fmt.Sprintf("[if %s {true}, false][0]", g.conditionToCUE(c))
+	}
+	return g.conditionToCUE(c)
+}
+
+// operandToCUE renders an operand of an AND chain. AbsentOrEmpty renders in
+// value form; anything else as conditionToCUE.
+func (g *CUEGenerator) operandToCUE(c Condition) string {
+	if _, ok := c.(*AbsentOrEmptyCondition); ok {
+		return g.conditionToCUEValue(c)
+	}
+	return g.conditionToCUE(c)
+}
+
+// andOperandToCUE renders an operand of an AND, parenthesising one that
+// renders as an OR: CUE binds && tighter than ||.
+func (g *CUEGenerator) andOperandToCUE(c Condition) string {
+	rendered := g.operandToCUE(c)
+	switch c := c.(type) {
+	case *LogicalExpr:
+		if c.Op() == OpOr && len(c.Conditions()) > 1 {
+			return "(" + rendered + ")"
+		}
+	case *InCondition:
+		if len(c.Values()) > 1 {
+			return "(" + rendered + ")"
+		}
+	}
+	return rendered
 }
 
 // lenConditionToCUE renders a LenCondition using CUE's chained-if guard
@@ -3462,8 +3551,8 @@ func (g *CUEGenerator) arrayContainsConditionToCUE(c *ArrayContainsCondition) st
 // guard syntax (e.g. ArrayContainsCondition), join with ` if ` instead of
 // ` && ` because chained-if expressions are invalid inside `(...) && (...)`.
 func (g *CUEGenerator) andConditionToCUE(c *AndCondition) string {
-	left := g.conditionToCUE(c.left)
-	right := g.conditionToCUE(c.right)
+	left := g.operandToCUE(c.left)
+	right := g.operandToCUE(c.right)
 	if usesChainedGuard(c.left) || usesChainedGuard(c.right) {
 		return fmt.Sprintf("%s if %s", left, right)
 	}
@@ -3476,14 +3565,17 @@ func (g *CUEGenerator) andConditionToCUE(c *AndCondition) string {
 func (g *CUEGenerator) logicalExprToCUE(c *LogicalExpr) string {
 	parts := make([]string, len(c.Conditions()))
 	anyChained := false
+	if c.Op() == OpOr {
+		for i, sub := range c.Conditions() {
+			parts[i] = g.conditionToCUEValue(sub)
+		}
+		return strings.Join(parts, " || ")
+	}
 	for i, sub := range c.Conditions() {
-		parts[i] = g.conditionToCUE(sub)
+		parts[i] = g.andOperandToCUE(sub)
 		if usesChainedGuard(sub) {
 			anyChained = true
 		}
-	}
-	if c.Op() == OpOr {
-		return strings.Join(parts, " || ")
 	}
 	if anyChained {
 		return strings.Join(parts, " if ")
@@ -3497,7 +3589,7 @@ func (g *CUEGenerator) allConditionsConditionToCUE(c *AllConditionsCondition) st
 	parts := make([]string, 0, len(c.Conditions()))
 	anyChained := false
 	for _, cond := range c.Conditions() {
-		parts = append(parts, g.conditionToCUE(cond))
+		parts = append(parts, g.andOperandToCUE(cond))
 		if usesChainedGuard(cond) {
 			anyChained = true
 		}
@@ -3517,7 +3609,7 @@ func (g *CUEGenerator) notExprToCUE(c *NotExpr) string {
 	if pe, ok := c.Cond().(*PathExistsCondition); ok {
 		return fmt.Sprintf("%s == _|_", pe.Path())
 	}
-	return fmt.Sprintf("!(%s)", g.conditionToCUE(c.Cond()))
+	return fmt.Sprintf("!(%s)", g.conditionToCUEValue(c.Cond()))
 }
 
 // inConditionToCUE converts an InCondition to CUE syntax.

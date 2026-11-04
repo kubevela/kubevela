@@ -17,6 +17,7 @@ limitations under the License.
 package application
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // recordingRecorder captures emitted events for assertions.
@@ -116,5 +118,31 @@ func TestEmitPolicyEvents(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestEmitPolicySettingWarnings(t *testing.T) {
+	rec := &recordingRecorder{}
+	r := &Reconciler{Recorder: rec}
+
+	app := &v1beta1.Application{}
+	app.Annotations = map[string]string{oam.AnnotationApplyDataChanges: "gwcp-tags,gwcp-tag"}
+	app.Status.AppliedApplicationPolicies = []common.AppliedApplicationPolicy{
+		{Name: "my-tags", Type: "gwcp-tags@v2", Applied: true, Source: PolicySourceExplicit},
+	}
+
+	r.emitPolicyEvents(app)
+
+	var warnings []string
+	for _, e := range rec.events {
+		if e.Reason == "PolicySettingIgnored" {
+			if e.Type != event.TypeWarning {
+				t.Errorf("PolicySettingIgnored should be a warning, got %q", e.Type)
+			}
+			warnings = append(warnings, e.Message)
+		}
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], `"gwcp-tag"`) {
+		t.Fatalf("expected one PolicySettingIgnored warning naming gwcp-tag, got %v", warnings)
 	}
 }
