@@ -21,7 +21,9 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,10 +48,12 @@ import (
 	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/config"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
@@ -57,6 +61,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy/appscope"
 	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
@@ -65,14 +70,16 @@ import (
 // SkipGlobalPoliciesAnnotation is an alias for oam.AnnotationSkipGlobalPolicies.
 const SkipGlobalPoliciesAnnotation = oam.AnnotationSkipGlobalPolicies
 
-// annotationValueTrue is the canonical "true" string used in annotation comparisons.
-const annotationValueTrue = "true"
+// globalPoliciesCondition is the Application condition that reports a mandatory global policy
+// holding the app at its current revision.
+const globalPoliciesCondition = "GlobalPolicies"
 
 // ApplyApplicationScopeTransforms applies Application-scoped policy transforms to the in-memory
-// Application before it is parsed into an AppFile. Global policies (vela-system) are applied first,
-// then explicit spec.policies, in priority order. Results are cached with a 1-minute TTL and written
-// to a ConfigMap for observability (backing store for `vela policy show`).
+// Application before it is parsed into an AppFile. Global policies are applied first,
+// then explicit spec.policies, in priority order. Results are cached (see ApplicationPolicyCache)
+// and recorded in the app's policy ConfigMap, which `vela policy view` reads.
 func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context, app *v1beta1.Application) (monitorContext.Context, error) {
+	appliedBefore := app.Status.AppliedApplicationPolicies
 	app.Status.AppliedApplicationPolicies = nil
 
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) {
@@ -113,76 +120,66 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 	if cacheHit {
 		klog.V(4).InfoS("Cache HIT - using cached policy results", "count", len(cachedResults))
 		renderedResults = cachedResults
-
-		// Restore handler maps so PrepareCurrentAppRevision can include PolicyDefinitions
-		// in the ApplicationRevision even on a cache hit.
-		if len(cachedResults) > 0 {
-			h.applicationScopedPolicyDefs = make(map[string]*v1beta1.PolicyDefinition)
-			h.policyVersions = make(map[string]v1beta1.PolicyVersionMetadata)
-			for _, result := range cachedResults {
-				if result.PolicyDefinitionUsed != nil {
-					h.applicationScopedPolicyDefs[result.PolicyDefinitionUsed.Name] = result.PolicyDefinitionUsed
-				}
-				if result.DefinitionRevisionName != "" {
-					key := result.VersionKey
-					if key == "" {
-						key = result.PolicyName
-					}
-					h.policyVersions[key] = v1beta1.PolicyVersionMetadata{
-						DefinitionRevisionName: result.DefinitionRevisionName,
-						Revision:               result.Revision,
-						RevisionHash:           result.RevisionHash,
-					}
-				}
-			}
-		}
+		h.pendingPolicyUpdates = pendingUpdates(cachedResults)
+		h.restorePolicyDefinitions(cachedResults)
 	} else {
-		// Ordering contract for h.isNewRevision (dual ownership):
-		// ApplyApplicationScopeTransforms runs BEFORE PrepareCurrentAppRevision.
-		// We pre-compute it here so renderAllPolicies chooses the correct path
-		// (fresh cluster lookup vs stored version-pinned PolicyDefinitions).
-		// PrepareCurrentAppRevision independently recomputes it via currentAppRevIsNew(),
-		// which is intentional — that authoritative check may also catch non-spec triggers
-		// (e.g., PublishVersion bump). The only interaction: if policy transforms change
-		// app.Spec and autoRevision=true, the next reconcile will see a changed spec and
-		// set isNewRevision=true, which is the desired behaviour.
-		if previousAppRev != nil {
-			prevSpecHash, _ := apply.ComputeSpecHash(previousAppRev.Spec.Application.Spec)
-			currSpecHash, _ := apply.ComputeSpecHash(app.Spec)
-			if prevSpecHash != currSpecHash {
-				h.isNewRevision = true
-			}
-		} else {
-			h.isNewRevision = true // first reconcile
+		// The render runs before PrepareCurrentAppRevision, so it decides isNewRevision early: a
+		// new revision renders the live policies, and between revisions the pinned ones render.
+		// PrepareCurrentAppRevision decides it again for the revision it cuts.
+		if revisionLooksNew(app, previousAppRev) {
+			h.isNewRevision = true
 		}
 		klog.V(4).InfoS("Cache MISS - rendering all policies", "reason", cacheMissReason, "isNewRevision", h.isNewRevision)
 		var renderErr error
-		renderedResults, renderErr = h.renderAllPolicies(ctx, app, previousAppRev)
+		renderedResults, renderErr = h.renderWithLivePolicies(ctx, app, previousAppRev)
+		var mandatory *mandatoryGlobalError
+		if errors.As(renderErr, &mandatory) && previousAppRev != nil {
+			app.Status.AppliedApplicationPolicies = appliedBefore
+			return h.holdForGlobalPolicy(ctx, app, previousAppRev, renderErr)
+		}
 		if renderErr != nil {
 			return ctx, renderErr
 		}
-		if err := applicationPolicyCache.Set(app, renderedResults); err != nil {
-			klog.V(4).InfoS("Failed to cache policy results", "error", err)
+		// A render that adopts policy updates is not cached: until its revision is cut, the next
+		// reconcile must adopt them again.
+		if !h.policyUpdatesAdopted {
+			if err := applicationPolicyCache.Set(app, renderedResults); err != nil {
+				klog.V(4).InfoS("Failed to cache policy results", "error", err)
+			}
 		}
-		// Dry-run capture: if a dryRunCapture was placed in the context, stash results.
-		if cap, ok := ctx.GetContext().Value(dryRunCaptureKey).(*dryRunCapture); ok && cap != nil {
-			cap.results = renderedResults
-		}
+	}
+
+	// The record of what the policies last applied is read before this reconcile rewrites it.
+	record, err := h.previousPolicyMetadata(ctx, app, renderedResults)
+	if err != nil {
+		return ctx, err
+	}
+	renderedResults = holdPolicyData(app, renderedResults, record.applied, h.isNewRevision)
+	if cap, ok := ctx.GetContext().Value(dryRunCaptureKey).(*dryRunCapture); ok && cap != nil {
+		cap.results = renderedResults
 	}
 
 	renderedSpec := extractRenderedSpec(renderedResults)
 	renderedMetadata := extractRenderedMetadata(renderedResults)
+	h.dataLabels, h.dataAnnotations = dataChangeMetadata(app, renderedResults)
+	h.contextHashes = policyContextHashes(renderedResults)
+	h.policyResults = renderedResults
 
 	applyMetadataToApp(app, renderedMetadata)
+
+	// Keys the policies set last time and no longer do come off the app, and from there off its
+	// resources.
+	h.removeStoppedPolicyMetadata(app, record, renderedResults)
 
 	if policyContext, ok := renderedMetadata["context"].(map[string]interface{}); ok && len(policyContext) > 0 {
 		ctx = storeAdditionalContextInCtx(ctx, policyContext)
 	}
 
-	// For observability we always render, but on subsequent reconciliations we restore from
-	// the ApplicationRevision to avoid creating spurious new revisions.
-	hasSpecChanges := len(renderedSpec.Components) > 0 || renderedSpec.Workflow != nil || len(renderedSpec.Policies) > 0
-	autoRevision := shouldAutoCreateRevision(app)
+	// A rendered spec rewrite applies in memory. Without autoRevision, an app past its first
+	// revision keeps the components, workflow and policies stored in its latest revision, so a
+	// rewrite cuts no revision until the app's own next one.
+	hasSpecChanges := rewritesSpec(renderedSpec)
+	autoRevision := autoRevisionForResults(app, renderedResults)
 	isFirstRevision := app.Status.LatestRevision == nil || app.Status.LatestRevision.Name == ""
 
 	if hasSpecChanges {
@@ -213,9 +210,13 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 	}
 
 	recordPolicyStatuses(app, renderedResults)
+	if app.Status.GetCondition(globalPoliciesCondition).Status == corev1.ConditionFalse {
+		app.Status.SetConditions(condition.ReadyCondition(globalPoliciesCondition))
+	}
 
 	// Write results to ConfigMap for `vela policy show`.
-	if len(renderedResults) > 0 {
+	// Also written when no policies remain, so the record says the policies set nothing.
+	if len(renderedResults) > 0 || len(record.labels) > 0 || len(record.annotations) > 0 || !h.dataRemovedMetadata.Empty() {
 		h.writePolicyObservabilityConfigMap(ctx, app, renderedResults, renderedSpec, renderedMetadata, autoRevision, cacheHit)
 	}
 
@@ -225,6 +226,46 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 		"autoRevision", autoRevision)
 
 	return ctx, nil
+}
+
+// restorePolicyDefinitions sets the handler's PolicyDefinitions and version metadata from cached
+// results, so PrepareCurrentAppRevision includes them in the ApplicationRevision on a cache hit.
+func (h *AppHandler) restorePolicyDefinitions(results []RenderedPolicyResult) {
+	if len(results) == 0 {
+		return
+	}
+	h.applicationScopedPolicyDefs = make(map[string]*v1beta1.PolicyDefinition)
+	h.policyVersions = make(map[string]v1beta1.PolicyVersionMetadata)
+	for _, result := range results {
+		if result.PolicyDefinitionUsed != nil {
+			h.applicationScopedPolicyDefs[result.PolicyDefinitionUsed.Name] = result.PolicyDefinitionUsed
+		}
+		if result.DefinitionRevisionName != "" {
+			key := result.VersionKey
+			if key == "" {
+				key = result.PolicyName
+			}
+			h.policyVersions[key] = v1beta1.PolicyVersionMetadata{
+				DefinitionRevisionName: result.DefinitionRevisionName,
+				Revision:               result.Revision,
+				RevisionHash:           result.RevisionHash,
+			}
+		}
+	}
+}
+
+// unchangedSinceRevision reports whether the author has not edited app's spec since rev was
+// written: the generation recorded on the revision is the app's. A revision stores the spec after
+// policy transforms, so a spec-rewriting policy makes the two specs differ with no author edit.
+// Revisions that recorded no generation are not judged.
+func unchangedSinceRevision(app *v1beta1.Application, rev *v1beta1.ApplicationRevision) bool {
+	recorded, ok := rev.GetAnnotations()[oam.AnnotationAppGeneration]
+	return ok && recorded == strconv.FormatInt(app.Generation, 10)
+}
+
+// rewritesSpec reports whether rendered policy output replaces part of the Application spec.
+func rewritesSpec(spec *v1beta1.ApplicationSpec) bool {
+	return len(spec.Components) > 0 || spec.Workflow != nil || len(spec.Policies) > 0
 }
 
 // countAppliedPolicies returns the number of policies with Applied=true.
@@ -265,6 +306,7 @@ func recordPolicyStatuses(app *v1beta1.Application, results []RenderedPolicyResu
 				DefinitionRevisionName: result.DefinitionRevisionName,
 				Revision:               result.Revision,
 				RevisionHash:           result.RevisionHash,
+				Message:                pendingUpdateMessage(result),
 			})
 		} else if result.PolicyName != "" {
 			app.Status.AppliedApplicationPolicies = append(app.Status.AppliedApplicationPolicies, common.AppliedApplicationPolicy{
@@ -283,6 +325,28 @@ func recordPolicyStatuses(app *v1beta1.Application, results []RenderedPolicyResu
 	}
 }
 
+// pendingUpdateMessage is the status message of an applied policy whose newer version or changed
+// data is held.
+func pendingUpdateMessage(result RenderedPolicyResult) string {
+	var messages []string
+	switch {
+	case result.UpdatePending && result.UpdateFailsToRender:
+		messages = append(messages, "update pending: a newer version of this policy fails to render, so this version "+
+			"keeps applying; the application's next revision takes the newer version")
+	case result.UpdatePending && result.UpdateRewritesSpec:
+		messages = append(messages, "update pending: a newer version of this policy rewrites the application spec, so this "+
+			"version keeps applying; the application's next revision takes the newer version")
+	case result.UpdatePending:
+		messages = append(messages, "update pending: a newer version of this policy is held by "+oam.AnnotationApplyPolicyUpdates+
+			" or a publishVersion pin; it applies at the application's next revision")
+	}
+	if result.DataPending {
+		messages = append(messages, "data change pending: this policy's changed output is held by "+oam.AnnotationApplyDataChanges+
+			"; it applies at the application's next revision")
+	}
+	return strings.Join(messages, "; ")
+}
+
 // writePolicyObservabilityConfigMap persists rendered policy data to a ConfigMap for `vela policy show`.
 func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Context, app *v1beta1.Application, results []RenderedPolicyResult, renderedSpec *v1beta1.ApplicationSpec, renderedMetadata map[string]interface{}, autoRevision, cacheHit bool) {
 	configMapData := make(map[string]string)
@@ -296,13 +360,19 @@ func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Contex
 	if metadataJSON, err := json.MarshalIndent(renderedMetadata, "", "  "); err == nil {
 		configMapData["metadata"] = string(metadataJSON)
 	}
+	if !h.dataRemovedMetadata.Empty() {
+		configMapData[policyPendingRemovalsKey] = encodePendingRemovals(h.dataRemovedMetadata)
+	}
+	if applied := appliedOutputs(results); len(applied) > 0 {
+		configMapData[policyAppliedOutputsKey] = encodeAppliedOutputs(applied)
+	}
 
 	sequence := 1
 	for _, result := range results {
 		if !result.Enabled {
 			continue
 		}
-		policyData := buildPolicyObservabilityData(result)
+		policyData := buildPolicyObservabilityData(app, result)
 		if policyJSON, err := json.MarshalIndent(policyData, "", "  "); err == nil {
 			configMapData[fmt.Sprintf("%03d-%s", sequence, result.PolicyName)] = string(policyJSON)
 			sequence++
@@ -323,7 +393,7 @@ func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Contex
 	}
 
 	if len(configMapData) > 0 {
-		if err := createOrUpdateDiffsConfigMap(ctx, h.Client, app, configMapData); err != nil {
+		if err := createOrUpdateDiffsConfigMap(ctx, h.Client, app, configMapData, h.policyConfigMap); err != nil {
 			ctx.Info("Failed to store policy ConfigMap", "error", err)
 		} else {
 			app.Status.ApplicationPoliciesConfigMap = policyConfigMapName(app.Namespace, app.Name)
@@ -332,12 +402,17 @@ func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Contex
 }
 
 // buildPolicyObservabilityData constructs the per-policy data map written to the observability ConfigMap.
-func buildPolicyObservabilityData(result RenderedPolicyResult) map[string]interface{} {
+func buildPolicyObservabilityData(app *v1beta1.Application, result RenderedPolicyResult) map[string]interface{} {
 	policyData := map[string]interface{}{
 		"name":      result.PolicyName,
+		"type":      result.PolicyType,
 		"namespace": result.PolicyNamespace,
 		"enabled":   result.Enabled,
 		"priority":  result.Priority,
+		"settings":  effectivePolicySettings(app, result),
+	}
+	if own := templateSettings(result.Settings); len(own) > 0 {
+		policyData["templateSettings"] = own
 	}
 	if result.DefinitionRevisionName != "" {
 		policyData["definitionRevisionName"] = result.DefinitionRevisionName
@@ -396,7 +471,8 @@ func buildPolicyObservabilityData(result RenderedPolicyResult) map[string]interf
 // Uses MergePatch to avoid clobbering concurrent spec changes. Safe because ApplicationRevision
 // hashes only cover Application.Spec, not metadata.
 func (h *AppHandler) UpdateApplicationMetadata(ctx monitorContext.Context, app *v1beta1.Application) error {
-	hasPolicyMetadata := false
+	removed := h.metadataRemovedFromApp
+	hasPolicyMetadata := len(removed.labels) > 0 || len(removed.annotations) > 0
 	for _, policy := range app.Status.AppliedApplicationPolicies {
 		if policy.LabelsCount > 0 || policy.AnnotationsCount > 0 {
 			hasPolicyMetadata = true
@@ -414,6 +490,19 @@ func (h *AppHandler) UpdateApplicationMetadata(ctx monitorContext.Context, app *
 
 	base := currentApp.DeepCopy()
 	hasActualChanges := false
+
+	for k, rec := range removed.labels {
+		if got, ok := currentApp.Labels[k]; ok && got == rec.value {
+			delete(currentApp.Labels, k)
+			hasActualChanges = true
+		}
+	}
+	for k, rec := range removed.annotations {
+		if got, ok := currentApp.Annotations[k]; ok && got == rec.value {
+			delete(currentApp.Annotations, k)
+			hasActualChanges = true
+		}
+	}
 
 	if len(app.Labels) > 0 {
 		if currentApp.Labels == nil {
@@ -492,6 +581,7 @@ func (h *AppHandler) renderPolicy(ctx monitorContext.Context, app *v1beta1.Appli
 		result.SkipReason = "enabled=false"
 		return result, nil
 	}
+	result.Settings, result.SettingWarnings = extractPolicySettings(rendered)
 
 	output, err := h.extractOutput(rendered)
 	if err != nil {
@@ -505,27 +595,28 @@ func (h *AppHandler) renderPolicy(ctx monitorContext.Context, app *v1beta1.Appli
 		return result, errors.New("policy must specify 'output' field")
 	}
 
+	if err := checkCtxSchema(rendered); err != nil {
+		result.SkipReason = fmt.Sprintf("context schema error: %s", err.Error())
+		result.IsError = true
+		return result, err
+	}
+
+	additionalContext, err := ctxWithSchemaDefaults(rendered, output.Ctx)
+	if err != nil {
+		result.SkipReason = fmt.Sprintf("context schema error: %s", err.Error())
+		result.IsError = true
+		return result, err
+	}
+
 	result.Transforms = output
-	result.AdditionalContext = output.Ctx
+	result.AdditionalContext = additionalContext
 	return result, nil
 }
 
 // renderPolicyCUETemplate compiles and executes the policy CUE template.
-// Injects context (appName, namespace, components, policy version metadata) and parameters
-// via a process.Context, enabling CueX providers (kube.#Read, etc.).
-func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1beta1.Application, params map[string]interface{}, policyDef *v1beta1.PolicyDefinition, policyName, policyType string, versionMetadata *v1beta1.PolicyVersionMetadata) (cue.Value, error) {
-	runtimeCtx := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
-		KubeClient: h.Client,
-		ConfigFactory: config.NewConfigFactoryWithDispatcher(h.Client, func(goCtx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
-			return nil // policies don't dispatch resources directly
-		}),
-	})
-
-	var appRevisionName string
-	if h.currentAppRev != nil {
-		appRevisionName = h.currentAppRev.Name
-	}
-
+// newPolicyProcessContext builds the context an Application-scoped policy template renders with.
+// Admission builds its view of that context from the same function (policyContextShape).
+func newPolicyProcessContext(goCtx context.Context, app *v1beta1.Application, appRevisionName, policyName, policyType string, versionMetadata *v1beta1.PolicyVersionMetadata) wfprocess.Context {
 	var revisionName string
 	var revision int64
 	var revisionHash string
@@ -542,7 +633,7 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 		AppRevisionName: appRevisionName,
 		AppLabels:       oam.FilterInternalMetadata(app.Labels),
 		AppAnnotations:  oam.FilterInternalMetadata(app.Annotations),
-		Ctx:             runtimeCtx,
+		Ctx:             goCtx,
 	})
 	pCtx.PushData(velaprocess.ContextAppComponents, app.Spec.Components)
 	pCtx.PushData(velaprocess.ContextAppWorkflow, app.Spec.Workflow)
@@ -552,6 +643,26 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 	pCtx.PushData(velaprocess.ContextPolicyRevisionName, revisionName)
 	pCtx.PushData(velaprocess.ContextPolicyRevision, revision)
 	pCtx.PushData(velaprocess.ContextPolicyRevisionHash, revisionHash)
+	return pCtx
+}
+
+// renderPolicyCUETemplate renders a policy template with the app's context (name, namespace,
+// components, policy version metadata) and parameters, through the CueX compiler, so templates
+// can call providers such as kube.#Get.
+func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1beta1.Application, params map[string]interface{}, policyDef *v1beta1.PolicyDefinition, policyName, policyType string, versionMetadata *v1beta1.PolicyVersionMetadata) (cue.Value, error) {
+	runtimeCtx := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
+		KubeClient: h.Client,
+		ConfigFactory: config.NewConfigFactoryWithDispatcher(h.Client, func(goCtx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
+			return nil // policies don't dispatch resources directly
+		}),
+	})
+
+	var appRevisionName string
+	if h.currentAppRev != nil {
+		appRevisionName = h.currentAppRev.Name
+	}
+
+	pCtx := newPolicyProcessContext(runtimeCtx, app, appRevisionName, policyName, policyType, versionMetadata)
 
 	// Substitute $(context...) expressions in the policy's properties before the
 	// template compiles.
@@ -737,12 +848,13 @@ func getAdditionalContextFromCtx(ctx monitorContext.Context) map[string]interfac
 }
 
 func shouldSkipGlobalPolicies(app *v1beta1.Application) bool {
-	return app.Annotations[SkipGlobalPoliciesAnnotation] == annotationValueTrue
+	return common2.AllowSkipGlobalPolicies && asksToSkipGlobalPolicies(app)
 }
 
-// shouldAutoCreateRevision reports whether policy-rendered spec changes should trigger new ApplicationRevisions.
-func shouldAutoCreateRevision(app *v1beta1.Application) bool {
-	return app.Annotations[oam.AnnotationAutoRevision] == annotationValueTrue
+// asksToSkipGlobalPolicies reports whether app carries the skip-global annotation, whether or not
+// the controller permits skips (--allow-skip-global-policies).
+func asksToSkipGlobalPolicies(app *v1beta1.Application) bool {
+	return appscope.AsksToSkipGlobals(app)
 }
 
 // validateNotGlobalPolicy returns an error if the named PolicyDefinition is marked Global.
@@ -929,6 +1041,386 @@ type policyToRender struct {
 	versionKey string // key used in h.policyVersions; namespaced to avoid global/explicit collisions
 }
 
+func (p policyToRender) ref() appscope.Ref {
+	return appscope.Ref{Name: p.policyRef.Name, Priority: p.priority, Global: p.source == PolicySourceGlobal, SpecOrder: p.specOrder}
+}
+
+// revisionLooksNew is the policy render's early view of whether this reconcile cuts a new
+// revision: the first one, an author's spec change, or a publishVersion bump. A publishVersion
+// bump takes the live policies as an author edit does.
+func revisionLooksNew(app *v1beta1.Application, previousAppRev *v1beta1.ApplicationRevision) bool {
+	if previousAppRev == nil {
+		return true // first reconcile
+	}
+	prevSpecHash, _ := apply.ComputeSpecHash(previousAppRev.Spec.Application.Spec)
+	currSpecHash, _ := apply.ComputeSpecHash(app.Spec)
+	if prevSpecHash != currSpecHash && !unchangedSinceRevision(app, previousAppRev) {
+		return true
+	}
+	return metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) &&
+		oam.GetPublishVersion(app) != oam.GetPublishVersion(previousAppRev)
+}
+
+// renderWithLivePolicies renders the app's policies. A new revision takes the live policies.
+// Otherwise the pinned ones render, except for policies whose live version changed and is adopted:
+// it renders in the sequence and its apply-policy-updates setting is on. Adopting marks the
+// reconcile to cut a new revision. Updates held by the setting, by a render failure, or by a
+// publishVersion pin that has not moved are marked pending and apply at the app's next revision.
+// A changed policy that rewrites the spec stays pinned until the next revision.
+func (h *AppHandler) renderWithLivePolicies(ctx monitorContext.Context, app *v1beta1.Application, previousAppRev *v1beta1.ApplicationRevision) ([]RenderedPolicyResult, error) {
+	if h.isNewRevision {
+		return h.renderAllPolicies(ctx, app, previousAppRev)
+	}
+	changed, live := h.changedPolicies(ctx, app, previousAppRev)
+	if len(changed) == 0 {
+		return h.renderAllPolicies(ctx, app, previousAppRev)
+	}
+	pinnedByPublishVersion := metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) &&
+		oam.GetPublishVersion(app) == oam.GetPublishVersion(previousAppRev)
+	var candidates []string
+	if !pinnedByPublishVersion {
+		candidates = changed
+	}
+	var rewriting []string
+	results, adopt, failing, err := h.renderAdopting(ctx, app, previousAppRev, candidates, live)
+	for err == nil {
+		rewriters := adoptedSpecRewriters(results, adopt)
+		if len(rewriters) == 0 {
+			break
+		}
+		klog.V(4).InfoS("Changed policies rewrite the spec; keeping their pinned versions until the next revision", "policies", rewriters)
+		rewriting = append(rewriting, rewriters...)
+		candidates = without(candidates, rewriters)
+		results, adopt, failing, err = h.renderAdopting(ctx, app, previousAppRev, candidates, live)
+	}
+	if err != nil {
+		return nil, err
+	}
+	held := without(changed, adopt)
+	if len(adopt) > 0 {
+		ctx.Info("Applying policy updates and cutting a new revision", "policies", adopt, "revision", previousAppRev.Name)
+		h.isNewRevision = true
+		h.policyUpdatesAdopted = true
+	}
+	h.pendingPolicyUpdates = held
+	markPendingUpdates(results, held, failing, rewriting)
+	return results, nil
+}
+
+// renderAdopting renders app with the live versions of candidates over the versions pinned in
+// rev. A candidate is held, and the sequence rendered again without it, when its
+// apply-policy-updates setting is off or the sequence fails to render with it (see
+// failingCandidates); a candidate already known to be held is not tried. It returns the render,
+// the candidates it kept, and the held candidates whose live version fails to render, or the
+// error of the pinned sequence itself.
+func (h *AppHandler) renderAdopting(ctx monitorContext.Context, app *v1beta1.Application, rev *v1beta1.ApplicationRevision, candidates []string, live map[string]*v1beta1.PolicyDefinition) ([]RenderedPolicyResult, []string, []string, error) {
+	var unknown, failing []string
+	for _, name := range candidates {
+		verdict, known := heldUpdates.held(app, rev, name, live[name])
+		switch {
+		case !known:
+			unknown = append(unknown, name)
+		case verdict.failsToRender:
+			failing = append(failing, name)
+		}
+	}
+	candidates = unknown
+	hold := func(name string, failsToRender bool) {
+		heldUpdates.hold(app, rev, name, live[name], heldVerdict{failsToRender: failsToRender})
+		candidates = without(candidates, []string{name})
+		if failsToRender {
+			failing = append(failing, name)
+		}
+	}
+	for {
+		results, err := h.renderOverlay(ctx, app, rev, candidates, live)
+		if err != nil {
+			if len(candidates) == 0 {
+				return nil, nil, nil, err
+			}
+			failed := h.failingCandidates(ctx, app, rev, candidates, live, err)
+			if len(failed) == 0 {
+				return nil, nil, nil, err
+			}
+			for _, name := range failed {
+				ctx.Info("Holding a policy update whose new version fails to render", "policy", name, "error", err)
+				hold(name, true)
+			}
+			continue
+		}
+		kept := len(candidates)
+		for _, name := range candidates {
+			if !h.adoptable(ctx, app, rev, name, live[name], results) {
+				hold(name, !renderedCleanly(name, results))
+			}
+		}
+		if len(candidates) == kept {
+			return results, candidates, failing, nil
+		}
+	}
+}
+
+// renderedCleanly reports whether the named policy's result in results rendered without error.
+func renderedCleanly(name string, results []RenderedPolicyResult) bool {
+	for _, result := range results {
+		if policyDefinitionName(result.PolicyType) == name && result.IsError {
+			return false
+		}
+	}
+	return true
+}
+
+// failingCandidates names the candidates to hold after rendering them together failed with err.
+// A failure in a candidate's own live version names it. When the pinned sequence fails without
+// any candidate, it names none. Otherwise it names the candidates that fail when each is rendered
+// alone over the pinned sequence, or, when none does and the cause lies in how they combine, the
+// last candidate.
+func (h *AppHandler) failingCandidates(ctx monitorContext.Context, app *v1beta1.Application, rev *v1beta1.ApplicationRevision, candidates []string, live map[string]*v1beta1.PolicyDefinition, err error) []string {
+	if failed := failingPolicy(err); slices.Contains(candidates, failed) {
+		return []string{failed}
+	}
+	if _, pinnedErr := h.renderOverlay(ctx, app, rev, nil, live); pinnedErr != nil {
+		return nil
+	}
+	var failing []string
+	for _, name := range candidates {
+		if _, soloErr := h.renderOverlay(ctx, app, rev, []string{name}, live); soloErr != nil {
+			failing = append(failing, name)
+		}
+	}
+	if len(failing) == 0 {
+		failing = candidates[len(candidates)-1:]
+	}
+	return failing
+}
+
+// renderOverlay renders app with the live versions of names over the versions pinned in rev.
+func (h *AppHandler) renderOverlay(ctx monitorContext.Context, app *v1beta1.Application, rev *v1beta1.ApplicationRevision, names []string, live map[string]*v1beta1.PolicyDefinition) ([]RenderedPolicyResult, error) {
+	h.applicationScopedPolicyDefs = nil
+	h.policyVersions = nil
+	return h.renderPoliciesFromStoredRevision(ctx, app, overlayPolicies(app, rev, names, live))
+}
+
+// adoptable reports whether the rendered live version of the named policy is adopted: it rendered
+// without error and its apply-policy-updates setting, from its template, is on. A removed policy
+// (no live version) reads the setting from the template of the version pinned in rev.
+func (h *AppHandler) adoptable(ctx monitorContext.Context, app *v1beta1.Application, rev *v1beta1.ApplicationRevision, name string, liveDef *v1beta1.PolicyDefinition, results []RenderedPolicyResult) bool {
+	if liveDef == nil {
+		ref := v1beta1.AppPolicy{Name: name, Type: name}
+		for _, policy := range app.Spec.Policies {
+			if policyDefinitionName(policy.Type) == name {
+				ref = policy
+				break
+			}
+		}
+		return policySettingEnabledWith(app, settingApplyPolicyUpdates, name, h.pinnedPolicySetting(ctx, app, ref, rev, settingApplyPolicyUpdates))
+	}
+	var fromPolicy *bool
+	for _, result := range results {
+		if policyDefinitionName(result.PolicyType) != name {
+			continue
+		}
+		if result.IsError {
+			return false
+		}
+		fromPolicy = result.Settings[settingApplyPolicyUpdates]
+	}
+	return policySettingEnabledWith(app, settingApplyPolicyUpdates, name, fromPolicy)
+}
+
+// failingPolicy names the policy definition an error from rendering the policy sequence comes
+// from, or "" when it names none.
+func failingPolicy(err error) string {
+	var mandatory *mandatoryGlobalError
+	if errors.As(err, &mandatory) {
+		return mandatory.policy
+	}
+	var explicit *explicitPolicyError
+	if errors.As(err, &explicit) {
+		return explicit.policy
+	}
+	return ""
+}
+
+// without returns names less those in drop.
+func without(names, drop []string) []string {
+	var out []string
+	for _, name := range names {
+		if !slices.Contains(drop, name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// pinnedPolicySetting is s as set by the template of the policy version pinned in rev, rendered
+// for app: what decides for a removed policy, which has no live version. It is nil when the
+// template leaves s unset, or when there is no pinned version or it fails to render.
+func (h *AppHandler) pinnedPolicySetting(ctx monitorContext.Context, app *v1beta1.Application, ref v1beta1.AppPolicy, rev *v1beta1.ApplicationRevision, s policySetting) *bool {
+	if rev == nil {
+		return nil
+	}
+	pinnedDef, ok := rev.Spec.PolicyDefinitions[policyDefinitionName(ref.Type)]
+	if !ok {
+		return nil
+	}
+	result, err := h.renderPolicy(ctx, app.DeepCopy(), ref, &pinnedDef, nil)
+	if err != nil || result.IsError {
+		return nil
+	}
+	return result.Settings[s]
+}
+
+// adoptedSpecRewriters names the adopted policies whose own output rewrites the spec.
+func adoptedSpecRewriters(results []RenderedPolicyResult, adopt []string) []string {
+	var rewriters []string
+	for _, result := range results {
+		name := policyDefinitionName(result.PolicyType)
+		if slices.Contains(adopt, name) && !slices.Contains(rewriters, name) &&
+			rewritesSpec(extractRenderedSpec([]RenderedPolicyResult{result})) {
+			rewriters = append(rewriters, name)
+		}
+	}
+	return rewriters
+}
+
+// liveGlobalPolicy reads the global policy the index lists. When a namespace one is gone (the index
+// can lag a delete), the same-named vela-system global applies instead, as at render time.
+func (h *AppHandler) liveGlobalPolicy(ctx monitorContext.Context, metadata *PolicyMetadata) (*v1beta1.PolicyDefinition, error) {
+	pd := &v1beta1.PolicyDefinition{}
+	err := h.Client.Get(ctx.GetContext(), client.ObjectKey{Name: metadata.Name, Namespace: metadata.Namespace}, pd)
+	if !kerrors.IsNotFound(err) || metadata.Namespace == oam.SystemDefinitionNamespace {
+		return pd, err
+	}
+	sysMeta := policyScopeIndex.GetFromNamespace(metadata.Name, oam.SystemDefinitionNamespace)
+	if sysMeta == nil || !sysMeta.Global || sysMeta.Scope != v1beta1.ApplicationScope {
+		return pd, err
+	}
+	err = h.Client.Get(ctx.GetContext(), client.ObjectKey{Name: sysMeta.Name, Namespace: sysMeta.Namespace}, pd)
+	return pd, err
+}
+
+// overlayPolicies returns a copy of rev whose pinned policy definitions have the named policies
+// replaced by their live versions (removed when live has none).
+func overlayPolicies(app *v1beta1.Application, rev *v1beta1.ApplicationRevision, names []string, live map[string]*v1beta1.PolicyDefinition) *v1beta1.ApplicationRevision {
+	overlay := rev.DeepCopy()
+	if overlay.Spec.PolicyDefinitions == nil {
+		overlay.Spec.PolicyDefinitions = map[string]v1beta1.PolicyDefinition{}
+	}
+	for _, name := range names {
+		if pd := live[name]; pd != nil {
+			overlay.Spec.PolicyDefinitions[name] = *pd
+		} else {
+			delete(overlay.Spec.PolicyDefinitions, name)
+		}
+		// The pinned version's metadata no longer applies; the render looks up the live one.
+		delete(overlay.Spec.PolicyVersions, name)
+		delete(overlay.Spec.PolicyVersions, "global:"+name)
+		for _, policy := range app.Spec.Policies {
+			if policyDefinitionName(policy.Type) == name {
+				delete(overlay.Spec.PolicyVersions, policy.Name)
+			}
+		}
+	}
+	return overlay
+}
+
+// pendingUpdates names the policies whose results are marked as holding a newer live version.
+func pendingUpdates(results []RenderedPolicyResult) []string {
+	var pending []string
+	for _, result := range results {
+		if name := policyDefinitionName(result.PolicyType); result.UpdatePending && !slices.Contains(pending, name) {
+			pending = append(pending, name)
+		}
+	}
+	return pending
+}
+
+// markPendingUpdates flags the results of policies whose live version is held back, and of those
+// held because the live version fails to render.
+func markPendingUpdates(results []RenderedPolicyResult, held, failing, rewriting []string) {
+	for i := range results {
+		name := policyDefinitionName(results[i].PolicyType)
+		results[i].UpdatePending = slices.Contains(held, name)
+		results[i].UpdateFailsToRender = results[i].UpdatePending && slices.Contains(failing, name)
+		results[i].UpdateRewritesSpec = results[i].UpdatePending && slices.Contains(rewriting, name)
+	}
+}
+
+// changedPolicies returns the names of the Application-scoped policies whose live definition
+// differs from the one pinned in latestRev (added, removed or edited), with the live definitions
+// by name (nil for a removed policy). Explicit policies referenced with @version are pinned by
+// that reference and never count as changed.
+func (h *AppHandler) changedPolicies(ctx monitorContext.Context, app *v1beta1.Application, latestRev *v1beta1.ApplicationRevision) ([]string, map[string]*v1beta1.PolicyDefinition) {
+	if latestRev == nil || !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) {
+		return nil, nil
+	}
+	pinned := map[string]string{}
+	live := map[string]*v1beta1.PolicyDefinition{}
+	liveHash := map[string]string{}
+	hashOf := func(pd v1beta1.PolicyDefinition) string {
+		hash, _ := apply.ComputeSpecHash(pd.Spec)
+		return hash
+	}
+
+	if !shouldSkipGlobalPolicies(app) && utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies) {
+		for name, pd := range latestRev.Spec.PolicyDefinitions {
+			if pd.Spec.Global {
+				pinned[name] = hashOf(pd)
+			}
+		}
+		for _, metadata := range policyScopeIndex.GetGlobalApplicationPoliciesDeduped(app.Namespace) {
+			pd, err := h.liveGlobalPolicy(ctx, metadata)
+			if kerrors.IsNotFound(err) {
+				// Gone, though the index still lists it: a removed policy.
+				continue
+			}
+			if err != nil {
+				// Unreadable globals are skipped at render time too; don't count them as a change.
+				if hash, ok := pinned[metadata.Name]; ok {
+					liveHash[metadata.Name] = hash
+				}
+				continue
+			}
+			live[pd.Name], liveHash[pd.Name] = pd, hashOf(*pd)
+		}
+	}
+
+	for _, policy := range app.Spec.Policies {
+		if strings.Contains(policy.Type, "@") {
+			continue
+		}
+		stored, ok := latestRev.Spec.PolicyDefinitions[policy.Type]
+		if !ok || stored.Spec.Global || stored.Spec.Scope != v1beta1.ApplicationScope {
+			// Not pinned: a newly referenced policy is a spec change, which cuts a revision anyway.
+			continue
+		}
+		pinned[policy.Type] = hashOf(stored)
+		templ, err := appfile.LoadTemplate(ctx, h.Client, policy.Type, types.TypePolicy, app.Annotations)
+		if err != nil || templ.PolicyDefinition == nil {
+			// Explicit policies that fail to load fail the render; leave that to it.
+			liveHash[policy.Type] = pinned[policy.Type]
+			continue
+		}
+		live[policy.Type], liveHash[policy.Type] = templ.PolicyDefinition, hashOf(*templ.PolicyDefinition)
+	}
+
+	var changed []string
+	for name, hash := range liveHash {
+		if pinned[name] != hash {
+			changed = append(changed, name)
+		}
+	}
+	for name := range pinned {
+		if _, ok := liveHash[name]; !ok {
+			changed = append(changed, name)
+			live[name] = nil
+		}
+	}
+	sort.Strings(changed)
+	return changed, live
+}
+
 // renderAllPolicies dispatches to the appropriate rendering path based on whether we're creating
 // a new ApplicationRevision (cluster lookup) or re-reconciling an existing one (version-pinned).
 func (h *AppHandler) renderAllPolicies(ctx monitorContext.Context, app *v1beta1.Application, currentAppRev *v1beta1.ApplicationRevision) ([]RenderedPolicyResult, error) {
@@ -966,6 +1458,10 @@ func (h *AppHandler) renderPoliciesForNewRevision(ctx monitorContext.Context, ap
 					}
 				}
 				if err != nil {
+					if !kerrors.IsNotFound(err) && !common2.AllowSkipGlobalPolicies {
+						return nil, &mandatoryGlobalError{policy: metadata.Name, err: errors.Wrapf(err,
+							"failed to load global policy %s/%s, which is mandatory", lookupNamespace, metadata.Name)}
+					}
 					ctx.Info("Failed to load global PolicyDefinition from index",
 						"policy", metadata.Name,
 						"namespace", lookupNamespace,
@@ -1057,7 +1553,10 @@ func (h *AppHandler) renderPoliciesFromStoredRevision(ctx monitorContext.Context
 			h.applicationScopedPolicyDefs[policyDefCopy.Name] = policyDefCopy
 			versionKey := "global:" + name
 			if currentAppRev.Spec.PolicyVersions != nil {
-				if versionInfo, ok := currentAppRev.Spec.PolicyVersions[name]; ok {
+				// Revisions store global versions under their version key; older ones by name.
+				if versionInfo, ok := currentAppRev.Spec.PolicyVersions[versionKey]; ok {
+					h.policyVersions[versionKey] = versionInfo
+				} else if versionInfo, ok := currentAppRev.Spec.PolicyVersions[name]; ok {
 					h.policyVersions[versionKey] = versionInfo
 				}
 			}
@@ -1121,29 +1620,18 @@ func (h *AppHandler) renderPoliciesFromStoredRevision(ctx monitorContext.Context
 
 // renderPoliciesInSequence sorts policies by priority and renders them in order, each seeing
 // the Application as modified by all previous policies (chaining).
-// Explicit policy render failures are fatal — they block reconciliation.
-// Global policy render failures are soft — they are skipped with a log warning.
+// An explicit policy that fails to render fails the render. A global one is skipped when skips are
+// permitted, and is otherwise a mandatoryGlobalError.
 func (h *AppHandler) renderPoliciesInSequence(ctx monitorContext.Context, app *v1beta1.Application, policiesToRender []policyToRender) ([]RenderedPolicyResult, error) {
 	var allResults []RenderedPolicyResult
 	workingApp := app.DeepCopy()
 
 	// Lower priority value runs first (Kubernetes convention).
 	// At equal priority: globals before explicit; globals sort alphabetically; explicit preserve declaration order.
+	// Admission orders them the same way (appscope.Less), to judge an
+	// Application by the context they will supply.
 	sort.SliceStable(policiesToRender, func(i, j int) bool {
-		pi, pj := policiesToRender[i], policiesToRender[j]
-		if pi.priority != pj.priority {
-			return pi.priority < pj.priority
-		}
-		// Same priority: globals always run before explicit policies
-		if pi.source != pj.source {
-			return pi.source == PolicySourceGlobal
-		}
-		// Both global: sort alphabetically for determinism
-		if pi.source == PolicySourceGlobal {
-			return pi.policyRef.Name < pj.policyRef.Name
-		}
-		// Both explicit: preserve spec declaration order
-		return pi.specOrder < pj.specOrder
+		return appscope.Less(policiesToRender[i].ref(), policiesToRender[j].ref())
 	})
 
 	for _, p := range policiesToRender {
@@ -1185,7 +1673,14 @@ func (h *AppHandler) renderPoliciesInSequence(ctx monitorContext.Context, app *v
 		result, err := h.renderPolicy(ctx, workingApp, p.policyRef, p.policyDef, versionMetadata)
 		if err != nil {
 			if p.source == PolicySourceExplicit {
-				return nil, errors.Wrapf(err, "failed to render explicit policy %q", p.policyRef.Name)
+				return nil, &explicitPolicyError{policy: policyDefinitionName(p.policyRef.Type), err: errors.Wrapf(err,
+					"failed to render explicit policy %q", p.policyRef.Name)}
+			}
+			if !common2.AllowSkipGlobalPolicies {
+				// A mandatory global is never dropped from a render: what it adds, such as
+				// identity labels, is part of every resource deployed.
+				return nil, &mandatoryGlobalError{policy: p.policyRef.Name, err: errors.Wrapf(err,
+					"failed to render global policy %q, which is mandatory", p.policyRef.Name)}
 			}
 			ctx.Info("Failed to render global policy, skipping", "policy", p.policyRef.Name, "error", err)
 			result.PolicyName = p.policyRef.Name
@@ -1315,29 +1810,53 @@ func policyConfigMapName(namespace, appName string) string {
 	return prefix + truncated + "-" + hash
 }
 
-func createOrUpdateDiffsConfigMap(ctx context.Context, cli client.Client, app *v1beta1.Application, orderedData map[string]string) error {
+// createOrUpdateDiffsConfigMap writes the app's policy ConfigMap. existing is the ConfigMap as
+// read this reconcile, updated in place; without one it is created, and updated when it exists
+// after all.
+func createOrUpdateDiffsConfigMap(ctx context.Context, cli client.Client, app *v1beta1.Application, orderedData map[string]string, existing *corev1.ConfigMap) error {
 	cmName := policyConfigMapName(app.Namespace, app.Name)
+	ownerRefs := []metav1.OwnerReference{
+		{
+			// Use hardcoded values since TypeMeta is cleared by k8s client after Create/Get
+			APIVersion:         v1beta1.SchemeGroupVersion.String(),
+			Kind:               v1beta1.ApplicationKind,
+			Name:               app.Name,
+			UID:                app.UID,
+			Controller:         ptrBool(true),
+			BlockOwnerDeletion: ptrBool(true),
+		},
+	}
+	update := func(cm *corev1.ConfigMap) error {
+		cm = cm.DeepCopy()
+		cm.Data = orderedData
+		cm.OwnerReferences = ownerRefs
+		meta.AddLabels(cm, map[string]string{
+			oam.LabelAppUID: string(app.UID),
+		})
+		meta.AddAnnotations(cm, map[string]string{
+			oam.AnnotationLastAppliedTime: time.Now().Format(time.RFC3339),
+		})
+		return cli.Update(ctx, cm)
+	}
 
-	// Create the ConfigMap
+	if existing != nil {
+		err := update(existing)
+		if err == nil {
+			return nil
+		}
+		if !kerrors.IsNotFound(err) {
+			return errors.Wrap(err, "failed to update ConfigMap")
+		}
+	}
+
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cmName,
-			Namespace: app.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					// Use hardcoded values since TypeMeta is cleared by k8s client after Create/Get
-					APIVersion:         v1beta1.SchemeGroupVersion.String(),
-					Kind:               v1beta1.ApplicationKind,
-					Name:               app.Name,
-					UID:                app.UID,
-					Controller:         ptrBool(true),
-					BlockOwnerDeletion: ptrBool(true),
-				},
-			},
+			Name:            cmName,
+			Namespace:       app.Namespace,
+			OwnerReferences: ownerRefs,
 		},
 		Data: orderedData,
 	}
-
 	meta.AddLabels(cm, map[string]string{
 		oam.LabelAppName:                   app.Name,
 		oam.LabelAppNamespace:              app.Namespace,
@@ -1349,29 +1868,19 @@ func createOrUpdateDiffsConfigMap(ctx context.Context, cli client.Client, app *v
 	})
 
 	err := cli.Create(ctx, cm)
-	if err != nil {
-		if client.IgnoreAlreadyExists(err) == nil {
-			existing := &corev1.ConfigMap{}
-			if getErr := cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: app.Namespace}, existing); getErr != nil {
-				return errors.Wrap(getErr, "failed to get existing ConfigMap")
-			}
-
-			existing.Data = orderedData
-			existing.OwnerReferences = cm.OwnerReferences
-			meta.AddLabels(existing, map[string]string{
-				oam.LabelAppUID: string(app.UID),
-			})
-			meta.AddAnnotations(existing, map[string]string{
-				oam.AnnotationLastAppliedTime: time.Now().Format(time.RFC3339),
-			})
-			if updateErr := cli.Update(ctx, existing); updateErr != nil {
-				return errors.Wrap(updateErr, "failed to update ConfigMap")
-			}
-		} else {
-			return errors.Wrap(err, "failed to create ConfigMap")
-		}
+	if err == nil {
+		return nil
 	}
-
+	if !kerrors.IsAlreadyExists(err) {
+		return errors.Wrap(err, "failed to create ConfigMap")
+	}
+	current := &corev1.ConfigMap{}
+	if getErr := cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: app.Namespace}, current); getErr != nil {
+		return errors.Wrap(getErr, "failed to get existing ConfigMap")
+	}
+	if updateErr := update(current); updateErr != nil {
+		return errors.Wrap(updateErr, "failed to update ConfigMap")
+	}
 	return nil
 }
 

@@ -61,15 +61,53 @@ func (p *PolicyDefinition) IsGlobal() bool { return p.global }
 // GetPriority returns the priority, or nil when unset.
 func (p *PolicyDefinition) GetPriority() *int32 { return p.priority }
 
+// CtxSchema declares the shape of what the policy puts in ctx, which
+// components and traits read as context.custom: admission validates them
+// against it, and the controller refuses an output that does not match. A
+// field is required, the policy certain to set it, unless it is Optional().
+// The schema is open: the policy may set keys it does not declare.
+func (p *PolicyDefinition) CtxSchema(fields ...Param) *PolicyDefinition {
+	p.ctxSchema = append(p.ctxSchema, fields...)
+	return p
+}
+
+// ClosedCtxSchema declares the schema as CtxSchema does, closed: the policy
+// sets no key it does not declare, so admission can refuse a component reading
+// one, and Register refuses an Output().Ctx it does not declare.
+func (p *PolicyDefinition) ClosedCtxSchema(fields ...Param) *PolicyDefinition {
+	p.ctxSchemaClosed = true
+	return p.CtxSchema(fields...)
+}
+
+// writeCtxSchema writes the schema.ctx block, the fields as a parameter block
+// writes them.
+func (g *PolicyCUEGenerator) writeCtxSchema(sb *strings.Builder, gen *CUEGenerator, p *PolicyDefinition) {
+	if len(p.ctxSchema) == 0 && !p.ctxSchemaClosed {
+		return
+	}
+	open, end := "{", "}"
+	if p.ctxSchemaClosed {
+		open, end = "close({", "})"
+	}
+	sb.WriteString(fmt.Sprintf("%sschema: ctx: %s\n", g.indent, open))
+	for _, f := range p.ctxSchema {
+		gen.writeParam(sb, f, 2)
+	}
+	sb.WriteString(fmt.Sprintf("%s%s\n", g.indent, end))
+}
+
 // validateDefinition refuses settings the controller only honours on an
-// Application-scoped policy.
+// Application-scoped policy, and an output a closed context schema refuses.
 func (p *PolicyDefinition) validateDefinition() error {
 	if p.IsApplicationScoped() {
-		return nil
+		return p.validateCtxOutput()
 	}
 	var used []string
 	if p.priority != nil {
 		used = append(used, "Priority")
+	}
+	if len(p.ctxSchema) > 0 {
+		used = append(used, "CtxSchema")
 	}
 	if p.policyTemplate != nil {
 		pt := NewPolicyTemplate()
@@ -85,6 +123,43 @@ func (p *PolicyDefinition) validateDefinition() error {
 		return nil
 	}
 	return fmt.Errorf("%s only apply to an Application-scoped policy; call ApplicationScoped()", strings.Join(used, ", "))
+}
+
+// validateCtxOutput refuses an Output().Ctx whose top-level key a closed
+// schema does not declare: the controller would refuse every render.
+func (p *PolicyDefinition) validateCtxOutput() error {
+	if !p.ctxSchemaClosed || p.policyTemplate == nil {
+		return nil
+	}
+	declared := map[string]bool{}
+	for _, f := range p.ctxSchema {
+		declared[f.Name()] = true
+	}
+	pt := NewPolicyTemplate()
+	p.policyTemplate(pt)
+	if pt.output == nil {
+		return nil
+	}
+	for _, op := range pt.output.res.Ops() {
+		set, ok := op.(*SetOp)
+		if !ok || !strings.HasPrefix(set.path, "ctx.") {
+			continue
+		}
+		path := strings.TrimPrefix(set.path, "ctx.")
+		if !declared[topKey(path)] {
+			return fmt.Errorf("Output().Ctx(%q) is not declared by the closed CtxSchema", path)
+		}
+	}
+	return nil
+}
+
+// topKey is the first key of an output path, which ends at a "." or a "["
+// opening a map key.
+func topKey(path string) string {
+	if i := strings.IndexAny(path, ".["); i >= 0 {
+		return path[:i]
+	}
+	return path
 }
 
 // writeAppScopeAttributes writes scope, global and priority as attributes.

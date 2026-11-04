@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strconv"
 
 	"github.com/hashicorp/go-version"
 	"github.com/kubevela/pkg/util/k8s"
@@ -387,6 +388,9 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 	if h.latestAppRev != nil && oam.GetPublishVersion(h.app) != oam.GetPublishVersion(h.latestAppRev) {
 		isLatestRev = false
 	}
+	if h.policyUpdatesAdopted {
+		isLatestRev = false
+	}
 
 	// diff the latest revision first
 	if isLatestRev {
@@ -540,6 +544,12 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 	}
 	appRev := h.currentAppRev
 	appRev.Namespace = h.app.Namespace
+	// A held revision runs while the author's later edits wait, so it keeps the generation it
+	// recorded, or none: that is how the policy render tells those edits from what it holds.
+	generation, recordGeneration := strconv.FormatInt(h.app.Generation, 10), true
+	if h.heldByGlobalPolicy != nil {
+		generation, recordGeneration = h.heldByGlobalPolicy.GetAnnotations()[oam.AnnotationAppGeneration]
+	}
 	appRev.SetGroupVersionKind(v1beta1.ApplicationRevisionGroupVersionKind)
 	// pass application's annotations & labels to app revision
 	appRev.SetAnnotations(h.app.GetAnnotations())
@@ -549,6 +559,9 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		oam.LabelAppName:         h.app.GetName(),
 		oam.LabelAppRevisionHash: h.currentRevHash,
 	})
+	if recordGeneration {
+		util.AddAnnotations(appRev, map[string]string{oam.AnnotationAppGeneration: generation})
+	}
 	// ApplicationRevision must use Application as ctrl-owner
 	appRev.SetOwnerReferences([]metav1.OwnerReference{{
 		APIVersion: v1beta1.SchemeGroupVersion.String(),

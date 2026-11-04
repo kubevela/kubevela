@@ -38,13 +38,18 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### KubeVela core parameters
 
-| Name                          | Description                                                                                   | Value |
-| ----------------------------- | --------------------------------------------------------------------------------------------- | ----- |
-| `systemDefinitionNamespace`   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`. | `nil` |
-| `applicationRevisionLimit`    | Application revision limit                                                                    | `2`   |
-| `definitionRevisionLimit`     | Definition revision limit                                                                     | `2`   |
-| `concurrentReconciles`        | concurrentReconciles is the concurrent reconcile number of the controller                     | `4`   |
-| `controllerArgs.reSyncPeriod` | The period for resync the applications                                                        | `5m`  |
+| Name                                          | Description                                                                                                     | Value   |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------- |
+| `systemDefinitionNamespace`                   | System definition namespace, if unspecified, will use built-in variable `.Release.Namespace`.                   | `nil`   |
+| `applicationRevisionLimit`                    | Application revision limit                                                                                      | `2`     |
+| `definitionRevisionLimit`                     | Definition revision limit                                                                                       | `2`     |
+| `concurrentReconciles`                        | concurrentReconciles is the concurrent reconcile number of the controller                                       | `4`     |
+| `controllerArgs.reSyncPeriod`                 | The period for resync the applications                                                                          | `5m`    |
+| `controllerArgs.defaultAutoRevision`          | Default for autoRevision when neither the auto-revision annotation nor the policy template sets it              | `false` |
+| `controllerArgs.defaultApplyPolicyUpdates`    | Default for applyPolicyUpdates when neither the apply-policy-updates annotation nor the policy template sets it | `false` |
+| `controllerArgs.defaultApplyDataChanges`      | Default for applyDataChanges when neither the apply-data-changes annotation nor the policy template sets it     | `false` |
+| `controllerArgs.allowNamespaceGlobalPolicies` | Whether global policies outside vela-system apply to the applications in their namespace                        | `false` |
+| `controllerArgs.allowSkipGlobalPolicies`      | Whether applications may opt out of global policies with the policy.oam.dev/skip-global annotation              | `false` |
 
 ### KubeVela workflow parameters
 

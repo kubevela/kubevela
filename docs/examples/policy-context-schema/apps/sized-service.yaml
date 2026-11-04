@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: payments-sized
+  namespace: payments
+spec:
+  components:
+    - name: sized
+      type: sized-service
+      properties:
+        image: nginx:1.27

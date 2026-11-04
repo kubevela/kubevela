@@ -505,8 +505,85 @@ func (g *WorkflowStepCUEGenerator) WithImports(imports ...string) *WorkflowStepC
 	return g
 }
 
+// addImportIfMissing adds an import if it's not already present.
+func (g *WorkflowStepCUEGenerator) addImportIfMissing(imp string) {
+	for _, existing := range g.imports {
+		if existing == imp {
+			return
+		}
+	}
+	g.imports = append(g.imports, imp)
+}
+
+// detectRequiredImports adds the CUE standard library imports the step's
+// values declare via the ImportRequirer interface, so that a parameter such as
+// String("team").MinLen(3) (strings.MinRunes) or a condition such as
+// StringList("tags").Contains("gpu") (list.Contains) pulls its package without
+// the author calling WithImports. Mirrors PolicyCUEGenerator.detectRequiredImports.
+func (g *WorkflowStepCUEGenerator) detectRequiredImports(w *WorkflowStepDefinition) {
+	scan := NewCUEGenerator()
+	params := append([]Param{}, w.GetParams()...)
+	for _, helper := range w.GetHelperDefinitions() {
+		params = append(params, helperRenderedParams(helper)...)
+	}
+	for _, param := range params {
+		scan.collectImportsFromValue(param)
+		scan.collectImportsFromParamValidators(param)
+	}
+	if w.stepTemplate != nil {
+		wt := NewWorkflowStepTemplate()
+		w.stepTemplate(wt)
+		for _, action := range wt.GetActions() {
+			collectImportsFromWorkflowAction(scan, action)
+		}
+	}
+	for _, imp := range scan.imports {
+		g.addImportIfMissing(imp)
+	}
+}
+
+// helperRenderedParams returns the params a helper definition renders in full.
+// WriteHelperDefinition writes the fields of an Object or Array helper with
+// writeParam, but renders a scalar as `_` and drops an array's own constraints,
+// so only those fields can need an import.
+func helperRenderedParams(helper HelperDefinition) []Param {
+	switch p := helper.GetParam().(type) {
+	case *MapParam:
+		return p.GetFields()
+	case *ArrayParam:
+		return p.GetFields()
+	}
+	return nil
+}
+
+// collectImportsFromWorkflowAction adds the imports an action's values and
+// conditions need to scan.
+func collectImportsFromWorkflowAction(scan *CUEGenerator, action WorkflowAction) {
+	switch a := action.(type) {
+	case *BuiltinAction:
+		if a.useFullParam {
+			// The call passes the whole parameter object; params are not rendered.
+			break
+		}
+		for _, name := range sortedKeys(a.params) {
+			scan.collectImportsFromValue(a.params[name])
+		}
+	case *ValueAction:
+		scan.collectImportsFromValue(a.value)
+	case *ConditionalAction:
+		scan.collectImportsFromValue(a.cond)
+		collectImportsFromWorkflowAction(scan, a.action)
+	case *GuardedBlockAction:
+		scan.collectImportsFromValue(a.cond)
+		scan.collectImportsFromValue(a.value)
+	}
+}
+
 // GenerateFullDefinition generates the complete CUE definition for a workflow step.
 func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinition) string {
+	// Auto-detect imports needed by parameters and template values.
+	g.detectRequiredImports(w)
+
 	var sb strings.Builder
 
 	// Write imports if any
