@@ -65,6 +65,12 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `workflow.backoff.maxTime.failedState`                  | The max backoff time of workflow in a failed condition                                              | `300`   |
 | `workflow.step.errorRetryTimes`                         | The max retry times of a failed workflow step                                                       | `10`    |
 | `workflow.step.forEachMaxItems`                         | The max number of items a forEach step may iterate                                                  | `50`    |
+| `workflow.httpDeny.configTemplateName`                  | Discover and merge ConfigMaps labeled `config.oam.dev/type=<name>` in the release namespace           | `vela-core-http-deny` |
+| `workflow.httpDeny.installConfigTemplate`               | Install the vela-core HTTP deny ConfigTemplate into the release namespace                           | `true`  |
+| `workflow.httpDeny.defaultConfig.enabled`               | Install a labeled default denylist ConfigMap                                                         | `true`  |
+| `workflow.httpDeny.defaultConfig.name`                  | Name of the shipped default denylist ConfigMap (unique vs vela-workflow for dual install)            | `vela-core-http-deny-default` |
+| `workflow.httpDeny.defaultConfig.denyHosts`             | Default deny hostnames                                                                               | `[metadata.google.internal]` |
+| `workflow.httpDeny.defaultConfig.denyCIDRs`             | Default deny CIDRs and addresses                                                                     | `[169.254.0.0/16, fe80::/10, fd00:ec2::254, 100.100.100.200]` |
 
 ### KubeVela Helm cache parameters
 
@@ -148,6 +154,8 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `builtinDefinitions.job.image.pullPolicy`      | Image pull policy of the builtin definitions Job                      | `IfNotPresent` |
 | `builtinDefinitions.job.rolloutTimeoutSeconds` | How long the Job waits for the controller to roll out before applying | `300`          |
 | `builtinDefinitions.job.applyRetries`          | How many times the Job applies the definitions before failing         | `6`            |
+| `featureGates.disableWorkflowHTTP`                           | disable outbound HTTP from workflow request/webhook steps                                                                                                                                                                       | `false` |
+| `featureGates.blockPrivateHTTPAddresses`                     | block workflow outbound HTTP to RFC-1918 and ULA destinations                                                                                                                                                                  | `false` |
 
 ### MultiCluster parameters
 
