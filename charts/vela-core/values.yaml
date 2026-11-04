@@ -37,6 +37,12 @@ controllerArgs:
 ## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
+## @param workflow.httpDeny.configTemplateName ConfigTemplate name and discovery label value. Keep in sync with the controller flag; the chart rewrites the shipped CUE labels to match. Empty disables discovery and skips installing the template/default ConfigMap.
+## @param workflow.httpDeny.installConfigTemplate Install the workflow-http-deny ConfigTemplate into the release namespace
+## @param workflow.httpDeny.defaultConfig.enabled Install a labeled default denylist ConfigMap
+## @param workflow.httpDeny.defaultConfig.name Name of the shipped default denylist ConfigMap (unique per chart)
+## @param workflow.httpDeny.defaultConfig.denyHosts Default deny hostnames
+## @param workflow.httpDeny.defaultConfig.denyCIDRs Default deny CIDRs and addresses
 workflow:
   enableSuspendOnFailure: false
   enableExternalPackageForDefaultCompiler: true
@@ -55,6 +61,21 @@ workflow:
       failedState: 300
   step:
     errorRetryTimes: 10
+  httpDeny:
+    # Prefixed per chart so dual-install with vela-workflow owns distinct ConfigTemplates
+    # and default ConfigMaps. Keep in sync with controller flag default.
+    configTemplateName: vela-core-http-deny
+    installConfigTemplate: true
+    defaultConfig:
+      enabled: true
+      name: vela-core-http-deny-default
+      denyHosts:
+        - metadata.google.internal
+      denyCIDRs:
+        - 169.254.0.0/16
+        - fe80::/10
+        - fd00:ec2::254
+        - 100.100.100.200
 
 
 ## @section KubeVela Helm cache parameters
@@ -161,6 +182,8 @@ optimize:
 ##@param featureGates.enableApplicationScopedPolicies enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)
 ##@param featureGates.enableGlobalPolicies enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)
 ##@param featureGates.enableCueExpVariable inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window
+##@param featureGates.disableWorkflowHTTP disable outbound HTTP from workflow request/webhook steps
+##@param featureGates.blockPrivateHTTPAddresses block workflow outbound HTTP to RFC-1918 and ULA destinations
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -182,6 +205,8 @@ featureGates:
   enableApplicationScopedPolicies: false
   enableGlobalPolicies: false
   enableCueExpVariable: true
+  disableWorkflowHTTP: false
+  blockPrivateHTTPAddresses: false
 
 ## @section MultiCluster parameters
 

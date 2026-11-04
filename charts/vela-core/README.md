@@ -64,6 +64,12 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `workflow.backoff.maxTime.waitState`                    | The max backoff time of workflow in a wait condition                                                | `60`    |
 | `workflow.backoff.maxTime.failedState`                  | The max backoff time of workflow in a failed condition                                              | `300`   |
 | `workflow.step.errorRetryTimes`                         | The max retry times of a failed workflow step                                                       | `10`    |
+| `workflow.httpDeny.configTemplateName`                  | Discover and merge ConfigMaps labeled `config.oam.dev/type=<name>` in the release namespace           | `vela-core-http-deny` |
+| `workflow.httpDeny.installConfigTemplate`               | Install the vela-core HTTP deny ConfigTemplate into the release namespace                           | `true`  |
+| `workflow.httpDeny.defaultConfig.enabled`               | Install a labeled default denylist ConfigMap                                                         | `true`  |
+| `workflow.httpDeny.defaultConfig.name`                  | Name of the shipped default denylist ConfigMap (unique vs vela-workflow for dual install)            | `vela-core-http-deny-default` |
+| `workflow.httpDeny.defaultConfig.denyHosts`             | Default deny hostnames                                                                               | `[metadata.google.internal]` |
+| `workflow.httpDeny.defaultConfig.denyCIDRs`             | Default deny CIDRs and addresses                                                                     | `[169.254.0.0/16, fe80::/10, fd00:ec2::254, 100.100.100.200]` |
 
 ### KubeVela Helm cache parameters
 
@@ -122,6 +128,8 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.enableApplicationScopedPolicies`               | enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)                                                                                                                               | `false` |
 | `featureGates.enableGlobalPolicies`                          | enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)                                                                                                                               | `false` |
 | `featureGates.enableCueExpVariable`                          | inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window                                                                       | `true`  |
+| `featureGates.disableWorkflowHTTP`                           | disable outbound HTTP from workflow request/webhook steps                                                                                                                                                                       | `false` |
+| `featureGates.blockPrivateHTTPAddresses`                     | block workflow outbound HTTP to RFC-1918 and ULA destinations                                                                                                                                                                  | `false` |
 
 ### MultiCluster parameters
 
