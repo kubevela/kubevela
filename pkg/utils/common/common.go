@@ -37,6 +37,8 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
@@ -46,6 +48,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	metricsV1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -124,6 +127,18 @@ func InitBaseRestConfig() (Args, error) {
 	return args, nil
 }
 
+func outboundHTTPPolicy() httpguard.Policy {
+	policy := httpguard.Current()
+	if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {
+		policy.BlockPrivate = true
+	}
+	return policy
+}
+
+func secureHTTPTransport(base *http.Transport) *http.Transport {
+	return httpguard.SecureTransport(base, outboundHTTPPolicy())
+}
+
 // HTTPGetResponse use HTTP option and default client to send request and get raw response
 func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.Response, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
@@ -134,12 +149,21 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	if err != nil {
 		return nil, err
 	}
-	httpClient := &http.Client{}
+	policy := outboundHTTPPolicy()
+	if err := policy.BlockedHost(req.URL.Host); err != nil {
+		return nil, err
+	}
+	httpClient := &http.Client{
+		Transport: secureHTTPTransport(http.DefaultTransport.(*http.Transport).Clone()),
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			return policy.BlockedHost(req.URL.Host)
+		},
+	}
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
 	}
 	if opts != nil && opts.InsecureSkipTLS {
-		httpClient.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} // nolint
+		httpClient.Transport = secureHTTPTransport(&http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}) // nolint
 	}
 	// if specify the caFile, we cannot re-use the default httpClient, so create a new one.
 	if opts != nil && (len(opts.CaFile) != 0 || len(opts.KeyFile) != 0 || len(opts.CertFile) != 0) {
@@ -162,7 +186,7 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 		}
 		tr.TLSClientConfig = tlsConfig
 		defer tr.CloseIdleConnections()
-		httpClient.Transport = &tr
+		httpClient.Transport = secureHTTPTransport(&tr)
 	}
 	return httpClient.Do(req)
 }
