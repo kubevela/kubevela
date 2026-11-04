@@ -163,7 +163,23 @@ func TestRenderComponent(t *testing.T) {
 
 	outputs, err := res.LookupPath(cue.ParsePath("$returns.outputs.mytrait.metadata.name")).String()
 	r.NoError(err)
-	r.Equal("test-workload", outputs)
+	r.Equal("test-trait", outputs)
+
+	// Traits but no workload: the traits still fill their slots.
+	res, err = RenderComponent(ctx, &oamprovidertypes.Params[cue.Value]{
+		Params: v,
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			KubeClient: cli,
+			ComponentRender: func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+				_, traits, err := mockComponentRender(ctx, comp, patcher, clusterName, overrideNamespace)
+				return nil, traits, err
+			},
+		},
+	})
+	r.NoError(err)
+	outputs, err = res.LookupPath(cue.ParsePath("$returns.outputs.mytrait.metadata.name")).String()
+	r.NoError(err)
+	r.Equal("test-trait", outputs)
 }
 
 func TestLoadComponent(t *testing.T) {

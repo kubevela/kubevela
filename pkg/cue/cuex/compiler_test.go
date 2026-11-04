@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
 )
 
 var testCtx = struct {
@@ -97,6 +98,9 @@ func TestMain(m *testing.M) {
 	defer mockServer.Close()
 
 	singleton.KubeConfig.Set(cfg)
+	// The config comes from envtest rather than the environment, so the
+	// external-package guard has to be told it is safe to reach the cluster.
+	restoreKubeConfigAssumption := kubeconfig.AssumeAvailable()
 
 	if err = createTestPackage(mockServer.URL); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Setup failed: %v\n", err)
@@ -111,7 +115,14 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	singleton.KubeConfig.Reload()
+	// The envtest config is about to go away, so stop vouching for it.
+	restoreKubeConfigAssumption()
+	// Reload runs the singleton's loader, which exits the process rather than
+	// returning an error when nothing is resolvable. Resetting to the ambient
+	// configuration only means something when there is one.
+	if kubeconfig.Available() {
+		singleton.KubeConfig.Reload()
+	}
 
 	if err := testEnv.Stop(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to stop envtest: %v\n", err)

@@ -72,6 +72,10 @@ import (
 const (
 	// HelmChartNamespacePlaceholder is used as a placeholder for rendering definitions into helm chart format
 	HelmChartNamespacePlaceholder = "###HELM_NAMESPACE###"
+	// helmChartNamespaceInclude replaces the namespace placeholder. It stays quoted
+	// so the file is valid YAML before Helm expands it: the chart reads these files
+	// with .Files and renders them with tpl, and other callers read them unrendered.
+	helmChartNamespaceInclude = `'{{ include "systemDefinitionNamespace" . }}'`
 	// HelmChartFormatEnvName is the name of the environment variable to enable render helm chart format YAML
 	HelmChartFormatEnvName = "AS_HELM_CHART"
 )
@@ -1231,7 +1235,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				if err != nil {
 					return errors.Wrapf(err, "failed to marshal CRD into YAML")
 				}
-				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
+				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", helmChartNamespaceInclude) + "\n"
 				if outputFilename == "" {
 					s = fmt.Sprintf("--- %s ---\n%s", filepath.Base(inputFilename), s)
 					cmd.Print(s)
@@ -1317,7 +1321,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 					if err != nil {
 						return errors.Wrapf(err, "failed to marshal CRD into YAML for %s", result.Definition.FunctionName)
 					}
-					s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
+					s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", helmChartNamespaceInclude) + "\n"
 
 					if outputFilename == "" {
 						allYAML.WriteString(fmt.Sprintf("--- %s (%s) ---\n%s", filepath.Base(inputFilename), result.Definition.Name, s))

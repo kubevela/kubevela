@@ -80,14 +80,14 @@ var _ = Describe("Test DryRun", func() {
 var _ = Describe("Test dry run with policies", func() {
 	It("Test dry run with override policy", func() {
 
-		webservice, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/webservice.yaml")
+		webservice, err := os.ReadFile("../../../charts/vela-core/definitions/webservice.yaml")
 		Expect(err).Should(BeNil())
 		webserviceYAML := strings.Replace(string(webservice), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
 		wwd := v1beta1.ComponentDefinition{}
 		Expect(yaml.Unmarshal([]byte(webserviceYAML), &wwd)).Should(BeNil())
 		Expect(k8sClient.Create(context.TODO(), &wwd)).Should(BeNil())
 
-		scaler, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/scaler.yaml")
+		scaler, err := os.ReadFile("../../../charts/vela-core/definitions/scaler.yaml")
 		Expect(err).Should(BeNil())
 		scalerYAML := strings.Replace(string(scaler), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
 		var td v1beta1.TraitDefinition
@@ -162,7 +162,7 @@ var _ = Describe("Test dry run with policies", func() {
 
 	It("Test dry run with trait", func() {
 
-		nocalhost, err := os.ReadFile("../../../charts/vela-core/templates/defwithtemplate/nocalhost.yaml")
+		nocalhost, err := os.ReadFile("../../../charts/vela-core/definitions/nocalhost.yaml")
 		Expect(err).Should(BeNil())
 		nocalhostYAML := strings.Replace(string(nocalhost), "{{ include \"systemDefinitionNamespace\" . }}", types.DefaultKubeVelaNS, 1)
 		var td v1beta1.TraitDefinition
