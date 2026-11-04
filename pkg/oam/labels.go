@@ -164,7 +164,23 @@ const (
 	// AnnotationAutoRevision controls whether policy-rendered spec changes create new ApplicationRevisions.
 	// When set to "true", policies can modify Application.Spec and trigger new revisions.
 	// This is orthogonal to AnnotationAutoUpdate which controls definition version updates.
+	// Like the other policy rollout annotations it takes "true", "false" or a comma-separated
+	// list of PolicyDefinition names; without it the controller default applies.
 	AnnotationAutoRevision = "policy.oam.dev/auto-revision"
+
+	// AnnotationApplyPolicyUpdates controls whether an Application adopts new versions of the
+	// Application-scoped policies it runs ("true", "false" or a list of PolicyDefinition names).
+	AnnotationApplyPolicyUpdates = "policy.oam.dev/apply-policy-updates"
+
+	// AnnotationApplyDataChanges controls whether an Application takes changed output from an
+	// unchanged policy version, such as values the policy reads from the cluster ("true",
+	// "false" or a list of PolicyDefinition names).
+	AnnotationApplyDataChanges = "policy.oam.dev/apply-data-changes"
+
+	// AnnotationAppGeneration records, on an ApplicationRevision, the generation of the Application
+	// it was last written for. A revision stores the spec after policy transforms, so this tells an
+	// author edit apart from a spec-rewriting policy.
+	AnnotationAppGeneration = "app.oam.dev/application-generation"
 
 	// AnnotationSkipGlobalPolicies controls whether global (vela-system) policies are skipped for an Application.
 	// When set to "true", only explicitly declared spec.policies are evaluated.

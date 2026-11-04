@@ -36,6 +36,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -443,8 +444,19 @@ func getWorkflowStepFieldPath(loc workflowStepLocation) *field.Path {
 }
 
 // ValidateAnnotations validates whether the application has both autoupdate and publish version annotations
-func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.Application) field.ErrorList {
+func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app, oldApp *v1beta1.Application) field.ErrorList {
 	var annotationsErrs field.ErrorList
+
+	// Only adding the opt-out is refused, and only while global policies apply at all. An app
+	// that already carries it stays updatable; the controller ignores the annotation there.
+	carriedForward := oldApp != nil && oldApp.Annotations[oam.AnnotationSkipGlobalPolicies] == "true"
+	globalsApply := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) &&
+		utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies)
+	if app.Annotations[oam.AnnotationSkipGlobalPolicies] == "true" && !carriedForward && globalsApply && !commonconfig.AllowSkipGlobalPolicies {
+		annotationsErrs = append(annotationsErrs, field.Forbidden(
+			field.NewPath("metadata", "annotations").Key(oam.AnnotationSkipGlobalPolicies),
+			"global platform policies are mandatory; applications cannot opt out of them"))
+	}
 
 	hasPublishVersion := app.Annotations[oam.AnnotationPublishVersion]
 	hasAutoUpdate := app.Annotations[oam.AnnotationAutoUpdate]
@@ -572,9 +584,14 @@ func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool
 
 // ValidateCreate validates the Application on creation
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
+	return h.validateSoundness(ctx, app, nil, req)
+}
+
+// validateSoundness runs the checks shared by create and update; oldApp is nil on create.
+func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
 	var errs field.ErrorList
 
-	errs = append(errs, h.ValidateAnnotations(ctx, app)...)
+	errs = append(errs, h.ValidateAnnotations(ctx, app, oldApp)...)
 	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
 	errs = append(errs, h.ValidateComponents(ctx, app)...)
@@ -584,7 +601,7 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 
 // ValidateUpdate validates the Application on update
 func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
-	errs := h.ValidateCreate(ctx, newApp, req)
+	errs := h.validateSoundness(ctx, newApp, oldApp, req)
 	errs = append(errs, h.ValidateImmutableFields(ctx, newApp, oldApp)...)
 	return errs
 }

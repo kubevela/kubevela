@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	applicationcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/logging"
@@ -74,6 +75,23 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)
+		}
+		// Render picks a policy up only by its exact scope; a misspelled one would never render.
+		if obj.Spec.Scope != v1beta1.DefaultScope && obj.Spec.Scope != v1beta1.ApplicationScope {
+			return admission.Denied(fmt.Sprintf("unknown scope %q: a PolicyDefinition's scope is empty or %q (requestUID=%s)",
+				obj.Spec.Scope, v1beta1.ApplicationScope, req.UID))
+		}
+		// A global outside vela-system cannot be created or made global, but one that already is
+		// stays editable while it does not apply.
+		var namespaceGlobalWarnings []string
+		if obj.Spec.Global && obj.Namespace != oam.SystemDefinitionNamespace && !commonconfig.AllowNamespaceGlobalPolicies {
+			if !h.wasGlobal(req) {
+				return admission.Denied(fmt.Sprintf("global policy %s/%s must be in the %s namespace: global policies apply platform-wide "+
+					"(requestUID=%s)", obj.Namespace, obj.Name, oam.SystemDefinitionNamespace, req.UID))
+			}
+			namespaceGlobalWarnings = append(namespaceGlobalWarnings, fmt.Sprintf("global policy %s/%s does not apply: global policies "+
+				"apply only from the %s namespace unless the controller runs with --allow-namespace-global-policies",
+				obj.Namespace, obj.Name, oam.SystemDefinitionNamespace))
 		}
 		logger.WithStep("decode").Info("Successfully decoded PolicyDefinition from admission request",
 			"definitionName", obj.Name,
@@ -143,6 +161,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		// Validate Application-scoped policy constraints (global=true rules, scope consistency)
 		validationResult := applicationcontroller.ValidatePolicyDefinition(ctx, obj, cueTemplate, cueVal)
 		validationResult.Warnings = append(validationResult.Warnings, cueWarnings...)
+		validationResult.Warnings = append(validationResult.Warnings, namespaceGlobalWarnings...)
 		if !validationResult.IsValid() {
 			logger.WithStep("validate-policy-definition").Error(nil, "PolicyDefinition failed Application-scoped policy validation", "errors", validationResult.Errors)
 			return admission.Denied(fmt.Sprintf("invalid PolicyDefinition: %v (requestUID=%s)", validationResult.Errors, req.UID))
@@ -165,4 +184,16 @@ func RegisterValidatingHandler(mgr manager.Manager) {
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}})
+}
+
+// wasGlobal reports whether req updates a PolicyDefinition that was already global.
+func (h *ValidatingHandler) wasGlobal(req admission.Request) bool {
+	if req.Operation != admissionv1.Update || len(req.OldObject.Raw) == 0 {
+		return false
+	}
+	old := &v1beta1.PolicyDefinition{}
+	if err := h.Decoder.DecodeRaw(req.OldObject, old); err != nil {
+		return false
+	}
+	return old.Spec.Global
 }

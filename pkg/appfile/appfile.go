@@ -454,11 +454,6 @@ func computeTraitContentHash(trait *unstructured.Unstructured) (string, error) {
 
 // workload and trait in the same component both have these labels, except componentRevision which should be evaluated with input/output
 func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]string {
-	filter := func(labels map[string]string, notAllowedKey []string) {
-		for _, l := range notAllowedKey {
-			delete(labels, strings.TrimSpace(l))
-		}
-	}
 	Labels := map[string]string{
 		oam.LabelAppName:      af.Name,
 		oam.LabelAppNamespace: af.Namespace,
@@ -467,27 +462,48 @@ func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]str
 	}
 	// merge application's all labels
 	finalLabels := util.MergeMapOverrideWithDst(af.AppLabels, Labels)
-	filterLabels, ok := af.AppAnnotations[oam.AnnotationFilterLabelKeys]
-	if ok {
-		filter(finalLabels, strings.Split(filterLabels, ","))
+	for _, k := range FilteredLabelKeys(af.AppAnnotations) {
+		delete(finalLabels, k)
 	}
 	return finalLabels
 }
 
+// FilteredLabelKeys returns the label keys an Application with appAnnotations does not pass
+// down to the resources it renders (filter.oam.dev/label-keys).
+func FilteredLabelKeys(appAnnotations map[string]string) []string {
+	passed, ok := appAnnotations[oam.AnnotationFilterLabelKeys]
+	if !ok {
+		return nil
+	}
+	return splitKeys(passed)
+}
+
+// FilteredAnnotationKeys returns the annotation keys an Application with appAnnotations does
+// not pass down to the resources it renders: the defaults in types.DefaultFilterAnnots and
+// those listed in filter.oam.dev/annotation-keys.
+func FilteredAnnotationKeys(appAnnotations map[string]string) []string {
+	keys := append([]string{}, types.DefaultFilterAnnots...)
+	if passed, ok := appAnnotations[oam.AnnotationFilterAnnotationKeys]; ok {
+		keys = append(keys, splitKeys(passed)...)
+	}
+	return keys
+}
+
+// splitKeys splits a comma-separated list of keys, trimming each.
+func splitKeys(list string) []string {
+	keys := strings.Split(list, ",")
+	for i := range keys {
+		keys[i] = strings.TrimSpace(keys[i])
+	}
+	return keys
+}
+
 // workload and trait both have these annotations
 func (af *Appfile) filterAndSetAnnotations(obj *unstructured.Unstructured) {
-	var allFilterAnnotation []string
-	allFilterAnnotation = append(allFilterAnnotation, types.DefaultFilterAnnots...)
-
-	passedFilterAnnotation, ok := af.AppAnnotations[oam.AnnotationFilterAnnotationKeys]
-	if ok {
-		allFilterAnnotation = append(allFilterAnnotation, strings.Split(passedFilterAnnotation, ",")...)
-	}
-
 	// pass application's all annotations
 	util.AddAnnotations(obj, af.AppAnnotations)
 	// remove useless annotations for workload/trait
-	util.RemoveAnnotations(obj, allFilterAnnotation)
+	util.RemoveAnnotations(obj, FilteredAnnotationKeys(af.AppAnnotations))
 }
 
 func (af *Appfile) setNamespace(obj *unstructured.Unstructured) {

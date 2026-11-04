@@ -353,6 +353,11 @@ spec:
             - "--enable-cluster-metrics"
             {{ end }}
             - "--application-re-sync-period={{ .Values.controllerArgs.reSyncPeriod }}"
+            - "--application-default-auto-revision={{ .Values.controllerArgs.defaultAutoRevision }}"
+            - "--application-default-apply-policy-updates={{ .Values.controllerArgs.defaultApplyPolicyUpdates }}"
+            - "--application-default-apply-data-changes={{ .Values.controllerArgs.defaultApplyDataChanges }}"
+            - "--allow-namespace-global-policies={{ .Values.controllerArgs.allowNamespaceGlobalPolicies }}"
+            - "--allow-skip-global-policies={{ .Values.controllerArgs.allowSkipGlobalPolicies }}"
             - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
             - "--kube-api-qps={{ .Values.kubeClient.qps }}"
             - "--kube-api-burst={{ .Values.kubeClient.burst }}"
