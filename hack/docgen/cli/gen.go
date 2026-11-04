@@ -149,10 +149,18 @@ func main() {
 		lines[0] = "---"
 		newlines := []string{"---", "title: " + title}
 
+		inFence := false
 		for idx, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "```") {
+				inFence = !inFence
+				continue
+			}
 			if strings.Contains(line, "[vela](vela.md)") {
 				lines[idx] = ""
 				continue
+			}
+			if !inFence {
+				lines[idx] = escapeProse(line)
 			}
 			// Don't remove .md extensions - Docusaurus handles them properly
 			// and keeping them provides better IDE support and compatibility
@@ -165,4 +173,27 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// escapeProse escapes angle brackets outside inline code spans, so help text
+// such as config-template-<name> renders as text instead of being read by
+// MDX as an unclosed tag. Code spans and fenced blocks are left alone, where
+// the brackets already render literally.
+func escapeProse(line string) string {
+	var b strings.Builder
+	inCode := false
+	for _, r := range line {
+		switch {
+		case r == '`':
+			inCode = !inCode
+			b.WriteRune(r)
+		case !inCode && r == '<':
+			b.WriteString("&lt;")
+		case !inCode && r == '>':
+			b.WriteString("&gt;")
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
