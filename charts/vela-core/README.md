@@ -132,6 +132,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.enableDefinitionInheritance`                   | enable spec.extends on ComponentDefinition and TraitDefinition                                                                                                                                                                   | `false` |
 | `featureGates.enableModuleComponent`                         | enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)                                                                                                                          | `false` |
 | `featureGates.autoMigrateLegacyConfigs`                      | adopt legacy config templates and configs into ConfigTemplate and Config CRs once at controller startup, the same as running vela config-template migrate --all in every namespace; legacy objects are kept (Alpha)              | `false` |
+| `featureGates.validateTraitAppliesToWorkloads`               | reject a trait its TraitDefinition's appliesToWorkloads doesn't allow; an update keeping an existing trait only warns (Alpha)                                                                                                    | `false` |
 
 ### Definition restriction parameters
 

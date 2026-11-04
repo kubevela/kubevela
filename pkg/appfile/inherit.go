@@ -414,3 +414,23 @@ func TraitAncestors(ctx context.Context, cli client.Client, td *v1beta1.TraitDef
 	}
 	return tmpl.Ancestors, nil
 }
+
+// InheritedComponentDefinition returns a copy of cd with the fields it
+// inherits through spec.extends filled in. annotations are the Application's:
+// they pick the revision of a pinned parent such as "webservice@v1", as at render.
+func InheritedComponentDefinition(ctx context.Context, cli client.Client, cd *v1beta1.ComponentDefinition, annotations map[string]string) (*v1beta1.ComponentDefinition, error) {
+	merged := cd.DeepCopy()
+	if err := resolveComponentChain(ctx, &Template{}, merged, clusterComponentFetcher(cli, cd.Namespace, annotations)); err != nil {
+		return nil, err
+	}
+	return merged, nil
+}
+
+// InheritedTraitDefinition is InheritedComponentDefinition for a TraitDefinition.
+func InheritedTraitDefinition(ctx context.Context, cli client.Client, td *v1beta1.TraitDefinition, annotations map[string]string) (*v1beta1.TraitDefinition, error) {
+	merged := td.DeepCopy()
+	if err := resolveTraitChain(ctx, &Template{}, merged, clusterTraitFetcher(cli, td.Namespace, annotations)); err != nil {
+		return nil, err
+	}
+	return merged, nil
+}

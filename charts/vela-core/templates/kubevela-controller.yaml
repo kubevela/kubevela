@@ -416,6 +416,7 @@ spec:
             - "--feature-gates=ValidateUndeclaredParameters={{- .Values.featureGates.validateUndeclaredParameters | toString -}}"
             - "--feature-gates=EnableDefinitionInheritance={{- .Values.featureGates.enableDefinitionInheritance | toString -}}"
             - "--feature-gates=AutoMigrateLegacyConfigs={{- .Values.featureGates.autoMigrateLegacyConfigs | toString -}}"
+            - "--feature-gates=ValidateTraitAppliesToWorkloads={{- .Values.featureGates.validateTraitAppliesToWorkloads | toString -}}"
             - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authorization.definitionValidationEnabled | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}

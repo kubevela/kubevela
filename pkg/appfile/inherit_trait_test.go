@@ -229,3 +229,67 @@ func TestAncestorsHelpersResolveFromTheCluster(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+// Admission reads spec fields, so it needs the child's spec merged with its parent's.
+func TestInheritedDefinitionHelpers(t *testing.T) {
+	withInheritance(t)
+
+	t.Run("component inherits the parent's workload", func(t *testing.T) {
+		parent := definitionIn("team-a", "base", "", "output: {}")
+		parent.Spec.Workload = common.WorkloadTypeDescriptor{Type: "deployments.apps"}
+		child := definitionIn("team-a", "child", "base", "$super: properties: {}")
+		cli := fakeClientWith(parent, child).Build()
+
+		got, err := InheritedComponentDefinition(context.Background(), cli, child, nil)
+		require.NoError(t, err)
+		require.Equal(t, "deployments.apps", got.Spec.Workload.Type)
+		require.Empty(t, child.Spec.Workload.Type, "the caller's definition must not be modified")
+	})
+
+	t.Run("component keeps its own workload", func(t *testing.T) {
+		parent := definitionIn("team-a", "base", "", "output: {}")
+		parent.Spec.Workload = common.WorkloadTypeDescriptor{Type: "deployments.apps"}
+		child := definitionIn("team-a", "child", "base", "$super: properties: {}")
+		child.Spec.Workload = common.WorkloadTypeDescriptor{Type: "statefulsets.apps"}
+		cli := fakeClientWith(parent, child).Build()
+
+		got, err := InheritedComponentDefinition(context.Background(), cli, child, nil)
+		require.NoError(t, err)
+		require.Equal(t, "statefulsets.apps", got.Spec.Workload.Type)
+	})
+
+	t.Run("trait inherits appliesToWorkloads", func(t *testing.T) {
+		parent := traitIn("team-a", "base", "", "patch: {}")
+		parent.Spec.AppliesToWorkloads = []string{"statefulsets.apps"}
+		child := traitIn("team-a", "child", "base", "$super: properties: {}")
+		cli := traitClient(parent, child).Build()
+
+		got, err := InheritedTraitDefinition(context.Background(), cli, child, nil)
+		require.NoError(t, err)
+		require.Equal(t, []string{"statefulsets.apps"}, got.Spec.AppliesToWorkloads)
+		require.Empty(t, child.Spec.AppliesToWorkloads, "the caller's definition must not be modified")
+	})
+
+	t.Run("a definition that extends nothing comes back unchanged", func(t *testing.T) {
+		td := traitIn("team-a", "plain", "", "patch: {}")
+		td.Spec.AppliesToWorkloads = []string{"*"}
+
+		got, err := InheritedTraitDefinition(context.Background(), traitClient(td).Build(), td, nil)
+		require.NoError(t, err)
+		require.Equal(t, td, got)
+	})
+
+	t.Run("a parent that is not there is reported", func(t *testing.T) {
+		child := traitIn("team-a", "orphan", "gone", "$super: properties: {}")
+
+		_, err := InheritedTraitDefinition(context.Background(), traitClient(child).Build(), child, nil)
+		require.Error(t, err)
+	})
+
+	t.Run("a component's parent that is not there is reported", func(t *testing.T) {
+		child := definitionIn("team-a", "orphan", "gone", "$super: properties: {}")
+
+		_, err := InheritedComponentDefinition(context.Background(), fakeClientWith(child).Build(), child, nil)
+		require.Error(t, err)
+	})
+}
