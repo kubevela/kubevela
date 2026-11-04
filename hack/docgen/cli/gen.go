@@ -71,7 +71,8 @@ func GenMarkdownTreeForIndex(cmd *cobra.Command, dir string) error {
 	if _, err = f.WriteString("---\ntitle: CLI Commands\n---\n\n\n"); err != nil {
 		return err
 	}
-	for _, tp := range []string{types.TypeStart, types.TypeApp, types.TypeCD, types.TypeExtension, types.TypeSystem} {
+	// Same groups and order as vela --help, so every top-level command is indexed.
+	for _, tp := range cli.CommandGroups {
 		// write header of type
 		_, err = f.WriteString("## " + tp + "\n\n")
 		if err != nil {
