@@ -18,6 +18,7 @@ package cli
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"strings"
 

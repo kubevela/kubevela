@@ -37,13 +37,12 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 )
 
-// CoreOptions contains everything necessary to create and run vela-core
-
 // VelaCoreHTTPDenyConfigTemplate is the vela-core chart ConfigTemplate name and
 // discovery label (config.oam.dev/type). Distinct from workflow's
 // httpguard.WorkflowHTTPDenyConfigTemplate so dual install owns separate templates.
 const VelaCoreHTTPDenyConfigTemplate = "vela-core-http-deny"
 
+// CoreOptions contains everything necessary to create and run vela-core
 type CoreOptions struct {
 	UseWebhook                 bool
 	CertDir                    string
