@@ -38,7 +38,7 @@ controllerArgs:
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
 ## @param workflow.step.forEachMaxItems The max number of items a forEach step may iterate
-## @param workflow.httpDeny.configTemplateName ConfigTemplate name and discovery label value. The chart templates the controller flag, the ConfigTemplate and the CUE labels from this one value. Discovery only reads ConfigMaps in the controller namespace. Must be a string that is a DNS-1123 label (lowercase letters, digits and -, at most 63 characters); quote a name that YAML would read as a number. Empty disables discovery and skips installing the template/default ConfigMap.
+## @param workflow.httpDeny.configTemplateName ConfigTemplate name and discovery label value. The chart templates the controller flag, the ConfigTemplate and the CUE labels from this one value. Discovery only reads ConfigMaps in the controller namespace. Must be a string of lowercase letters, digits, - and ., that starts and ends with a letter or digit and is at most 63 characters; quote a name that YAML would read as a number or a boolean. Empty disables discovery and skips installing the template/default ConfigMap.
 ## @param workflow.httpDeny.installConfigTemplate Install the workflow-http-deny ConfigTemplate into the release namespace
 ## @param workflow.httpDeny.defaultConfig.enabled Install a labeled default denylist ConfigMap
 ## @param workflow.httpDeny.defaultConfig.name Name of the shipped default denylist ConfigMap (unique per chart)
