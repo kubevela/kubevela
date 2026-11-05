@@ -159,6 +159,11 @@ var _ = Describe("Test the commands of the config", func() {
 		cmd.SetArgs([]string{"apply", "-f", "../../charts/vela-core/config-templates/workflow-http-deny.cue"})
 		Expect(cmd.Execute()).Should(Succeed())
 		Expect(buffer.String()).Should(Equal("the config template vela-core-http-deny applied successfully\n"))
+		DeferCleanup(func() {
+			cleanup := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+			cleanup.SetArgs([]string{"delete", "vela-core-http-deny", "-y"})
+			Expect(cleanup.Execute()).Should(Succeed())
+		})
 
 		buffer.Reset()
 		cmd = TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
