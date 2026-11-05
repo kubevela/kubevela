@@ -18,6 +18,7 @@ package cuex
 
 import (
 	"context"
+	"sync"
 
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/cue/cuex/providers/base64"
@@ -157,8 +158,16 @@ func DefaultPackages() []cuexruntime.Package {
 // rendering, CUE conversion and the webhook use, with one built from
 // DefaultPackages, so a vela/http call there goes through the outbound HTTP
 // guard too. It loads external packages the way the upstream compiler does.
-// Call it once at startup, after the external package flags are set.
+// It runs once; later calls do nothing, so a repeated configuration sync
+// does not start a second external-package watcher.
 func GuardDefaultCompiler() {
+	guardDefaultCompilerOnce.Do(guardDefaultCompiler)
+}
+
+var guardDefaultCompilerOnce sync.Once
+
+// guardDefaultCompiler builds and installs the guarded default compiler.
+func guardDefaultCompiler() {
 	compiler := cuex.NewCompilerWithInternalPackages(DefaultPackages()...)
 	if cuex.EnableExternalPackageForDefaultCompiler || cuex.EnableExternalPackageWatchForDefaultCompiler {
 		if err := kubeconfig.CheckFor("external CUE packages for the default compiler"); err != nil {
