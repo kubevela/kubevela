@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -39,7 +40,10 @@ func setCLIFeatureGates() error {
 
 func main() {
 	preimport.ResumeLogging()
-	_ = setCLIFeatureGates()
+	if err := setCLIFeatureGates(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to set the vela CLI feature gates: %v\n", err)
+		os.Exit(1)
+	}
 	system.BindEnvironmentVariables()
 	rest.SetDefaultWarningHandler(rest.NewWarningWriter(os.Stderr, rest.WarningWriterOptions{Deduplicate: true}))
 
