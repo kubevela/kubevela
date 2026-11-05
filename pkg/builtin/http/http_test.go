@@ -217,13 +217,14 @@ url: "http://169.254.169.254/latest/meta-data/"`)
 }
 
 func TestHTTPCmdRun_disableWorkflowHTTP(t *testing.T) {
+	previous := utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.DisableWorkflowHTTP)
 	require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
 		string(workflowfeatures.DisableWorkflowHTTP): true,
 	}))
 	t.Cleanup(func() {
-		_ = utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
-			string(workflowfeatures.DisableWorkflowHTTP): false,
-		})
+		require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+			string(workflowfeatures.DisableWorkflowHTTP): previous,
+		}))
 	})
 
 	runner, _ := newHTTPCmd(cue.Value{})

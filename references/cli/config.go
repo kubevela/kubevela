@@ -488,7 +488,8 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 					}
 					sort.Strings(keys)
 					for _, key := range keys {
-						if _, err := outBuilder.WriteString("---\n"); err != nil {
+						// The comment keeps which output key the object came from.
+						if _, err := outBuilder.WriteString("---\n# " + key + "\n"); err != nil {
 							return err
 						}
 						object := configItem.OutputObjects[key]

@@ -1,12 +1,14 @@
-{{- $tpl := .Values.workflow.httpDeny.configTemplateName }}
+{{- $tpl := .Values.workflow.httpDeny.configTemplateName | default "" | toString }}
 {{- if and .Values.workflow.httpDeny.installConfigTemplate $tpl }}
 apiVersion: config.oam.dev/v1alpha1
 kind: ConfigTemplate
 metadata:
-  name: {{ $tpl }}
+  name: {{ $tpl | quote }}
   namespace: {{ .Release.Namespace }}
 spec:
-  scope: system
+  {{- /* A system-scoped template must live in vela-system. Elsewhere it stays
+         namespace-scoped next to the controller, where discovery looks. */}}
+  scope: {{ if eq .Release.Namespace "vela-system" }}system{{ else }}namespace{{ end }}
   sensitive: false
   alias: Workflow HTTP Denylist
   description: Additional host, IP, and CIDR destinations denied for workflow HTTP requests.
@@ -22,7 +24,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     config.oam.dev/catalog: velacore-config
-    config.oam.dev/type: {{ $tpl }}
+    config.oam.dev/type: {{ $tpl | quote }}
     config.oam.dev/scope: system
 data:
   denyHosts: |-
