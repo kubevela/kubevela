@@ -381,6 +381,12 @@ spec:
             {{ end }}
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
           {{ if .Values.admissionWebhooks.enabled }}

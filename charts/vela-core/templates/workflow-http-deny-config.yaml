@@ -35,7 +35,6 @@ metadata:
   name: {{ .Values.workflow.httpDeny.defaultConfig.name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    config.oam.dev/catalog: velacore-config
     config.oam.dev/type: {{ $tpl | quote }}
     config.oam.dev/scope: system
 data:
