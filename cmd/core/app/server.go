@@ -386,10 +386,12 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 
 // resolveControllerNamespace returns the namespace that holds the workflow HTTP deny ConfigMaps.
 func resolveControllerNamespace(leaderElectionNamespace string) string {
-	if ns := strings.TrimSpace(leaderElectionNamespace); ns != "" {
+	// The deny ConfigMaps live with the controller, so its own namespace comes
+	// first. The leader-election namespace only says where the lease lives.
+	if ns := strings.TrimSpace(os.Getenv("POD_NAMESPACE")); ns != "" {
 		return ns
 	}
-	if ns := strings.TrimSpace(os.Getenv("POD_NAMESPACE")); ns != "" {
+	if ns := strings.TrimSpace(leaderElectionNamespace); ns != "" {
 		return ns
 	}
 	return "vela-system"

@@ -36,6 +36,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
 
+// maxRedirects matches the redirect limit of net/http.
+const maxRedirects = 10
+
 func init() {
 	registry.RegisterRunner("http", newHTTPCmd)
 }
@@ -71,7 +74,12 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		client = &http.Client{
 			Transport: httpguard.SecureTransport(http.DefaultTransport.(*http.Transport).Clone(), policy),
 			Timeout:   time.Second * 3,
-			CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			// A custom CheckRedirect replaces the net/http default, so the
+			// redirect limit is enforced here too.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= maxRedirects {
+					return errors.Errorf("stopped after %d redirects", maxRedirects)
+				}
 				return policy.BlockedHost(req.URL.Host)
 			},
 		}
@@ -144,6 +152,11 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		}
 
 		client.Transport = httpguard.SecureTransport(tr, workflowHTTPPolicy())
+	}
+	// The transport is built for this run, so release its idle connections when
+	// the run ends.
+	if t, ok := client.Transport.(*http.Transport); ok {
+		defer t.CloseIdleConnections()
 	}
 	resp, err := client.Do(req)
 	if err != nil {

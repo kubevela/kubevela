@@ -154,10 +154,8 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 		return nil, err
 	}
 	httpClient := &http.Client{
-		Transport: secureHTTPTransport(http.DefaultTransport.(*http.Transport).Clone()),
-		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
-			return policy.BlockedHost(req.URL.Host)
-		},
+		Transport:     secureHTTPTransport(http.DefaultTransport.(*http.Transport).Clone()),
+		CheckRedirect: guardedRedirect(policy, nil),
 	}
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
@@ -189,6 +187,29 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 		httpClient.Transport = secureHTTPTransport(&tr)
 	}
 	return httpClient.Do(req)
+}
+
+// defaultRedirectLimit matches net/http's own cap, which a custom
+// CheckRedirect replaces rather than adds to.
+const defaultRedirectLimit = 10
+
+// guardedRedirect checks every redirect hop: the redirect limit, then the
+// workflow HTTP deny policy on the target host, then next when it is set. A
+// custom CheckRedirect replaces the net/http default, so the limit is enforced
+// here.
+func guardedRedirect(policy httpguard.Policy, next func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= defaultRedirectLimit {
+			return fmt.Errorf("stopped after %d redirects", defaultRedirectLimit)
+		}
+		if err := policy.BlockedHost(req.URL.Host); err != nil {
+			return err
+		}
+		if next != nil {
+			return next(req, via)
+		}
+		return nil
+	}
 }
 
 // HTTPGetWithOption use HTTP option and default client to send get request
