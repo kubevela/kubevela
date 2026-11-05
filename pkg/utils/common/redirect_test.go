@@ -19,11 +19,14 @@ package common
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -108,15 +111,28 @@ var _ = Describe("outbound HTTP guard", func() {
 		Expect(err).To(MatchError(ContainSubstring("blocked SSRF target")))
 	})
 
-	It("keeps the guard on the transport when TLS verification is skipped", func() {
+	It("keeps the dial-time guard on the transport when TLS verification is skipped", func() {
 		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		DeferCleanup(server.Close)
+		// localhost is not an IP literal, so the pre-request host check lets it
+		// through. Only the guarded transport sees the resolved loopback address.
+		url := "https://localhost:" + strconv.Itoa(server.Listener.Addr().(*net.TCPAddr).Port)
+		opts := &HTTPOption{InsecureSkipTLS: true}
 
-		resp, err := HTTPGetResponse(context.Background(), server.URL, &HTTPOption{InsecureSkipTLS: true})
+		resp, err := HTTPGetResponse(context.Background(), url, opts)
 		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(resp.Body.Close)
+		Expect(resp.Body.Close()).To(Succeed())
 		Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+		httpguard.SetEnhancer(func(p httpguard.Policy) httpguard.Policy {
+			p.BlockLoopback = true
+			return p
+		})
+		DeferCleanup(httpguard.SetEnhancer, httpguard.PolicyEnhancer(func(p httpguard.Policy) httpguard.Policy { return p }))
+
+		_, err = HTTPGetResponse(context.Background(), url, opts)
+		Expect(err).To(MatchError(ContainSubstring("blocked SSRF target")))
 	})
 })
