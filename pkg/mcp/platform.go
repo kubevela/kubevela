@@ -92,6 +92,10 @@ type controllerInfo struct {
 // GetPlatformInfoInput optionally names the namespace the user is working in.
 type GetPlatformInfoInput struct {
 	Namespace string `json:"namespace,omitempty" jsonschema:"Namespace the user is about to work in. When set, the result reports how that namespace delivers workloads today."`
+	// Service selects one AWS service to resolve a provisioner for.
+	Service string `json:"service,omitempty" jsonschema:"AWS service to find a provisioner for, as AWS names it in lower case, such as dynamodb, s3 or rds. ACK is chosen first, then Crossplane."`
+	// Kind selects one resource kind of that service to return the schema of.
+	Kind string `json:"kind,omitempty" jsonschema:"Resource kind of that service, such as Table or Bucket. When set, the result includes the installed CRD's spec schema."`
 }
 
 // GetPlatformInfoOutput is the tool's structured result.
@@ -99,6 +103,10 @@ type GetPlatformInfoOutput struct {
 	platformInfo
 	// Addons are the enabled addons, read on every call.
 	Addons []AddonSummary `json:"addons" jsonschema:"Enabled addons with their versions and health, as list_addons reports them."`
+	// CloudProvisioners lists the AWS services ACK and Crossplane serve here.
+	CloudProvisioners *CloudProvisioners `json:"cloudProvisioners,omitempty" jsonschema:"AWS services that ACK and Crossplane can create on this cluster, from the installed CRDs."`
+	// Provisioner answers for the service in the request.
+	Provisioner *ServiceProvisioner `json:"provisioner,omitempty" jsonschema:"For the service in the request: the provisioner to build on, its kinds, and the schema of the kind asked for; or why the service cannot be provisioned."`
 	// ServedData says where tool descriptions and risk rules come from.
 	ServedData string `json:"servedData" jsonschema:"Where tool descriptions and risk rules come from: builtin means this vela binary."`
 	// Practice is set when a namespace was given.
@@ -123,6 +131,15 @@ func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in G
 				out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("more than %d addon Applications; only the first %d are listed", maxListItems, maxListItems))
 			}
 		}
+	}
+	if in.Kind != "" && in.Service == "" {
+		return nil, out, fmt.Errorf("kind needs a service, such as service dynamodb with kind Table")
+	}
+	if in.Service != "" && !serviceName.MatchString(in.Service) {
+		return nil, out, fmt.Errorf("service %q is not an AWS service name; use the lower-case name AWS uses, such as dynamodb or s3", in.Service)
+	}
+	if cli := d.f.Client(); cli != nil {
+		d.addProvisioners(ctx, cli, in, &out)
 	}
 	if in.Namespace != "" {
 		practice, warnings, err := d.deliveryPractice(ctx, in.Namespace)
@@ -375,4 +392,29 @@ func versionSkew(cli, core string) string {
 		return fmt.Sprintf("version skew: vela CLI %s and vela-core %s differ in minor version; explanations follow the controller", cli, core)
 	}
 	return ""
+}
+
+// addProvisioners fills the cloud provisioner fields. A failed CRD list is
+// reported, and never read as "nothing installed".
+func (d *deps) addProvisioners(ctx context.Context, cli client.Client, in GetPlatformInfoInput, out *GetPlatformInfoOutput) {
+	summary, names, err := cloudProvisioners(ctx, cli)
+	if err != nil {
+		msg := "installed CustomResourceDefinitions could not be listed, so whether ACK or Crossplane is installed is unknown: " + redactLine(err.Error())
+		out.Meta.Warnings = append(out.Meta.Warnings, msg)
+		if in.Service != "" {
+			out.Provisioner = &ServiceProvisioner{Service: in.Service, Kinds: []ProvisionedKind{}, Message: msg + ". Ask a platform engineer which provisioner serves " + in.Service + "."}
+		}
+		return
+	}
+	out.CloudProvisioners = summary
+	if in.Service == "" {
+		return
+	}
+	sp, warnings, err := serviceProvisioner(ctx, cli, names, in.Service, in.Kind)
+	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
+	if err != nil {
+		out.Meta.Warnings = append(out.Meta.Warnings, "provisioner for "+in.Service+": "+redactLine(err.Error()))
+		return
+	}
+	out.Provisioner = sp
 }

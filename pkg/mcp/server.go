@@ -155,7 +155,10 @@ func registerTools(s *Server, d *deps) {
 		Description: "Report the KubeVela versions and configuration this session runs against: vela CLI version, " +
 			"vela-core version and health, Kubernetes server version, enabled feature gates, and any version skew. " +
 			"Call once per session before other tools so explanations match the running system. Pass the namespace " +
-			"the user is working in to learn how it delivers workloads today, so new work follows that practice.",
+			"the user is working in to learn how it delivers workloads today, so new work follows that practice. " +
+			"Before writing a definition for an AWS service, pass the service, and the kind you will emit: the result names the " +
+			"provisioner to build on (ACK first, then Crossplane) with the installed CRD's spec schema, or says that neither is " +
+			"installed and what to install.",
 	}, d.getPlatformInfo)
 
 	addTool(s, ToolClassRead, &sdk.Tool{
