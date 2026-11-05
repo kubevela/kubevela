@@ -49,6 +49,9 @@ const (
 	// identityPenetrationGate is the cluster-gateway feature gate that makes
 	// it impersonate the caller in managed clusters.
 	identityPenetrationGate = "ClientIdentityPenetration"
+	// servedDataBuiltin says tool descriptions and risk rules come from this
+	// binary. The vela-mcp addon, when it exists, serves them as data.
+	servedDataBuiltin = "builtin"
 )
 
 // platformInfo is what get_platform_info returns and what the envelope is
@@ -94,6 +97,10 @@ type GetPlatformInfoInput struct {
 // GetPlatformInfoOutput is the tool's structured result.
 type GetPlatformInfoOutput struct {
 	platformInfo
+	// Addons are the enabled addons, read on every call.
+	Addons []AddonSummary `json:"addons" jsonschema:"Enabled addons with their versions and health, as list_addons reports them."`
+	// ServedData says where tool descriptions and risk rules come from.
+	ServedData string `json:"servedData" jsonschema:"Where tool descriptions and risk rules come from: builtin means this vela binary."`
 	// Practice is set when a namespace was given.
 	Practice *DeliveryPractice `json:"practice,omitempty" jsonschema:"How the namespace delivers workloads today. Follow it: keep existing workloads in their form and match it for new work unless the user asks otherwise."`
 	Meta     Meta              `json:"meta"`
@@ -103,7 +110,20 @@ type GetPlatformInfoOutput struct {
 // returned and the lookup error is repeated in the envelope's warnings.
 func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in GetPlatformInfoInput) (*sdk.CallToolResult, GetPlatformInfoOutput, error) {
 	info, err := d.cachedPlatform(ctx)
-	out := GetPlatformInfoOutput{platformInfo: info, Meta: metaFrom(info, err)}
+	out := GetPlatformInfoOutput{platformInfo: info, Addons: []AddonSummary{}, ServedData: servedDataBuiltin, Meta: metaFrom(info, err)}
+	if cli := d.f.Client(); cli != nil {
+		addons, more, err := enabledAddons(ctx, cli, d.opts.SystemNamespace)
+		switch {
+		case err != nil:
+			out.Meta.Warnings = append(out.Meta.Warnings, "enabled addons could not be read: "+redactLine(err.Error()))
+		default:
+			out.Addons = addons
+			if more {
+				out.Meta.Truncated = true
+				out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("more than %d addon Applications; only the first %d are listed", maxListItems, maxListItems))
+			}
+		}
+	}
 	if in.Namespace != "" {
 		practice, warnings, err := d.deliveryPractice(ctx, in.Namespace)
 		if err != nil {

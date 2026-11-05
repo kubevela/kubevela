@@ -23,6 +23,7 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	corev1 "k8s.io/api/core/v1"
@@ -82,8 +83,11 @@ type GetLogsOutput struct {
 	Application string    `json:"application"`
 	Namespace   string    `json:"namespace"`
 	Pods        []PodLogs `json:"pods" jsonschema:"One entry per pod read, with its lines and whether they were cut."`
-	Evidence    []string  `json:"evidence"`
-	Meta        Meta      `json:"meta"`
+	// Handles carry on to an observability server for logs older than the
+	// tail, or for metrics and traces of the same pods.
+	Handles  Handles  `json:"handles" jsonschema:"Exact identifiers for the pods this call selected, their labels and the time window, for an observability server that holds older logs, metrics and traces. Use them verbatim."`
+	Evidence []string `json:"evidence"`
+	Meta     Meta     `json:"meta"`
 }
 
 // podTarget is a pod found in the resource tree.
@@ -156,6 +160,10 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		out.Pods = append(out.Pods, pl)
 		out.Evidence = append(out.Evidence, fmt.Sprintf("Pod %s/%s container %s in cluster %s", t.namespace, t.name, pl.Container, t.cluster))
 	}
+	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, d.f.Client(), app, applied, time.Now().UTC())
+	out.Handles = handles
+	out.Evidence = append(out.Evidence, handleEvidence...)
+	meta.Warnings = append(meta.Warnings, handleUnknowns...)
 	out.Meta = meta
 	return nil, out, nil
 }
