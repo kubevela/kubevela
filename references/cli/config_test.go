@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -382,6 +383,71 @@ var _ = Describe("Test the commands of the config", func() {
 		Expect(secret.Labels["config.oam.dev/type"]).Should(Equal("test"))
 		Expect(secret.Labels["config.oam.dev/catalog"]).Should(Equal("velacore-config"))
 		Expect(string(secret.Type)).Should(Equal("kubernetes.io/dockerconfigjson"))
+	})
+
+	It("Test workflow HTTP deny config template", func() {
+		buffer := bytes.NewBuffer(nil)
+		cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"apply", "-f", "../../charts/vela-core/config-templates/workflow-http-deny.cue"})
+		Expect(cmd.Execute()).Should(Succeed())
+		Expect(buffer.String()).Should(Equal("the config template vela-core-http-deny applied successfully\n"))
+		DeferCleanup(func() {
+			cleanup := TemplateCommandGroup(arg, "", util.IOStreams{In: strings.NewReader("y\n"), Out: io.Discard, ErrOut: io.Discard})
+			cleanup.SetArgs([]string{"delete", "vela-core-http-deny"})
+			Expect(cleanup.Execute()).Should(Succeed())
+		})
+
+		buffer.Reset()
+		cmd = TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"show", "vela-core-http-deny"})
+		Expect(cmd.Execute()).Should(Succeed())
+		Expect(buffer.String()).Should(ContainSubstring("denyHosts"))
+		Expect(buffer.String()).Should(ContainSubstring("denyCIDRs"))
+		Expect(buffer.String()).Should(ContainSubstring("Exact hostnames, IP addresses"))
+		Expect(buffer.String()).Should(ContainSubstring("leading wildcard hostnames"))
+		Expect(buffer.String()).Should(ContainSubstring("IP addresses or CIDR ranges"))
+
+		buffer.Reset()
+		cmd = ConfigCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"create", "vela-core-http-deny", "--template=vela-core-http-deny", "--namespace=vela-system", "-f", "./test-data/config/workflow-http-deny.yaml", "--dry-run"})
+		Expect(cmd.Execute()).Should(Succeed())
+
+		output := append([]byte(nil), buffer.Bytes()...)
+		decoder := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(output), 4096)
+		var secret v1.Secret
+		Expect(decoder.Decode(&secret)).Should(Succeed())
+		Expect(secret.Name).Should(Equal("vela-core-http-deny"))
+		Expect(secret.Namespace).Should(Equal("vela-system"))
+		Expect(secret.Type).Should(Equal(v1.SecretType("/vela-core-http-deny")))
+		Expect(secret.Labels["config.oam.dev/catalog"]).Should(Equal("velacore-config"))
+		Expect(secret.Labels["config.oam.dev/type"]).Should(Equal("vela-core-http-deny"))
+
+		var configMap v1.ConfigMap
+		Expect(decoder.Decode(&configMap)).Should(Succeed())
+		Expect(configMap.Name).Should(Equal("vela-core-http-deny"))
+		Expect(configMap.Namespace).Should(Equal("vela-system"))
+		Expect(configMap.Labels["config.oam.dev/catalog"]).Should(Equal("velacore-config"))
+		Expect(configMap.Labels["config.oam.dev/type"]).Should(Equal("vela-core-http-deny"))
+		Expect(configMap.Labels["config.oam.dev/scope"]).Should(Equal("system"))
+		Expect(configMap.Data).Should(Equal(map[string]string{
+			"denyHosts": "metadata.google.internal\n*.example.com",
+			"denyCIDRs": "10.0.0.0/8\n169.254.169.254",
+		}))
+		Expect(decoder.Decode(&map[string]interface{}{})).Should(MatchError(io.EOF))
+
+		buffer.Reset()
+		Expect(cmd.Execute()).Should(Succeed())
+		Expect(buffer.Bytes()).Should(Equal(output))
+
+		for _, properties := range [][]string{
+			{"denyHosts={bad host}", "denyCIDRs={10.0.0.0/8}"},
+			{"denyHosts={example.com}", "denyCIDRs={not-a-cidr}"},
+		} {
+			buffer.Reset()
+			cmd = ConfigCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+			cmd.SetArgs(append([]string{"create", "invalid-workflow-http-deny", "--template=vela-core-http-deny", "--dry-run"}, properties...))
+			Expect(cmd.Execute()).ShouldNot(Succeed())
+		}
 	})
 
 	It("Distribute a config", func() {

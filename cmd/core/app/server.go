@@ -33,6 +33,8 @@ import (
 	"github.com/kubevela/pkg/meta"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/profiling"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -244,6 +246,25 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 	if err := requiredcrds.Verify(manager.GetRESTMapper()); err != nil {
 		klog.ErrorS(err, "Required CustomResourceDefinitions are missing")
 		return err
+	}
+
+	controllerNamespace := resolveControllerNamespace(coreOptions.Server.LeaderElectionNamespace)
+	httpguard.SetEnhancer(func(p httpguard.Policy) httpguard.Policy {
+		if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {
+			p.BlockPrivate = true
+		}
+		return p
+	})
+	// Use APIReader: GetClient() is cache-backed and is not ready before mgr.Start.
+	if err := httpguard.LoadConfigMaps(ctx, manager.GetAPIReader(), coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
+		klog.ErrorS(err, "Failed to initialize workflow HTTP deny ConfigMaps",
+			"template", coreOptions.Workflow.HTTPDenyConfigTemplateName, "namespace", controllerNamespace)
+		return fmt.Errorf("failed to initialize workflow HTTP deny ConfigMaps: %w", err)
+	}
+	if err := httpguard.SetupWatcher(manager, coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
+		klog.ErrorS(err, "Failed to watch workflow HTTP deny ConfigMaps",
+			"template", coreOptions.Workflow.HTTPDenyConfigTemplateName, "namespace", controllerNamespace)
+		return fmt.Errorf("failed to watch workflow HTTP deny ConfigMaps: %w", err)
 	}
 
 	// Register health checks
@@ -755,6 +776,18 @@ func performCleanup(coreOptions *options.CoreOptions) {
 		klog.V(3).InfoS("Flushing log file", "path", coreOptions.Observability.LogFilePath)
 		klog.Flush()
 	}
+}
+
+func resolveControllerNamespace(leaderElectionNamespace string) string {
+	// The deny ConfigMaps live with the controller, so its own namespace comes
+	// first. The leader-election namespace only says where the lease lives.
+	if ns := strings.TrimSpace(os.Getenv("POD_NAMESPACE")); ns != "" {
+		return ns
+	}
+	if ns := strings.TrimSpace(leaderElectionNamespace); ns != "" {
+		return ns
+	}
+	return "vela-system"
 }
 
 // prepareRunInShardingMode initializes the controller manager in sharding mode where workload
