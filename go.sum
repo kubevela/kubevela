@@ -875,8 +875,8 @@ github.com/rogpeppe/go-internal v1.8.0/go.mod h1:WmiCO8CzOY8rg0OYDC4/i/2WRWAB6po
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
-github.com/roguepikachu/workflow v0.0.0-20261105035718-68cd51b2cb1d h1:4j9eS9qUgwcWswrVTbWgwrAE9Dx5CYAKlOHu0KhClec=
-github.com/roguepikachu/workflow v0.0.0-20261105035718-68cd51b2cb1d/go.mod h1:sjLcYqKHKeCQ+w77gijoNILwIShJKnCU+e3q7ETtZGI=
+github.com/roguepikachu/workflow v0.0.0-20261105050306-ff0b3a9d9af1 h1:lyeLJ5WYhFEOvF9ZDtS0hAPVdmWUagcfc5f1tzQyn/Y=
+github.com/roguepikachu/workflow v0.0.0-20261105050306-ff0b3a9d9af1/go.mod h1:sjLcYqKHKeCQ+w77gijoNILwIShJKnCU+e3q7ETtZGI=
 github.com/rubenv/sql-migrate v1.3.1 h1:Vx+n4Du8X8VTYuXbhNxdEUoh6wiJERA0GlWocR5FrbA=
 github.com/rubenv/sql-migrate v1.3.1/go.mod h1:YzG/Vh82CwyhTFXy+Mf5ahAiiEOpAlHurg+23VEzcsk=
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
