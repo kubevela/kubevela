@@ -1,4 +1,6 @@
-{{- $tpl := .Values.workflow.httpDeny.configTemplateName | default "" | toString }}
+{{- $raw := .Values.workflow.httpDeny.configTemplateName }}
+{{- /* nil means unset. Keep 0 and other values as strings. */}}
+{{- $tpl := ternary "" (toString $raw) (kindIs "invalid" $raw) }}
 {{- if and .Values.workflow.httpDeny.installConfigTemplate $tpl }}
 apiVersion: config.oam.dev/v1alpha1
 kind: ConfigTemplate
