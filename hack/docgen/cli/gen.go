@@ -46,7 +46,8 @@ func PrintCLIByTag(cmd *cobra.Command, all []*cobra.Command, tag string) string 
 		cname := cmd.Name() + " " + c.Name()
 		link := cname
 		link = strings.Replace(link, " ", "_", -1)
-		pl = append(pl, cli.NewPrintable(c, fmt.Sprintf("* [%s](%s.md)\t - %s\n", cname, link, c.Long)))
+		// One line per command, the same summary vela --help prints.
+		pl = append(pl, cli.NewPrintable(c, fmt.Sprintf("* [%s](%s.md)\t - %s\n", cname, link, escapeProse(c.Short))))
 	}
 
 	slices.Sort(pl, func(i, j cli.Printable) bool { return i.Order < j.Order })
