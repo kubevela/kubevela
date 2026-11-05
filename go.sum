@@ -603,6 +603,8 @@ github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
 github.com/kubevela/pkg v1.9.2 h1:K6pGoJikf6l8vlfehewmb36hyToX0KpUaQP4NVET/S8=
 github.com/kubevela/pkg v1.9.2/go.mod h1:u/MGuFXVSECxvIWdTKS4AQs1H+USfAMQgi30BUrOb04=
+github.com/kubevela/workflow v0.6.2-0.20261105090847-c145c3a45cb1 h1:RixYIbO1ICNTH37Jn613qWhBTKHowfHUw17+/ASchj4=
+github.com/kubevela/workflow v0.6.2-0.20261105090847-c145c3a45cb1/go.mod h1:sjLcYqKHKeCQ+w77gijoNILwIShJKnCU+e3q7ETtZGI=
 github.com/kylelemons/godebug v0.0.0-20170820004349-d65d576e9348/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
@@ -875,8 +877,6 @@ github.com/rogpeppe/go-internal v1.8.0/go.mod h1:WmiCO8CzOY8rg0OYDC4/i/2WRWAB6po
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 github.com/rogpeppe/go-internal v1.10.0/go.mod h1:UQnix2H7Ngw/k4C5ijL5+65zddjncjaFoBhdsK/akog=
-github.com/roguepikachu/workflow v0.0.0-20261105051238-240746d24ee6 h1:KMVceiC61gs1h25OlQ3vl5Jp5AqEGSkqcw3KRZ2AJr4=
-github.com/roguepikachu/workflow v0.0.0-20261105051238-240746d24ee6/go.mod h1:sjLcYqKHKeCQ+w77gijoNILwIShJKnCU+e3q7ETtZGI=
 github.com/rubenv/sql-migrate v1.3.1 h1:Vx+n4Du8X8VTYuXbhNxdEUoh6wiJERA0GlWocR5FrbA=
 github.com/rubenv/sql-migrate v1.3.1/go.mod h1:YzG/Vh82CwyhTFXy+Mf5ahAiiEOpAlHurg+23VEzcsk=
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
