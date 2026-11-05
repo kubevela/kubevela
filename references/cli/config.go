@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -488,8 +489,9 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 					}
 					sort.Strings(keys)
 					for _, key := range keys {
-						// The comment keeps which output key the object came from.
-						if _, err := outBuilder.WriteString("---\n# " + key + "\n"); err != nil {
+						// The comment keeps which output key the object came from. The
+						// key is quoted so a newline in it cannot end the comment.
+						if _, err := outBuilder.WriteString("---\n# " + strconv.Quote(key) + "\n"); err != nil {
 							return err
 						}
 						object := configItem.OutputObjects[key]

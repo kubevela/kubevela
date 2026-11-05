@@ -392,8 +392,8 @@ var _ = Describe("Test the commands of the config", func() {
 		Expect(cmd.Execute()).Should(Succeed())
 		Expect(buffer.String()).Should(Equal("the config template vela-core-http-deny applied successfully\n"))
 		DeferCleanup(func() {
-			cleanup := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
-			cleanup.SetArgs([]string{"delete", "vela-core-http-deny", "-y"})
+			cleanup := TemplateCommandGroup(arg, "", util.IOStreams{In: strings.NewReader("y\n"), Out: io.Discard, ErrOut: io.Discard})
+			cleanup.SetArgs([]string{"delete", "vela-core-http-deny"})
 			Expect(cleanup.Execute()).Should(Succeed())
 		})
 

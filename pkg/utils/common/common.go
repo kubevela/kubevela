@@ -238,13 +238,11 @@ func guardedRedirect(policy httpguard.Policy, next func(*http.Request, []*http.R
 
 // rejectCrossOriginRedirect follows redirects only while they stay on the
 // original request's origin. It exists for requests that carry a TLS client
-// certificate; see the call site in HTTPGetResponse.
+// certificate; see the call site in HTTPGetResponse. guardedRedirect enforces
+// the redirect limit before it calls this.
 func rejectCrossOriginRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) == 0 {
 		return nil
-	}
-	if len(via) >= defaultRedirectLimit {
-		return fmt.Errorf("stopped after %d redirects", defaultRedirectLimit)
 	}
 	if origin := via[0].URL; !sameOriginURL(origin, req.URL) {
 		return fmt.Errorf("refusing to follow the redirect from %s to %s: this request presents a TLS client certificate, which would be sent to the redirect target", redactedOrigin(origin), redactedOrigin(req.URL))
