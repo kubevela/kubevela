@@ -16,7 +16,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     config.oam.dev/catalog: velacore-config
-    config.oam.dev/scope: system
+    {{- /* A system-scoped template must live in vela-system. Elsewhere it stays
+           namespace-scoped next to the controller, where discovery looks. */}}
+    config.oam.dev/scope: {{ if eq .Release.Namespace "vela-system" }}system{{ else }}namespace{{ end }}
   annotations:
     config.oam.dev/alias: Workflow HTTP Denylist
     config.oam.dev/description: Additional host, IP, and CIDR destinations denied for workflow HTTP requests.
