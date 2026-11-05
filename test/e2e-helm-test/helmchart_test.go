@@ -1363,12 +1363,19 @@ var _ = Describe("Helmchart valuesFrom", Label("core-helm"), func() {
 		}, 120*time.Second, 3*time.Second).Should(Succeed())
 	}
 
+	// valuesFromConvergeTimeout bounds the waits for the shared Application
+	// below to converge, per release and as a whole. It carries fourteen
+	// releases, and with the suites running in parallel a slow run has needed
+	// close to three minutes; a run that is already converged passes on the
+	// first poll.
+	const valuesFromConvergeTimeout = 3 * time.Minute
+
 	waitForNamedReplicas := func(h *helmTestContext, deployName string, want int32) {
 		Eventually(func(g Gomega) {
 			deploy := &appsv1.Deployment{}
 			g.Expect(k8sClient.Get(h.Ctx, types.NamespacedName{Namespace: h.Namespace, Name: deployName}, deploy)).Should(Succeed())
 			g.Expect(deploy.Status.ReadyReplicas).Should(Equal(want))
-		}, 120*time.Second, 3*time.Second).Should(Succeed())
+		}, valuesFromConvergeTimeout, 3*time.Second).Should(Succeed())
 	}
 
 	cmRef := func(name string, opts ...map[string]interface{}) map[string]interface{} {
@@ -1389,12 +1396,6 @@ var _ = Describe("Helmchart valuesFrom", Label("core-helm"), func() {
 		}
 		return entry
 	}
-
-	// valuesFromConvergeTimeout bounds the waits for the shared Application below
-	// to converge. It carries fourteen releases, and with the suites running in
-	// parallel a slow run has needed close to three minutes; a run that is
-	// already converged passes on the first poll.
-	const valuesFromConvergeTimeout = 3 * time.Minute
 
 	// Each merge case is its own release in one Application, so the cases share
 	// one Application and one teardown. Release names contain "podinfo", so the
