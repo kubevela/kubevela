@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -63,16 +64,16 @@ var _ = Describe("guarded vela/http", func() {
 	})
 
 	It("stops a redirect loop at the net/http limit", func() {
-		hops := 0
+		var hops atomic.Int32
 		var server *httptest.Server
 		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			hops++
+			hops.Add(1)
 			http.Redirect(w, r, server.URL+"/loop", http.StatusFound)
 		}))
 		DeferCleanup(server.Close)
 
 		Expect(get(server.URL)).To(MatchError(ContainSubstring("stopped after 10 redirects")))
-		Expect(hops).To(Equal(maxRedirects))
+		Expect(hops.Load()).To(BeNumerically("==", maxRedirects))
 	})
 
 	It("blocks private addresses when BlockPrivateHTTPAddresses is on", func() {
