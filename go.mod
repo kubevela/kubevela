@@ -307,4 +307,4 @@ replace (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 )
 
-replace github.com/kubevela/workflow => github.com/roguepikachu/workflow v0.0.0-20261105050306-ff0b3a9d9af1
+replace github.com/kubevela/workflow => github.com/roguepikachu/workflow v0.0.0-20261105051238-240746d24ee6

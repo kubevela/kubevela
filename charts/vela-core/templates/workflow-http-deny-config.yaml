@@ -4,9 +4,9 @@
 {{- fail "workflow.httpDeny.configTemplateName must be a quoted string" }}
 {{- end }}
 {{- $tpl := $raw | default "" }}
-{{- /* The name lands in a ConfigMap name, a label value and CUE source. */}}
-{{- if and $tpl (or (gt (len $tpl) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" $tpl))) }}
-{{- fail "workflow.httpDeny.configTemplateName must be a DNS-1123 label: lowercase letters, digits and -, at most 63 characters" }}
+{{- /* The name lands in a ConfigMap name, a label value and a ConfigTemplate name. Dots are valid in all three. */}}
+{{- if and $tpl (or (gt (len $tpl) 63) (not (regexMatch "^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$" $tpl))) }}
+{{- fail "workflow.httpDeny.configTemplateName must use lowercase letters, digits, - and ., start and end with a letter or digit, and be at most 63 characters" }}
 {{- end }}
 {{- if and .Values.workflow.httpDeny.installConfigTemplate $tpl }}
 apiVersion: v1
