@@ -27,6 +27,9 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
@@ -53,5 +56,21 @@ var _ = Describe("HTTP builtin redirects", func() {
 
 		Expect(err).To(MatchError(ContainSubstring(fmt.Sprintf("stopped after %d redirects", maxRedirects))))
 		Expect(hops.Load()).To(BeNumerically("==", maxRedirects))
+	})
+})
+
+var _ = Describe("HTTP builtin policy", func() {
+	It("blocks private addresses when BlockPrivateHTTPAddresses is on", func() {
+		previous := utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses)
+		DeferCleanup(func() {
+			Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+				string(workflowfeatures.BlockPrivateHTTPAddresses): previous,
+			})).To(Succeed())
+		})
+		Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+			string(workflowfeatures.BlockPrivateHTTPAddresses): true,
+		})).To(Succeed())
+
+		Expect(workflowHTTPPolicy().BlockPrivate).To(BeTrue())
 	})
 })
