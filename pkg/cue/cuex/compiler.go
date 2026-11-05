@@ -18,6 +18,7 @@ package cuex
 
 import (
 	"context"
+	"sync"
 
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/cue/cuex/providers/base64"
@@ -80,6 +81,13 @@ func DefaultPackages() []cuexruntime.Package {
 // through the outbound HTTP guard. It loads external packages the way the
 // upstream compiler does. Call it once at startup.
 func GuardDefaultCompiler() {
+	guardDefaultCompilerOnce.Do(guardDefaultCompiler)
+}
+
+var guardDefaultCompilerOnce sync.Once
+
+// guardDefaultCompiler builds and installs the guarded default compiler.
+func guardDefaultCompiler() {
 	compiler := cuex.NewCompilerWithInternalPackages(DefaultPackages()...)
 	if cuex.EnableExternalPackageForDefaultCompiler {
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil && !kerrors.IsNotFound(err) {

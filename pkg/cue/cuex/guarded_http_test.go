@@ -42,6 +42,7 @@ var _ = Describe("vela/http in every vela-core compiler", func() {
 		previous := cuex.EnableExternalPackageForDefaultCompiler
 		DeferCleanup(func() { cuex.EnableExternalPackageForDefaultCompiler = previous })
 		cuex.EnableExternalPackageForDefaultCompiler = false
+		DeferCleanup(cuex.DefaultCompiler.Set, cuex.DefaultCompiler.Get())
 
 		GuardDefaultCompiler()
 		_, err := cuex.DefaultCompiler.Get().CompileString(context.Background(), metadataCall)
