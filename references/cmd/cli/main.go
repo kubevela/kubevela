@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"time"
@@ -43,7 +44,10 @@ func setCLIFeatureGates() error {
 func main() {
 	preimport.ResumeLogging()
 	rand.Seed(time.Now().UnixNano())
-	_ = setCLIFeatureGates()
+	if err := setCLIFeatureGates(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to set the vela CLI feature gates: %v\n", err)
+		os.Exit(1)
+	}
 	system.BindEnvironmentVariables()
 
 	command := cli.NewCommand()
