@@ -17,12 +17,16 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 func TestCommonSpecs(t *testing.T) {
@@ -81,5 +85,38 @@ var _ = Describe("guardedRedirect", func() {
 
 	It("allows a hop when next is not set", func() {
 		Expect(guardedRedirect(outboundHTTPPolicy(), nil)(hop("https://example.com/next"), chain(1))).To(Succeed())
+	})
+})
+
+var _ = Describe("outbound HTTP guard", func() {
+	It("blocks private addresses when BlockPrivateHTTPAddresses is on", func() {
+		previous := utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses)
+		DeferCleanup(func() {
+			Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+				string(workflowfeatures.BlockPrivateHTTPAddresses): previous,
+			})).To(Succeed())
+		})
+		Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+			string(workflowfeatures.BlockPrivateHTTPAddresses): true,
+		})).To(Succeed())
+
+		Expect(outboundHTTPPolicy().BlockPrivate).To(BeTrue())
+	})
+
+	It("rejects a blocked host before it sends the request", func() {
+		_, err := HTTPGetResponse(context.Background(), "http://169.254.169.254/latest/meta-data/", nil)
+		Expect(err).To(MatchError(ContainSubstring("blocked SSRF target")))
+	})
+
+	It("keeps the guard on the transport when TLS verification is skipped", func() {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		DeferCleanup(server.Close)
+
+		resp, err := HTTPGetResponse(context.Background(), server.URL, &HTTPOption{InsecureSkipTLS: true})
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(resp.Body.Close)
+		Expect(resp.StatusCode).To(Equal(http.StatusOK))
 	})
 })
