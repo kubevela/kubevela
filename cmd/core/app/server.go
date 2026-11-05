@@ -56,6 +56,7 @@ import (
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamv1beta1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -237,6 +238,9 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		go resyncWebhookTLS(ctx, certClient, webhookTLS, s.CertDir, func() bool { return started(nil) == nil })
 	}
 
+	// Components, traits, policies and the webhook render with the upstream
+	// default compiler; give it the guarded vela/http.
+	velacuex.GuardDefaultCompiler()
 	controllerNamespace := resolveControllerNamespace(s.LeaderElectionNamespace)
 	httpguard.SetEnhancer(func(p httpguard.Policy) httpguard.Policy {
 		if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {

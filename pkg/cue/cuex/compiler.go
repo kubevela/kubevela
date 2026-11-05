@@ -17,10 +17,20 @@ limitations under the License.
 package cuex
 
 import (
+	"context"
+	"sync"
+
 	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/cue/cuex/providers/base64"
+	cueext "github.com/kubevela/pkg/cue/cuex/providers/cue"
+	"github.com/kubevela/pkg/cue/cuex/providers/kube"
+	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/singleton"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/guardedhttp"
 )
 
 // ConfigCompiler ...
@@ -30,3 +40,38 @@ var ConfigCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compile
 	)
 	return compiler
 })
+
+// DefaultPackages are the packages of the upstream cuex.DefaultCompiler, with
+// vela/http replaced by the guarded variant.
+func DefaultPackages() []cuexruntime.Package {
+	return []cuexruntime.Package{
+		base64.Package,
+		guardedhttp.Package,
+		kube.Package,
+		cueext.Package,
+	}
+}
+
+// GuardDefaultCompiler replaces the upstream cuex.DefaultCompiler with one built
+// from DefaultPackages, so a vela/http call in a template rendered by it goes
+// through the outbound HTTP guard. It loads external packages the way the
+// upstream compiler does. Call it once at startup.
+func GuardDefaultCompiler() {
+	guardDefaultCompilerOnce.Do(guardDefaultCompiler)
+}
+
+var guardDefaultCompilerOnce sync.Once
+
+// guardDefaultCompiler builds and installs the guarded default compiler.
+func guardDefaultCompiler() {
+	compiler := cuex.NewCompilerWithInternalPackages(DefaultPackages()...)
+	if cuex.EnableExternalPackageForDefaultCompiler {
+		if err := compiler.LoadExternalPackages(context.Background()); err != nil && !kerrors.IsNotFound(err) {
+			klog.Errorf("failed to load external packages for cuex default compiler: %s", err.Error())
+		}
+	}
+	if cuex.EnableExternalPackageWatchForDefaultCompiler {
+		go compiler.ListenExternalPackages(nil)
+	}
+	cuex.DefaultCompiler.Set(compiler)
+}
