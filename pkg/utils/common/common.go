@@ -161,10 +161,8 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 		return nil, err
 	}
 	httpClient := &http.Client{
-		Transport: secureHTTPTransport(http.DefaultTransport.(*http.Transport).Clone()),
-		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
-			return policy.BlockedHost(req.URL.Host)
-		},
+		Transport:     secureHTTPTransport(http.DefaultTransport.(*http.Transport).Clone()),
+		CheckRedirect: guardedRedirect(policy, nil),
 	}
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
@@ -209,7 +207,7 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 			// cannot strip a client certificate: every hop in the chain reuses
 			// this transport and so authenticates the caller to whatever host it
 			// lands on. Refuse the crossing instead.
-			httpClient.CheckRedirect = rejectCrossOriginRedirect
+			httpClient.CheckRedirect = guardedRedirect(policy, rejectCrossOriginRedirect)
 		}
 	}
 	return httpClient.Do(req)
@@ -219,15 +217,32 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 // CheckRedirect replaces rather than adds to.
 const defaultRedirectLimit = 10
 
+// guardedRedirect checks every redirect hop: the redirect limit, then the
+// workflow HTTP deny policy on the target host, then next when it is set. A
+// custom CheckRedirect replaces the net/http default, so the limit is enforced
+// here.
+func guardedRedirect(policy httpguard.Policy, next func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= defaultRedirectLimit {
+			return fmt.Errorf("stopped after %d redirects", defaultRedirectLimit)
+		}
+		if err := policy.BlockedHost(req.URL.Host); err != nil {
+			return err
+		}
+		if next != nil {
+			return next(req, via)
+		}
+		return nil
+	}
+}
+
 // rejectCrossOriginRedirect follows redirects only while they stay on the
 // original request's origin. It exists for requests that carry a TLS client
-// certificate; see the call site in HTTPGetResponse.
+// certificate; see the call site in HTTPGetResponse. guardedRedirect enforces
+// the redirect limit before it calls this.
 func rejectCrossOriginRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) == 0 {
 		return nil
-	}
-	if len(via) >= defaultRedirectLimit {
-		return fmt.Errorf("stopped after %d redirects", defaultRedirectLimit)
 	}
 	if origin := via[0].URL; !sameOriginURL(origin, req.URL) {
 		return fmt.Errorf("refusing to follow the redirect from %s to %s: this request presents a TLS client certificate, which would be sent to the redirect target", redactedOrigin(origin), redactedOrigin(req.URL))

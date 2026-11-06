@@ -34,8 +34,8 @@ import (
 	"github.com/stretchr/testify/require"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
-	workflowfeatures "github.com/kubevela/workflow/pkg/features"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/http/testdata"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
@@ -217,13 +217,14 @@ url: "http://169.254.169.254/latest/meta-data/"`)
 }
 
 func TestHTTPCmdRun_disableWorkflowHTTP(t *testing.T) {
+	previous := utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.DisableWorkflowHTTP)
 	require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
 		string(workflowfeatures.DisableWorkflowHTTP): true,
 	}))
 	t.Cleanup(func() {
-		_ = utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
-			string(workflowfeatures.DisableWorkflowHTTP): false,
-		})
+		require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+			string(workflowfeatures.DisableWorkflowHTTP): previous,
+		}))
 	})
 
 	runner, _ := newHTTPCmd(cue.Value{})

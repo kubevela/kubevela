@@ -211,7 +211,29 @@ const (
 	// AnnotationAutoRevision controls whether policy-rendered spec changes create new ApplicationRevisions.
 	// When set to "true", policies can modify Application.Spec and trigger new revisions.
 	// This is orthogonal to AnnotationAutoUpdate which controls definition version updates.
+	// Like the other policy rollout annotations it takes "true", "false" or a comma-separated
+	// list of PolicyDefinition names; without it the controller default applies.
 	AnnotationAutoRevision = "policy.oam.dev/auto-revision"
+
+	// AnnotationApplyPolicyUpdates controls whether an Application adopts new versions of the
+	// Application-scoped policies it runs ("true", "false" or a list of PolicyDefinition names).
+	AnnotationApplyPolicyUpdates = "policy.oam.dev/apply-policy-updates"
+
+	// AnnotationApplyDataChanges controls whether an Application takes changed output from an
+	// unchanged policy version, such as values the policy reads from the cluster ("true",
+	// "false" or a list of PolicyDefinition names).
+	AnnotationApplyDataChanges = "policy.oam.dev/apply-data-changes"
+
+	// AnnotationPolicyContextHash records, on an Application's current ResourceTracker, a hash of
+	// each policy instance's context output when its components were last applied: a
+	// JSON map from policy instance (global:<name>, or the spec.policies name) to hash. A change for
+	// a policy with apply-data-changes on re-applies the components without a new revision.
+	AnnotationPolicyContextHash = "app.oam.dev/policy-context-hash"
+
+	// AnnotationAppGeneration records, on an ApplicationRevision, the generation of the Application
+	// it was last written for. A revision stores the spec after policy transforms, so this tells an
+	// author edit apart from a spec-rewriting policy.
+	AnnotationAppGeneration = "app.oam.dev/application-generation"
 
 	// AnnotationSourceResolvedHash records per-source hashes of the source
 	// values a component consumed at dispatch time (JSON map of source name ->
