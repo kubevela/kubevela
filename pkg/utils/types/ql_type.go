@@ -155,6 +155,7 @@ type ResourceItem struct {
 	Object         *unstructured.Unstructured `json:"object"`
 	PublishVersion string                     `json:"publishVersion"`
 	DeployVersion  string                     `json:"deployVersion"`
+	AdditionalInfo map[string]interface{}     `json:"additionalInfo,omitempty"`
 }
 
 // Workload workload resource base info
