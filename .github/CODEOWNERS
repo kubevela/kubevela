@@ -1,35 +1,35 @@
 # This file is a github code protect rule follow the codeowners https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/about-code-owners#example-of-a-codeowners-file
 
-*                                  @barnettZQG @wonderflow @leejanee @Somefive @jefree-cat @FogDong @wangyikewxgm @chivalryq
-design/                            @barnettZQG @leejanee @wonderflow @Somefive @jefree-cat @FogDong
+*                                  @barnettZQG @wonderflow @leejanee @Somefive @jefree-cat @FogDong @wangyikewxgm @chivalryq @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
+design/                            @barnettZQG @leejanee @wonderflow @Somefive @jefree-cat @FogDong @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
 # Owner of Core Controllers
-pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow @wangyikewxgm @chivalryq
+pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow @wangyikewxgm @chivalryq @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
 # Owner of Standard Controllers
-pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow @Somefive
+pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow @Somefive @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
 # Owner of CUE
-pkg/cue                            @leejanee @FogDong @Somefive
-pkg/stdlib                         @leejanee @FogDong @Somefive
+pkg/cue                            @leejanee @FogDong @Somefive @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
+pkg/stdlib                         @leejanee @FogDong @Somefive @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
 # Owner of Workflow
-pkg/workflow                       @leejanee @FogDong @Somefive @wangyikewxgm @chivalryq
+pkg/workflow                       @leejanee @FogDong @Somefive @wangyikewxgm @chivalryq @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
 # Owner of vela templates
-vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong @wangyikewxgm @chivalryq
+vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong @wangyikewxgm @chivalryq @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
 # Owner of vela CLI
-references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129 @wangyikewxgm @chivalryq
+references/cli/                     @Somefive @zzxwill @StevenLeiZhang @charlie0129 @wangyikewxgm @chivalryq @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
 # Owner of vela addon framework
-pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129
+pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129 @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
 # Owner of resource keeper and tracker
-pkg/resourcekeeper                 @Somefive @FogDong @chivalryq
-pkg/resourcetracker                @Somefive @FogDong @chivalryq
+pkg/resourcekeeper                 @Somefive @FogDong @chivalryq @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
+pkg/resourcetracker                @Somefive @FogDong @chivalryq @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
-.github/                           @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm
-makefiles                          @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm
-go.*                               @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm
+.github/                           @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
+makefiles                          @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
+go.*                               @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm @briankane @jguionnet @jerrinfrancis @roguepikachu @vishal210893
 
