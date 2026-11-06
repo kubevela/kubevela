@@ -264,7 +264,7 @@ func TestRenderInlineModuleComponentsMatchesExternalPathForSameSource(t *testing
 	pkg := &InstallPackage{Meta: Meta{Name: "example"}}
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 	require.Len(t, pkg.InlineModules, 1)
-	inlineApp, err := modulerender.RenderApplication(pkg.InlineModules[0], "")
+	inlineApp, err := modulerender.RenderApplication(pkg.InlineModules[0], "", nil)
 	require.NoError(t, err)
 
 	// External/disk path: the same file contents, written to a real directory.
@@ -277,7 +277,7 @@ func TestRenderInlineModuleComponentsMatchesExternalPathForSameSource(t *testing
 	}
 	mod, err := module.ParseModuleDir(dir)
 	require.NoError(t, err)
-	externalApp, err := modulerender.RenderApplication(mod, "")
+	externalApp, err := modulerender.RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, externalApp, inlineApp)
@@ -338,7 +338,7 @@ func TestMixedAddonRendersBothInlineAndImportedModules(t *testing.T) {
 	}
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 
-	importComps, err := RenderModuleComponents(pkg, nil, nil)
+	importComps, err := RenderModuleComponents(pkg, nil, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, importComps, 1)
 	assert.Equal(t, "aws-efs", importComps[0].Name)

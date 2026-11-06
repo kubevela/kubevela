@@ -191,19 +191,19 @@ func TestGetPatternFromItemRecognizesModulesImportsFile(t *testing.T) {
 
 func TestRenderModuleComponentsEmitsEnabledImport(t *testing.T) {
 	addon := &InstallPackage{
-		Meta: Meta{Name: "atmos-platform-storage"},
+		Meta: Meta{Name: "platform-storage"},
 		Imports: []ModuleImport{
 			{Module: "aws-s3", Enabled: true, Registry: "oam-modules", Version: "1.0.0"},
 		},
 	}
-	comps, err := RenderModuleComponents(addon, nil, []string{"atmos-platform-storage-resources"})
+	comps, err := RenderModuleComponents(addon, nil, []string{"platform-storage-resources"}, nil)
 	require.NoError(t, err)
 	require.Len(t, comps, 1)
 
 	c := comps[0]
 	assert.Equal(t, "aws-s3", c.Name)
 	assert.Equal(t, "module", c.Type)
-	assert.Equal(t, []string{"atmos-platform-storage-resources"}, c.DependsOn)
+	assert.Equal(t, []string{"platform-storage-resources"}, c.DependsOn)
 
 	var props map[string]interface{}
 	require.NoError(t, json.Unmarshal(c.Properties.Raw, &props))
@@ -216,7 +216,7 @@ func TestRenderModuleComponentsOmitsEmptyRegistryAndVersion(t *testing.T) {
 	addon := &InstallPackage{
 		Imports: []ModuleImport{{Module: "aws-s3", Enabled: true}},
 	}
-	comps, err := RenderModuleComponents(addon, nil, nil)
+	comps, err := RenderModuleComponents(addon, nil, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, comps, 1)
 
@@ -230,13 +230,13 @@ func TestRenderModuleComponentsSkipsDisabledImport(t *testing.T) {
 	addon := &InstallPackage{
 		Imports: []ModuleImport{{Module: "aws-s3", Enabled: false}},
 	}
-	comps, err := RenderModuleComponents(addon, nil, nil)
+	comps, err := RenderModuleComponents(addon, nil, nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, comps)
 }
 
 func TestRenderModuleComponentsNoImportsIsEmpty(t *testing.T) {
-	comps, err := RenderModuleComponents(&InstallPackage{}, nil, nil)
+	comps, err := RenderModuleComponents(&InstallPackage{}, nil, nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, comps)
 }
@@ -255,7 +255,7 @@ func TestRenderModuleComponentsErrorsWhenModuleAlreadyDeclaredByProperties(t *te
 			Properties: &runtime.RawExtension{Raw: []byte(`{"module":"aws-s3"}`)},
 		},
 	}
-	_, err := RenderModuleComponents(addon, existing, nil)
+	_, err := RenderModuleComponents(addon, existing, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"aws-s3"`)
 	assert.Contains(t, err.Error(), "author-declared-aws-s3")
@@ -272,7 +272,7 @@ func TestRenderModuleComponentsErrorsWhenModuleAlreadyDeclaredByComponentName(t 
 	existing := []common2.ApplicationComponent{
 		{Name: "aws-s3", Type: "module"},
 	}
-	_, err := RenderModuleComponents(addon, existing, nil)
+	_, err := RenderModuleComponents(addon, existing, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"aws-s3"`)
 }
@@ -284,7 +284,7 @@ func TestRenderModuleComponentsDoesNotSkipOnNonModuleComponentNameCollision(t *t
 	existing := []common2.ApplicationComponent{
 		{Name: "aws-s3", Type: "k8s-objects"},
 	}
-	comps, err := RenderModuleComponents(addon, existing, nil)
+	comps, err := RenderModuleComponents(addon, existing, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, comps, 1)
 }
@@ -298,7 +298,7 @@ func TestRenderModuleComponentsErrorsOnRepeatedModuleName(t *testing.T) {
 			{Module: "aws-s3", Enabled: true, Registry: "oam-modules", Version: "2.0.0"},
 		},
 	}
-	_, err := RenderModuleComponents(addon, nil, nil)
+	_, err := RenderModuleComponents(addon, nil, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"aws-s3"`)
 }

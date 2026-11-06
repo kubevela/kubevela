@@ -1,6 +1,6 @@
 name: 'Kubevela K8s Upgrade Multicluster E2E Test'
 description: 'Runs Kubevela Kubernetes upgrade multicluster end-to-end tests, uploads coverage, and collects diagnostics on failure.'
-author: 'viskumar_gwre'
+author: 'KubeVela'
 
 inputs:
   codecov-token:
