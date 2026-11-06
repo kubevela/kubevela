@@ -450,6 +450,103 @@ output: {
 		Expect(result.Errors[0]).Should(ContainSubstring("envName"))
 	})
 
+	It("Test global policy reading a context field a render does not supply fails validation", func() {
+		// context is opened as a render supplies it, not to any value: a
+		// misspelt field would fail the render of every Application the policy
+		// applies to, so it is refused here instead.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Scope:    v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {
+	envName: *"production" | string
+}
+
+output: {
+	labels: {
+		"app": context.appNmae
+	}
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeFalse())
+		Expect(result.Errors).Should(ContainElement(ContainSubstring("appNmae")))
+	})
+
+	It("Test global policy reading the context fields a render supplies passes validation", func() {
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Scope:    v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {}
+
+output: {
+	labels: {
+		"app":    context.appName
+		"ns":     context.namespace
+		"team":   context.appLabels["team"]
+		"policy": context.policyName
+	}
+	annotations: "rev": context.appRevision
+	if len(context.appComponents) > 0 {
+		labels: "first": context.appComponents[0].name
+	}
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.Errors).Should(BeEmpty())
+	})
+
+	It("Test default-scope global policy reading context is still refused for its scope", func() {
+		// The opened-compile fallback runs only for global policies, and a global
+		// must be Application-scoped: reading its parameters with context opened
+		// never admits a default-scope (component) policy.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {
+	envName: *"production" | string
+}
+
+output: {
+	labels: {
+		"app": context.appName
+	}
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeFalse())
+		Expect(result.Errors).Should(ContainElement(ContainSubstring("global policies must have scope='Application'")))
+		Expect(result.Errors).ShouldNot(ContainElement(ContainSubstring("without default values")))
+	})
+
 	It("Test global policy with defaulted parameters and a context reference passes validation", func() {
 		// context only exists at render, so a template reading it does not
 		// compile on its own. That must not stop its parameters being checked.
