@@ -215,6 +215,7 @@ func hasBound(e ast.Expr) bool {
 		switch x.Op {
 		case token.GEQ, token.LEQ, token.GTR, token.LSS, token.NEQ:
 			return true
+		default:
 		}
 	case *ast.BinaryExpr:
 		return x.Op == token.AND && (hasBound(x.X) || hasBound(x.Y))
