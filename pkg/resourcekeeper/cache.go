@@ -43,6 +43,8 @@ type resourceCacheEntry struct {
 	usedBy         []*v1beta1.ResourceTracker
 	latestActiveRT *v1beta1.ResourceTracker
 	gcExecutorRT   *v1beta1.ResourceTracker
+
+	refreshBeforeSweep bool
 }
 
 type resourceCache struct {

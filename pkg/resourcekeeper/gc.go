@@ -291,6 +291,12 @@ func (h *gcHandler) checkAndRemoveResourceTrackerFinalizer(ctx context.Context, 
 func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1.ManagedResource, err error) {
 	cb := h.monitor("sweep")
 	defer cb()
+	for _, entry := range h.cache.m.Data() {
+		if entry.refreshBeforeSweep {
+			entry.loaded = false
+			entry.refreshBeforeSweep = false
+		}
+	}
 	finished = true
 	for _, rt := range append(h._historyRTs, h._currentRT, h._rootRT) {
 		if rt != nil && rt.GetDeletionTimestamp() != nil {
@@ -395,9 +401,9 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 	if err := deleteManagedResourceWithRetry(ctx, h.Client, mr, entry.obj.DeepCopy(), h.owner, h.policies.GarbageCollect, true); err != nil {
 		return err
 	}
-	// A handoff or retry may change whether we manage this resource. Sweep
-	// must read it again before deciding whether to retain the tracker finalizer.
-	entry.loaded = false
+	// Keep this pass's dependency snapshot stable. The next Sweep must read
+	// again before deciding whether to retain the tracker finalizer.
+	entry.refreshBeforeSweep = true
 	return nil
 }
 
