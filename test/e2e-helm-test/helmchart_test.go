@@ -1544,7 +1544,11 @@ replicaCount: 2
 
 		It("should reach healthy state using CM-supplied replicaCount", func() {
 			waitForNamedReplicas(h, "podinfo-health", 2)
-			EventuallyReconciled(h.Ctx, h.App, func(g Gomega) {
+			// No reconcile requests here: one that lands while a reconcile of
+			// this 13-release Application is in flight voids its status write.
+			// The controller re-runs the waiting step within its wait backoff cap
+			// (workflow.backoff.maxTime.waitState, 60s), plus one 1m resync.
+			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(h.Ctx, h.AppKey, h.App)).Should(Succeed())
 				var healthy *bool
 				for i, svc := range h.App.Status.Services {
@@ -1554,7 +1558,7 @@ replicaCount: 2
 				}
 				g.Expect(healthy).ShouldNot(BeNil(), "no status for podinfo-health")
 				g.Expect(*healthy).Should(BeTrue())
-			}).WithTimeout(60 * time.Second).Should(Succeed())
+			}, 2*time.Minute, 3*time.Second).Should(Succeed())
 		})
 
 		It("should bring the Application with every release to running", func() {
