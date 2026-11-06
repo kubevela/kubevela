@@ -36,6 +36,42 @@ import (
 )
 
 var _ = Describe("Test shared resources under concurrent share and delete", func() {
+	It("GC preserves an object whose owner disables sharing during handoff", func() {
+		ctx := context.Background()
+		obj := renderedConfigMap("b", "gc-sharing-disabled")
+		obj.SetAnnotations(map[string]string{oam.AnnotationAppSharedBy: "default/b,default/a"})
+		Expect(testClient.Create(ctx, obj)).Should(Succeed())
+		defer func() { Expect(testClient.Delete(ctx, obj)).Should(Succeed()) }()
+		uid := obj.GetUID()
+		raced := false
+		c, err := client.NewWithWatch(testEnv.Config, client.Options{Scheme: common.Scheme})
+		Expect(err).Should(Succeed())
+		cli := interceptor.NewClient(c, interceptor.Funcs{
+			Update: func(ctx context.Context, c client.WithWatch, stale client.Object, opts ...client.UpdateOption) error {
+				if !raced {
+					raced = true
+					live := &v1.ConfigMap{}
+					Expect(c.Get(ctx, client.ObjectKeyFromObject(stale), live)).Should(Succeed())
+					live.Annotations = nil
+					live.Data = map[string]string{"sentinel": "owner-private"}
+					Expect(c.Update(ctx, live)).Should(Succeed())
+				}
+				err := c.Update(ctx, stale, opts...)
+				Expect(kerrors.IsConflict(err)).Should(BeTrue())
+				return err
+			},
+		})
+		owner := newAppOwner(&v1beta1.Application{ObjectMeta: v12.ObjectMeta{Name: "a", Namespace: "default"}})
+		Expect(deleteManagedResourceWithRetry(ctx, cli, v1beta1.ManagedResource{}, obj.DeepCopy(), owner, nil, true)).Should(Succeed())
+		Expect(raced).Should(BeTrue())
+		live := &v1.ConfigMap{}
+		Expect(testClient.Get(ctx, client.ObjectKeyFromObject(obj), live)).Should(Succeed())
+		Expect(live.UID).Should(Equal(uid))
+		Expect(live.Labels[oam.LabelAppName]).Should(Equal("b"))
+		Expect(live.Annotations).Should(BeEmpty())
+		Expect(live.Data["sentinel"]).Should(Equal("owner-private"))
+	})
+
 	// The fix relies on the API server refusing these two writes once the object has changed.
 	It("the API server rejects a stale conditional patch and delete", func() {
 		ctx := context.Background()

@@ -245,3 +245,49 @@ func isConflict(err error) bool {
 	}
 	return true
 }
+
+// B disables sharing while A's stale handoff is in flight. Only GC must stop
+// once A no longer manages the refreshed object; explicit deletes stay explicit.
+func TestDeleteRetryAfterManagementChanges(t *testing.T) {
+	for _, managedOnly := range []bool{true, false} {
+		t.Run(fmt.Sprintf("managedOnly=%t", managedOnly), func(t *testing.T) {
+			r := require.New(t)
+			ctx := context.Background()
+			raced := false
+			cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithInterceptorFuncs(interceptor.Funcs{
+				Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+					if !raced && obj.GetName() == "target" {
+						raced = true
+						live := &v1.ConfigMap{}
+						r.NoError(c.Get(ctx, client.ObjectKeyFromObject(obj), live))
+						live.Annotations = nil
+						live.Data = map[string]string{"sentinel": "owner-private"}
+						r.NoError(c.Update(ctx, live))
+						return kerrors.NewConflict(v1.Resource("configmaps"), obj.GetName(), nil)
+					}
+					return c.Update(ctx, obj, opts...)
+				},
+			}).Build()
+			obj := renderedConfigMap("b", "target")
+			obj.SetUID("same-uid")
+			obj.SetAnnotations(map[string]string{oam.AnnotationAppSharedBy: "default/b,default/a"})
+			r.NoError(cli.Create(ctx, obj))
+			owner := newAppOwner(&v1beta1.Application{ObjectMeta: v12.ObjectMeta{Name: "a", Namespace: "default"}})
+			mr := v1beta1.ManagedResource{}
+			err := deleteManagedResourceWithRetry(ctx, cli, mr, obj.DeepCopy(), owner, nil, managedOnly)
+			r.NoError(err)
+			r.True(raced)
+			live := &v1.ConfigMap{}
+			err = cli.Get(ctx, client.ObjectKeyFromObject(obj), live)
+			if managedOnly {
+				r.NoError(err)
+				r.Equal(types.UID("same-uid"), live.UID)
+				r.Equal("b", live.Labels[oam.LabelAppName])
+				r.Empty(live.Annotations)
+				r.Equal("owner-private", live.Data["sentinel"])
+			} else {
+				r.True(kerrors.IsNotFound(err))
+			}
+		})
+	}
+}

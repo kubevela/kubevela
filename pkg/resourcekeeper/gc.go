@@ -392,7 +392,7 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 		return nil
 	}
 	// a copy: a retry overwrites it
-	return DeleteManagedResource(ctx, h.Client, mr, entry.obj.DeepCopy(), h.owner, h.policies.GarbageCollect)
+	return deleteManagedResourceWithRetry(ctx, h.Client, mr, entry.obj.DeepCopy(), h.owner, h.policies.GarbageCollect, true)
 }
 
 // DeleteManagedResource lets owner go of a resource it manages: if others share it, owner
@@ -401,6 +401,12 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 // is deleted. garbageCollectPolicy may be nil. On a conflict, obj is read again and the
 // decision retaken.
 func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, owner resourcetracker.Tracked, garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec) error {
+	return deleteManagedResourceWithRetry(ctx, cli, mr, obj, owner, garbageCollectPolicy, false)
+}
+
+// GC must recheck management after a refresh. Explicit workflow deletes also allow
+// unmanaged resources, so they retain their existing behavior.
+func deleteManagedResourceWithRetry(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, owner resourcetracker.Tracked, garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec, managedOnly bool) error {
 	_ctx := pkgmulticluster.WithCluster(ctx, mr.Cluster)
 	uid := obj.GetUID()
 	refresh := false
@@ -419,6 +425,9 @@ func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.Ma
 				return nil // replaced by another object: the one owner held is gone
 			}
 			obj.Object = latest.Object
+		}
+		if managedOnly && !IsResourceManaged(obj, owner) {
+			return nil
 		}
 		refresh = true
 		return deleteManagedResource(_ctx, cli, mr, obj, owner, garbageCollectPolicy)

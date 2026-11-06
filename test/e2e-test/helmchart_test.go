@@ -1731,7 +1731,7 @@ replicaCount: 2
 				}
 				g.Expect(healthy).ShouldNot(BeNil(), "no status for podinfo-health")
 				g.Expect(*healthy).Should(BeTrue())
-			}).WithTimeout(60 * time.Second).Should(Succeed())
+			}).Should(Succeed())
 		})
 
 		It("should bring the Application with every release to running", func() {
