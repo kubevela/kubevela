@@ -59,6 +59,7 @@ func TestMCPCommandRejectsBadFlags(t *testing.T) {
 		"positional argument":   {"extra"},
 		"direct without writes": {"--direct-namespace", "dev"},
 		"group without user":    {"--as-group", "team-a"},
+		"blank user":            {"--as", " "},
 		"empty group":           {"--as", "jane", "--as-group", " "},
 	}
 	for name, args := range cases {
@@ -122,14 +123,17 @@ func TestMCPConfigCarriesImpersonation(t *testing.T) {
 func TestImpersonatedFactorySendsHeaders(t *testing.T) {
 	var user string
 	var groups []string
+	var wrapped string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, groups = r.Header.Get("Impersonate-User"), r.Header.Values("Impersonate-Group")
+		wrapped = r.Header.Get("X-Caller-Wrapper")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"kind":"Namespace","apiVersion":"v1","metadata":{"name":"team-a"}}`))
 	}))
 	defer srv.Close()
 	base := &rest.Config{Host: srv.URL}
-	base.Wrap(func(rt http.RoundTripper) http.RoundTripper { return rt })
+	// The caller's own wrapper, such as the multicluster one, must still run.
+	base.Wrap(func(rt http.RoundTripper) http.RoundTripper { return headerRoundTripper{rt} })
 
 	f := impersonated(velacmd.NewTestFactory(base, nil), "jane@example.com", []string{"team-a", "dev"})
 	cs, err := kubernetes.NewForConfig(f.Config())
@@ -139,10 +143,19 @@ func TestImpersonatedFactorySendsHeaders(t *testing.T) {
 	require.Equal(t, "jane@example.com", user)
 	require.Equal(t, []string{"team-a", "dev"}, groups)
 	require.Empty(t, base.Impersonate.UserName, "the caller's config is not changed")
-	require.NotNil(t, f.Config().WrapTransport, "transport wrappers such as the multicluster one are kept")
+	require.Equal(t, "seen", wrapped, "the caller's transport wrapper is kept")
 
 	plain := velacmd.NewTestFactory(base, nil)
 	require.Same(t, plain, impersonated(plain, "", nil), "without --as the factory is used as is")
+}
+
+// headerRoundTripper marks requests so a test can see the wrapper ran.
+type headerRoundTripper struct{ rt http.RoundTripper }
+
+func (h headerRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("X-Caller-Wrapper", "seen")
+	return h.rt.RoundTrip(r)
 }
 
 func TestMCPConfigDefaultsAreReadOnlyAndShort(t *testing.T) {

@@ -106,6 +106,9 @@ type ServiceProvisioner struct {
 	Resource *ProvisionedResource `json:"resource,omitempty" jsonschema:"Schema of the kind asked for."`
 	// Message is set when no provisioner was found or a kind is missing.
 	Message string `json:"message,omitempty" jsonschema:"Why the service cannot be provisioned yet and what to install. Relay it to the user and do not write a definition for a provisioner that is not installed."`
+
+	// truncated is set when a CRD or schema budget cut the data.
+	truncated bool
 }
 
 // cloudProvisioners lists CRD names only, then groups them by family.
@@ -187,17 +190,20 @@ func serviceProvisioner(ctx context.Context, cli client.Client, names []string, 
 		}
 	}
 	var crds []*crdv1.CustomResourceDefinition
+	incomplete := false
 	for _, m := range fm {
 		if m.rank != best {
 			continue
 		}
 		if len(crds) == maxProvisionerCRDs {
 			warnings = append(warnings, fmt.Sprintf("more than %d %s CRDs for %s; only the first %d are listed", maxProvisionerCRDs, chosen.name, service, maxProvisionerCRDs))
+			out.truncated, incomplete = true, true
 			break
 		}
 		crd := &crdv1.CustomResourceDefinition{}
 		if err := cli.Get(ctx, client.ObjectKey{Name: m.name}, crd); err != nil {
 			warnings = append(warnings, fmt.Sprintf("CustomResourceDefinition %s could not be read: %s", m.name, redactLine(err.Error())))
+			incomplete = true
 			continue
 		}
 		crds = append(crds, crd)
@@ -215,16 +221,23 @@ func serviceProvisioner(ctx context.Context, cli client.Client, names []string, 
 		if !strings.EqualFold(crd.Spec.Names.Kind, kind) {
 			continue
 		}
-		res, w, err := provisionedResource(crd, chosen.health)
+		res, w, trimmed, err := provisionedResource(crd, chosen.health)
 		if err != nil {
 			return nil, warnings, err
 		}
 		out.Resource = res
+		out.truncated = out.truncated || trimmed
 		return out, append(warnings, w...), nil
 	}
 	kinds := make([]string, 0, len(out.Kinds))
 	for _, k := range out.Kinds {
 		kinds = append(kinds, k.Kind)
+	}
+	if incomplete {
+		// A CRD that was not read may be the one asked for.
+		out.Message = fmt.Sprintf("%s serves %s on this cluster, but not every %s CRD could be read, so whether it has a %s kind is unknown; the kinds read are %s",
+			chosen.name, service, chosen.name, kind, strings.Join(kinds, ", "))
+		return out, warnings, nil
 	}
 	out.Message = fmt.Sprintf("%s serves %s on this cluster, but has no %s kind; the installed kinds are %s", chosen.name, service, kind, strings.Join(kinds, ", "))
 	return out, warnings, nil
@@ -246,9 +259,10 @@ func noProvisionerMessage(service string) string {
 		service, strings.Join(groups, " or "), service, installs[0], installs[1])
 }
 
-// provisionedResource extracts the storage version's spec schema, dropping
-// descriptions when the schema is too large to return whole.
-func provisionedResource(crd *crdv1.CustomResourceDefinition, health string) (*ProvisionedResource, []string, error) {
+// provisionedResource extracts the storage version's spec schema. A schema too
+// large to return whole loses its descriptions, then its nested fields, then
+// top-level fields in name order, and reports that it was cut.
+func provisionedResource(crd *crdv1.CustomResourceDefinition, health string) (*ProvisionedResource, []string, bool, error) {
 	v := storageVersion(crd)
 	res := &ProvisionedResource{
 		ProvisionedKind: ProvisionedKind{Kind: crd.Spec.Names.Kind, APIVersion: crd.Spec.Group + "/" + v.Name, Scope: string(crd.Spec.Scope)},
@@ -257,33 +271,38 @@ func provisionedResource(crd *crdv1.CustomResourceDefinition, health string) (*P
 		Health:          health,
 	}
 	if v.Schema == nil || v.Schema.OpenAPIV3Schema == nil {
-		return res, []string{fmt.Sprintf("CustomResourceDefinition %s publishes no schema", crd.Name)}, nil
+		return res, []string{fmt.Sprintf("CustomResourceDefinition %s publishes no schema", crd.Name)}, false, nil
 	}
 	spec, ok := v.Schema.OpenAPIV3Schema.Properties["spec"]
 	if !ok {
-		return res, []string{fmt.Sprintf("CustomResourceDefinition %s has no spec in its schema", crd.Name)}, nil
+		return res, []string{fmt.Sprintf("CustomResourceDefinition %s has no spec in its schema", crd.Name)}, false, nil
 	}
 	res.Required = append(res.Required, spec.Required...)
 	raw, err := json.Marshal(spec)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 	var warnings []string
 	m := map[string]any{}
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
-	if len(raw) > maxSchemaBytes {
-		dropDescriptions(m)
-		if trimmed, _ := json.Marshal(m); len(trimmed) > maxSchemaBytes {
-			m = topLevelOnly(m)
-			warnings = append(warnings, fmt.Sprintf("the %s spec schema is larger than %d KiB; only top-level fields and their types are returned", res.Kind, maxSchemaBytes>>10))
-		} else {
-			warnings = append(warnings, fmt.Sprintf("the %s spec schema is larger than %d KiB; field descriptions were dropped", res.Kind, maxSchemaBytes>>10))
-		}
+	if len(raw) <= maxSchemaBytes {
+		res.Spec = m
+		return res, nil, false, nil
+	}
+	dropDescriptions(m)
+	if b, _ := json.Marshal(m); len(b) <= maxSchemaBytes {
+		res.Spec = m
+		return res, []string{fmt.Sprintf("the %s spec schema is larger than %d KiB; field descriptions were dropped", res.Kind, maxSchemaBytes>>10)}, true, nil
+	}
+	m, dropped := topLevelOnly(m, maxSchemaBytes)
+	warnings = append(warnings, fmt.Sprintf("the %s spec schema is larger than %d KiB; only top-level fields and their types are returned", res.Kind, maxSchemaBytes>>10))
+	if dropped > 0 {
+		warnings = append(warnings, fmt.Sprintf("%d top-level fields of %s did not fit and are left out; required fields are kept", dropped, res.Kind))
 	}
 	res.Spec = m
-	return res, warnings, nil
+	return res, warnings, true, nil
 }
 
 func storageVersion(crd *crdv1.CustomResourceDefinition) *crdv1.CustomResourceDefinitionVersion {
@@ -312,20 +331,46 @@ func dropDescriptions(v any) {
 	}
 }
 
-func topLevelOnly(spec map[string]any) map[string]any {
+// topLevelOnly keeps the spec's top-level fields with their types, required
+// ones first, adding fields in name order only while the result stays within
+// limit bytes. It returns how many fields were left out.
+func topLevelOnly(spec map[string]any, limit int) (map[string]any, int) {
 	out := map[string]any{"type": spec["type"]}
-	if req, ok := spec["required"]; ok {
+	required := map[string]bool{}
+	if req, ok := spec["required"].([]any); ok {
 		out["required"] = req
-	}
-	props, _ := spec["properties"].(map[string]any)
-	short := map[string]any{}
-	for name, p := range props {
-		if pm, ok := p.(map[string]any); ok {
-			short[name] = map[string]any{"type": pm["type"]}
+		for _, r := range req {
+			if name, ok := r.(string); ok {
+				required[name] = true
+			}
 		}
 	}
+	props, _ := spec["properties"].(map[string]any)
+	names := make([]string, 0, len(props))
+	for name := range props {
+		names = append(names, name)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		if required[names[i]] != required[names[j]] {
+			return required[names[i]]
+		}
+		return names[i] < names[j]
+	})
+	short := map[string]any{}
 	out["properties"] = short
-	return out
+	dropped := 0
+	for _, name := range names {
+		pm, ok := props[name].(map[string]any)
+		if !ok {
+			continue
+		}
+		short[name] = map[string]any{"type": pm["type"]}
+		if b, _ := json.Marshal(out); len(b) > limit && !required[name] {
+			delete(short, name)
+			dropped++
+		}
+	}
+	return out, dropped
 }
 
 // crdNames lists CustomResourceDefinition names through the metadata API,

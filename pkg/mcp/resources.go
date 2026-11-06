@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -307,13 +308,57 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 			}
 			kept = append(kept, applied...)
 		}
+		info.notes = append(info.notes, unreadResources(allowed, kept)...)
 		return kept, info, nil
+	}
+	// The trackers say what the Application manages; the tree pass skips any
+	// object it fails to read, so the two are compared to report what is missing.
+	recordedOpt := opt
+	recordedOpt.WithTree = false
+	recorded, err := query.NewAppCollector(cli, recordedOpt).ListApplicationResources(ctx, app)
+	if err != nil {
+		return nil, appliedInfo{}, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 	}
 	applied, err := query.NewAppCollector(cli, opt).ListApplicationResources(ctx, app)
 	if err != nil {
 		return nil, appliedInfo{}, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 	}
-	return applied, appliedInfo{}, nil
+	return applied, appliedInfo{notes: unreadResources(recorded, applied)}, nil
+}
+
+// maxUnreadListed bounds how many unread resources a note names.
+const maxUnreadListed = 10
+
+// unreadResources names the resources the trackers record that the tree pass
+// did not return. The collector skips an object it cannot read, or that was
+// deleted since it was recorded, and only logs it; without this note the
+// answer would look complete while lacking those objects' pods and endpoints.
+func unreadResources(recorded, read []querytypes.AppliedResource) []string {
+	got := make(map[string]bool, len(read))
+	for i := range read {
+		got[appliedKey(read[i])] = true
+	}
+	seen := map[string]bool{}
+	var missing []string
+	for i := range recorded {
+		k := appliedKey(recorded[i])
+		if got[k] || seen[k] {
+			continue
+		}
+		seen[k] = true
+		missing = append(missing, recorded[i].Kind+" "+objectName(recorded[i].Namespace, recorded[i].Name)+" in cluster "+clusterName(recorded[i].Cluster))
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	sort.Strings(missing)
+	listed := missing
+	more := ""
+	if len(listed) > maxUnreadListed {
+		listed, more = listed[:maxUnreadListed], fmt.Sprintf(" and %d more", len(missing)-maxUnreadListed)
+	}
+	return []string{fmt.Sprintf("%d managed resources could not be read, or were deleted after they were recorded, so they and the pods and endpoints under them are missing from this answer: %s%s",
+		len(missing), strings.Join(listed, ", "), more)}
 }
 
 // attachLiveObject reads the selected object from its cluster. A Secret is

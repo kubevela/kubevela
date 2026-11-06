@@ -18,6 +18,8 @@ package mcp
 
 import (
 	"fmt"
+	"math"
+	"sort"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"sigs.k8s.io/yaml"
@@ -86,21 +88,105 @@ func definitionExample(defType, name string, sch *openapi3.Schema) (*DefinitionE
 	return &DefinitionExample{YAML: out, Placeholders: placeholders, Source: exampleSource}, nil
 }
 
-// exampleObject fills the fields of an object schema that must be supplied.
+// exampleObject fills the fields of an object schema that must be supplied:
+// its required fields without a default, those of the first oneOf branch when
+// the object is a disjunction of shapes, and optional ones in name order when
+// minProperties asks for more.
 func exampleObject(sch *openapi3.Schema, path string, placeholders *[]string, depth int) map[string]any {
 	out := map[string]any{}
 	if sch == nil || depth > maxExampleDepth {
 		return out
 	}
-	for _, field := range mustSupply(sch) {
-		ref := sch.Properties[field]
-		var fs *openapi3.Schema
-		if ref != nil {
-			fs = ref.Value
+	var branch *openapi3.Schema
+	if len(sch.OneOf) > 0 && sch.OneOf[0] != nil {
+		branch = sch.OneOf[0].Value
+	}
+	fieldSchema := func(field string) *openapi3.Schema {
+		if ref := sch.Properties[field]; ref != nil {
+			return ref.Value
 		}
-		out[field] = exampleValue(fs, joinPath(path, field), placeholders, depth+1)
+		if branch != nil {
+			if ref := branch.Properties[field]; ref != nil {
+				return ref.Value
+			}
+		}
+		return nil
+	}
+	fields := mustSupply(sch)
+	if branch != nil {
+		// A struct disjunction encodes as the union of its fields with a oneOf
+		// of required sets, so one branch's set is needed for a valid example.
+		for _, f := range branch.Required {
+			if fs := fieldSchema(f); fs != nil && fs.Default != nil {
+				continue
+			}
+			if !containsString(fields, f) {
+				fields = append(fields, f)
+			}
+		}
+	}
+	for _, field := range fields {
+		out[field] = exampleValue(fieldSchema(field), joinPath(path, field), placeholders, depth+1)
+	}
+	if uint64(len(out)) < sch.MinProps {
+		names := make([]string, 0, len(sch.Properties))
+		for name := range sch.Properties {
+			if _, done := out[name]; !done {
+				names = append(names, name)
+			}
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			if uint64(len(out)) >= sch.MinProps {
+				break
+			}
+			out[name] = exampleValue(fieldSchema(name), joinPath(path, name), placeholders, depth+1)
+		}
 	}
 	return out
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// exampleNumber picks a stand-in inside the schema's bounds: the minimum, just
+// above an exclusive one, or 1 capped by the maximum, so the example passes
+// validation once the user keeps it.
+func exampleNumber(sch *openapi3.Schema, integer bool) any {
+	v := 1.0
+	switch {
+	case sch.Min != nil:
+		v = *sch.Min
+		if sch.ExclusiveMin {
+			if !integer && sch.Max != nil {
+				v = (*sch.Min + *sch.Max) / 2
+			} else {
+				v = *sch.Min + 1
+			}
+		}
+	case sch.Max != nil:
+		v = math.Min(1, *sch.Max)
+		if sch.ExclusiveMax && v >= *sch.Max {
+			v = *sch.Max - 1
+		}
+	}
+	if integer {
+		v = math.Ceil(v)
+		if sch.Max != nil && (v > *sch.Max || (sch.ExclusiveMax && v >= *sch.Max)) {
+			v = math.Floor(*sch.Max)
+			if sch.ExclusiveMax && v >= *sch.Max {
+				v--
+			}
+		}
+		return int64(v)
+	}
+	return v
 }
 
 func exampleValue(sch *openapi3.Schema, path string, placeholders *[]string, depth int) any {
@@ -129,19 +215,21 @@ func exampleValue(sch *openapi3.Schema, path string, placeholders *[]string, dep
 			*placeholders = append(*placeholders, path)
 			return []any{}
 		}
-		return []any{exampleValue(sch.Items.Value, path+"[0]", placeholders, depth+1)}
+		n := sch.MinItems
+		if n == 0 {
+			n = 1
+		}
+		items := make([]any, 0, n)
+		for i := uint64(0); i < n; i++ {
+			items = append(items, exampleValue(sch.Items.Value, fmt.Sprintf("%s[%d]", path, i), placeholders, depth+1))
+		}
+		return items
 	case sch.Type.Is(openapi3.TypeInteger):
 		*placeholders = append(*placeholders, path)
-		if sch.Min != nil {
-			return int64(*sch.Min)
-		}
-		return 1
+		return exampleNumber(sch, true)
 	case sch.Type.Is(openapi3.TypeNumber):
 		*placeholders = append(*placeholders, path)
-		if sch.Min != nil {
-			return *sch.Min
-		}
-		return 1
+		return exampleNumber(sch, false)
 	case sch.Type.Is(openapi3.TypeBoolean):
 		*placeholders = append(*placeholders, path)
 		return false

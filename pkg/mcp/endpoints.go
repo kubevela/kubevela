@@ -71,7 +71,11 @@ func (d *deps) endpointsOf(ctx context.Context, cli client.Client, applied []que
 		se := &found[i]
 		source := se.Ref.Kind + " " + se.Ref.Namespace + "/" + se.Ref.Name
 		if se.Endpoint.Host == "" {
-			unknowns = append(unknowns, fmt.Sprintf("%s port %d: no node address could be read for its NodePort", source, se.Endpoint.Port))
+			if se.Ref.Kind == "Service" {
+				unknowns = append(unknowns, fmt.Sprintf("%s port %d: no node address could be read for its NodePort", source, se.Endpoint.Port))
+			} else {
+				unknowns = append(unknowns, fmt.Sprintf("%s sets no host, so it is served on its controller's address, which this server does not read", source))
+			}
 			continue
 		}
 		protocol := strings.ToLower(string(se.Endpoint.Protocol))
@@ -90,13 +94,14 @@ func (d *deps) endpointsOf(ctx context.Context, cli client.Client, applied []que
 			Source:    source,
 		})
 	}
+	// Addresses reachable from outside the cluster come first, across all
+	// components, then by component and URL.
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Component != out[j].Component {
-			return out[i].Component < out[j].Component
-		}
-		// Addresses reachable from outside the cluster come first.
 		if out[i].Internal != out[j].Internal {
 			return !out[i].Internal
+		}
+		if out[i].Component != out[j].Component {
+			return out[i].Component < out[j].Component
 		}
 		return out[i].URL < out[j].URL
 	})

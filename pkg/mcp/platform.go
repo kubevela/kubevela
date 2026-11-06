@@ -417,4 +417,5 @@ func (d *deps) addProvisioners(ctx context.Context, cli client.Client, in GetPla
 		return
 	}
 	out.Provisioner = sp
+	out.Meta.Truncated = out.Meta.Truncated || sp.truncated
 }

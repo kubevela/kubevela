@@ -155,7 +155,7 @@ classifier needs structured changes. Handlers never shell out and never call a m
 
 | Tool | Class | Wraps | Phase |
 |---|---|---|---|
-| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health; for a given namespace, the delivery practice in use and whether the caller may create plain workloads; for a given AWS service, the provisioner to build on (ACK, then Crossplane) with its CRD's spec schema, or what to install | P0 |
+| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health; for a given namespace, the delivery practice in use and whether the caller may create plain workloads; for a given AWS service, the installed provisioner (ACK, then Crossplane), with a kind's CRD spec schema when the kind is given, or what to install | P0 |
 | `list_definitions` | read | `vela def list`, `vela components`, `vela traits`; filtered by what a definition provides, with the platform's default for the namespace marked | P0 |
 | `describe_definition` | read | `vela show`; CUE parameters as JSON Schema, required, defaults, examples, current revision | P0 |
 | `explain_definition` | read | `vela def get` + static inspection of the template, which works even when required parameters have no default: what kinds it produces, which parameters drive which fields, health and status rules, restrictions, revision history, consumer count | P0 |

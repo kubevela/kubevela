@@ -161,6 +161,15 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		out.Evidence = append(out.Evidence, fmt.Sprintf("Pod %s/%s container %s in cluster %s", t.namespace, t.name, pl.Container, t.cluster))
 	}
 	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, d.f.Client(), app, applied, time.Now().UTC())
+	// The handles describe the pods this call read, after the pod filter and
+	// the per-call cap, not every pod the Application runs.
+	handles.Pods = make([]PodHandle, 0, len(targets))
+	read := map[string]bool{}
+	for _, t := range targets {
+		handles.Pods = append(handles.Pods, PodHandle{Cluster: t.cluster, Namespace: t.namespace, Name: t.name, Component: t.component})
+		read[t.cluster] = true
+	}
+	handles.Clusters = sortedKeys(read)
 	out.Handles = handles
 	out.Evidence = append(out.Evidence, handleEvidence...)
 	meta.Warnings = append(meta.Warnings, handleUnknowns...)

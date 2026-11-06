@@ -105,6 +105,9 @@ func (o *MCPOption) Validate() error {
 	if len(o.DirectNamespaces) > 0 && !o.AllowWrite {
 		return fmt.Errorf("--direct-namespace has no effect without --allow-write")
 	}
+	if o.As != "" && strings.TrimSpace(o.As) == "" {
+		return fmt.Errorf("--as must not be empty")
+	}
 	// The API server only impersonates groups on behalf of a user.
 	if len(o.AsGroups) > 0 && strings.TrimSpace(o.As) == "" {
 		return fmt.Errorf("--as-group requires --as")
@@ -187,7 +190,7 @@ func addServerFlags(cmd *cobra.Command, o *MCPOption) {
 	cmd.Flags().BoolVar(&o.AllowWrite, "allow-write", false, "Register apply_application. Without --direct-namespace it only returns YAML for a pull request. Off by default.")
 	cmd.Flags().StringArrayVar(&o.DirectNamespaces, "direct-namespace", nil, "Allow direct mode, confirmed by the user in their client, in this namespace. Repeat for more than one. Refused at start if it matches --production-pattern.")
 	cmd.Flags().StringVar(&o.ProductionPattern, "production-pattern", mcp.DefaultProductionPattern, "Regular expression for production namespace names, which never allow direct mode.")
-	cmd.Flags().StringVar(&o.As, "as", "", "Username to impersonate for every request, as kubectl --as does. Your kubeconfig identity needs RBAC to impersonate it.")
+	cmd.Flags().StringVar(&o.As, "as", "", "Username to impersonate on the control plane, as kubectl --as does. Your kubeconfig identity needs RBAC to impersonate it. Reads in other clusters carry it only when cluster-gateway forwards the caller's identity.")
 	cmd.Flags().StringArrayVar(&o.AsGroups, "as-group", nil, "Group to impersonate, with --as. Repeat for more than one.")
 	cmd.Flags().StringArrayVar(&o.Namespaces, "namespace", nil, "Restrict Application, resource and log reads to this namespace, including resources an Application manages elsewhere. Repeat for more than one; empty means any namespace RBAC allows. Definitions, addons and clusters in the system namespace stay readable.")
 }

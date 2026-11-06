@@ -18,7 +18,9 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -181,6 +183,35 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		Expect(toJSON(out.Provisioner.Resource.Spec)).NotTo(ContainSubstring("long description"))
 		Expect(out.Provisioner.Resource.Spec["properties"]).To(HaveKey("tableName"))
 		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("field descriptions were dropped")))
+		Expect(out.Meta.Truncated).To(BeTrue(), "a cut schema marks the answer truncated")
+	})
+
+	It("keeps the top-level fallback within the size limit, required fields first", func() {
+		props := map[string]any{}
+		for i := 0; i < 50; i++ {
+			props[fmt.Sprintf("f%02d", i)] = map[string]any{"type": "string"}
+		}
+		spec := map[string]any{"type": "object", "required": []any{"f49"}, "properties": props}
+		out, dropped := topLevelOnly(spec, 400)
+		b, _ := json.Marshal(out)
+		Expect(len(b)).To(BeNumerically("<=", 400))
+		Expect(dropped).To(BeNumerically(">", 0))
+		Expect(out["properties"]).To(HaveKey("f49"), "required fields are kept")
+	})
+
+	It("does not claim a kind is missing when a CRD could not be read", func() {
+		failGet := &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*crdv1.CustomResourceDefinition); ok && key.Name == "tables.dynamodb.services.k8s.aws" {
+				return apierrors.NewForbidden(schema.GroupResource{Resource: "customresourcedefinitions"}, key.Name, errors.New("denied"))
+			}
+			return c.Get(ctx, key, obj, opts...)
+		}}
+		backups := testCRD("dynamodb.services.k8s.aws", "backups", "Backup", crdv1.NamespaceScoped, crdv1.JSONSchemaProps{Type: "object"})
+		h = startHarnessIntercepted(Options{}, nil, failGet, objs(ackTableCRD(), backups)...)
+		p := platform(map[string]any{"service": "dynamodb", "kind": "Table"}).Provisioner
+		Expect(p.Provisioner).To(Equal(ProvisionerACK))
+		Expect(p.Message).To(ContainSubstring("whether it has a Table kind is unknown"))
+		Expect(p.Message).NotTo(ContainSubstring("has no Table kind"))
 	})
 
 	It("rejects a kind without a service and a malformed service", func() {
