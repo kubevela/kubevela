@@ -208,6 +208,13 @@ func (t *TraitDefinition) Annotations(annotations map[string]string) *TraitDefin
 	return t
 }
 
+// Validators adds top-level parameter validators to the trait.
+// These validators are emitted inside the parameter: { ... } block as _validate* variables.
+func (t *TraitDefinition) Validators(validators ...*Validator) *TraitDefinition {
+	t.addValidators(validators...)
+	return t
+}
+
 // Version sets the version string for the trait definition.
 func (t *TraitDefinition) Version(v string) *TraitDefinition {
 	t.setVersion(v)
@@ -532,12 +539,12 @@ func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
 		}
 	}
 
-	// Validator message expressions on nested params. Traits do not emit
-	// top-level validators, but writeParam emits the ones attached to map and
-	// array params, so those messages can still reference a CUE stdlib call.
+	// Validator message expressions, both top-level and on nested map/array
+	// params, can reference a CUE stdlib call, so collect their imports.
 	// Scanned before the template check so traits without a Template body are
 	// covered too.
 	validatorScan := NewCUEGenerator()
+	validatorScan.collectImportsFromValidators(t.GetValidators())
 	for _, param := range t.GetParams() {
 		validatorScan.collectImportsFromParamValidators(param)
 	}
@@ -1368,6 +1375,11 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 			continue
 		}
 		gen.writeParam(&sb, param, depth+1)
+	}
+
+	// Write top-level validators
+	for _, v := range t.GetValidators() {
+		gen.writeValidator(&sb, v, depth+1)
 	}
 
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
