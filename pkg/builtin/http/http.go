@@ -22,15 +22,22 @@ import (
 	"crypto/x509"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"time"
 
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
+
+// maxRedirects matches the redirect limit of net/http.
+const maxRedirects = 10
 
 func init() {
 	registry.RegisterRunner("http", newHTTPCmd)
@@ -43,8 +50,19 @@ func newHTTPCmd(_ cue.Value) (registry.Runner, error) {
 	return &HTTPCmd{}, nil
 }
 
+func workflowHTTPPolicy() httpguard.Policy {
+	policy := httpguard.Current()
+	if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {
+		policy.BlockPrivate = true
+	}
+	return policy
+}
+
 // Run exec the actual http logic, and res represent the result of http task
 func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
+	if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.DisableWorkflowHTTP) {
+		return nil, errors.New("workflow outbound HTTP is disabled by DisableWorkflowHTTP feature gate")
+	}
 	var header, trailer http.Header
 	var (
 		method = meta.String("method")
@@ -52,9 +70,18 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	)
 	var (
 		r      io.Reader
+		policy = workflowHTTPPolicy()
 		client = &http.Client{
-			Transport: http.DefaultTransport,
+			Transport: httpguard.SecureTransport(http.DefaultTransport.(*http.Transport).Clone(), policy),
 			Timeout:   time.Second * 3,
+			// A custom CheckRedirect replaces the net/http default, so the
+			// redirect limit is enforced here too.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= maxRedirects {
+					return errors.Errorf("stopped after %d redirects", maxRedirects)
+				}
+				return policy.BlockedHost(req.URL.Host)
+			},
 		}
 	)
 	if obj := meta.Obj.LookupPath(value.FieldPath("request")); obj.Exists() {
@@ -93,6 +120,11 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	if err != nil {
 		return nil, err
 	}
+	if parsed, err := neturl.Parse(u); err == nil {
+		if err := policy.BlockedHost(parsed.Host); err != nil {
+			return nil, err
+		}
+	}
 	req.Header = header
 	req.Trailer = trailer
 
@@ -129,7 +161,12 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 			tr.TLSClientConfig.Certificates = []tls.Certificate{cliCrt}
 		}
 
-		client.Transport = tr
+		client.Transport = httpguard.SecureTransport(tr, workflowHTTPPolicy())
+	}
+	// The transport is built for this run, so release its idle connections when
+	// the run ends.
+	if t, ok := client.Transport.(*http.Transport); ok {
+		defer t.CloseIdleConnections()
 	}
 	resp, err := client.Do(req)
 	if err != nil {

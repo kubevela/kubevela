@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	velaclient "github.com/kubevela/pkg/controller/client"
@@ -30,6 +31,8 @@ import (
 	"github.com/kubevela/pkg/meta"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/profiling"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -53,6 +56,7 @@ import (
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	oamv1beta1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -234,6 +238,28 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 		go resyncWebhookTLS(ctx, certClient, webhookTLS, s.CertDir, func() bool { return started(nil) == nil })
 	}
 
+	// Components, traits, policies and the webhook render with the upstream
+	// default compiler; give it the guarded vela/http.
+	velacuex.GuardDefaultCompiler()
+	controllerNamespace := resolveControllerNamespace(s.LeaderElectionNamespace)
+	httpguard.SetEnhancer(func(p httpguard.Policy) httpguard.Policy {
+		if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {
+			p.BlockPrivate = true
+		}
+		return p
+	})
+	// Use APIReader: GetClient() is cache-backed and is not ready before mgr.Start.
+	if err := httpguard.LoadConfigMaps(ctx, mgr.GetAPIReader(), s.WorkflowHTTPDenyConfigTemplateName, controllerNamespace); err != nil {
+		klog.ErrorS(err, "Failed to initialize workflow HTTP deny ConfigMaps",
+			"template", s.WorkflowHTTPDenyConfigTemplateName, "namespace", controllerNamespace)
+		return fmt.Errorf("failed to initialize workflow HTTP deny ConfigMaps: %w", err)
+	}
+	if err := httpguard.SetupWatcher(mgr, s.WorkflowHTTPDenyConfigTemplateName, controllerNamespace); err != nil {
+		klog.ErrorS(err, "Failed to watch workflow HTTP deny ConfigMaps",
+			"template", s.WorkflowHTTPDenyConfigTemplateName, "namespace", controllerNamespace)
+		return fmt.Errorf("failed to watch workflow HTTP deny ConfigMaps: %w", err)
+	}
+
 	if err := registerHealthChecks(mgr); err != nil {
 		klog.ErrorS(err, "Unable to register ready/health checks")
 		return err
@@ -371,4 +397,17 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 			}
 		}
 	}
+}
+
+// resolveControllerNamespace returns the namespace that holds the workflow HTTP deny ConfigMaps.
+func resolveControllerNamespace(leaderElectionNamespace string) string {
+	// The deny ConfigMaps live with the controller, so its own namespace comes
+	// first. The leader-election namespace only says where the lease lives.
+	if ns := strings.TrimSpace(os.Getenv("POD_NAMESPACE")); ns != "" {
+		return ns
+	}
+	if ns := strings.TrimSpace(leaderElectionNamespace); ns != "" {
+		return ns
+	}
+	return "vela-system"
 }

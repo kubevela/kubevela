@@ -29,6 +29,12 @@ controllerArgs:
 ## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
+## @param workflow.httpDeny.configTemplateName ConfigTemplate name and discovery label value. The chart templates the controller flag, the ConfigTemplate and the CUE labels from this one value. Discovery only reads ConfigMaps in the controller namespace. Must be a string of dot-separated parts made of lowercase letters, digits and -, each starting and ending with a letter or digit, at most 63 characters in total; quote a name that YAML would read as a number, a boolean or null. Empty disables discovery and skips installing the template/default ConfigMap.
+## @param workflow.httpDeny.installConfigTemplate Install the workflow-http-deny ConfigTemplate into the release namespace
+## @param workflow.httpDeny.defaultConfig.enabled Install a labeled default denylist ConfigMap
+## @param workflow.httpDeny.defaultConfig.name Name of the shipped default denylist ConfigMap (unique per chart)
+## @param workflow.httpDeny.defaultConfig.denyHosts Default deny hostnames
+## @param workflow.httpDeny.defaultConfig.denyCIDRs Default deny CIDRs and addresses
 workflow:
   enableSuspendOnFailure: false
   enableExternalPackageForDefaultCompiler: true
@@ -39,6 +45,22 @@ workflow:
       failedState: 300
   step:
     errorRetryTimes: 10
+  httpDeny:
+    # Prefixed per chart so dual-install with vela-workflow owns distinct ConfigTemplates
+    # and default ConfigMaps. The controller flag is templated from this value.
+    configTemplateName: vela-core-http-deny
+    installConfigTemplate: true
+    defaultConfig:
+      enabled: true
+      name: vela-core-http-deny-default
+      denyHosts:
+        - metadata.google.internal
+      denyCIDRs:
+        - 169.254.0.0/16
+        - fe80::/10
+        - fd00:ec2::254
+        - 100.100.100.200
+
 
 
 ## @section KubeVela controller parameters
@@ -126,6 +148,8 @@ optimize:
 ##@param featureGates.enableCueValidation enable the strict cue validation for cue required parameter fields
 ##@param featureGates.enableApplicationStatusMetrics enable application status metrics and structured logging
 ##@param featureGates.validateResourcesExist enable webhook validation to check if resource types referenced in definition templates exist in the cluster
+##@param featureGates.disableWorkflowHTTP disable outbound HTTP from workflow request/webhook steps
+##@param featureGates.blockPrivateHTTPAddresses block workflow outbound HTTP to RFC-1918 and ULA destinations
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -144,6 +168,8 @@ featureGates:
   enableCueValidation: false
   enableApplicationStatusMetrics: false
   validateResourcesExist: false
+  disableWorkflowHTTP: false
+  blockPrivateHTTPAddresses: false
 
 ## @section MultiCluster parameters
 

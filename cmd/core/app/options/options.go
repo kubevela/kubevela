@@ -39,6 +39,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 )
 
+// VelaCoreHTTPDenyConfigTemplate is the vela-core chart ConfigTemplate name and
+// discovery label (config.oam.dev/type). Distinct from workflow's
+// httpguard.WorkflowHTTPDenyConfigTemplate so dual install owns separate templates.
+const VelaCoreHTTPDenyConfigTemplate = "vela-core-http-deny"
+
 // CoreOptions contains everything necessary to create and run vela-core
 type CoreOptions struct {
 	UseWebhook              bool
@@ -87,6 +92,9 @@ type CoreOptions struct {
 	// cluster-gateway serving cert is for. vela-core sets the APIService
 	// caBundle only when the APIService points at this Service.
 	ClusterGatewayService string
+
+	// WorkflowHTTPDenyConfigTemplateName selects the labeled workflow HTTP deny ConfigMaps.
+	WorkflowHTTPDenyConfigTemplateName string
 }
 
 // NewCoreOptions creates a new NewVelaCoreOptions object with default parameters
@@ -122,6 +130,8 @@ func NewCoreOptions() *CoreOptions {
 		EnableClusterGateway:   false,
 		EnableClusterMetrics:   false,
 		ClusterMetricsInterval: 15 * time.Second,
+
+		WorkflowHTTPDenyConfigTemplateName: VelaCoreHTTPDenyConfigTemplate,
 	}
 	return s
 }
@@ -189,6 +199,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	rfs.IntVar(&resourcekeeper.MaxDispatchConcurrent, "max-dispatch-concurrent", 10, "Set the max dispatch concurrent number, default is 10")
 
 	wfs := fss.FlagSet("wfTypes")
+	wfs.StringVar(&s.WorkflowHTTPDenyConfigTemplateName, "workflow-http-deny-config-template-name", s.WorkflowHTTPDenyConfigTemplateName, "Discover and merge ConfigMaps produced by this ConfigTemplate in the controller namespace")
 	wfs.IntVar(&wfTypes.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
 	wfs.IntVar(&wfTypes.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow failed backoff time, default is 300")
 	wfs.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
