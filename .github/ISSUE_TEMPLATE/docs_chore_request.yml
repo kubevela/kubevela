@@ -1,0 +1,41 @@
+name: "📝 Docs or chore"
+description: Propose a documentation update or maintenance change
+title: "[Docs/Chore]"
+labels: ["needs-triage"]
+body:
+  - type: checkboxes
+    id: existing-search
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search to see if an issue already exists for this change.
+      options:
+        - label: I have searched the existing issues
+          required: true
+  - type: dropdown
+    id: change-type
+    attributes:
+      label: Type of change
+      options:
+        - Documentation
+        - Chore / maintenance
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: What should change?
+      description: Name the files or areas affected and describe the update.
+    validations:
+      required: true
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why is this needed?
+      description: A clear and concise description of what is wrong or missing today.
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context here.
