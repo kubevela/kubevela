@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/rest"
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
 
@@ -49,9 +50,11 @@ var (
 		system rather than a remembered one.
 
 		Tools are grouped into read, plan and write classes. Only read and plan
-		tools are available unless --allow-write is set. On the control plane the server acts with
-		the caller's kubeconfig identity. Reads in other clusters go through
-		cluster-gateway, which forwards that identity only when its
+		tools are available unless --allow-write is set. On the control plane
+		the server acts with the caller's kubeconfig identity, or impersonates
+		the user and groups given with --as and --as-group, as kubectl does.
+		Reads in other clusters go through cluster-gateway, which forwards that
+		identity only when its
 		ClientIdentityPenetration gate is on; results read from other clusters
 		say which identity applied.
 
@@ -65,6 +68,9 @@ var (
 
 		# Restrict Application, resource and log reads to two namespaces
 		vela mcp --namespace team-a --namespace team-b
+
+		# Act as a developer would, to see what their agent can read
+		vela mcp --as jane@example.com --as-group team-a
 
 		# Allow writes: pull-request YAML everywhere, direct writes confirmed in
 		# the client only in the dev namespace
@@ -81,12 +87,15 @@ type MCPOption struct {
 	Namespaces        []string
 	DirectNamespaces  []string
 	ProductionPattern string
+	// As and AsGroups impersonate a user and groups, as kubectl does.
+	As       string
+	AsGroups []string
 }
 
 // Validate checks the flags before a server is built.
 func (o *MCPOption) Validate() error {
 	if o.Transport != mcp.TransportStdio {
-		return fmt.Errorf("unsupported transport %q: only %q is available in this release", o.Transport, mcp.TransportStdio)
+		return fmt.Errorf("unsupported transport %q: only %q is supported", o.Transport, mcp.TransportStdio)
 	}
 	for _, ns := range o.Namespaces {
 		if strings.TrimSpace(ns) == "" {
@@ -96,7 +105,34 @@ func (o *MCPOption) Validate() error {
 	if len(o.DirectNamespaces) > 0 && !o.AllowWrite {
 		return fmt.Errorf("--direct-namespace has no effect without --allow-write")
 	}
+	if o.As != "" && strings.TrimSpace(o.As) == "" {
+		return fmt.Errorf("--as must not be empty")
+	}
+	// The API server only impersonates groups on behalf of a user.
+	if len(o.AsGroups) > 0 && strings.TrimSpace(o.As) == "" {
+		return fmt.Errorf("--as-group requires --as")
+	}
+	for _, g := range o.AsGroups {
+		if strings.TrimSpace(g) == "" {
+			return fmt.Errorf("--as-group must not be empty")
+		}
+	}
 	return nil
+}
+
+// impersonated returns a factory whose clients send the impersonation
+// headers kubectl --as and --as-group send. The API server checks the
+// caller may impersonate, then enforces the impersonated user's RBAC.
+// Without a user it returns f unchanged.
+func impersonated(f velacmd.Factory, user string, groups []string) velacmd.Factory {
+	if user == "" {
+		return f
+	}
+	return velacmd.NewDeferredFactory(func() (*rest.Config, error) {
+		cfg := rest.CopyConfig(f.Config())
+		cfg.Impersonate = rest.ImpersonationConfig{UserName: user, Groups: groups}
+		return cfg, nil
+	})
 }
 
 // Run builds the server and serves until the client disconnects. The
@@ -104,6 +140,7 @@ func (o *MCPOption) Validate() error {
 // configuration fails the command on stderr instead of ending the session
 // on the first tool call.
 func (o *MCPOption) Run(f velacmd.Factory, cmd *cobra.Command) error {
+	f = impersonated(f, o.As, o.AsGroups)
 	_ = f.Config()
 	srv, err := mcp.NewServer(f, mcp.Options{
 		Transport:         o.Transport,
@@ -153,6 +190,8 @@ func addServerFlags(cmd *cobra.Command, o *MCPOption) {
 	cmd.Flags().BoolVar(&o.AllowWrite, "allow-write", false, "Register apply_application. Without --direct-namespace it only returns YAML for a pull request. Off by default.")
 	cmd.Flags().StringArrayVar(&o.DirectNamespaces, "direct-namespace", nil, "Allow direct mode, confirmed by the user in their client, in this namespace. Repeat for more than one. Refused at start if it matches --production-pattern.")
 	cmd.Flags().StringVar(&o.ProductionPattern, "production-pattern", mcp.DefaultProductionPattern, "Regular expression for production namespace names, which never allow direct mode.")
+	cmd.Flags().StringVar(&o.As, "as", "", "Username to impersonate on the control plane, as kubectl --as does. Your kubeconfig identity needs RBAC to impersonate it. Reads in other clusters carry it only when cluster-gateway forwards the caller's identity.")
+	cmd.Flags().StringArrayVar(&o.AsGroups, "as-group", nil, "Group to impersonate, with --as. Repeat for more than one.")
 	cmd.Flags().StringArrayVar(&o.Namespaces, "namespace", nil, "Restrict Application, resource and log reads to this namespace, including resources an Application manages elsewhere. Repeat for more than one; empty means any namespace RBAC allows. Definitions, addons and clusters in the system namespace stay readable.")
 }
 
@@ -226,6 +265,12 @@ func (o *MCPConfigOption) ServerArgs() []string {
 	}
 	if o.ProductionPattern != "" && o.ProductionPattern != mcp.DefaultProductionPattern {
 		args = append(args, "--production-pattern", o.ProductionPattern)
+	}
+	if o.As != "" {
+		args = append(args, "--as", o.As)
+	}
+	for _, g := range o.AsGroups {
+		args = append(args, "--as-group", g)
 	}
 	return args
 }

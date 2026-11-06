@@ -218,7 +218,7 @@ var _ = Describe("apply_application", func() {
 			Expect(res.IsError).To(BeFalse(), toJSON(res))
 			Expect(out.Mode).To(Equal(ModeGitOps))
 			Expect(out.Applied).To(BeFalse())
-			Expect(out.ModeReasons).To(ContainElement(ContainSubstring("controller hold")))
+			Expect(out.ModeReasons).To(ContainElement(ContainSubstring("hold the change for approval")))
 			Expect(out.YAML).To(ContainSubstring("kind: Application"))
 			Expect(out.YAML).To(ContainSubstring("image: nginx:1.27"))
 			Expect(out.YAML).NotTo(ContainSubstring("mcp.oam.dev"))

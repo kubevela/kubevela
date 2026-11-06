@@ -72,7 +72,7 @@ type ApplyInput struct {
 	Application string `json:"application" jsonschema:"The same Application document that was passed to diff_application, byte for byte."`
 	Namespace   string `json:"namespace,omitempty" jsonschema:"Namespace when the document has none, as for diff_application."`
 	Token       string `json:"token" jsonschema:"The token diff_application returned for this document."`
-	Mode        string `json:"mode,omitempty" jsonschema:"Requested write mode: gitops, gated or direct. Default gated, which this release applies as gitops because the controller hold gated mode needs does not exist yet. Policy may make the mode stricter, never looser."`
+	Mode        string `json:"mode,omitempty" jsonschema:"Requested write mode: gitops, gated or direct. Default gated, which is applied as gitops: the server does not hold a written change for approval outside the Application's own workflow. Policy may make the mode stricter, never looser."`
 }
 
 // ApplyOutput is the structured result of apply_application.
@@ -374,7 +374,7 @@ func (d *deps) decideMode(requested, namespace, nsMode, liveMode, docMode, risk 
 		tighten(ModeGated, "HIGH risk changes are never applied directly")
 	}
 	if mode == ModeGated {
-		tighten(ModeGitOps, "gated mode needs the controller hold, which this release does not have")
+		tighten(ModeGitOps, "gated mode needs vela-core to hold the change for approval outside the Application's workflow, which it does not do")
 	}
 	return mode, reasons
 }

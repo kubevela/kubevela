@@ -207,6 +207,13 @@ type GetApplicationOutput struct {
 	Annotations map[string]string     `json:"annotations,omitempty" jsonschema:"Application annotations. Values that embed a serialized object are dropped."`
 	Spec        ApplicationSpecView   `json:"spec" jsonschema:"Declared components, traits, policies and workflow, with secret-like values removed."`
 	Status      ApplicationStatusView `json:"status" jsonschema:"Status as the controller last wrote it: services, conditions, applied resources and workflow."`
+	// Endpoints are read live from the Services, Ingresses and HTTPRoutes
+	// the Application manages.
+	Endpoints []Endpoint `json:"endpoints" jsonschema:"Addresses the Application serves on, read live from the Services, Ingresses and HTTPRoutes it manages, the way vela status --endpoint reads them. Addresses reachable from outside the cluster come first."`
+	// Handles are the exact identifiers for downstream queries.
+	Handles Handles `json:"handles" jsonschema:"Exact identifiers for queries to other tools: clusters, namespace, pods, labels and the time window. Use them verbatim; do not guess label names or time ranges."`
+	// Unknowns lists what this answer could not read.
+	Unknowns []string `json:"unknowns" jsonschema:"What could not be read, such as endpoints or resources outside the allowed namespaces. Report these as unknown rather than guessing."`
 	// Evidence lists the objects this answer was derived from.
 	Evidence []string `json:"evidence"`
 	Meta     Meta     `json:"meta"`
@@ -316,7 +323,36 @@ func (d *deps) getApplication(ctx context.Context, _ *sdk.CallToolRequest, in Ge
 	out.Spec = viewApplicationSpec(app)
 	out.Status = viewApplicationStatus(app)
 	out.Evidence = []string{applicationEvidence(app)}
+	out.Endpoints, out.Unknowns = []Endpoint{}, []string{}
 	out.Meta = d.meta(ctx)
+
+	// The live part degrades to unknowns: the recorded status above is still
+	// the answer when the resource tree cannot be read.
+	cli := d.f.Client()
+	applied, info, err := d.listAppliedResources(ctx, app, "", "")
+	if err != nil {
+		out.Unknowns = append(out.Unknowns, "managed resources, and so endpoints and pods: "+redactLine(err.Error()))
+	}
+	out.Unknowns = append(out.Unknowns, withheldWarning(info.withheld)...)
+	out.Unknowns = append(out.Unknowns, info.notes...)
+	endpoints, endpointUnknowns, cut := d.endpointsOf(ctx, cli, applied)
+	out.Endpoints = endpoints
+	out.Unknowns = append(out.Unknowns, endpointUnknowns...)
+	if len(endpoints) > 0 {
+		out.Evidence = append(out.Evidence, fmt.Sprintf("%d endpoints from the Services, Ingresses and HTTPRoutes the Application manages", len(endpoints)))
+	}
+	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
+	out.Handles = handles
+	out.Evidence = append(out.Evidence, handleEvidence...)
+	out.Unknowns = append(out.Unknowns, handleUnknowns...)
+	out.Meta.Truncated = out.Meta.Truncated || cut || len(info.untraced) > 0
+	clusters := map[string]bool{}
+	for i := range applied {
+		clusters[applied[i].Cluster] = true
+	}
+	if w := d.remoteReadWarning(ctx, clusters); w != "" {
+		out.Meta.Warnings = append(out.Meta.Warnings, w)
+	}
 	return nil, out, nil
 }
 
