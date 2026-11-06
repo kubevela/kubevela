@@ -1,0 +1,109 @@
+# Definitions with the mistakes admission catches. Each reads
+# context.custom in a way the tenant-identity schema says will fail.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: mesh-service
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: {
+        		name: context.name
+        		// Mistake: meshDomain is optional, and read without a guard.
+        		annotations: "platform.io/mesh-url": "https://\(context.custom.meshDomain)/\(context.name)"
+        	}
+        	spec: {
+        		selector: matchLabels: app: context.name
+        		template: {
+        			metadata: labels: app: context.name
+        			spec: containers: [{name: context.name, image: parameter.image}]
+        		}
+        	}
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: regional-service
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: {
+        		name: context.name
+        		// Mistake: no policy supplies a region.
+        		labels: "platform.io/region": context.custom.region
+        	}
+        	spec: {
+        		selector: matchLabels: app: context.name
+        		template: {
+        			metadata: labels: app: context.name
+        			spec: containers: [{name: context.name, image: parameter.image}]
+        		}
+        	}
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: sized-service
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		// Mistake: the cost centre is a string, replicas a number.
+        		replicas: int & context.custom.costCentre
+        		selector: matchLabels: app: context.name
+        		template: {
+        			metadata: labels: app: context.name
+        			spec: containers: [{name: context.name, image: parameter.image}]
+        		}
+        	}
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: mesh-sidecar
+  namespace: vela-system
+spec:
+  appliesToWorkloads: ["deployments.apps"]
+  schematic:
+    cue:
+      template: |
+        parameter: {}
+        patch: spec: template: metadata: annotations: {
+        	// Mistake: the same unguarded optional read, in a trait.
+        	"mesh.io/inject": "true"
+        	"mesh.io/domain": context.custom.meshDomain
+        }

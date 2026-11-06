@@ -19,14 +19,20 @@ package application
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+	"sync"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -97,6 +103,12 @@ func ValidatePolicyDefinition(ctx context.Context, policy *v1beta1.PolicyDefinit
 		result.Errors = append(result.Errors, err.Error())
 	}
 
+	if policy.Spec.Scope == v1beta1.ApplicationScope {
+		errs, warnings := validateCtxSchema(cueTemplate)
+		result.Errors = append(result.Errors, errs...)
+		result.Warnings = append(result.Warnings, warnings...)
+	}
+
 	// Feature gate warnings — policy will be created but won't execute until the flag is enabled.
 	if policy.Spec.Scope == v1beta1.ApplicationScope && !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) {
 		result.Warnings = append(result.Warnings,
@@ -154,6 +166,83 @@ func isASTBoolExpr(expr ast.Expr) bool {
 	return false
 }
 
+// contextCustomField is where policy output.ctx is read (context.custom).
+const contextCustomField = "custom"
+
+// policyContextFields are the context fields an Application-scoped policy render supplies: those
+// newPolicyProcessContext sets, read from a render context with every field set, and custom,
+// which a policy's output can add.
+var policyContextFields = sync.OnceValues(func() (map[string]bool, error) {
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "ns",
+			Labels: map[string]string{"k": "v"}, Annotations: map[string]string{"k": "v"}},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{{Name: "c"}},
+			Workflow:   &v1beta1.Workflow{},
+			Policies:   []v1beta1.AppPolicy{{Name: "p"}},
+		},
+	}
+	pCtx := newPolicyProcessContext(context.Background(), app, "app-v1", "p", "p",
+		&v1beta1.PolicyVersionMetadata{DefinitionRevisionName: "p-v1", Revision: 1, RevisionHash: "h"})
+	base, err := pCtx.BaseContextFile()
+	if err != nil {
+		return nil, err
+	}
+	fields, err := cuecontext.New().CompileString(base).LookupPath(cue.ParsePath("context")).Fields(cue.Optional(true))
+	if err != nil {
+		return nil, err
+	}
+	names := map[string]bool{contextCustomField: true}
+	for fields.Next() {
+		names[fields.Selector().Unquoted()] = true
+	}
+	return names, nil
+})
+
+// checkPolicyContextReads refuses a template that reads a context field a policy render does not
+// supply (context.<name> or context["<name>"]). It reads the template's syntax only.
+func checkPolicyContextReads(cueTemplate string) error {
+	known, err := policyContextFields()
+	if err != nil {
+		return errors.Wrap(err, "failed to build the policy render context")
+	}
+	var unknown []string
+	// A template that does not parse is left to the CUE validation, which reports it.
+	if f, parseErr := parser.ParseFile("", cueTemplate); parseErr == nil {
+		ast.Walk(f, func(n ast.Node) bool {
+			name, ok := contextFieldRead(n)
+			if ok && !known[name] {
+				unknown = append(unknown, fmt.Sprintf("context.%s (%s)", name, n.Pos()))
+			}
+			return true
+		}, nil)
+	}
+	if len(unknown) > 0 {
+		return fmt.Errorf("the template reads context fields a policy render does not supply: %s", strings.Join(unknown, ", "))
+	}
+	return nil
+}
+
+// contextFieldRead returns the field of context that n selects, if n is context.<name> or
+// context["<name>"].
+func contextFieldRead(n ast.Node) (string, bool) {
+	switch e := n.(type) {
+	case *ast.SelectorExpr:
+		if x, ok := e.X.(*ast.Ident); ok && x.Name == "context" {
+			name, _, err := ast.LabelName(e.Sel)
+			return name, err == nil
+		}
+	case *ast.IndexExpr:
+		if x, ok := e.X.(*ast.Ident); ok && x.Name == "context" {
+			if lit, ok := e.Index.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				name, err := strconv.Unquote(lit.Value)
+				return name, err == nil
+			}
+		}
+	}
+	return "", false
+}
+
 // validateNoRequiredParameters checks that all parameters have default values
 // For global policies, ALL parameters must have defaults since users can't provide values.
 // val is the already-compiled template. One that carries an error usually
@@ -161,8 +250,17 @@ func isASTBoolExpr(expr ast.Expr) bool {
 // the template compiled with context opened instead. If that is still in error
 // the policy is refused rather than skipped: a global policy whose parameters
 // cannot be read cannot be shown to need none.
+//
+// Opened, context resolves any field, so the template's context reads are
+// checked against the fields a render supplies first: a misspelt one would
+// fail the render of every Application the policy applies to.
 func validateNoRequiredParameters(ctx context.Context, policy *v1beta1.PolicyDefinition, cueTemplate string, val cue.Value) error {
 	if val.Err() != nil {
+		if policy.Spec.Scope == v1beta1.ApplicationScope {
+			if err := checkPolicyContextReads(cueTemplate); err != nil {
+				return err
+			}
+		}
 		opened, err := webhookutils.CompileOpenPolicyTemplate(ctx, policy.Spec.Scope, cueTemplate)
 		if err == nil {
 			err = opened.Err()

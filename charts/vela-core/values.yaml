@@ -17,8 +17,18 @@ definitionRevisionLimit: 2
 concurrentReconciles: 4
 
 ## @param controllerArgs.reSyncPeriod The period for resync the applications
+## @param controllerArgs.defaultAutoRevision Default for autoRevision when neither the auto-revision annotation nor the policy template sets it
+## @param controllerArgs.defaultApplyPolicyUpdates Default for applyPolicyUpdates when neither the apply-policy-updates annotation nor the policy template sets it
+## @param controllerArgs.defaultApplyDataChanges Default for applyDataChanges when neither the apply-data-changes annotation nor the policy template sets it
+## @param controllerArgs.allowNamespaceGlobalPolicies Whether global policies outside vela-system apply to the applications in their namespace
+## @param controllerArgs.allowSkipGlobalPolicies Whether applications may opt out of global policies with the policy.oam.dev/skip-global annotation
 controllerArgs:
   reSyncPeriod: 5m
+  defaultAutoRevision: false
+  defaultApplyPolicyUpdates: false
+  defaultApplyDataChanges: false
+  allowNamespaceGlobalPolicies: false
+  allowSkipGlobalPolicies: false
 
 
 ## @section KubeVela workflow parameters
