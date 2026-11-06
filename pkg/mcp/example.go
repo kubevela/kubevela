@@ -28,6 +28,8 @@ import (
 const (
 	// maxExampleDepth bounds how deep a generated example nests objects.
 	maxExampleDepth = 6
+	// maxExampleItems bounds the elements generated for one array.
+	maxExampleItems = 10
 	exampleName     = "example"
 	exampleSource   = "generated from the parameter schema: only the parameters that must be supplied, with the schema's default or first allowed value where it has one and a placeholder otherwise"
 )
@@ -142,6 +144,11 @@ func exampleObject(sch *openapi3.Schema, path string, placeholders *[]string, de
 			}
 			out[name] = exampleValue(fieldSchema(name), joinPath(path, name), placeholders, depth+1)
 		}
+		// More properties are required than the schema names: the user has to
+		// add the rest, so the object itself is a placeholder.
+		if uint64(len(out)) < sch.MinProps {
+			*placeholders = append(*placeholders, path)
+		}
 	}
 	return out
 }
@@ -218,6 +225,11 @@ func exampleValue(sch *openapi3.Schema, path string, placeholders *[]string, dep
 		n := sch.MinItems
 		if n == 0 {
 			n = 1
+		}
+		if n > maxExampleItems {
+			// The user has to supply the rest; the array is a placeholder.
+			n = maxExampleItems
+			*placeholders = append(*placeholders, path)
 		}
 		items := make([]any, 0, n)
 		for i := uint64(0); i < n; i++ {

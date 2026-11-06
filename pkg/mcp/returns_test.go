@@ -390,6 +390,23 @@ var _ = Describe("what the tools return", func() {
 			}
 		})
 
+		It("caps a large minItems and marks the array as a placeholder", func() {
+			sch := openapi3.NewObjectSchema().WithProperty("ids", openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema()).WithMinItems(1_000_000))
+			sch.Required = []string{"ids"}
+			var ph []string
+			out := exampleObject(sch, "", &ph, 0)
+			Expect(out["ids"]).To(HaveLen(maxExampleItems))
+			Expect(ph).To(ContainElement("ids"), "the user must add the rest")
+		})
+
+		It("marks an object as a placeholder when minProperties exceeds its named fields", func() {
+			sch := openapi3.NewObjectSchema().WithProperty("a", openapi3.NewStringSchema())
+			sch.MinProps = 3
+			var ph []string
+			Expect(exampleObject(sch, "labels", &ph, 0)).To(HaveLen(1))
+			Expect(ph).To(ContainElements("labels.a", "labels"))
+		})
+
 		It("adds optional properties up to minProperties", func() {
 			sch := openapi3.NewObjectSchema().
 				WithProperty("a", openapi3.NewStringSchema()).
