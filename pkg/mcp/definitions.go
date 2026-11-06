@@ -123,7 +123,9 @@ type DescribeDefinitionOutput struct {
 	// must be supplied. The schema's own required list also includes
 	// defaulted fields, as CUE reports them.
 	Required []string `json:"required" jsonschema:"Parameter names the definition requires."`
-	Meta     Meta     `json:"meta"`
+	// Example is generated from Parameters, so it matches this cluster.
+	Example *DefinitionExample `json:"example,omitempty" jsonschema:"Minimal usage generated from the parameter schema, with the parameters that need a real value listed."`
+	Meta    Meta               `json:"meta"`
 }
 
 func (d *deps) listDefinitions(ctx context.Context, _ *sdk.CallToolRequest, in ListDefinitionsInput) (*sdk.CallToolResult, ListDefinitionsOutput, error) {
@@ -208,7 +210,8 @@ func (d *deps) describeDefinition(ctx context.Context, _ *sdk.CallToolRequest, i
 		return nil, out, err
 	}
 	out.DefinitionSummary = summary
-	out.Parameters, out.Required, err = parameterSchema(ctx, template)
+	var sch *openapi3.Schema
+	out.Parameters, out.Required, sch, err = parameterSchema(ctx, template)
 	if err != nil {
 		// A definition that extends another refers to its parent as $super,
 		// and its schema only exists once the chain is composed at render.
@@ -218,6 +221,11 @@ func (d *deps) describeDefinition(ctx context.Context, _ *sdk.CallToolRequest, i
 		return nil, out, fmt.Errorf("parameter schema for %s %q: %w", summary.Type, summary.Name, err)
 	}
 	out.Meta = d.meta(ctx)
+	if example, err := definitionExample(summary.Type, summary.Name, sch); err != nil {
+		out.Meta.Warnings = append(out.Meta.Warnings, "no example could be generated: "+err.Error())
+	} else {
+		out.Example = example
+	}
 	return nil, out, nil
 }
 
@@ -417,26 +425,26 @@ func cueTemplate(s *oamcommon.Schematic) string {
 // its parameter block. It uses the same generator the controller uses to
 // publish definition schema ConfigMaps, so an agent sees exactly what
 // VelaUX and vela show see.
-func parameterSchema(ctx context.Context, template string) (map[string]any, []string, error) {
+func parameterSchema(ctx context.Context, template string) (map[string]any, []string, *openapi3.Schema, error) {
 	if strings.TrimSpace(template) == "" {
-		return map[string]any{}, []string{}, nil
+		return map[string]any{}, []string{}, nil, nil
 	}
 	sch, err := schema.ParsePropertiesToSchema(ctx, template)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	raw, err := json.Marshal(sch)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	out := map[string]any{}
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return out, mustSupply(sch), nil
+	return out, mustSupply(sch), sch, nil
 }
 
-// mustSupply lists the top-level parameters a user has to provide. CUE marks
+// mustSupply lists the fields of an object schema a user has to provide. CUE marks
 // every non-optional field required, including fields with a default, so the
 // schema's own required list over-reports; a field with a default is dropped.
 func mustSupply(sch *openapi3.Schema) []string {

@@ -185,7 +185,7 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 		out.Meta.Warnings = append(out.Meta.Warnings, "the template computes top-level fields, so it may emit or patch objects that produces does not list; render it with dryrun_application to see them")
 	}
 
-	out.Parameters, out.Required, err = parameterSchema(ctx, facts.template)
+	out.Parameters, out.Required, _, err = parameterSchema(ctx, facts.template)
 	if err != nil {
 		inherited := facts.extends != "" || refersToParent(facts.template)
 		if inspected.Err == "" && !inherited {
