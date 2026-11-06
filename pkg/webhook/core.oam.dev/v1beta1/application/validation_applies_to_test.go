@@ -66,14 +66,12 @@ func TestAppliesToRuleMatches(t *testing.T) {
 		{"group wildcard miss", []string{"*.batch"}, webservice, false},
 		{"group wildcard does not match a nested group suffix", []string{"*.k8s.io"}, ingress, false},
 		{"group wildcard matches a nested group exactly", []string{"*.networking.k8s.io"}, ingress, true},
-		{"definition name match", []string{"webservice"}, webservice, true},
-		{"definition name miss", []string{"worker"}, webservice, false},
+		{"a component name is not a workload", []string{"webservice"}, webservice, false},
 		{"version suffix is ignored", []string{"deployments.apps/v1"}, webservice, true},
 		{"version suffix on a miss", []string{"statefulsets.apps/v1"}, webservice, false},
 		{"no workload: workload form is not checked", []string{"cronjobs.batch"}, cronTask, true},
 		{"no workload: group wildcard is not checked", []string{"*.apps"}, cronTask, true},
-		{"no workload: definition name match", []string{"cron-task"}, cronTask, true},
-		{"no workload: definition name miss", []string{"webservice"}, cronTask, false},
+		{"no workload: core group workload is not checked", []string{"pods"}, cronTask, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -168,7 +166,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		}),
 		appliesToTraitDef("sts-only", "statefulsets.apps"),
 		appliesToTraitDef("apps-group", "*.apps"),
-		appliesToTraitDef("webservice-only", "webservice"),
 		appliesToTraitDef("cronjob-scaler", "cronjobs.batch"),
 		appliesToTraitDef("anywhere"),
 		appliesToComponentDef("wd-backed", common.WorkloadTypeDescriptor{Type: "my-deploy"}),
@@ -210,7 +207,7 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	t.Run("allows traits that apply", func(t *testing.T) {
 		withAppliesToValidation(t)
 		app := appliesToApp(
-			component("web", "webservice", "anywhere", "apps-group", "webservice-only"),
+			component("web", "webservice", "anywhere", "apps-group"),
 			component("db", "gvk-only", "sts-only", "apps-group"),
 			component("no-traits", "webservice"),
 		)
@@ -222,7 +219,7 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		app := appliesToApp(
 			component("a", "webservice", "sts-only"),
 			component("b", "webservice", "sts-only"),
-			component("c", "gvk-only", "webservice-only"),
+			component("c", "gvk-only", "cronjob-scaler"),
 		)
 
 		errs := appliesToErrs(appliesToHandler(definitions...), app)
@@ -233,7 +230,7 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 
 	t.Run("maps a GVK-only workload through the RESTMapper", func(t *testing.T) {
 		withAppliesToValidation(t)
-		app := appliesToApp(component("db", "gvk-only", "webservice-only"))
+		app := appliesToApp(component("db", "gvk-only", "cronjob-scaler"))
 
 		errs := appliesToErrs(appliesToHandler(definitions...), app)
 
@@ -283,16 +280,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		withAppliesToValidation(t)
 		app := appliesToApp(component("job", "cron-task", "cronjob-scaler", "sts-only", "apps-group"))
 		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
-	})
-
-	t.Run("still checks a definition name on a component with no workload type", func(t *testing.T) {
-		withAppliesToValidation(t)
-		app := appliesToApp(component("job", "cron-task", "webservice-only"))
-
-		errs := appliesToErrs(appliesToHandler(definitions...), app)
-
-		require.Len(t, errs, 1)
-		assert.Contains(t, errs[0].Detail, `(workload "")`)
 	})
 
 	t.Run("skips definitions that do not exist", func(t *testing.T) {
@@ -415,7 +402,7 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 
 	t.Run("uses spec.workload.type when a GVK is set as well", func(t *testing.T) {
 		withAppliesToValidation(t)
-		app := appliesToApp(component("db", "gvk-and-type", "sts-only", "webservice-only"))
+		app := appliesToApp(component("db", "gvk-and-type", "sts-only", "cronjob-scaler"))
 
 		errs := appliesToErrs(appliesToHandler(definitions...), app)
 
@@ -426,7 +413,7 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 
 	t.Run("a WorkloadDefinition without a definitionRef stands for its own name", func(t *testing.T) {
 		withAppliesToValidation(t)
-		app := appliesToApp(component("web", "wd-noref", "webservice-only"))
+		app := appliesToApp(component("web", "wd-noref", "cronjob-scaler"))
 
 		errs := appliesToErrs(appliesToHandler(definitions...), app)
 
@@ -436,13 +423,8 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 
 	t.Run("a component that declares no workload has no workload type", func(t *testing.T) {
 		withAppliesToValidation(t)
-		app := appliesToApp(component("x", "no-workload", "sts-only", "webservice-only"))
-
-		errs := appliesToErrs(appliesToHandler(definitions...), app)
-
-		require.Len(t, errs, 1)
-		assert.Equal(t, "spec.components[0].traits[1].type", errs[0].Field)
-		assert.Contains(t, errs[0].Detail, `(workload "")`)
+		app := appliesToApp(component("x", "no-workload", "sts-only", "cronjob-scaler"))
+		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 
 	t.Run("fails closed when the WorkloadDefinition cannot be read", func(t *testing.T) {

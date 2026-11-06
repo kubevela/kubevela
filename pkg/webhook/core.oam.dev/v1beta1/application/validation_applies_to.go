@@ -45,7 +45,7 @@ const errFmtTraitNotAppliable = "trait %q cannot apply to component %q of type %
 
 // appliesToTarget is what a trait's appliesToWorkloads is matched against.
 type appliesToTarget struct {
-	// definition is the ComponentDefinition name.
+	// definition is the ComponentDefinition name, for error messages.
 	definition string
 	// workload is <plural>.<group>, or empty when unknown (autodetect, unmapped).
 	workload string
@@ -286,31 +286,27 @@ func (h *ValidatingHandler) workloadDefinitionRef(ctx context.Context, name stri
 }
 
 // traitAppliesTo reports whether rules allow a trait on target. An empty list
-// allows anything.
+// allows anything. So does a component with no workload type (autodetect, e.g.
+// k8s-objects, or an unserved kind), since there is no workload to compare.
 func traitAppliesTo(rules []string, target appliesToTarget) bool {
-	return len(rules) == 0 || slices.ContainsFunc(rules, func(rule string) bool {
-		return appliesToRuleMatches(rule, target)
+	return len(rules) == 0 || target.workload == "" || slices.ContainsFunc(rules, func(rule string) bool {
+		return appliesToRuleMatches(rule, target.workload)
 	})
 }
 
-// appliesToRuleMatches checks one appliesToWorkloads entry against a component.
-func appliesToRuleMatches(rule string, target appliesToTarget) bool {
+// appliesToRuleMatches checks one appliesToWorkloads entry against a workload.
+func appliesToRuleMatches(rule, workload string) bool {
 	// "deployments.apps/v1" is matched as "deployments.apps".
 	rule, _, _ = strings.Cut(rule, "/")
 	switch {
-	// "*" matches any component; "webservice" matches webservice components.
-	case rule == "*" || rule == target.definition:
+	// "*" matches any workload.
+	case rule == "*":
 		return true
-	// The component has no workload type (autodetect, e.g. k8s-objects, or an
-	// unserved kind), so a workload entry like "deployments.apps" can't be
-	// checked and matches. A name like "worker" only matches through the case above.
-	case target.workload == "":
-		return strings.Contains(rule, ".")
 	// "*.apps" matches any workload in the apps group, e.g. deployments.apps.
 	case strings.HasPrefix(rule, "*."):
-		return schema.ParseGroupResource(target.workload).Group == strings.TrimPrefix(rule, "*.")
+		return schema.ParseGroupResource(workload).Group == strings.TrimPrefix(rule, "*.")
 	// "deployments.apps" matches only that workload.
 	default:
-		return rule == target.workload
+		return rule == workload
 	}
 }
