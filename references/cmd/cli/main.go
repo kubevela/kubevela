@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"time"
@@ -30,10 +31,23 @@ import (
 	"github.com/oam-dev/kubevela/references/cli"
 )
 
+// cliFeatureGates turns on every alpha feature for the CLI except the workflow
+// HTTP guard gates. Those are opt-in controller settings. Under AllAlpha they
+// would disable workflow HTTP and block private addresses, such as an internal
+// addon registry, in every vela command.
+const cliFeatureGates = "AllAlpha=true,DisableWorkflowHTTP=false,BlockPrivateHTTPAddresses=false"
+
+func setCLIFeatureGates() error {
+	return utilfeature.DefaultMutableFeatureGate.Set(cliFeatureGates)
+}
+
 func main() {
 	preimport.ResumeLogging()
 	rand.Seed(time.Now().UnixNano())
-	_ = utilfeature.DefaultMutableFeatureGate.Set("AllAlpha=true")
+	if err := setCLIFeatureGates(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to set the vela CLI feature gates: %v\n", err)
+		os.Exit(1)
+	}
 	system.BindEnvironmentVariables()
 
 	command := cli.NewCommand()

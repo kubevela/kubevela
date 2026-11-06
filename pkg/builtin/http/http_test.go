@@ -30,8 +30,11 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/http/testdata"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
@@ -97,6 +100,34 @@ func TestHTTPCmdRun(t *testing.T) {
 
 	assert.Equal(t, "{\"token\":\"test-token-no-header\"}", body)
 
+}
+
+func TestHTTPCmdRun_blocksLinkLocalMetadata(t *testing.T) {
+	runner, _ := newHTTPCmd(cue.Value{})
+	reqInst := cuecontext.New().CompileString(`method: "GET"
+url: "http://169.254.169.254/latest/meta-data/"`)
+	_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "blocked SSRF target")
+}
+
+func TestHTTPCmdRun_disableWorkflowHTTP(t *testing.T) {
+	previous := utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.DisableWorkflowHTTP)
+	require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+		string(workflowfeatures.DisableWorkflowHTTP): true,
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+			string(workflowfeatures.DisableWorkflowHTTP): previous,
+		}))
+	})
+
+	runner, _ := newHTTPCmd(cue.Value{})
+	reqInst := cuecontext.New().CompileString(`method: "GET"
+url: "http://127.0.0.1:8090/api/v1/token?val=test-token"`)
+	_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DisableWorkflowHTTP")
 }
 
 func TestHTTPSRun(t *testing.T) {
