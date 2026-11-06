@@ -392,7 +392,13 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 		return nil
 	}
 	// a copy: a retry overwrites it
-	return deleteManagedResourceWithRetry(ctx, h.Client, mr, entry.obj.DeepCopy(), h.owner, h.policies.GarbageCollect, true)
+	if err := deleteManagedResourceWithRetry(ctx, h.Client, mr, entry.obj.DeepCopy(), h.owner, h.policies.GarbageCollect, true); err != nil {
+		return err
+	}
+	// A handoff or retry may change whether we manage this resource. Sweep
+	// must read it again before deciding whether to retain the tracker finalizer.
+	entry.loaded = false
+	return nil
 }
 
 // DeleteManagedResource lets owner go of a resource it manages: if others share it, owner

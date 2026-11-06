@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -274,8 +275,34 @@ func TestDeleteRetryAfterManagementChanges(t *testing.T) {
 			r.NoError(cli.Create(ctx, obj))
 			owner := newAppOwner(&v1beta1.Application{ObjectMeta: v12.ObjectMeta{Name: "a", Namespace: "default"}})
 			mr := v1beta1.ManagedResource{}
-			err := deleteManagedResourceWithRetry(ctx, cli, mr, obj.DeepCopy(), owner, nil, managedOnly)
-			r.NoError(err)
+			mr.APIVersion, mr.Kind = "v1", "ConfigMap"
+			mr.Name, mr.Namespace = obj.GetName(), obj.GetNamespace()
+			var err error
+			if managedOnly {
+				rt := &v1beta1.ResourceTracker{ObjectMeta: v12.ObjectMeta{Name: "gc-retry", Finalizers: []string{resourcetracker.Finalizer}}}
+				rt.Spec.ManagedResources = []v1beta1.ManagedResource{mr}
+				r.NoError(cli.Create(ctx, rt))
+				r.NoError(cli.Delete(ctx, rt))
+				r.NoError(cli.Get(ctx, client.ObjectKeyFromObject(rt), rt))
+				keeper := &resourceKeeper{Client: cli, owner: owner, cache: newResourceCache(cli, owner)}
+				keeper._currentRT = rt
+				keeper.cache.registerResourceTrackers(rt)
+				h := &gcHandler{resourceKeeper: keeper, cfg: newGCConfig()}
+				done, waiting, sweepErr := h.Sweep(ctx)
+				r.NoError(sweepErr)
+				r.False(done)
+				r.Len(waiting, 1)
+				r.NoError(h.deleteManagedResource(ctx, mr, rt))
+				done, waiting, sweepErr = h.Sweep(ctx)
+				r.NoError(sweepErr)
+				r.True(done)
+				r.Empty(waiting)
+				err = cli.Get(ctx, client.ObjectKeyFromObject(rt), &v1beta1.ResourceTracker{})
+				r.True(kerrors.IsNotFound(err), "Sweep must release the tracker finalizer")
+			} else {
+				err = DeleteManagedResource(ctx, cli, mr, obj.DeepCopy(), owner, nil)
+				r.NoError(err)
+			}
 			r.True(raced)
 			live := &v1.ConfigMap{}
 			err = cli.Get(ctx, client.ObjectKeyFromObject(obj), live)
