@@ -1363,12 +1363,19 @@ var _ = Describe("Helmchart valuesFrom", Label("core-helm"), func() {
 		}, 120*time.Second, 3*time.Second).Should(Succeed())
 	}
 
+	// valuesFromConvergeTimeout bounds the waits for the shared Application
+	// below to converge, per release and as a whole. It carries fourteen
+	// releases, and with the suites running in parallel a slow run has needed
+	// close to three minutes; a run that is already converged passes on the
+	// first poll.
+	const valuesFromConvergeTimeout = 3 * time.Minute
+
 	waitForNamedReplicas := func(h *helmTestContext, deployName string, want int32) {
 		Eventually(func(g Gomega) {
 			deploy := &appsv1.Deployment{}
 			g.Expect(k8sClient.Get(h.Ctx, types.NamespacedName{Namespace: h.Namespace, Name: deployName}, deploy)).Should(Succeed())
 			g.Expect(deploy.Status.ReadyReplicas).Should(Equal(want))
-		}, 120*time.Second, 3*time.Second).Should(Succeed())
+		}, valuesFromConvergeTimeout, 3*time.Second).Should(Succeed())
 	}
 
 	cmRef := func(name string, opts ...map[string]interface{}) map[string]interface{} {
@@ -1554,14 +1561,14 @@ replicaCount: 2
 				}
 				g.Expect(healthy).ShouldNot(BeNil(), "no status for podinfo-health")
 				g.Expect(*healthy).Should(BeTrue())
-			}).WithTimeout(60 * time.Second).Should(Succeed())
+			}).WithTimeout(valuesFromConvergeTimeout).Should(Succeed())
 		})
 
 		It("should bring the Application with every release to running", func() {
 			EventuallyReconciled(h.Ctx, h.App, func(g Gomega) {
 				g.Expect(k8sClient.Get(h.Ctx, h.AppKey, h.App)).Should(Succeed())
 				g.Expect(h.App.Status.Phase).Should(Equal(common2.ApplicationRunning))
-			}).WithTimeout(2 * time.Minute).WithPolling(3 * time.Second).Should(Succeed())
+			}).WithTimeout(valuesFromConvergeTimeout).WithPolling(3 * time.Second).Should(Succeed())
 		})
 
 		It("should recreate a CM-backed Deployment with the same values after it is deleted", func() {
