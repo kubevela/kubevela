@@ -30,7 +30,6 @@ template: {
 			name:      context.name
 			namespace: context.namespace
 			labels: {
-				"config.oam.dev/catalog": "velacore-config"
 				"config.oam.dev/type":    "vela-core-http-deny"
 				"config.oam.dev/scope":   "system"
 			}
