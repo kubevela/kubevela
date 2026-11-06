@@ -297,7 +297,7 @@ func TestCreateOrUpdateDiffsConfigMap_UpdateRefreshesOwner(t *testing.T) {
 
 	cli := fake.NewClientBuilder().WithScheme(s).WithObjects(stale).Build()
 
-	if err := createOrUpdateDiffsConfigMap(ctx, cli, app, map[string]string{"new-key": "new-val"}); err != nil {
+	if err := createOrUpdateDiffsConfigMap(ctx, cli, app, map[string]string{"new-key": "new-val"}, nil); err != nil {
 		t.Fatalf("createOrUpdateDiffsConfigMap: %v", err)
 	}
 

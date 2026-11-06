@@ -28,4 +28,21 @@ var (
 var (
 	// ApplicationReSyncPeriod re-sync period to reconcile application
 	ApplicationReSyncPeriod = time.Minute * 5
+	// ApplicationDefaultAutoRevision is whether policy-rendered spec changes cut a new
+	// ApplicationRevision for apps without the policy.oam.dev/auto-revision annotation.
+	ApplicationDefaultAutoRevision = false
+	// ApplicationDefaultApplyPolicyUpdates is whether apps without the
+	// policy.oam.dev/apply-policy-updates annotation adopt new policy versions.
+	ApplicationDefaultApplyPolicyUpdates = false
+	// ApplicationDefaultApplyDataChanges is whether apps without the
+	// policy.oam.dev/apply-data-changes annotation take changed policy output.
+	ApplicationDefaultApplyDataChanges = false
+	// AllowNamespaceGlobalPolicies is whether global Application-scoped PolicyDefinitions outside
+	// vela-system apply (to the Applications in their namespace). Off, global policies are
+	// platform-wide only: they live in vela-system, and the webhook refuses new ones elsewhere.
+	AllowNamespaceGlobalPolicies = false
+	// AllowSkipGlobalPolicies is whether an Application may opt out of global policies with the
+	// policy.oam.dev/skip-global annotation. Off, global policies are mandatory: the webhook
+	// refuses adding the annotation and the controller ignores it.
+	AllowSkipGlobalPolicies = false
 )

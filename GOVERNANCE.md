@@ -19,9 +19,15 @@ for the schedule and joining links.
 
 Changes that introduce new behavior or modify existing requirements go through
 a KubeVela Enhancement Proposal, tracked under
-[design/](https://github.com/kubevela/kubevela/tree/master/design). Simple
-additions and bug fixes can go straight to a pull request, see
-[CONTRIBUTING.md](./CONTRIBUTING.md).
+[design/](https://github.com/kubevela/kubevela/tree/master/design).
+
+All changes, including simple additions and bug fixes, must have an associated
+issue assigned by a maintainer before a pull request is raised. A pull request
+without an assigned issue will not be picked up and may be closed. Automated
+dependency and backport pull requests are exempt, and maintainers can raise
+pull requests without an issue if needed. Security vulnerabilities must not be
+reported in a public issue. Follow [SECURITY.md](./SECURITY.md) instead; security
+fixes handled that way are exempt. See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Membership
 

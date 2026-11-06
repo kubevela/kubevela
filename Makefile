@@ -19,6 +19,7 @@ test: envtest unit-test-core test-cli-gen
 test-cli-gen: 
 	@mkdir -p ./bin/doc
 	@go run ./hack/docgen/cli/gen.go ./bin/doc
+	@go run ./hack/docgen/mcp ./bin/doc/vela-mcp-tools.md
 
 ## unit-test-core: Run the unit tests for core
 unit-test-core:

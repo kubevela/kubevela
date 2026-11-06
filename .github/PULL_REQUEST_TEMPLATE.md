@@ -5,9 +5,10 @@ copilot:all
 
 <!--
 
-Briefly describe what this pull request does. We love pull requests that resolve an open KubeVela issue. If yours does, you
-can uncomment the below line to indicate which issue your PR fixes, for example
-"Fixes #500":
+Briefly describe what this pull request does. Unless you are a maintainer, your pull request must be associated with an open
+KubeVela issue assigned to you by a maintainer. A pull request without an assigned issue will not be picked up and may be closed.
+Use the line below to link the issue, for example "Fixes #500". If your pull request only completes part of the issue, use
+"Related to #500" instead so the issue stays open:
 
 -->
 
