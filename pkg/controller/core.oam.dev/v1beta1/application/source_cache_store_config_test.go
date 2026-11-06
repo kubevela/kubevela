@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -151,13 +152,18 @@ func storeWith(f *fakeConfigFactory, cli client.Client, templates map[string]str
 }
 
 // cacheEntry is a cache entry's Secret as the store writes it: created at created,
-// last synced at syncAt when set, marked sensitive as its Config makes it.
+// last synced at syncAt when set, marked sensitive as its Config makes it, with the
+// source cache's label and controlled by the Config of its name.
 func cacheEntry(created time.Time, syncAt string) *corev1.Secret {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "k", Namespace: sources.CacheNamespace(),
 			CreationTimestamp: metav1.NewTime(created),
+			Labels:            map[string]string{apitypes.LabelSourceDefinitionName: "http-get"},
 			Annotations:       map[string]string{apitypes.AnnotationConfigSensitive: "true"},
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(
+				&configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: "k", UID: "cfg-uid"}},
+				configv1alpha1.SchemeGroupVersion.WithKind(configv1alpha1.ConfigKind))},
 		},
 		Data: map[string][]byte{config.SaveInputPropertiesKey: []byte(`{"image":"nginx"}`)},
 	}
@@ -199,6 +205,59 @@ func TestConfigStoreReadsAnEntryMarkedSensitive(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, got.Found)
 	require.Equal(t, map[string]interface{}{"image": "nginx"}, got.Data)
+}
+
+// Only an entry the store wrote is read: anything else of the name, a Secret planted in
+// the cache namespace among them, is an error, which the resolver logs and treats as a
+// miss, so the source is fetched and no stale value is served from it.
+func TestConfigStoreReadsOnlyItsOwnEntries(t *testing.T) {
+	ns := sources.CacheNamespace()
+	cases := map[string]struct {
+		mutate func(*corev1.Secret)
+		want   string
+	}{
+		"no source cache label": {
+			mutate: func(s *corev1.Secret) { s.Labels = nil },
+			want:   "secret " + ns + "/k is not a source cache entry: no sourcedefinition.oam.dev/name label",
+		},
+		"no controller": {
+			mutate: func(s *corev1.Secret) { s.OwnerReferences = nil },
+			want:   "secret " + ns + "/k is not a source cache entry: the Config k does not control it",
+		},
+		"controlled by a Config of another name": {
+			mutate: func(s *corev1.Secret) { s.OwnerReferences[0].Name = "other" },
+			want:   "secret " + ns + "/k is not a source cache entry: the Config k does not control it",
+		},
+		"controlled by something that is not a Config": {
+			mutate: func(s *corev1.Secret) { s.OwnerReferences[0].Kind = "Application" },
+			want:   "secret " + ns + "/k is not a source cache entry: the Config k does not control it",
+		},
+		"controlled by a Config of another API group": {
+			mutate: func(s *corev1.Secret) { s.OwnerReferences[0].APIVersion = "example.com/v1" },
+			want:   "secret " + ns + "/k is not a source cache entry: the Config k does not control it",
+		},
+		"owned by the Config but not as controller": {
+			mutate: func(s *corev1.Secret) { s.OwnerReferences[0].Controller = nil },
+			want:   "secret " + ns + "/k is not a source cache entry: the Config k does not control it",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			secret := cacheEntry(time.Now().UTC().Add(-time.Minute), "")
+			tc.mutate(secret)
+			got, err := storeReading(secret).Read(context.Background(), "k", time.Hour)
+			require.EqualError(t, err, tc.want)
+			require.Equal(t, velaprocess.SourceCacheRead{}, got, "nothing of the Secret is served")
+		})
+	}
+
+	t.Run("an entry with no input-properties is an error, not a found-but-empty entry", func(t *testing.T) {
+		secret := cacheEntry(time.Now().UTC().Add(-time.Minute), "")
+		secret.Data = nil
+		got, err := storeReading(secret).Read(context.Background(), "k", time.Hour)
+		require.Error(t, err)
+		require.False(t, got.Found)
+	})
 }
 
 func TestConfigStoreReadReportsFreshnessFromTheSyncAnnotation(t *testing.T) {
@@ -436,6 +495,61 @@ func TestConfigStoreWritePrefersTheTemplateTheRenderUsed(t *testing.T) {
 // the Secret with propertiesFrom instead, which is what that field is for. The
 // controller only ever reads a propertiesFrom Secret, so nothing overwrites the
 // cached values.
+// Write leaves a Secret of the key's name it did not write alone. The factory's template
+// guard does not hold for a source with no schema (no template named), so without this a
+// foreign Secret would be merged into and adopted by the entry's Config.
+func TestConfigStoreWriteRefusesASecretItDidNotWrite(t *testing.T) {
+	ns := sources.CacheNamespace()
+	meta := velaprocess.SourceCacheWriteMeta{TTL: time.Minute, SourceDefName: "atlas", SourceDefNamespace: "vela-system"}
+	data := map[string]interface{}{"host": "example.com"}
+	planted := func(mutate func(*corev1.Secret)) *corev1.Secret {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "atlas-abc123", Namespace: ns},
+			Data:       map[string][]byte{config.SaveInputPropertiesKey: []byte(`{"host":"planted"}`)},
+		}
+		mutate(secret)
+		return secret
+	}
+
+	t.Run("no source cache label", func(t *testing.T) {
+		r := require.New(t)
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(planted(func(*corev1.Secret) {})).Build()
+		err := newConfigAPISourceCacheStore(cli, nil).Write(context.Background(), "atlas-abc123", "atlas", data, meta)
+		r.EqualError(err, "secret "+ns+"/atlas-abc123 is not a source cache entry: no sourcedefinition.oam.dev/name label")
+		var got corev1.Secret
+		r.NoError(cli.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: "atlas-abc123"}, &got))
+		r.Equal(`{"host":"planted"}`, string(got.Data[config.SaveInputPropertiesKey]), "left as it was")
+		r.Empty(got.OwnerReferences, "not adopted")
+		r.True(apierrors.IsNotFound(cli.Get(context.Background(), types.NamespacedName{Namespace: ns, Name: "atlas-abc123"}, &configv1alpha1.Config{})), "no Config declared for it")
+	})
+
+	t.Run("marked but controlled by something else", func(t *testing.T) {
+		r := require.New(t)
+		secret := planted(func(s *corev1.Secret) {
+			s.Labels = map[string]string{apitypes.LabelSourceDefinitionName: "atlas"}
+			s.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(
+				&v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "someone", UID: "app-uid"}},
+				v1beta1.SchemeGroupVersion.WithKind(v1beta1.ApplicationKind))}
+		})
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(secret).Build()
+		err := newConfigAPISourceCacheStore(cli, nil).Write(context.Background(), "atlas-abc123", "atlas", data, meta)
+		r.EqualError(err, "secret "+ns+"/atlas-abc123 is not a source cache entry: Application someone controls it")
+	})
+
+	t.Run("marked and controlled by nothing yet: an entry whose adoption the write completes", func(t *testing.T) {
+		r := require.New(t)
+		secret := planted(func(s *corev1.Secret) {
+			s.Labels = map[string]string{apitypes.LabelSourceDefinitionName: "atlas", apitypes.LabelConfigCatalog: apitypes.VelaCoreConfig}
+		})
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(secret).Build()
+		s := newConfigAPISourceCacheStore(cli, nil)
+		r.NoError(s.Write(context.Background(), "atlas-abc123", "atlas", data, meta))
+		got, err := s.Read(context.Background(), "atlas-abc123", time.Hour)
+		r.NoError(err)
+		r.Equal("example.com", got.Data["host"])
+	})
+}
+
 func TestConfigStoreWriteDeclaresTheEntryThroughTheAPI(t *testing.T) {
 	r := require.New(t)
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()

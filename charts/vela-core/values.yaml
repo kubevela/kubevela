@@ -17,8 +17,18 @@ definitionRevisionLimit: 2
 concurrentReconciles: 4
 
 ## @param controllerArgs.reSyncPeriod The period for resync the applications
+## @param controllerArgs.defaultAutoRevision Default for autoRevision when neither the auto-revision annotation nor the policy template sets it
+## @param controllerArgs.defaultApplyPolicyUpdates Default for applyPolicyUpdates when neither the apply-policy-updates annotation nor the policy template sets it
+## @param controllerArgs.defaultApplyDataChanges Default for applyDataChanges when neither the apply-data-changes annotation nor the policy template sets it
+## @param controllerArgs.allowNamespaceGlobalPolicies Whether global policies outside vela-system apply to the applications in their namespace
+## @param controllerArgs.allowSkipGlobalPolicies Whether applications may opt out of global policies with the policy.oam.dev/skip-global annotation
 controllerArgs:
   reSyncPeriod: 5m
+  defaultAutoRevision: false
+  defaultApplyPolicyUpdates: false
+  defaultApplyDataChanges: false
+  allowNamespaceGlobalPolicies: false
+  allowSkipGlobalPolicies: false
 
 
 ## @section KubeVela workflow parameters
@@ -38,6 +48,12 @@ controllerArgs:
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
 ## @param workflow.step.forEachMaxItems The max number of items a forEach step may iterate
+## @param workflow.httpDeny.configTemplateName ConfigTemplate name and discovery label value. The chart templates the controller flag, the ConfigTemplate and the CUE labels from this one value. Discovery only reads ConfigMaps in the controller namespace. Must be a string of dot-separated parts made of lowercase letters, digits and -, each starting and ending with a letter or digit, at most 63 characters in total; quote a name that YAML would read as a number, a boolean or null. Empty disables discovery and skips installing the template/default ConfigMap.
+## @param workflow.httpDeny.installConfigTemplate Install the workflow-http-deny ConfigTemplate into the release namespace
+## @param workflow.httpDeny.defaultConfig.enabled Install a labeled default denylist ConfigMap
+## @param workflow.httpDeny.defaultConfig.name Name of the shipped default denylist ConfigMap (unique per chart)
+## @param workflow.httpDeny.defaultConfig.denyHosts Default deny hostnames
+## @param workflow.httpDeny.defaultConfig.denyCIDRs Default deny CIDRs and addresses
 workflow:
   enableSuspendOnFailure: false
   enableExternalPackageForDefaultCompiler: true
@@ -57,6 +73,21 @@ workflow:
   step:
     errorRetryTimes: 10
     forEachMaxItems: 50
+  httpDeny:
+    # Prefixed per chart so dual-install with vela-workflow owns distinct ConfigTemplates
+    # and default ConfigMaps. The controller flag is templated from this value.
+    configTemplateName: vela-core-http-deny
+    installConfigTemplate: true
+    defaultConfig:
+      enabled: true
+      name: vela-core-http-deny-default
+      denyHosts:
+        - metadata.google.internal
+      denyCIDRs:
+        - 169.254.0.0/16
+        - fe80::/10
+        - fd00:ec2::254
+        - 100.100.100.200
 
 
 ## @section KubeVela Helm cache parameters
@@ -172,6 +203,8 @@ optimize:
 ##@param featureGates.enableDefinitionInheritance enable spec.extends on ComponentDefinition and TraitDefinition
 ##@param featureGates.enableModuleComponent enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)
 ##@param featureGates.autoMigrateLegacyConfigs adopt legacy config templates and configs into ConfigTemplate and Config CRs once at controller startup, the same as running vela config-template migrate --all in every namespace; legacy objects are kept (Alpha)
+##@param featureGates.disableWorkflowHTTP disable outbound HTTP from workflow request/webhook steps
+##@param featureGates.blockPrivateHTTPAddresses block workflow outbound HTTP to RFC-1918 and ULA destinations
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -202,6 +235,8 @@ featureGates:
   restrictDefinitionNamespaces: true
   enableDefinitionInheritance: false
   autoMigrateLegacyConfigs: false
+  disableWorkflowHTTP: false
+  blockPrivateHTTPAddresses: false
 
 ## @section Definition restriction parameters
 

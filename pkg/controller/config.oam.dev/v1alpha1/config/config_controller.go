@@ -75,6 +75,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
+	// The Nacos endpoint marker follows the Config before anything can fail too: an owner
+	// who takes it back from a Config in Error has taken it back from its Secret.
+	if err := r.syncNacosEndpointMarker(ctx, &cfg); err != nil {
+		return r.markError(ctx, &cfg, err)
+	}
+
 	// spec.propertiesFrom makes the Config sensitive whatever its template says, so its
 	// Secret is marked before anything can fail, the template's resolution included: a
 	// template deleted, in Error or not yet Available leaves the Secret refused too.
@@ -204,6 +210,34 @@ func (r *Reconciler) markSecretSensitive(ctx context.Context, cfg *configv1alpha
 	metav1.SetMetaDataAnnotation(&secret.ObjectMeta, apitypes.AnnotationConfigSensitive, legacyconfig.SensitiveAnnotationValue)
 	if err := r.Patch(ctx, &secret, patch); err != nil {
 		return fmt.Errorf("failed to mark secret %s/%s sensitive: %w", secret.Namespace, secret.Name, err)
+	}
+	return nil
+}
+
+// syncNacosEndpointMarker brings the AnnotationConfigNacosEndpoint marker on the Secret this
+// Config owns in line with the Config's own annotation. A Secret it does not own, or none
+// yet, is left alone; applySecret writes the marker on a new one.
+func (r *Reconciler) syncNacosEndpointMarker(ctx context.Context, cfg *configv1alpha1.Config) error {
+	name := cfg.Name
+	if cfg.Status.SecretRef != nil {
+		name = cfg.Status.SecretRef.Name
+	}
+	var secret corev1.Secret
+	if err := r.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: name}, &secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	marked := legacyconfig.NacosEndpointMarked(cfg)
+	if !metav1.IsControlledBy(&secret, cfg) || legacyconfig.NacosEndpointMarked(&secret) == marked {
+		return nil
+	}
+	patch := client.MergeFrom(secret.DeepCopy())
+	if marked {
+		metav1.SetMetaDataAnnotation(&secret.ObjectMeta, apitypes.AnnotationConfigNacosEndpoint, legacyconfig.NacosEndpointAnnotationValue)
+	} else {
+		delete(secret.Annotations, apitypes.AnnotationConfigNacosEndpoint)
+	}
+	if err := r.Patch(ctx, &secret, patch); err != nil {
+		return fmt.Errorf("failed to sync the nacos endpoint marker on secret %s/%s: %w", secret.Namespace, secret.Name, err)
 	}
 	return nil
 }
@@ -435,6 +469,14 @@ func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config
 			existing.Annotations[apitypes.AnnotationConfigSensitive] = legacyconfig.SensitiveAnnotationValue
 		}
 		delete(existing.Annotations, apitypes.AnnotationConfigAdoptBy) // the mark has done its work
+		// The Nacos endpoint marker is the Config owner's leave and follows the Config's
+		// own annotation: neither the template's output nor a hand edit of the Secret
+		// grants it, and removing it from the Config takes it away.
+		if legacyconfig.NacosEndpointMarked(cfg) {
+			existing.Annotations[apitypes.AnnotationConfigNacosEndpoint] = legacyconfig.NacosEndpointAnnotationValue
+		} else {
+			delete(existing.Annotations, apitypes.AnnotationConfigNacosEndpoint)
+		}
 		existing.Data = secret.Data
 		existing.StringData = secret.StringData
 		existing.Type = secret.Type

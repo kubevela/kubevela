@@ -109,6 +109,10 @@ var ErrMutuallyExclusiveProperties = errors.New("spec.properties and spec.proper
 // SensitiveAnnotationValue is the AnnotationConfigSensitive value that marks a config/template sensitive.
 const SensitiveAnnotationValue = "true"
 
+// NacosEndpointAnnotationValue is the AnnotationConfigNacosEndpoint value that marks a
+// config for use as a Nacos endpoint.
+const NacosEndpointAnnotationValue = "true"
+
 // ErrChangeTemplate means the template of the config can not be changed
 var ErrChangeTemplate = errors.New("the template of the config can not be changed")
 
@@ -688,6 +692,8 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 		if secret.Annotations == nil {
 			secret.Annotations = map[string]string{}
 		}
+		// the Nacos endpoint marker is the config owner's to set, never the template's
+		delete(secret.Annotations, types.AnnotationConfigNacosEndpoint)
 		secret.Annotations[types.AnnotationConfigSensitive] = fmt.Sprintf("%t", template.Sensitive)
 		secret.Annotations[types.AnnotationConfigTemplateNamespace] = template.Namespace
 		config.Template = *template
@@ -775,8 +781,8 @@ func ReadConfigSecret(secret *v1.Secret) (map[string]interface{}, error) {
 // SecretInputProperties returns the input properties a config Secret holds, sensitive or
 // not. The sensitive mark guards what users read back; a controller reading a config it
 // keeps for its own use, as the application controller reads its source cache entries
-// and the Config controller a template's Nacos endpoint config, reads it whatever the
-// mark.
+// and the Config controller a Nacos endpoint config its owner marked for that use
+// (AnnotationConfigNacosEndpoint), reads it whatever the sensitive mark.
 func SecretInputProperties(secret *v1.Secret) (map[string]interface{}, error) {
 	properties, ok := secret.Data[SaveInputPropertiesKey]
 	if !ok || len(properties) == 0 {

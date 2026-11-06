@@ -78,7 +78,8 @@ func NewTemplateMigrateCommand(f velacmd.Factory, streams util.IOStreams) *cobra
 config made from it, in any namespace, into ConfigTemplate and Config CRs. Nothing is deleted:
 each config Secret becomes owned by its Config, the template ConfigMap is annotated with the
 ConfigTemplate that replaced it, and a second run skips both. --all does this for every legacy
-template in the namespace, then for the legacy configs left there.`),
+template in the namespace, then for the legacy configs left there. Objects a GitOps tool applies
+are adopted too; the report says which, and their new CRs belong where the legacy ones are kept.`),
 		Example: `  vela config-template migrate my-template -n vela-system
   vela config-template migrate my-template -n vela-system --dry-run
   vela config-template migrate --all -n vela-system`,
@@ -113,7 +114,8 @@ func NewConfigMigrateCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 The template may already be a ConfigTemplate CR or still a legacy ConfigMap; both work, unless a
 ConfigTemplate that migration did not create shadows the legacy ConfigMap, which is a conflict. The
 Secret is kept and becomes owned by the Config; a second run skips it. --all does this for
-every legacy config in the namespace, with or without a template.`),
+every legacy config in the namespace, with or without a template. Secrets a GitOps tool applies
+are adopted too; the report says which, and their new Configs belong where the Secrets are kept.`),
 		Example: `  vela config migrate my-config -n my-team
   vela config migrate my-config -n my-team --dry-run
   vela config migrate --all -n my-team`,

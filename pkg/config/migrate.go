@@ -41,6 +41,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 // MigrationOutcome is what happened to one legacy object during a migration run.
@@ -65,6 +66,11 @@ const (
 	EventMigrationConflict = "MigrationConflict"
 	EventMigrationFailed   = "MigrationFailed"
 )
+
+// migrationFieldOwner is the field manager of every write migration makes, so a GitOps tool
+// that applies the legacy objects server-side sees the owner references and annotations
+// migration adds owned by another manager, not as drift in its own fields.
+var migrationFieldOwner = client.FieldOwner("kubevela-config-migration")
 
 const (
 	reasonAlreadyMigrated   = "already migrated"
@@ -429,18 +435,13 @@ func isLegacyConfig(secret *corev1.Secret) bool {
 	if secret.Labels[types.LabelConfigCatalog] != types.VelaCoreConfig {
 		return false
 	}
-	if isSourceCacheEntry(secret) {
+	if sources.IsSourceCacheEntry(secret) {
 		return false
 	}
 	if isConfigCRDOwned(secret) && secret.Annotations[types.AnnotationConfigMigratedTo] == "" {
 		return false
 	}
 	return true
-}
-
-func isSourceCacheEntry(secret *corev1.Secret) bool {
-	_, generated := secret.Labels[types.LabelSourceDefinitionName]
-	return generated
 }
 
 func templateNamespaceOf(secret *corev1.Secret) string {
@@ -480,10 +481,17 @@ func withMigrationLabel(labels map[string]string) map[string]string {
 func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.ConfigMap, bound []corev1.Secret, opts MigrationOptions, report *MigrationReport) {
 	name := strings.TrimPrefix(cm.Name, TemplateConfigMapNamePrefix)
 	res := MigrationResult{Kind: kindConfigMap, Namespace: cm.Namespace, Name: name}
+	note := gitOpsNote(cm, kindConfigMap, configv1alpha1.ConfigTemplateKind)
 	finish := func(outcome MigrationOutcome, reason string) {
+		if outcome == MigrationAdopted && note != "" {
+			reason += "; " + note
+		}
 		res.Outcome, res.Reason = outcome, reason
 		report.add(res)
 		m.recordOutcome(opts, cm, res)
+		if outcome == MigrationAdopted && note != "" {
+			m.event(opts, res.Target, corev1.EventTypeNormal, EventMigratedGitOpsManaged, note)
+		}
 	}
 
 	if optedOut(cm) {
@@ -555,7 +563,7 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 		finish(MigrationAdopted, reason)
 		return
 	}
-	if err := m.cli.Create(ctx, ct); err != nil {
+	if err := m.cli.Create(ctx, ct, migrationFieldOwner); err != nil {
 		finish(MigrationFailed, err.Error())
 		return
 	}
@@ -571,10 +579,17 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 // its distribution Application.
 func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secret, opts MigrationOptions, report *MigrationReport) {
 	res := MigrationResult{Kind: kindSecret, Namespace: secret.Namespace, Name: secret.Name}
+	note := gitOpsNote(secret, kindSecret, configv1alpha1.ConfigKind)
 	finish := func(outcome MigrationOutcome, reason string) {
+		if outcome == MigrationAdopted && note != "" {
+			reason += "; " + note
+		}
 		res.Outcome, res.Reason = outcome, reason
 		report.add(res)
 		m.recordOutcome(opts, secret, res)
+		if outcome == MigrationAdopted && note != "" {
+			m.event(opts, res.Target, corev1.EventTypeNormal, EventMigratedGitOpsManaged, note)
+		}
 	}
 
 	// What is not a legacy config is settled before any Config lookup: the Secret a
@@ -583,7 +598,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		finish(MigrationSkipped, reasonOptedOut)
 		return
 	}
-	if isSourceCacheEntry(secret) {
+	if sources.IsSourceCacheEntry(secret) {
 		finish(MigrationSkipped, reasonSourceCacheEntry)
 		return
 	}
@@ -661,7 +676,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		return
 	}
 	if propsSecret != nil {
-		if err := m.cli.Create(ctx, propsSecret); err != nil && !apierrors.IsAlreadyExists(err) {
+		if err := m.cli.Create(ctx, propsSecret, migrationFieldOwner); err != nil && !apierrors.IsAlreadyExists(err) {
 			finish(MigrationFailed, fmt.Sprintf("properties Secret %s: %v", propsSecret.Name, err))
 			return
 		}
@@ -704,7 +719,7 @@ func (m *Migrator) createConfig(ctx context.Context, cfg *configv1alpha1.Config)
 	var err error
 	backoff := pendingBackoff
 	for {
-		if err = m.cli.Create(ctx, cfg); err == nil || !strings.Contains(err.Error(), pendingTemplatePhrase) || backoff.Steps <= 1 {
+		if err = m.cli.Create(ctx, cfg, migrationFieldOwner); err == nil || !strings.Contains(err.Error(), pendingTemplatePhrase) || backoff.Steps <= 1 {
 			return err
 		}
 		select {
@@ -761,6 +776,11 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		},
 		Spec: configv1alpha1.ConfigSpec{Alias: legacy.Alias, Description: legacy.Description},
 	}
+	// the owner's leave to serve as a Nacos endpoint moves to the Config, which the
+	// controller carries back to the Secret
+	if NacosEndpointMarked(secret) {
+		cfg.Annotations = map[string]string{types.AnnotationConfigNacosEndpoint: NacosEndpointAnnotationValue}
+	}
 	raw := secret.Data[SaveInputPropertiesKey]
 	if string(raw) == "null" {
 		raw = nil
@@ -804,6 +824,12 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		SecretRef: configv1alpha1.SecretKeySelector{Name: propsSecret.Name},
 	}
 	return cfg, propsSecret, nil, nil
+}
+
+// NacosEndpointMarked reports whether a Config CR or a config Secret carries the owner's
+// leave to serve as a Nacos endpoint while sensitive.
+func NacosEndpointMarked(obj metav1.Object) bool {
+	return obj.GetAnnotations()[types.AnnotationConfigNacosEndpoint] == NacosEndpointAnnotationValue
 }
 
 // SecretSensitive reports whether a config Secret is marked sensitive. For a legacy
@@ -985,7 +1011,7 @@ func (m *Migrator) adopt(ctx context.Context, cfg *configv1alpha1.Config, secret
 	distribution := DefaultDistributionName(cfg.Name)
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: distribution}, &v1beta1.Application{}); {
 	case err == nil:
-		if err := SetDistributionOwner(ctx, m.cli, cfg.Namespace, cfg.Name, distribution); err != nil {
+		if err := SetDistributionOwner(ctx, m.cli, cfg.Namespace, cfg.Name, distribution, migrationFieldOwner); err != nil {
 			return err
 		}
 	case apierrors.IsNotFound(err):
@@ -1031,7 +1057,7 @@ func (m *Migrator) own(ctx context.Context, cfg *configv1alpha1.Config, obj clie
 	if !changed {
 		return nil
 	}
-	return m.cli.Patch(ctx, obj, client.MergeFrom(orig))
+	return m.cli.Patch(ctx, obj, client.MergeFrom(orig), migrationFieldOwner)
 }
 
 // markAdoptBy writes the mark the Config controller adopts the Secret on (see
@@ -1039,7 +1065,7 @@ func (m *Migrator) own(ctx context.Context, cfg *configv1alpha1.Config, obj clie
 func (m *Migrator) markAdoptBy(ctx context.Context, secret *corev1.Secret, configName string) error {
 	orig := secret.DeepCopy()
 	setAnnotation(secret, types.AnnotationConfigAdoptBy, configName)
-	return m.cli.Patch(ctx, secret, client.MergeFrom(orig))
+	return m.cli.Patch(ctx, secret, client.MergeFrom(orig), migrationFieldOwner)
 }
 
 // unmarkAdoptBy takes the mark back when no Config followed it.
@@ -1052,7 +1078,7 @@ func (m *Migrator) unmarkAdoptBy(ctx context.Context, secret *corev1.Secret) err
 	}
 	orig := secret.DeepCopy()
 	delete(secret.Annotations, types.AnnotationConfigAdoptBy)
-	return m.cli.Patch(ctx, secret, client.MergeFrom(orig))
+	return m.cli.Patch(ctx, secret, client.MergeFrom(orig), migrationFieldOwner)
 }
 
 // applicationMarkKeys are the labels an Application's dispatcher leaves on what it applies:
@@ -1097,7 +1123,7 @@ func dropStaleConfigOwner(obj metav1.Object, cfg *configv1alpha1.Config) {
 func (m *Migrator) annotateMigratedTo(ctx context.Context, obj client.Object, uid k8stypes.UID) error {
 	orig := obj.DeepCopyObject().(client.Object)
 	setAnnotation(obj, types.AnnotationConfigMigratedTo, string(uid))
-	return m.cli.Patch(ctx, obj, client.MergeFrom(orig))
+	return m.cli.Patch(ctx, obj, client.MergeFrom(orig), migrationFieldOwner)
 }
 
 func setAnnotation(obj metav1.Object, key, value string) {

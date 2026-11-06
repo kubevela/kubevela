@@ -146,7 +146,7 @@ const (
 	ReasonNacosEndpointNotFound condition.ConditionReason = "EndpointNotFound"
 	// ReasonNacosEndpointUnreadable: the endpoint config exists but cannot be used (no
 	// properties, undecodable, the API refused the read, or no Nacos client can be built from
-	// what it holds). A sensitive endpoint config is read like any other.
+	// what it holds), or it is sensitive and not marked config.oam.dev/nacos-endpoint: "true".
 	ReasonNacosEndpointUnreadable condition.ConditionReason = "EndpointUnreadable"
 	// ReasonNacosReadFailed: the first-sync read from Nacos failed.
 	ReasonNacosReadFailed condition.ConditionReason = "ReadFailed"

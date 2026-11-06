@@ -57,6 +57,7 @@ import (
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy/ctxschema"
 	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
@@ -217,6 +218,11 @@ type Appfile struct {
 	KubeClient client.Client
 	// SourceCacheStore provides source cache persistence backing for rendering.
 	SourceCacheStore velaprocess.SourceCacheStore
+
+	// PolicyContext is context.custom as the policies that apply will supply
+	// it, set by admission to validate components against. Nil validates as
+	// though nothing were known of it.
+	PolicyContext *ctxschema.View
 
 	Debug bool
 }
@@ -525,11 +531,6 @@ func computeTraitContentHash(trait *unstructured.Unstructured) (string, error) {
 
 // workload and trait in the same component both have these labels, except componentRevision which should be evaluated with input/output
 func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]string {
-	filter := func(labels map[string]string, notAllowedKey []string) {
-		for _, l := range notAllowedKey {
-			delete(labels, strings.TrimSpace(l))
-		}
-	}
 	Labels := map[string]string{
 		oam.LabelAppName:      af.Name,
 		oam.LabelAppNamespace: af.Namespace,
@@ -543,11 +544,40 @@ func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]str
 	// dispatch only sets the cluster on an object that has none, so an inherited
 	// value would override this Application's own topology.
 	delete(finalLabels, oam.LabelAppCluster)
-	filterLabels, ok := af.AppAnnotations[oam.AnnotationFilterLabelKeys]
-	if ok {
-		filter(finalLabels, strings.Split(filterLabels, ","))
+	for _, k := range FilteredLabelKeys(af.AppAnnotations) {
+		delete(finalLabels, k)
 	}
 	return finalLabels
+}
+
+// FilteredLabelKeys returns the label keys an Application with appAnnotations does not pass
+// down to the resources it renders (filter.oam.dev/label-keys).
+func FilteredLabelKeys(appAnnotations map[string]string) []string {
+	passed, ok := appAnnotations[oam.AnnotationFilterLabelKeys]
+	if !ok {
+		return nil
+	}
+	return splitKeys(passed)
+}
+
+// FilteredAnnotationKeys returns the annotation keys an Application with appAnnotations does
+// not pass down to the resources it renders: the defaults in types.DefaultFilterAnnots and
+// those listed in filter.oam.dev/annotation-keys.
+func FilteredAnnotationKeys(appAnnotations map[string]string) []string {
+	keys := append([]string{}, types.DefaultFilterAnnots...)
+	if passed, ok := appAnnotations[oam.AnnotationFilterAnnotationKeys]; ok {
+		keys = append(keys, splitKeys(passed)...)
+	}
+	return keys
+}
+
+// splitKeys splits a comma-separated list of keys, trimming each.
+func splitKeys(list string) []string {
+	keys := strings.Split(list, ",")
+	for i := range keys {
+		keys[i] = strings.TrimSpace(keys[i])
+	}
+	return keys
 }
 
 // workload and trait both have these annotations
@@ -582,14 +612,8 @@ func (af *Appfile) filterAndSetAnnotations(obj *unstructured.Unstructured) {
 
 	// pass application's all annotations
 	maps.Copy(ann, af.AppAnnotations)
-	// remove useless annotations for workload/trait
-	for _, k := range types.DefaultFilterAnnots {
+	for _, k := range FilteredAnnotationKeys(af.AppAnnotations) {
 		delete(ann, k)
-	}
-	if passed, ok := af.AppAnnotations[oam.AnnotationFilterAnnotationKeys]; ok {
-		for _, k := range strings.Split(passed, ",") {
-			delete(ann, k)
-		}
 	}
 
 	switch {
