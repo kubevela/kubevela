@@ -92,6 +92,9 @@ template: {
 			// The owned addon Application lives in vela-system, so this is the
 			// only record of where its modules install their definitions.
 			namespace: context.namespace
+			if parameter.placement != _|_ {
+				placement: parameter.placement
+			}
 		}
 	}
 
@@ -112,5 +115,14 @@ template: {
 		// Skip the addon's vela/kubernetes SystemRequirements check (mirrors the
 		// imperative skipVersionValidate escape hatch). Defaults to enforcing it.
 		skipVersionValidation: *false | bool
+		// Where the addon installs, in the same form as a type: module
+		// component's placement. Its imported modules follow it, keeping their
+		// hub objects on the hub. Set clusters or clusterLabelSelector. Refused
+		// for an addon that defines its own topology policy or workflow.
+		placement?: {
+			clusters?: [...string]
+			clusterLabelSelector?: [string]: string
+			allowEmpty?: bool
+		}
 	}
 }

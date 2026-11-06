@@ -93,15 +93,15 @@ func TestRenderModuleWithoutSeamReadsTheClusterRegistry(t *testing.T) {
 }
 
 func TestRenderApplicationRejectsAnUnnamedOrMisnamedModule(t *testing.T) {
-	_, err := RenderApplication(nil, "")
+	_, err := RenderApplication(nil, "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "module has no name")
 
-	_, err = RenderApplication(&module.Module{}, "")
+	_, err = RenderApplication(&module.Module{}, "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "module has no name")
 
-	_, err = RenderApplication(&module.Module{Name: "S3.Module"}, "")
+	_, err = RenderApplication(&module.Module{Name: "S3.Module"}, "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `invalid module name "S3.Module"`)
 }
@@ -110,7 +110,7 @@ func TestRenderApplicationSkipsALineWithOnlyAuxiliaryObjects(t *testing.T) {
 	mod := &module.Module{Name: "s3", Lines: map[string]module.Line{
 		"v1": {APIVersion: "v1", Enabled: true, Auxiliary: []map[string]interface{}{auxObject("Composition", "xbuckets-v1")}},
 	}}
-	app, err := RenderApplication(mod, "")
+	app, err := RenderApplication(mod, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"s3-v1-aux"}, names(components(t, app)), "no definitions means no definitions tier")
 }

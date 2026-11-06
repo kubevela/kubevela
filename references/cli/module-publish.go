@@ -173,6 +173,9 @@ func (o *modulePublishOptions) run(ctx context.Context, cli client.Client, out i
 		fmt.Fprintf(out, "Warning: publishing tag %s while %s/_module.cue still declares version %s; the module's declared version is unchanged inside the artifact\n",
 			artifact.Tag, o.dir, artifact.Module.Version)
 	}
+	for _, w := range artifact.Module.Warnings {
+		fmt.Fprintf(out, "Warning: %s\n", w)
+	}
 
 	reg, err := o.resolveTarget(ctx, cli)
 	if err != nil {

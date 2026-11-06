@@ -28,9 +28,11 @@ import (
 	"github.com/kubevela/pkg/util/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/policy/placement"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
@@ -49,6 +51,9 @@ type RenderVars struct {
 	SkipVersionValidate bool                   `json:"skipVersionValidate"`
 	// Namespace is the namespace of the Application that installs the addon.
 	Namespace string `json:"namespace"`
+	// Placement is the installer's cluster request for the addon. Nil means
+	// they did not ask.
+	Placement *v1alpha1.Placement `json:"placement,omitempty"`
 }
 
 // ResultVars is the $returns shape.
@@ -75,6 +80,11 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 		return nil, fmt.Errorf("addon-as-component is disabled; enable the EnableAddonComponent feature gate to use type: addon components")
 	}
 	p := params.Params
+	// Checked before the validation-only return, so admission rejects a bad
+	// placement with the same message a render would give.
+	if err := placement.Validate(p.Placement); err != nil {
+		return nil, err
+	}
 	if validation.IsValidationOnly(ctx) {
 		return placeholderReturns(p), nil
 	}
@@ -89,6 +99,7 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 		Properties:          p.Properties,
 		SkipVersionValidate: p.SkipVersionValidate,
 		Namespace:           p.Namespace,
+		Placement:           p.Placement,
 	})
 	if err != nil {
 		return nil, err

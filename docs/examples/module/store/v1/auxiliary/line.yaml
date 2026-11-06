@@ -1,0 +1,7 @@
+# No annotation, so this follows the v1 line default: runtime.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: store-v1-line
+data:
+  role: line
