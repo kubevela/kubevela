@@ -372,7 +372,7 @@ func parseArgsFromFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP(addonOssBucket, "", "", "specify the OSS bucket name")
 	cmd.Flags().StringP(addonPath, "", "", "specify the addon registry path, must be set when addons are not in root of registry")
 	cmd.Flags().StringP(addonGitToken, "", "", "specify the github repo token")
-	cmd.Flags().StringP(addonUsername, "", "", "specify the Helm addon registry username")
+	cmd.Flags().StringP(addonUsername, "", "", "specify the Helm or OCI addon registry username")
 	cmd.Flags().StringP(addonPassword, "", "", "specify the Helm or OCI addon registry password")
 	cmd.Flags().Bool(addonPasswordStdin, false, "read the Helm or OCI addon registry password from stdin")
 	cmd.Flags().StringP(addonRepoName, "", "", "specify the gitlab addon registry repoName, must be set when registry is gitlab")
