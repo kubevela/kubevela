@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -31,8 +32,8 @@ import (
 	"go.yaml.in/yaml/v3"
 	"k8s.io/klog/v2"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
 // ExpandedWriterConfig define the supported output ways.
@@ -60,18 +61,25 @@ func ParseExpandedWriterConfig(template cue.Value) ExpandedWriterConfig {
 		if err := nacos.Decode(&nacosConfig); err != nil {
 			klog.Warningf("failed to decode the nacos config: %s", err.Error())
 		}
+		// The endpoint config lives in the system namespace unless the template says
+		// otherwise; settle that here so every reader of the block sees the same address.
+		if nacosConfig.Endpoint.Namespace == "" {
+			nacosConfig.Endpoint.Namespace = types.DefaultKubeVelaNS
+		}
 		ewc.Nacos = nacosConfig
 	}
 	// parse the other writer configs
 	return ewc
 }
 
-// RenderForExpandedWriter render the configuration for all expanded writers
-func RenderForExpandedWriter(ewc ExpandedWriterConfig, template script.CUE, context icontext.ConfigRenderContext, properties map[string]interface{}) (*ExpandedWriterData, error) {
+// RenderForExpandedWriter renders the configuration for all expanded writers from the
+// rendered template value: the CueX compile of the script with the render context and
+// the parameters merged in, the same value the Secret output is read from.
+func RenderForExpandedWriter(ewc ExpandedWriterConfig, rendered cue.Value) (*ExpandedWriterData, error) {
 	var ewd = ExpandedWriterData{}
 	var err error
 	if ewc.Nacos != nil {
-		ewd.Nacos, err = renderNacos(ewc.Nacos, template, context, properties)
+		ewd.Nacos, err = renderNacos(ewc.Nacos, rendered)
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +116,7 @@ func encodingOutput(input cue.Value, format string) ([]byte, error) {
 		if err := convertMap2PropertiesKV("", data, kv); err != nil {
 			return nil, err
 		}
-		return []byte(properties.LoadMap(kv).String()), nil
+		return propertiesBytes(kv), nil
 	default:
 		return yaml.Marshal(data)
 	}
@@ -170,4 +178,21 @@ func convertMap2PropertiesKV(last string, input map[string]interface{}, result m
 		}
 	}
 	return nil
+}
+
+// propertiesBytes renders the pairs in key order. The properties library keeps insertion
+// order, and a Go map iterates randomly, so without the sort the same config renders to
+// different bytes on every call; a controller comparing content would then republish
+// every reconcile.
+func propertiesBytes(kv map[string]string) []byte {
+	keys := make([]string, 0, len(kv))
+	for k := range kv {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	p := properties.NewProperties()
+	for _, k := range keys {
+		_, _, _ = p.Set(k, kv[k])
+	}
+	return []byte(p.String())
 }

@@ -1,0 +1,14 @@
+# Inline-module mirror of consumer-v2.yaml, renamed to widget-kit-inline's
+# identity. Used by the upgrade/rollback scenario: premium-widget exists on
+# v2, which widget-platform-inline-1.2.0 switches off.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: v2-consumer-inline
+  namespace: default
+spec:
+  components:
+    - name: premium-widget
+      type: widget-kit-inline/v2/widget
+      properties:
+        size: S

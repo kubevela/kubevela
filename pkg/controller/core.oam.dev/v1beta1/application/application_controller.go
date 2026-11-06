@@ -20,12 +20,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -44,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/kubevela/pkg/cel/template"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	wfContext "github.com/kubevela/workflow/pkg/context"
@@ -63,7 +66,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -112,12 +114,16 @@ type options struct {
 
 // Reconcile process app event
 // nolint:gocyclo
-func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, retErr error) {
 	ctx, cancel := ctrlrec.NewReconcileContext(ctx)
 	defer cancel()
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
-	logCtx.Info("Start reconcile application")
+	if !debugLogEnabled() {
+		logCtx.V(int(common2.LogDebug))
+	}
+	logDebug(logCtx, "Start reconcile application")
 	defer logCtx.Commit("End reconcile application")
+	start := time.Now()
 	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
@@ -128,6 +134,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
+	defer func() {
+		logCtx.Info("Reconciled application", "phase", app.Status.Phase,
+			"requeueAfter", res.RequeueAfter.String(), "duration", time.Since(start).String(), "failed", retErr != nil)
+	}()
 	ctx = withOriginalApp(ctx, app)
 	if ctrlrec.IsPaused(app) {
 		return ctrl.Result{}, nil
@@ -182,8 +192,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	r.emitPolicyEvents(app)
+	r.emitPendingPolicyUpdates(app, handler.pendingPolicyUpdates)
+	r.emitIgnoredNamespaceGlobals(app)
+	r.emitIgnoredGlobalSkip(app)
+	for _, warning := range policyConfigWarnings(handler.policyResults) {
+		r.Recorder.Event(app, event.Warning("PolicySettingIgnored", errors.New(warning)))
+	}
 
-	appFile, err := appParser.GenerateAppFile(logCtx, app)
+	appFile, err := r.generateAppFile(logCtx, appParser, app, handler)
 	if err != nil {
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Parsed", err), common.ApplicationRendering)
@@ -204,7 +220,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
 	}
 
-	logCtx.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
+	logDebug(logCtx, "Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
@@ -213,7 +229,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		logCtx.Error(err, "Failed to update application status")
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationRendering)
 	}
-	logCtx.Info("Successfully apply application revision")
+	logDebug(logCtx, "Successfully apply application revision")
 
 	if err := handler.ApplyPolicies(logCtx, appFile); err != nil {
 		logCtx.Error(err, "[handle ApplyPolicies]")
@@ -225,6 +241,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Check if workflow needs restart (combines scheduled restart + revision-based restart)
 	r.checkWorkflowRestart(logCtx, app, handler)
+	handler.keepStepSourceReads()
 
 	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile)
 	if err != nil {
@@ -276,7 +293,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	workflowUpdated := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
-	logCtx.Info(fmt.Sprintf("Workflow return state=%s", workflowState))
+	app.Status.Workflow.Dependencies = workflow.WithStepReads(app.Status.Workflow.Dependencies, handler.stepReads)
+	logDebug(logCtx, fmt.Sprintf("Workflow return state=%s", workflowState))
 	postDispatchApplied := false
 	applyPostDispatchTraits := func() error {
 		if postDispatchApplied || !feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
@@ -357,6 +375,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// succeeded, so without this a re-resolved source value never reaches the
 	// stored manifest and StateKeep below would keep re-applying the stale one.
 	r.refreshSourceDrivenComponents(logCtx, handler, appParser, appFile, app)
+	// Likewise for changed policy data on an unchanged revision (apply-data-changes).
+	r.refreshPolicyData(logCtx, handler, appParser, appFile, app)
 
 	// A PostDispatch trait or a refresh held back on a component read leaves its
 	// component unhealthy, saying why, until the read can be answered.
@@ -382,7 +402,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
 	}
-	logCtx.Info("Successfully garbage collect")
+	logDebug(logCtx, "Successfully garbage collect")
 	app.Status.SetConditions(condition.Condition{
 		Type:               condition.ConditionType(common.ReadyCondition.String()),
 		Status:             corev1.ConditionTrue,
@@ -429,10 +449,18 @@ func (r *Reconciler) refreshSourceDrivenComponents(logCtx monitorContext.Context
 	if len(compByName) == 0 {
 		return
 	}
+	r.reapplyComponents(logCtx, handler, appParser, af, app, compByName)
+}
+
+// reapplyComponents re-applies every placed instance of the given components outside the
+// workflow, and prunes what each no longer renders. It reports whether every component was
+// re-applied and judged in full.
+func (r *Reconciler) reapplyComponents(logCtx monitorContext.Context, handler *AppHandler, appParser *appfile.Parser, af *appfile.Appfile, app *v1beta1.Application, compByName map[string]common.ApplicationComponent) bool {
+	complete := true
 	apply := handler.applyComponentFunc(appParser, af)
 	rendered, incomplete := renderedForPrune(logCtx, app, compByName, apply,
 		func(comp string, cluster string, err error) {
-			logCtx.Error(err, "failed to refresh source-driven component", "component", comp, "cluster", cluster)
+			logCtx.Error(err, "failed to refresh component", "component", comp, "cluster", cluster)
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		})
 
@@ -448,12 +476,14 @@ func (r *Reconciler) refreshSourceDrivenComponents(logCtx monitorContext.Context
 	for name, keep := range rendered {
 		if _, partial := incomplete[name]; partial {
 			logCtx.Info("skipping prune, the rendered set is incomplete", "component", name)
+			complete = false
 			continue
 		}
 		pruned, err := handler.resourceKeeper.PruneComponentResources(logCtx, name, keep)
 		if err != nil {
 			logCtx.Error(err, "failed to prune resources the component no longer renders", "component", name)
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
+			complete = false
 			continue
 		}
 		for _, mr := range pruned {
@@ -463,6 +493,7 @@ func (r *Reconciler) refreshSourceDrivenComponents(logCtx monitorContext.Context
 				fmt.Sprintf("pruned %s %s/%s, no longer rendered by component %s", mr.Kind, mr.Namespace, mr.Name, name)))
 		}
 	}
+	return complete && len(incomplete) == 0
 }
 
 // renderedForPrune re-applies every placed instance of each source-reading
@@ -596,7 +627,105 @@ func rawReadsSource(raw *runtime.RawExtension) bool {
 	if err := json.Unmarshal(raw.Raw, &decoded); err != nil {
 		return false
 	}
-	return propexpr.HasExpression(decoded)
+	return template.HasExpression(decoded)
+}
+
+// refreshPolicyData brings changed policy output to the app's resources without a new revision,
+// for policies with apply-data-changes on. Changed labels and annotations are written to the
+// stored manifests, which StateKeep then applies. Changed context re-applies the components, as a
+// source refresh does. A publishVersion pin holds both until it moves, a failing mandatory global
+// until it renders, and nothing runs while Application-scoped policies are off.
+func (r *Reconciler) refreshPolicyData(logCtx monitorContext.Context, handler *AppHandler, appParser *appfile.Parser, af *appfile.Appfile, app *v1beta1.Application) {
+	if !policyContextTracked() || metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) || handler.heldByGlobalPolicy != nil {
+		return
+	}
+	r.refreshPolicyMetadata(logCtx, handler, app)
+	r.refreshPolicyContext(logCtx, handler, appParser, af, app)
+}
+
+// policyContextTracked reports whether policy context is tracked on ResourceTrackers: only while
+// Application-scoped policies, which global policies also need, are on.
+func policyContextTracked() bool {
+	return feature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies)
+}
+
+// recordPolicyContextHash records the policy context the app's components were applied with. A
+// held reconcile renders no policy context, so it leaves the recorded hash as it is.
+func (r *Reconciler) recordPolicyContextHash(logCtx monitorContext.Context, handler *AppHandler) {
+	if !policyContextTracked() || handler.heldByGlobalPolicy != nil {
+		return
+	}
+	if err := handler.resourceKeeper.SetPolicyContextHash(logCtx, encodePolicyContextHashes(handler.contextHashes)); err != nil {
+		logCtx.Error(err, "Failed to record policy context hash")
+	}
+}
+
+func (r *Reconciler) refreshPolicyContext(logCtx monitorContext.Context, handler *AppHandler, appParser *appfile.Parser, af *appfile.Appfile, app *v1beta1.Application) {
+	current := encodePolicyContextHashes(handler.contextHashes)
+	recorded, ok := handler.resourceKeeper.PolicyContextHash()
+	if !ok {
+		// A tracker with no hash recorded takes what is running now, without re-applying, so
+		// an upgrade leaves running apps as they are.
+		if err := handler.resourceKeeper.SetPolicyContextHash(logCtx, current); err != nil {
+			logCtx.Error(err, "Failed to record policy context hash")
+		}
+		return
+	}
+	if recorded == current || !contextRefreshNeeded(app, decodePolicyContextHashes(recorded), handler.contextHashes, handler.policyResults, handler.recordedPolicySettings) {
+		return
+	}
+	compByName := make(map[string]common.ApplicationComponent, len(app.Spec.Components))
+	for _, comp := range app.Spec.Components {
+		compByName[comp.Name] = comp
+	}
+	handler.forceRedispatch = true
+	complete := r.reapplyComponents(logCtx, handler, appParser, af, app, compByName)
+	handler.forceRedispatch = false
+	if !complete {
+		return // retried on the next reconcile
+	}
+	logCtx.Info("Re-applied components for changed policy context")
+	if err := handler.resourceKeeper.SetPolicyContextHash(logCtx, current); err != nil {
+		logCtx.Error(err, "Failed to record policy context hash")
+	}
+}
+
+// refreshPolicyMetadata writes changed policy metadata onto the recorded manifests of dispatched
+// resources. Keys the Application filters from inheritance are left out, since render never
+// passes them down: a resource carrying one set it itself.
+func (r *Reconciler) refreshPolicyMetadata(logCtx monitorContext.Context, handler *AppHandler, app *v1beta1.Application) {
+	labelKeys, annotationKeys := appfile.FilteredLabelKeys(app.Annotations), appfile.FilteredAnnotationKeys(app.Annotations)
+	removed := resourcekeeper.MetadataRemoval{
+		Labels:      withoutKeys(handler.dataRemovedMetadata.Labels, labelKeys),
+		Annotations: withoutKeys(handler.dataRemovedMetadata.Annotations, annotationKeys),
+	}
+	changed, err := handler.resourceKeeper.RefreshRecordedMetadata(logCtx,
+		withoutKeys(handler.dataLabels, labelKeys), withoutKeys(handler.dataAnnotations, annotationKeys), removed)
+	if err != nil {
+		logCtx.Error(err, "Failed to refresh policy metadata on dispatched resources")
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
+		return
+	}
+	if changed {
+		logCtx.Info("Refreshed policy metadata on dispatched resources")
+	}
+	if !handler.dataRemovedMetadata.Empty() {
+		if err := handler.clearPendingRemovals(logCtx, app); err != nil {
+			logCtx.Error(err, "Failed to clear applied policy metadata removals")
+		}
+	}
+}
+
+// withoutKeys returns a copy of values without keys.
+func withoutKeys(values map[string]string, keys []string) map[string]string {
+	if len(values) == 0 {
+		return values
+	}
+	out := maps.Clone(values)
+	for _, k := range keys {
+		delete(out, k)
+	}
+	return out
 }
 
 func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandler, app *v1beta1.Application) {
@@ -652,15 +781,17 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(handler.app).ret()
 	}
 	if !finished {
-		logCtx.Info("GarbageCollecting resourcetrackers unfinished")
+		logDebug(logCtx, "GarbageCollecting resourcetrackers unfinished")
 		cond := condition.Deleting()
 		if len(waiting) > 0 {
 			cond.Message = fmt.Sprintf("Waiting for %s to delete. (At least %d resources are deleting.)", waiting[0].DisplayName(), len(waiting))
 		}
 		handler.app.Status.SetConditions(cond)
-		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
+		now := time.Now()
+		original, _ := originalAppFrom(logCtx)
+		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(gcWaitBackoffTime(gcWaitingSince(original, now), now)).ret()
 	}
-	logCtx.Info("GarbageCollected resourcetrackers")
+	logDebug(logCtx, "GarbageCollected resourcetrackers")
 	return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(handler.app).ret()
 }
 
@@ -802,8 +933,11 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 	// pre-check if the status is changed
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-	if oldApp, ok := originalAppFrom(ctx); ok && oldApp != nil && equality.Semantic.DeepEqual(oldApp.Status, app.Status) {
-		return nil
+	if oldApp, ok := originalAppFrom(ctx); ok && oldApp != nil {
+		keepConditionTransitionTimes(&app.Status.ConditionedStatus, oldApp.Status.ConditionedStatus)
+		if equality.Semantic.DeepEqual(oldApp.Status, app.Status) {
+			return nil
+		}
 	}
 	ctx, cancel := ctrlrec.NewReconcileTerminationContext(ctx)
 	defer cancel()
@@ -827,7 +961,23 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 	return nil
 }
 
+func keepConditionTransitionTimes(status *condition.ConditionedStatus, stored condition.ConditionedStatus) {
+	for i, cond := range status.Conditions {
+		old := stored.GetCondition(cond.Type)
+		if old.Status == cond.Status && old.Reason == cond.Reason && !old.LastTransitionTime.IsZero() {
+			status.Conditions[i].LastTransitionTime = old.LastTransitionTime
+		}
+	}
+}
+
 func (r *Reconciler) emitPolicyEvents(app *v1beta1.Application) {
+	var appliedTypes []string
+	for _, appliedPolicy := range app.Status.AppliedApplicationPolicies {
+		appliedTypes = append(appliedTypes, appliedPolicy.Type)
+	}
+	for _, warning := range policySettingWarnings(app, appliedTypes) {
+		r.Recorder.Event(app, event.Warning("PolicySettingIgnored", errors.New(warning)))
+	}
 	for _, appliedPolicy := range app.Status.AppliedApplicationPolicies {
 		isGlobal := appliedPolicy.Source == PolicySourceGlobal
 		if appliedPolicy.Applied {
@@ -857,6 +1007,57 @@ func (r *Reconciler) emitPolicyEvents(app *v1beta1.Application) {
 	}
 }
 
+// emitIgnoredGlobalSkip warns that the app's skip-global annotation is ignored because global
+// policies are mandatory (--allow-skip-global-policies=false).
+func (r *Reconciler) emitIgnoredGlobalSkip(app *v1beta1.Application) {
+	if !asksToSkipGlobalPolicies(app) || shouldSkipGlobalPolicies(app) ||
+		!feature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies) {
+		return
+	}
+	r.Recorder.Event(app, event.Warning("GlobalPolicySkipIgnored", errors.Errorf(
+		"annotation %s is ignored: global platform policies are mandatory", SkipGlobalPoliciesAnnotation)))
+}
+
+// generateAppFile parses app, or the revision a failing mandatory global holds it at.
+func (r *Reconciler) generateAppFile(logCtx monitorContext.Context, parser *appfile.Parser, app *v1beta1.Application, handler *AppHandler) (*appfile.Appfile, error) {
+	rev := handler.heldByGlobalPolicy
+	if rev == nil {
+		return parser.GenerateAppFile(logCtx, app)
+	}
+	r.Recorder.Event(app, event.Warning("GlobalPolicyHeld", errors.Errorf("held at revision %s: %s",
+		rev.Name, app.Status.GetCondition(globalPoliciesCondition).Message)))
+	app.Spec = rev.Spec.Application.Spec
+	af, err := parser.GenerateAppFileFromRevision(rev)
+	if err != nil {
+		return nil, err
+	}
+	af.Context = logCtx.GetContext()
+	return af, nil
+}
+
+// emitIgnoredNamespaceGlobals warns about global policies in the app's namespace that do not apply
+// because global policies are restricted to vela-system.
+func (r *Reconciler) emitIgnoredNamespaceGlobals(app *v1beta1.Application) {
+	if shouldSkipGlobalPolicies(app) || !feature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies) {
+		return
+	}
+	for _, policy := range policyScopeIndex.IgnoredNamespaceGlobals(app.Namespace) {
+		r.Recorder.Event(app, event.Warning("GlobalPolicyIgnored", errors.Errorf(
+			"global policy %s/%s is ignored: global policies must be in the %s namespace",
+			policy.Namespace, policy.Name, oam.SystemDefinitionNamespace)))
+	}
+}
+
+// emitPendingPolicyUpdates reports the policies whose newer version is held.
+func (r *Reconciler) emitPendingPolicyUpdates(app *v1beta1.Application, pending []string) {
+	if len(pending) == 0 {
+		return
+	}
+	r.Recorder.Event(app, event.Normal("PolicyUpdatePending", fmt.Sprintf(
+		"Newer versions of policies %s are held by %s, a publishVersion pin, a render failure or a spec rewrite; they apply at the next revision",
+		strings.Join(pending, ", "), oam.AnnotationApplyPolicyUpdates)))
+}
+
 func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta1.Application, handler *AppHandler, state workflowv1alpha1.WorkflowRunPhase) {
 	logCtx = logCtx.Fork("do-workflow-finish", monitorContext.DurationMetric(func(v float64) {
 		metrics.AppReconcileStageDurationHistogram.WithLabelValues("do-workflow-finish").Observe(v)
@@ -869,11 +1070,13 @@ func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta
 	t := time.Since(app.Status.Workflow.StartTime.Time).Seconds()
 	metrics.WorkflowFinishedTimeHistogram.WithLabelValues(string(state)).Observe(t)
 	if state == workflowv1alpha1.WorkflowStateSucceeded {
+		// The workflow applied the components with the current policy context.
+		r.recordPolicyContextHash(logCtx, handler)
 		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 	}
 	handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, app.Status.Workflow)
-	logCtx.Info("Application manifests has applied by workflow successfully")
+	logDebug(logCtx, "Application manifests has applied by workflow successfully")
 }
 
 func hasHealthCheckPolicy(policies []*appfile.Component) bool {
@@ -967,10 +1170,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return true
 			},
 		}).
-		Watches(
-			&v1beta1.PolicyDefinition{},
-			ctrlHandler.EnqueueRequestsFromMapFunc(r.handlePolicyDefinitionChange),
-		).
+		Watches(&v1beta1.PolicyDefinition{}, r.policyDefinitionEventHandler()).
 		For(&v1beta1.Application{}).
 		Complete(r)
 }
@@ -1049,18 +1249,50 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	return !reflect.DeepEqual(newTracker, old)
 }
 
-func (r *Reconciler) handlePolicyDefinitionChange(ctx context.Context, obj client.Object) []reconcile.Request {
-	policy := obj.(*v1beta1.PolicyDefinition)
+// policyDefinitionEventHandler keeps policyScopeIndex in sync with PolicyDefinition events.
+// DeleteFunc must stay explicit: PolicyDefinitions have no finalizers, so delete events
+// arrive with a nil DeletionTimestamp and a MapFunc cannot tell them apart from updates.
+func (r *Reconciler) policyDefinitionEventHandler() ctrlHandler.Funcs {
+	return ctrlHandler.Funcs{
+		CreateFunc: func(_ context.Context, e ctrlEvent.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.onPolicyDefinitionChanged(e.Object)
+		},
+		UpdateFunc: func(_ context.Context, e ctrlEvent.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.onPolicyDefinitionChanged(e.ObjectNew)
+		},
+		DeleteFunc: func(_ context.Context, e ctrlEvent.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.onPolicyDefinitionDeleted(e.Object)
+		},
+	}
+}
 
-	// Update the in-memory index so the next reconcile sees the new/updated policy.
-	// Without this, newly created global PolicyDefinitions are invisible until the
-	// controller restarts (the index is only populated once at startup).
+// onPolicyDefinitionChanged updates the in-memory index so the next reconcile sees the
+// new/updated policy. Without this, newly created global PolicyDefinitions are invisible
+// until the controller restarts (the index is only populated once at startup).
+func (r *Reconciler) onPolicyDefinitionChanged(obj client.Object) {
+	policy, ok := obj.(*v1beta1.PolicyDefinition)
+	if !ok {
+		return
+	}
 	if policy.GetDeletionTimestamp() != nil {
 		policyScopeIndex.Delete(policy.Name, policy.Namespace)
 	} else {
 		policyScopeIndex.AddOrUpdate(policy)
 	}
+	invalidatePolicyCacheFor(policy)
+}
 
+// onPolicyDefinitionDeleted evicts a deleted policy from the in-memory index.
+func (r *Reconciler) onPolicyDefinitionDeleted(obj client.Object) {
+	policy, ok := obj.(*v1beta1.PolicyDefinition)
+	if !ok {
+		return
+	}
+	policyScopeIndex.Delete(policy.Name, policy.Namespace)
+	invalidatePolicyCacheFor(policy)
+}
+
+func invalidatePolicyCacheFor(policy *v1beta1.PolicyDefinition) {
 	// Invalidate rendered policy cache when global policies change
 	if policy.Namespace == oam.SystemDefinitionNamespace {
 		// vela-system policy affects all namespaces - invalidate entire cache
@@ -1069,8 +1301,6 @@ func (r *Reconciler) handlePolicyDefinitionChange(ctx context.Context, obj clien
 		// Namespace-specific policy - invalidate for that namespace
 		applicationPolicyCache.InvalidateForNamespace(policy.Namespace)
 	}
-
-	return []reconcile.Request{}
 }
 
 func findObjectForResourceTracker(_ context.Context, rt client.Object) []reconcile.Request {

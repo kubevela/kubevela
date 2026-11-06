@@ -20,6 +20,7 @@ package helm
 
 import (
 	"bytes"
+	"context"
 	stderrors "errors"
 	"io"
 
@@ -36,11 +37,16 @@ import (
 )
 
 // getActionConfig initializes a Helm action.Configuration with a real Kubernetes
-// REST client and a secrets-based storage driver so that releases persist in-cluster.
-func (p *Provider) getActionConfig(namespace string) (*action.Configuration, error) {
+// REST client for a render's cluster and user, and a secrets-based storage
+// driver, so that releases persist in the cluster they are installed into.
+func (p *Provider) getActionConfig(ctx context.Context, namespace string) (*action.Configuration, error) {
+	getter, err := p.restClientGetter(ctx)
+	if err != nil {
+		return nil, err
+	}
 	actionConfig := &action.Configuration{}
 	if err := actionConfig.Init(
-		p.helmClient.RESTClientGetter(),
+		inReleaseNamespace(getter, namespace),
 		namespace,
 		"secret",
 		klog.Infof,
@@ -110,13 +116,10 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 		// Default metadata.namespace for namespaced rendered resources whose
 		// template omitted it. Upstream charts (Bitnami, podinfo, ...)
 		// typically rely on `helm install --namespace` for placement instead
-		// of templating metadata.namespace, and Helm's own apply step then
-		// uses the kube client's default namespace (which under KubeVela
-		// resolves to the controller's own ns, vela-system) rather than the
-		// release namespace. Stamping the namespace here makes every output
-		// in the rendered manifest carry the right placement before helm's
-		// kube.Client.Create runs, and before KubeVela's resource tracker
-		// re-applies it. Cluster-scoped kinds (CRDs, ClusterRoles,
+		// of templating metadata.namespace. Helm's kube client places them in
+		// the release namespace (see inReleaseNamespace), but the outputs
+		// KubeVela's resource tracker re-applies carry only what is stamped
+		// here. Cluster-scoped kinds (CRDs, ClusterRoles,
 		// Namespaces, ...) are left as-is so the API server does not reject
 		// them.
 		if r.releaseNamespace != "" && obj.GetNamespace() == "" && !isClusterScopedGVK(obj.GroupVersionKind()) {

@@ -10,6 +10,9 @@ package addon
 		registry: *"" | string
 		properties: {...}
 		skipVersionValidate: *false | bool
+		// Namespace of the Application that installs the addon; the addon's
+		// modules install their definitions into it.
+		namespace: *"" | string
 	}
 	$returns?: {
 		resolvedVersion: string

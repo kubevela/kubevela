@@ -36,9 +36,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
+	"github.com/oam-dev/kubevela/pkg/logging"
 )
 
 // ContextRegex to match '**: reference "context" not found'
@@ -94,17 +96,43 @@ func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
 	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate, cue.Final())
 }
 
-// CompileCuexTemplate compiles cueTemplate exactly as ValidateCuexTemplate
-// does, against the workload compiler with provider functions left unresolved,
-// and returns the value instead of a verdict. A caller that runs more than one
-// check against a template compiles it once here, then hands the value to
-// ValidateCompiledCuexTemplate and to its own checks.
-func CompileCuexTemplate(ctx context.Context, cueTemplate string) (cue.Value, error) {
-	return compileForValidation(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate)
+// CompilePolicyTemplate compiles a PolicyDefinition template the way
+// ValidateCuexTemplate compiles a component's, with provider functions left
+// unresolved, but against the compiler that renders a policy of the given
+// scope. It returns the value instead of a verdict: a caller that runs more
+// than one check against a template compiles it once here, then hands the
+// value to ValidateCompiledCuexTemplate and to its own checks.
+func CompilePolicyTemplate(ctx context.Context, scope v1beta1.PolicyScope, cueTemplate string) (cue.Value, error) {
+	return compileForValidation(ctx, policyCompiler(scope), cueTemplate)
+}
+
+// CompileOpenPolicyTemplate is CompilePolicyTemplate with the fields a render
+// supplies, context and parameter, opened. A template that reads context does
+// not compile on its own, so this is what its parameter declaration is read
+// from.
+func CompileOpenPolicyTemplate(ctx context.Context, scope v1beta1.PolicyScope, cueTemplate string) (cue.Value, error) {
+	return compileForValidation(ctx, policyCompiler(scope), openTemplate(cueTemplate))
+}
+
+// policyCompiler returns the compiler a PolicyDefinition of the given scope is
+// rendered with, so admission checks the template against the packages render
+// will offer it.
+//
+// A default-scope policy is parsed into a component and rendered by the
+// workload engine, which compiles with WorkloadCompiler. Any other scope is
+// skipped by the parser and rendered in application_policies.go with the
+// upstream DefaultCompiler. The two register different packages: only the
+// upstream one has "vela/util", and only WorkloadCompiler has "vela/helm",
+// "vela/config" and the other KubeVela providers.
+func policyCompiler(scope v1beta1.PolicyScope) *upstreamcuex.Compiler {
+	if scope == v1beta1.DefaultScope {
+		return velacuex.WorkloadCompiler.Get()
+	}
+	return upstreamcuex.DefaultCompiler.Get()
 }
 
 // ValidateCompiledCuexTemplate is ValidateCuexTemplate for a value already
-// produced by CompileCuexTemplate.
+// produced by CompilePolicyTemplate.
 func ValidateCompiledCuexTemplate(val cue.Value) error {
 	return validateCompiled(val, cue.Final())
 }
@@ -194,7 +222,7 @@ func validateCuexTemplateWith(ctx context.Context, compiler *upstreamcuex.Compil
 }
 
 // compileForValidation is the compile half of validateCuexTemplateWith, shared
-// with CompileCuexTemplate so both compile with provider functions off.
+// with CompilePolicyTemplate so both compile with provider functions off.
 func compileForValidation(ctx context.Context, compiler *upstreamcuex.Compiler, cueTemplate string) (cue.Value, error) {
 	return compiler.CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
 }
@@ -253,4 +281,46 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 		return fmt.Errorf("%s has both spec.version and revision name annotation. Only one can be present", objectType)
 	}
 	return nil
+}
+
+// ValidateDefinitionIdentity validates that a Definition's spec.module and
+// spec.apiVersion are set together or both left empty. The apiVersion format is
+// enforced by the CRD schema, not here.
+func ValidateDefinitionIdentity(module, apiVersion string) error {
+	switch {
+	case module != "" && apiVersion == "":
+		return errors.New("spec.module is set but spec.apiVersion is empty: set both or neither")
+	case module == "" && apiVersion != "":
+		return errors.New("spec.apiVersion is set but spec.module is empty: set both or neither")
+	}
+	if module != "" {
+		if errs := validation.IsDNS1123Label(module); len(errs) != 0 {
+			return errors.Errorf("spec.module %q is not a valid DNS-1123 label: %s", module, strings.Join(errs, ","))
+		}
+	}
+	return nil
+}
+
+// DenyOnInvalidIdentity runs ValidateDefinitionIdentity and, on failure, logs
+// it and builds the admission.Denied response every definition webhook uses
+// for it, so the four definition handlers (ComponentDefinition,
+// TraitDefinition, PolicyDefinition, WorkflowStepDefinition) share one call
+// instead of each copying the block with only the kind name changed.
+//
+// kind names the definition type in the log line (e.g. "ComponentDefinition").
+// The second return value is true when the request should be denied; the
+// caller returns the response immediately in that case and otherwise
+// continues to its next check.
+//
+// Logged at Info, not Error: an inconsistent module/apiVersion pair is the
+// requester's bad input, not a server-side fault, and WithError already
+// attaches the error to the structured log fields, so passing err again to
+// Error would log it twice for no extra signal.
+func DenyOnInvalidIdentity(logger logging.Logger, kind, module, apiVersion string, requestUID types.UID) (admission.Response, bool) {
+	if err := ValidateDefinitionIdentity(module, apiVersion); err != nil {
+		logger.WithStep("validate-identity").WithError(err).Info(
+			kind+" identity fields are inconsistent", "module", module, "apiVersion", apiVersion)
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), requestUID)), true
+	}
+	return admission.Response{}, false
 }

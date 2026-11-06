@@ -32,4 +32,4 @@ import "vela/test"
 		phase:   "suspending"
 		message: "waiting for the change board"
 	}
-} @pending(kubevela/workflow builtin.#Suspend ignores its message parameter)
+}

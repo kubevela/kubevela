@@ -48,9 +48,9 @@ func NewReadOnlySourceCacheStore(delegate velaprocess.SourceCacheStore) velaproc
 	return &readOnlySourceCacheStore{delegate: delegate}
 }
 
-func (s *readOnlySourceCacheStore) Read(ctx context.Context, cacheKey string, ttl time.Duration) (map[string]interface{}, bool, bool, time.Time, error) {
+func (s *readOnlySourceCacheStore) Read(ctx context.Context, cacheKey string, ttl time.Duration) (velaprocess.SourceCacheRead, error) {
 	if s == nil || s.delegate == nil {
-		return nil, false, false, time.Time{}, nil
+		return velaprocess.SourceCacheRead{}, nil
 	}
 	return s.delegate.Read(ctx, cacheKey, ttl)
 }

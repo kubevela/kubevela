@@ -62,7 +62,7 @@ func RenderComponent(ctx context.Context, params *oamprovidertypes.Params[cue.Va
 	for _, trait := range traits {
 		name := trait.GetLabels()[oam.TraitResource]
 		if name != "" {
-			v = v.FillPath(value.FieldPath("$returns", "outputs", name), workload.Object)
+			v = v.FillPath(value.FieldPath("$returns", "outputs", name), trait)
 		}
 	}
 

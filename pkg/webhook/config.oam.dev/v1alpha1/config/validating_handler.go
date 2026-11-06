@@ -33,9 +33,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 var configGVR = configv1alpha1.ConfigGVR
@@ -46,6 +50,9 @@ const defaultPropertiesSecretKey = "properties"
 type ValidatingHandler struct {
 	Decoder admission.Decoder
 	Client  client.Client
+	// ControllerUser is the controller's own identity. Its writes (an Application's, with the
+	// AuthenticateApplication gate off; migration's) have no user behind them to review.
+	ControllerUser string
 }
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -87,12 +94,48 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.ValidationResponse(true, "")
 	}
 
+	creating := req.Operation == admissionv1.Create
+	templateNS := legacyconfig.TemplateRefNamespace(obj.Spec.TemplateRef)
+	// Who the Config is used from: its own namespace, or for the controller writing on behalf
+	// of an Application, that Application's namespace, which a step or component cannot move.
+	asController := h.ControllerUser != "" && req.UserInfo.Username == h.ControllerUser
+	from := obj.Namespace
+	if appNS := obj.Labels[oam.LabelAppNamespace]; asController && appNS != "" {
+		from = appNS
+	}
+
 	tmpl, resolved, err := h.resolveTemplate(ctx, obj.Spec.TemplateRef)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 	if !resolved {
+		// In the Config's own namespace, or for a system template in vela-system, the
+		// template may follow later and admission defers to the controller as before; in
+		// another namespace the create waits for it.
+		if pending := legacyconfig.PendingTemplateError(tmpl, templateNS, obj.Spec.TemplateRef.Name, from); creating && pending != nil {
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", pending, req.UID))
+		}
 		return admission.ValidationResponse(true, "")
+	}
+
+	// May a Config here use that template (issue #7410 section 6)? The same namespace and a
+	// system template need no user, nor does a binding the template recorded when migration
+	// adopted it; a namespace-scoped template elsewhere is the requesting user's to read or
+	// not, asked of the API server as that user. The controller's own write has no user to
+	// ask, so for it a review is a refusal. Create only: templateRef is immutable (above), so
+	// the answer at creation holds for the Config's lifetime.
+	if access := legacyconfig.AccessToTemplate(tmpl, from); creating && access.Review != nil && !tmpl.Grandfathers(client.ObjectKeyFromObject(obj)) {
+		if asController {
+			return admission.Denied(fmt.Sprintf("%s; the controller writes this config with no user to ask (an application with the %s feature gate off, or migration), so it may use only a template in %s or a system one (requestUID=%s)",
+				access.Reason, features.AuthenticateApplication, from, req.UID))
+		}
+		allowed, err := auth.UserCan(ctx, h.Client, req.UserInfo, *access.Review)
+		if err != nil {
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+		if !allowed {
+			return admission.Denied(fmt.Sprintf("%s; %s may not (requestUID=%s)", access.Reason, req.UserInfo.Username, req.UID))
+		}
 	}
 
 	if tmpl.Sensitive && obj.Spec.Properties != nil {
@@ -135,9 +178,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 }
 
 // resolveTemplate mirrors the Config controller's CRD-first, ConfigMap-fallback lookup.
-// resolved is false (with no error) both when the template doesn't exist yet and when a
-// ConfigTemplate CRD exists but hasn't reached Available - either way admission defers
-// to the controller, which will surface a clear error on the Config once it reconciles.
+// resolved is false (with no error) both when the template doesn't exist yet (tmpl nil) and
+// when a ConfigTemplate exists but is not usable yet (its schema not extracted: not
+// reconciled, or a parse Error; tmpl carries its name, namespace and scope) - either way
+// admission defers to the controller, which will surface a clear error on the Config once
+// it reconciles. A system template misplaced outside vela-system is usable once its schema
+// is there, as namespace scope, so it is checked.
 func (h *ValidatingHandler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (*legacyconfig.ResolvedTemplate, bool, error) {
 	tmpl, waiting, err := legacyconfig.ResolveConfigTemplate(ctx, h.Client, ref)
 	switch {
@@ -146,7 +192,7 @@ func (h *ValidatingHandler) resolveTemplate(ctx context.Context, ref *configv1al
 	case err != nil:
 		return nil, false, err
 	case waiting:
-		return nil, false, nil
+		return tmpl, false, nil
 	default:
 		return tmpl, true, nil
 	}
@@ -187,8 +233,12 @@ func (h *ValidatingHandler) resolveProperties(ctx context.Context, cfg *configv1
 // RegisterValidatingHandler registers Config validation to the webhook server.
 func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-config-oam-dev-v1alpha1-configs", &webhook.Admission{Handler: &ValidatingHandler{
+	handler := &ValidatingHandler{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}})
+	}
+	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
+		handler.ControllerUser = userInfo.Username
+	}
+	server.Register("/validating-config-oam-dev-v1alpha1-configs", &webhook.Admission{Handler: handler})
 }

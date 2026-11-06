@@ -60,7 +60,7 @@ _web: {
 		{containerPort: 8080},
 		{containerPort: 9090, protocol: "TCP"},
 	]}, ...]
-} @pending(an existing port is rebuilt from portVar.protocol and portVar.name unguarded, so either one missing fails the patch)
+}
 
 "containers sets the ports of each named container": test.#TraitRender & _web & {
 	parameter: containers: [
@@ -86,4 +86,12 @@ _web: {
 "each of several containers must be named": test.#TraitRender & _web & {
 	parameter: containers: [{ports: [{containerPort: 8080}]}]
 	expect: error: user: [=~"container name must be set for containers"]
+}
+
+"an existing port without a protocol is matched as TCP, not duplicated": test.#TraitRender & _web & {
+	_bare: true
+	parameter: ports: [{containerPort: 8080, hostPort: 8080}]
+	expect: output: spec: template: spec: containers: [{name: "web", ports: [
+		{containerPort: 8080, hostPort: 8080, protocol?: _|_},
+	]}, ...]
 }

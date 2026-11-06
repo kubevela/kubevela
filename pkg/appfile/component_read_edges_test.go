@@ -70,10 +70,17 @@ func TestStepsWithReadDependencies(t *testing.T) {
 		}
 		return g
 	}
+	groupIn := func(name string, mode wfTypesv1alpha1.WorkflowMode, subs ...wfTypesv1alpha1.WorkflowStep) wfTypesv1alpha1.WorkflowStep {
+		g := group(name, subs...)
+		g.Mode = mode
+		return g
+	}
 	dag := &wfTypesv1alpha1.WorkflowExecuteMode{Steps: "DAG", SubSteps: "DAG"}
 	stepByStep := &wfTypesv1alpha1.WorkflowExecuteMode{Steps: "StepByStep", SubSteps: "DAG"}
 	subStepByStep := &wfTypesv1alpha1.WorkflowExecuteMode{Steps: "StepByStep", SubSteps: "StepByStep"}
+	dagSubInOrder := &wfTypesv1alpha1.WorkflowExecuteMode{Steps: "DAG", SubSteps: "StepByStep"}
 	dbAndAPI := []common.ApplicationComponent{reads("db"), reads("api", "db.output")}
+	threeComps := []common.ApplicationComponent{reads("db"), reads("cache"), reads("api", "db.output")}
 
 	type deps map[string][]string
 	for _, tc := range []struct {
@@ -81,52 +88,89 @@ func TestStepsWithReadDependencies(t *testing.T) {
 		comps []common.ApplicationComponent
 		mode  *wfTypesv1alpha1.WorkflowExecuteMode
 		steps []wfTypesv1alpha1.WorkflowStep
-		want  deps
+		want  deps // the dependsOn each step ends up with
+		read  deps // what StepReadDependencies records each step reads
 	}{
 		{name: "generated workflow: one step per component, named after it",
 			comps: dbAndAPI, mode: dag,
 			steps: []wfTypesv1alpha1.WorkflowStep{apply("db"), apply("api")},
-			want:  deps{"api": {"db"}}},
-		{name: "a written dependsOn is kept and not repeated",
+			want:  deps{"api": {"db"}}, read: deps{"api": {"db"}}},
+		{name: "a written dependsOn is kept and not repeated, and stays the spec's",
 			comps: []common.ApplicationComponent{reads("db"), reads("cfg"), reads("api", "db.output")}, mode: dag,
 			steps: []wfTypesv1alpha1.WorkflowStep{apply("db"), apply("cfg"), apply("api", "cfg", "db")},
-			want:  deps{"api": {"cfg", "db"}}},
+			want:  deps{"api": {"cfg", "db"}}, read: deps{}},
 		{name: "no step named after the producer: no edge",
 			comps: dbAndAPI, mode: dag,
 			steps: []wfTypesv1alpha1.WorkflowStep{step("setup-db", "apply-component", map[string]interface{}{"component": "db"}), apply("api")},
-			want:  deps{}},
+			want:  deps{}, read: deps{}},
 		{name: "a read that names a placement implies no edge",
 			comps: []common.ApplicationComponent{reads("db"), reads("api", `db.cluster("east").output`)}, mode: dag,
 			steps: []wfTypesv1alpha1.WorkflowStep{apply("db"), apply("api")},
-			want:  deps{}},
+			want:  deps{}, read: deps{}},
 		{name: "a reader in a deploy step gets no step edge; the step orders its own components",
 			comps: dbAndAPI, mode: dag,
 			steps: []wfTypesv1alpha1.WorkflowStep{apply("db"), step("deploy-api", "deploy", map[string]interface{}{"policies": []string{}})},
-			want:  deps{}},
-		{name: "in order, no edge to a later step",
+			want:  deps{}, read: deps{}},
+		{name: "in order, no edge to a later step, which could never be read in time",
 			comps: dbAndAPI, mode: stepByStep,
 			steps: []wfTypesv1alpha1.WorkflowStep{apply("api"), apply("db")},
-			want:  deps{}},
+			want:  deps{}, read: deps{}},
+		{name: "in order, no edge to an earlier step either: the order puts it first",
+			comps: dbAndAPI, mode: stepByStep,
+			steps: []wfTypesv1alpha1.WorkflowStep{apply("db"), apply("api")},
+			want:  deps{}, read: deps{"api": {"db"}}},
+		{name: "in order, an earlier step with steps between",
+			comps: threeComps, mode: stepByStep,
+			steps: []wfTypesv1alpha1.WorkflowStep{apply("db"), apply("cache"), apply("api")},
+			want:  deps{}, read: deps{"api": {"db"}}},
 		{name: "an edge that would close a cycle with a written dependsOn is left out",
 			comps: dbAndAPI, mode: dag,
 			steps: []wfTypesv1alpha1.WorkflowStep{apply("db", "api"), apply("api")},
-			want:  deps{"db": {"api"}}},
+			want:  deps{"db": {"api"}}, read: deps{}},
 		{name: "sibling sub-steps",
 			comps: dbAndAPI, mode: dag,
 			steps: []wfTypesv1alpha1.WorkflowStep{group("g", apply("db"), apply("api"))},
-			want:  deps{"api": {"db"}}},
+			want:  deps{"api": {"db"}}, read: deps{"api": {"db"}}},
 		{name: "sibling sub-steps in order: no edge to a later sibling",
 			comps: dbAndAPI, mode: subStepByStep,
 			steps: []wfTypesv1alpha1.WorkflowStep{group("g", apply("api"), apply("db"))},
-			want:  deps{}},
+			want:  deps{}, read: deps{}},
+		{name: "sibling sub-steps in order: no edge to an earlier sibling, the order puts it first",
+			comps: dbAndAPI, mode: subStepByStep,
+			steps: []wfTypesv1alpha1.WorkflowStep{group("g", apply("db"), apply("api"))},
+			want:  deps{}, read: deps{"api": {"db"}}},
+		{name: "a group's own mode decides its sub-steps' order: StepByStep inside a DAG workflow",
+			comps: dbAndAPI, mode: dag,
+			steps: []wfTypesv1alpha1.WorkflowStep{groupIn("g", "StepByStep", apply("db"), apply("api"))},
+			want:  deps{}, read: deps{"api": {"db"}}},
+		{name: "a group's own mode decides its sub-steps' order: DAG inside sub-steps in order",
+			comps: dbAndAPI, mode: subStepByStep,
+			steps: []wfTypesv1alpha1.WorkflowStep{groupIn("g", "DAG", apply("api"), apply("db"))},
+			want:  deps{"api": {"db"}}, read: deps{"api": {"db"}}},
 		{name: "a sub-step reading another step's component: the group waits",
-			comps: []common.ApplicationComponent{reads("db"), reads("cache"), reads("api", "db.output")}, mode: dag,
+			comps: threeComps, mode: dag,
 			steps: []wfTypesv1alpha1.WorkflowStep{apply("db"), group("g", apply("cache"), apply("api"))},
-			want:  deps{"g": {"db"}}},
+			want:  deps{"g": {"db"}}, read: deps{"g": {"db"}}},
+		{name: "a sub-step reading an earlier step's component in order: no edge for the group",
+			comps: threeComps, mode: stepByStep,
+			steps: []wfTypesv1alpha1.WorkflowStep{apply("db"), group("g", apply("cache"), apply("api"))},
+			want:  deps{}, read: deps{"g": {"db"}}},
+		{name: "an edge lifted to the reader's group that would wait on the group's own sub-step is left out",
+			comps: threeComps, mode: dag,
+			steps: []wfTypesv1alpha1.WorkflowStep{group("g", apply("cache"), apply("api")), apply("db", "cache")},
+			want:  deps{"db": {"cache"}}, read: deps{}},
 		{name: "a step reading a sub-step's component waits on the group",
-			comps: []common.ApplicationComponent{reads("db"), reads("cache"), reads("api", "db.output")}, mode: dag,
+			comps: threeComps, mode: dag,
 			steps: []wfTypesv1alpha1.WorkflowStep{group("g", apply("db"), apply("cache")), apply("api")},
-			want:  deps{"api": {"g"}}},
+			want:  deps{"api": {"g"}}, read: deps{"api": {"g"}}},
+		{name: "a step reading a sub-step's component in order: the group is earlier, no edge",
+			comps: threeComps, mode: stepByStep,
+			steps: []wfTypesv1alpha1.WorkflowStep{group("g", apply("db"), apply("cache")), apply("api")},
+			want:  deps{}, read: deps{"api": {"g"}}},
+		{name: "steps in a DAG with sub-steps in order still get the edge between steps",
+			comps: threeComps, mode: dagSubInOrder,
+			steps: []wfTypesv1alpha1.WorkflowStep{apply("db"), group("g", apply("cache"), apply("api"))},
+			want:  deps{"g": {"db"}}, read: deps{"g": {"db"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			af := &Appfile{AppAnnotations: optedIn, Components: tc.comps, WorkflowMode: tc.mode}
@@ -149,7 +193,8 @@ func TestStepsWithReadDependencies(t *testing.T) {
 					}
 				}
 			}
-			require.Equal(t, tc.want, got)
+			require.Equal(t, tc.want, got, "dependsOn")
+			require.Equal(t, map[string][]string(tc.read), af.StepReadDependencies(in), "what each step reads")
 		})
 	}
 

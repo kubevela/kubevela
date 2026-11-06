@@ -47,6 +47,11 @@ type Template struct {
 	rawParameterBlock string // Raw CUE for parameter: block
 	rawOutputsBlock   string // Raw CUE for outputs: block (for traits that generate K8s resources)
 	rawHeaderBlock    string // Raw CUE for let bindings and other pre-output declarations
+
+	// Inheritance: the call to the parent and which surface fields merge onto its
+	super         *SuperCall
+	inheritAll    *bool
+	inheritFields map[string]bool
 }
 
 // NewTemplate creates a new template context.

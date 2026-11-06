@@ -449,7 +449,7 @@ func fromSpec(obj client.Object) (*common.DefinitionRestrictions, string) {
 	default:
 		// Every definition kind is handled above; this names whatever else arrived.
 		t := reflect.TypeOf(obj)
-		for t.Kind() == reflect.Ptr {
+		for t.Kind() == reflect.Pointer {
 			t = t.Elem()
 		}
 		return nil, t.Name()
@@ -481,5 +481,5 @@ func isNil(obj client.Object) bool {
 		return true
 	}
 	v := reflect.ValueOf(obj)
-	return v.Kind() == reflect.Ptr && v.IsNil()
+	return v.Kind() == reflect.Pointer && v.IsNil()
 }

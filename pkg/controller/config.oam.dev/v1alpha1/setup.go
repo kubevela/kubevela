@@ -21,13 +21,15 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/controller/config.oam.dev/v1alpha1/config"
 	"github.com/oam-dev/kubevela/pkg/controller/config.oam.dev/v1alpha1/configtemplate"
+	"github.com/oam-dev/kubevela/pkg/controller/config.oam.dev/v1alpha1/migration"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
-// Setup config management controllers.
+// Setup config management controllers, and the startup migration sweep when the
+// AutoMigrateLegacyConfigs gate is on.
 func Setup(mgr ctrl.Manager, args controller.Args) error {
 	for _, setup := range []func(ctrl.Manager, controller.Args) error{
-		configtemplate.Setup, config.Setup,
+		configtemplate.Setup, config.Setup, migration.Setup,
 	} {
 		if err := setup(mgr, args); err != nil {
 			return err

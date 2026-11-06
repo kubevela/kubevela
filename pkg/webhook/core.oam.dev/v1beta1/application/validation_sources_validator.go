@@ -21,9 +21,6 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/ast"
-	cueformat "cuelang.org/go/cue/format"
-	cueparser "cuelang.org/go/cue/parser"
 )
 
 type sourceSchemaValidator struct {
@@ -100,34 +97,4 @@ func lookupOptionalField(parent cue.Value, label string) (cue.Value, bool) {
 		}
 	}
 	return cue.Value{}, false
-}
-
-func extractSourceSchemaExprForAdmission(template string) (string, error) {
-	return extractTopLevelBlock(template, "schema")
-}
-
-// extractTopLevelBlock returns the CUE source of the top-level field named
-// blockName (e.g. "schema" or "parameter") from a SourceDefinition template, or
-// "" if absent. Static parse only; no evaluation.
-func extractTopLevelBlock(template, blockName string) (string, error) {
-	file, err := cueparser.ParseFile("-", template, cueparser.ParseComments)
-	if err != nil {
-		return "", err
-	}
-	for _, decl := range file.Decls {
-		field, ok := decl.(*ast.Field)
-		if !ok {
-			continue
-		}
-		name, _, err := ast.LabelName(field.Label)
-		if err != nil || name != blockName {
-			continue
-		}
-		bt, err := cueformat.Node(field.Value)
-		if err != nil {
-			return "", err
-		}
-		return string(bt), nil
-	}
-	return "", nil
 }

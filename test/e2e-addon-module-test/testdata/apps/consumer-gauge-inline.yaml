@@ -1,0 +1,13 @@
+# Inline-module mirror of consumer-gauge.yaml. widget-kit-inline-v1-gauge
+# exists only from widget-platform-inline 1.1.0 on.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: gauge-consumer-inline
+  namespace: default
+spec:
+  components:
+    - name: fuel-gauge-inline
+      type: widget-kit-inline/v1/gauge
+      properties:
+        reading: 80

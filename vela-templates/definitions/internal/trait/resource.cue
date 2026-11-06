@@ -11,16 +11,24 @@ template: {
 	patch: {
 		let resourceContent = {
 			resources: {
-				if parameter.cpu != _|_ if parameter.memory != _|_ if parameter.requests == _|_ if parameter.limits == _|_ {
+				if (parameter.cpu != _|_ || parameter.memory != _|_) && parameter.requests == _|_ && parameter.limits == _|_ {
+					// either one alone takes the other's default
+					let amount = {
+						cpu: *1 | _
+						if parameter.cpu != _|_ {cpu: parameter.cpu}
+						memory: *"2048Mi" | _
+						if parameter.memory != _|_ {memory: parameter.memory}
+					}
+
 					// +patchStrategy=retainKeys
 					requests: {
-						cpu:    parameter.cpu
-						memory: parameter.memory
+						cpu:    amount.cpu
+						memory: amount.memory
 					}
 					// +patchStrategy=retainKeys
 					limits: {
-						cpu:    parameter.cpu
-						memory: parameter.memory
+						cpu:    amount.cpu
+						memory: amount.memory
 					}
 				}
 

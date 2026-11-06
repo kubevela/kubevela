@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/util/singleton"
 	terraformv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"
@@ -53,6 +53,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	_ "github.com/oam-dev/kubevela/pkg/features" // Import to register feature gates
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
@@ -81,6 +82,11 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
+	// The suite's global policies live in per-test namespaces, so that they do not reach other
+	// tests' Applications. Specs for the vela-system-only default set this back themselves.
+	common2.AllowNamespaceGlobalPolicies = true
+	// Likewise the suite exercises the skip-global opt-out; specs for mandatory globals unset it.
+	common2.AllowSkipGlobalPolicies = true
 	rand.Seed(time.Now().UnixNano())
 
 	// Enable both Application-scoped policy feature gates for tests

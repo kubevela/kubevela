@@ -18,6 +18,7 @@ package schema
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"cuelang.org/go/cue"
@@ -27,6 +28,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 )
 
 const (
@@ -451,4 +453,29 @@ func refValue(ref *openapi3.SchemaRef) *openapi3.Schema {
 		return nil
 	}
 	return ref.Value
+}
+
+// ChainOutputSchemas is the output schemas of a definition and what it extends:
+// levels are the definition and its ancestors, nearest first, each laid over the
+// one it extends as its render merges them.
+func ChainOutputSchemas(ctx context.Context, levels []inherit.Level) (*OutputSchemas, error) {
+	var schemas *OutputSchemas
+	for i := len(levels) - 1; i >= 0; i-- {
+		lvl := levels[i]
+		own, err := GenerateOutputSchemas(ctx, lvl.Template)
+		if err != nil {
+			return nil, fmt.Errorf("level %s: %w", lvl.Name, err)
+		}
+		if schemas == nil {
+			schemas = own
+			continue
+		}
+		output, err := inherit.Inherits(lvl, OutputFieldName)
+		if err != nil {
+			return nil, fmt.Errorf("level %s: %w", lvl.Name, err)
+		}
+		outputs, _ := inherit.Inherits(lvl, OutputsFieldName)
+		schemas = schemas.Extend(own, output, outputs)
+	}
+	return schemas, nil
 }

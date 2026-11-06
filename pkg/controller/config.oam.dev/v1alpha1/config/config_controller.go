@@ -22,13 +22,16 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"cuelang.org/go/cue"
-	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -44,11 +47,8 @@ import (
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
-
-const defaultPropertiesSecretKey = "properties"
 
 // Reconciler reconciles a Config object.
 type Reconciler struct {
@@ -67,10 +67,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.Get(ctx, req.NamespacedName, &cfg); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	// every status write below describes this spec
+	cfg.Status.ObservedGeneration = cfg.Generation
 
 	// the materialized Secret is owned by the Config, so no finalizer is needed
 	if cfg.DeletionTimestamp != nil {
 		return ctrl.Result{}, nil
+	}
+
+	// The Nacos endpoint marker follows the Config before anything can fail too: an owner
+	// who takes it back from a Config in Error has taken it back from its Secret.
+	if err := r.syncNacosEndpointMarker(ctx, &cfg); err != nil {
+		return r.markError(ctx, &cfg, err)
+	}
+
+	// spec.propertiesFrom makes the Config sensitive whatever its template says, so its
+	// Secret is marked before anything can fail, the template's resolution included: a
+	// template deleted, in Error or not yet Available leaves the Secret refused too.
+	if cfg.Spec.PropertiesFrom != nil {
+		if err := r.markSecretSensitive(ctx, &cfg); err != nil {
+			return r.markError(ctx, &cfg, err)
+		}
 	}
 
 	if cfg.Spec.Properties != nil && cfg.Spec.PropertiesFrom != nil {
@@ -84,9 +101,25 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.markError(ctx, &cfg, err)
 		}
 		if waiting {
-			return r.markError(ctx, &cfg, fmt.Errorf("config template %s/%s is not Available yet", cfg.Spec.TemplateRef.Namespace, cfg.Spec.TemplateRef.Name))
+			return r.markError(ctx, &cfg, fmt.Errorf("config template %s/%s is not Available yet", legacyconfig.TemplateRefNamespace(cfg.Spec.TemplateRef), cfg.Spec.TemplateRef.Name))
 		}
 		tmpl = resolved
+	}
+	// The cross-namespace access rule (pkg/config.AccessToTemplate) is not repeated here: its
+	// only non-structural answer is a SubjectAccessReview for the requesting user, and a
+	// reconciler has none. The webhook answered it when the Config was admitted; a Config
+	// admitted with the webhooks off is the operator's decision, as every other admission rule.
+	// A misplaced system template reads as namespace-scoped (ResolvedTemplate.EffectiveScope),
+	// so at admission a Config elsewhere that names it meets the review like any other
+	// cross-namespace reference, not a system template's free pass.
+
+	// A sensitive template marks the Secret this Config owns as soon as it resolves,
+	// before any step below can fail, so readers refuse it while the Config sits in
+	// Error: inline properties on a template since turned sensitive are refused next.
+	if cfg.Spec.PropertiesFrom == nil && tmpl != nil && tmpl.Sensitive {
+		if err := r.markSecretSensitive(ctx, &cfg); err != nil {
+			return r.markError(ctx, &cfg, err)
+		}
 	}
 
 	// defense in depth: the validating webhook already blocks this, but a Config applied
@@ -95,12 +128,28 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.markError(ctx, &cfg, fmt.Errorf("config template %s/%s is sensitive: spec.properties must not be set, use spec.propertiesFrom instead", tmpl.Namespace, tmpl.Name))
 	}
 
+	// the webhook's check of the template's nacos block, repeated here for a template
+	// that reached the cluster with the webhooks off
+	if err := validateExpandedWriter(ctx, tmpl); err != nil {
+		return r.markError(ctx, &cfg, err)
+	}
+
 	props, err := r.resolveProperties(ctx, &cfg)
 	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 
-	secret, outputs, err := r.renderSecret(ctx, &cfg, tmpl, props)
+	// one compile serves the Secret, the outputs and the nacos block
+	rendered, err := renderTemplate(ctx, &cfg, tmpl, props)
+	if err != nil {
+		return r.markError(ctx, &cfg, err)
+	}
+	secret, outputs, err := r.renderSecret(&cfg, tmpl, rendered, props)
+	if err != nil {
+		return r.markError(ctx, &cfg, err)
+	}
+
+	nacosData, err := renderExpandedWriter(tmpl, rendered)
 	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
@@ -109,23 +158,93 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.markError(ctx, &cfg, err)
 	}
 
-	if err := r.applySecret(ctx, &cfg, secret); err != nil {
+	legacyOutputs, err := r.applySecret(ctx, &cfg, secret)
+	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 
-	if err := r.applyOutputs(ctx, &cfg, outputs); err != nil {
+	if err := r.applyOutputs(ctx, &cfg, outputs, legacyOutputs); err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 
 	cfg.Status.Phase = configv1alpha1.ConfigPhaseAvailable
 	cfg.Status.SecretRef = &corev1.LocalObjectReference{Name: secret.Name}
 	cfg.Status.SetConditions(condition.ReconcileSuccess())
+
+	// The Secret and the outputs are in place, so the phase is Available whatever Nacos
+	// says; a Nacos failure lives on the NacosSynced condition and is retried with the
+	// controller's backoff.
+	if err := r.syncNacos(ctx, &cfg, nacosData); err != nil {
+		if uerr := r.UpdateStatus(ctx, &cfg); uerr != nil {
+			return ctrl.Result{}, uerr
+		}
+		return ctrl.Result{}, err
+	}
 	return ctrl.Result{}, r.UpdateStatus(ctx, &cfg)
 }
 
+// configSensitive decides the Secret's sensitive annotation: a sensitive template, or
+// spec.propertiesFrom, template or not. Properties kept in a Secret are sensitive whatever
+// the template says, so readers return no input properties for them. Reconcile applies the
+// same rule early in two halves: spec.propertiesFrom before the template resolves, a
+// sensitive template as soon as it does.
+func configSensitive(cfg *configv1alpha1.Config, tmpl *legacyconfig.ResolvedTemplate) bool {
+	return cfg.Spec.PropertiesFrom != nil || (tmpl != nil && tmpl.Sensitive)
+}
+
+// markSecretSensitive marks the Secret this Config owns sensitive, if it is not already. A
+// Secret it does not own, or none yet, is left alone; the render marks a new one.
+func (r *Reconciler) markSecretSensitive(ctx context.Context, cfg *configv1alpha1.Config) error {
+	name := cfg.Name
+	if cfg.Status.SecretRef != nil {
+		name = cfg.Status.SecretRef.Name
+	}
+	var secret corev1.Secret
+	if err := r.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: name}, &secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if !metav1.IsControlledBy(&secret, cfg) || legacyconfig.SecretSensitive(&secret) {
+		return nil
+	}
+	patch := client.MergeFrom(secret.DeepCopy())
+	metav1.SetMetaDataAnnotation(&secret.ObjectMeta, apitypes.AnnotationConfigSensitive, legacyconfig.SensitiveAnnotationValue)
+	if err := r.Patch(ctx, &secret, patch); err != nil {
+		return fmt.Errorf("failed to mark secret %s/%s sensitive: %w", secret.Namespace, secret.Name, err)
+	}
+	return nil
+}
+
+// syncNacosEndpointMarker brings the AnnotationConfigNacosEndpoint marker on the Secret this
+// Config owns in line with the Config's own annotation. A Secret it does not own, or none
+// yet, is left alone; applySecret writes the marker on a new one.
+func (r *Reconciler) syncNacosEndpointMarker(ctx context.Context, cfg *configv1alpha1.Config) error {
+	name := cfg.Name
+	if cfg.Status.SecretRef != nil {
+		name = cfg.Status.SecretRef.Name
+	}
+	var secret corev1.Secret
+	if err := r.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: name}, &secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	marked := legacyconfig.NacosEndpointMarked(cfg)
+	if !metav1.IsControlledBy(&secret, cfg) || legacyconfig.NacosEndpointMarked(&secret) == marked {
+		return nil
+	}
+	patch := client.MergeFrom(secret.DeepCopy())
+	if marked {
+		metav1.SetMetaDataAnnotation(&secret.ObjectMeta, apitypes.AnnotationConfigNacosEndpoint, legacyconfig.NacosEndpointAnnotationValue)
+	} else {
+		delete(secret.Annotations, apitypes.AnnotationConfigNacosEndpoint)
+	}
+	if err := r.Patch(ctx, &secret, patch); err != nil {
+		return fmt.Errorf("failed to sync the nacos endpoint marker on secret %s/%s: %w", secret.Namespace, secret.Name, err)
+	}
+	return nil
+}
+
 // resolveTemplate looks up the referenced template, CRD first, falling back to a
-// legacy ConfigMap. waiting is true if the ConfigTemplate CRD exists but its schema
-// hasn't reconciled yet.
+// legacy ConfigMap. waiting is true if the ConfigTemplate exists but is not usable yet:
+// its schema is not extracted (not reconciled yet, or a parse Error).
 func (r *Reconciler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (*legacyconfig.ResolvedTemplate, bool, error) {
 	return legacyconfig.ResolveConfigTemplate(ctx, r.Client, ref)
 }
@@ -142,7 +261,7 @@ func (r *Reconciler) resolveProperties(ctx context.Context, cfg *configv1alpha1.
 	case cfg.Spec.PropertiesFrom != nil:
 		key := cfg.Spec.PropertiesFrom.SecretRef.Key
 		if key == "" {
-			key = defaultPropertiesSecretKey
+			key = legacyconfig.DefaultPropertiesSecretKey
 		}
 		var secret corev1.Secret
 		if err := r.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: cfg.Spec.PropertiesFrom.SecretRef.Name}, &secret); err != nil {
@@ -161,17 +280,27 @@ func (r *Reconciler) resolveProperties(ctx context.Context, cfg *configv1alpha1.
 	return props, nil
 }
 
-func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Config, tmpl *legacyconfig.ResolvedTemplate, props map[string]interface{}) (*corev1.Secret, []*unstructured.Unstructured, error) {
+// renderTemplate compiles the Config's template once, for the Secret, the outputs and
+// the nacos block (legacyconfig.RenderTemplate holds the one rule on partial renders).
+// A Config without a template has nothing to render.
+func renderTemplate(ctx context.Context, cfg *configv1alpha1.Config, tmpl *legacyconfig.ResolvedTemplate, props map[string]interface{}) (cue.Value, error) {
+	if tmpl == nil {
+		return cue.Value{}, nil
+	}
+	contextValue := icontext.ConfigRenderContext{Name: cfg.Name, Namespace: cfg.Namespace}
+	val, err := legacyconfig.RenderTemplate(ctx, tmpl.CUE, tmpl.ExpandedWriter, contextValue, props)
+	if err != nil {
+		return cue.Value{}, fmt.Errorf("failed to render config template: %w", err)
+	}
+	return val, nil
+}
+
+// renderSecret builds the Secret and the outputs from the rendered template value.
+func (r *Reconciler) renderSecret(cfg *configv1alpha1.Config, tmpl *legacyconfig.ResolvedTemplate, val cue.Value, props map[string]interface{}) (*corev1.Secret, []*unstructured.Unstructured, error) {
 	secret := &corev1.Secret{}
 	var outputs []*unstructured.Unstructured
 
 	if tmpl != nil {
-		contextValue := icontext.ConfigRenderContext{Name: cfg.Name, Namespace: cfg.Namespace}
-		val, err := tmpl.CUE.RunAndOutputWithCueX(ctx, contextValue, props)
-		if err != nil && !velacue.IsFieldNotExist(err) {
-			return nil, nil, fmt.Errorf("failed to render config template: %w", err)
-		}
-
 		validReturns := val.LookupPath(cue.ParsePath(legacyconfig.TemplateValidationReturns))
 		if validReturns.Exists() {
 			var validation legacyconfig.Validation
@@ -194,6 +323,7 @@ func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Confi
 			secret.Type = corev1.SecretType(fmt.Sprintf("%s/%s", "", tmpl.Name))
 		}
 
+		var err error
 		outputs, err = renderOutputs(val, cfg.Namespace)
 		if err != nil {
 			return nil, nil, err
@@ -209,13 +339,16 @@ func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Confi
 		if secret.Annotations == nil {
 			secret.Annotations = map[string]string{}
 		}
-		secret.Annotations[apitypes.AnnotationConfigSensitive] = fmt.Sprintf("%t", tmpl.Sensitive)
 		secret.Annotations[apitypes.AnnotationConfigTemplateNamespace] = tmpl.Namespace
 	} else {
 		secret.Labels = map[string]string{
 			apitypes.LabelConfigCatalog: apitypes.VelaCoreConfig,
 		}
 		secret.Annotations = map[string]string{}
+	}
+	// a template-less Config has no annotation unless spec.propertiesFrom makes it sensitive
+	if sensitive := configSensitive(cfg, tmpl); sensitive || tmpl != nil {
+		secret.Annotations[apitypes.AnnotationConfigSensitive] = fmt.Sprintf("%t", sensitive)
 	}
 
 	if secret.Name == "" {
@@ -297,12 +430,22 @@ func renderOutputs(val cue.Value, namespace string) ([]*unstructured.Unstructure
 // applySecret creates or updates the materialized output Secret. It refuses to
 // adopt a pre-existing Secret not already controlled by this Config, so a user who
 // can only create Configs can't use the manager's Secret RBAC to overwrite an
-// unrelated Secret via a name collision.
-func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config, secret *corev1.Secret) error {
+// unrelated Secret via a name collision. The one exception is a legacy config Secret
+// a migration-created Config stands for (adoptableLegacySecret). For such a Config the
+// output objects that Secret recorded are returned, so applyOutputs may adopt them too.
+func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config, secret *corev1.Secret) ([]corev1.ObjectReference, error) {
 	existing := &corev1.Secret{ObjectMeta: secret.ObjectMeta}
+	var legacyOutputs []corev1.ObjectReference
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, existing, func() error {
-		if existing.UID != "" && !metav1.IsControlledBy(existing, cfg) {
+		if existing.UID != "" && !metav1.IsControlledBy(existing, cfg) && !adoptableLegacySecret(existing, cfg) {
 			return fmt.Errorf("secret %s/%s already exists and is not owned by this Config", existing.Namespace, existing.Name)
+		}
+		if existing.UID != "" && legacyconfig.CreatedByMigration(cfg) && existing.Annotations[apitypes.AnnotationConfigAdoptBy] == cfg.Name {
+			// What the legacy config rendered, read before the render below replaces it.
+			// A list that does not parse adopts nothing; the outputs then get the refusal.
+			if refs, err := legacyconfig.ObjectReferences(existing); err == nil {
+				legacyOutputs = refs
+			}
 		}
 		// Merge, not replace. The Secret is this Config's to reconcile, but not
 		// everything on it is this Config's to own: an operator labels it for
@@ -316,14 +459,67 @@ func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config
 		// keeping is the safe direction when the alternative deletes somebody
 		// else's metadata.
 		existing.Labels = mergeMeta(existing.Labels, secret.Labels)
+		// A Secret marked sensitive stays sensitive: no admission refuses a legacy template
+		// ConfigMap's annotation edited to false, or a ConfigTemplate turned off with the
+		// webhooks off where the API server drops the CRD rule, and what was refused to
+		// readers is not handed back. Deleting and recreating the Config resets it.
+		wasSensitive := legacyconfig.SecretSensitive(existing)
 		existing.Annotations = mergeMeta(existing.Annotations, secret.Annotations)
+		if wasSensitive {
+			existing.Annotations[apitypes.AnnotationConfigSensitive] = legacyconfig.SensitiveAnnotationValue
+		}
+		delete(existing.Annotations, apitypes.AnnotationConfigAdoptBy) // the mark has done its work
+		// The Nacos endpoint marker is the Config owner's leave and follows the Config's
+		// own annotation: neither the template's output nor a hand edit of the Secret
+		// grants it, and removing it from the Config takes it away.
+		if legacyconfig.NacosEndpointMarked(cfg) {
+			existing.Annotations[apitypes.AnnotationConfigNacosEndpoint] = legacyconfig.NacosEndpointAnnotationValue
+		} else {
+			delete(existing.Annotations, apitypes.AnnotationConfigNacosEndpoint)
+		}
 		existing.Data = secret.Data
 		existing.StringData = secret.StringData
 		existing.Type = secret.Type
 		existing.OwnerReferences = secret.OwnerReferences
 		return nil
 	})
-	return err
+	return legacyOutputs, err
+}
+
+// adoptableLegacySecret reports a legacy config Secret this Config may take: one the
+// migration library marked for it (AnnotationConfigAdoptBy names this Config) that nothing
+// controls, or that a Config of this name and another UID did (deleted and recreated). The
+// library creates the Config and then sets the Secret's owner reference; a reconcile between
+// the two found the Secret unowned and reported Error until the next one, so the workflow
+// step waiting on the Config, or a user watching it, saw an Error that was never final. The
+// controller sets that owner reference itself now. The mark is the proof: writing it takes
+// write access to the Secret, which a Config author alone does not have, so a hand-made
+// Config cannot claim a Secret by name, with or without the migration label. The Config
+// must carry that label as well: the mark goes on before the Config exists, and a Config of
+// the name created by hand in that gap must not collect it. Any other Config, and any other
+// Secret, still gets the refusal.
+func adoptableLegacySecret(existing *corev1.Secret, cfg *configv1alpha1.Config) bool {
+	if !legacyconfig.CreatedByMigration(cfg) || existing.Annotations[apitypes.AnnotationConfigAdoptBy] != cfg.Name || existing.Labels[apitypes.LabelConfigCatalog] != apitypes.VelaCoreConfig {
+		return false
+	}
+	owner := metav1.GetControllerOf(existing)
+	return owner == nil || (legacyconfig.IsConfigOwnerRef(*owner) && owner.Name == cfg.Name)
+}
+
+// adoptableLegacyOutput reports an output object a migration-created Config may take: one
+// nothing controls that the legacy Secret it stands for recorded as its own output.
+func adoptableLegacyOutput(existing, desired client.Object, legacyOutputs []corev1.ObjectReference) bool {
+	if metav1.GetControllerOf(existing) != nil {
+		return false
+	}
+	gvk := desired.GetObjectKind().GroupVersionKind()
+	for _, ref := range legacyOutputs {
+		gv, err := schema.ParseGroupVersion(ref.APIVersion)
+		if err == nil && gv.Group == gvk.Group && ref.Kind == gvk.Kind && ref.Namespace == desired.GetNamespace() && ref.Name == desired.GetName() {
+			return true
+		}
+	}
+	return false
 }
 
 // mergeMeta layers desired keys over existing ones, leaving keys the caller does
@@ -342,13 +538,13 @@ func mergeMeta(existing, desired map[string]string) map[string]string {
 }
 
 // applyOutputs applies the template.outputs objects, owned by the Config for GC on delete.
-func (r *Reconciler) applyOutputs(ctx context.Context, cfg *configv1alpha1.Config, outputs []*unstructured.Unstructured) error {
+func (r *Reconciler) applyOutputs(ctx context.Context, cfg *configv1alpha1.Config, outputs []*unstructured.Unstructured, legacyOutputs []corev1.ObjectReference) error {
 	for _, obj := range outputs {
 		if err := controllerutil.SetControllerReference(cfg, obj, r.Scheme); err != nil {
 			return fmt.Errorf("failed to set owner reference on output object %s %s: %w", obj.GetKind(), obj.GetName(), err)
 		}
 		mustBeOwnedByConfig := apply.MakeCustomApplyOption(func(existing, _ client.Object) error {
-			if existing != nil && existing.GetUID() != "" && !metav1.IsControlledBy(existing, cfg) {
+			if existing != nil && existing.GetUID() != "" && !metav1.IsControlledBy(existing, cfg) && !adoptableLegacyOutput(existing, obj, legacyOutputs) {
 				return fmt.Errorf("object %s %s/%s already exists and is not owned by this Config", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			}
 			return nil
@@ -360,15 +556,32 @@ func (r *Reconciler) applyOutputs(ctx context.Context, cfg *configv1alpha1.Confi
 	return nil
 }
 
+// errorRetryInterval is how long a Config stays in Error before it is rendered again.
+// Some of its errors are about things outside it that nothing watches: an output object of
+// the same name that someone else owns, of a kind the controller has no watch for. (A
+// foreign Secret of the Config's name is watched, see findConfigsForSecret.)
+// Without a retry the Config sat in Error until the informer resync, and a workflow step
+// restarted after the obstacle was cleared read that stale Error and failed again. One
+// Get and a render every half minute is the price. The suite shortens it.
+var errorRetryInterval = 30 * time.Second
+
 // markError records a reconcile failure on the status without propagating the
-// error to the controller, so spec-level errors don't hot-loop.
+// error to the controller, so spec-level errors don't hot-loop; the Config is rendered
+// again after errorRetryInterval. A write conflict is not the Config's error: someone
+// else wrote the object between this reconcile's cached read and its write (the
+// migration library's owner-reference patch on the Secret it adopts lands this way), so
+// the Config is left as it is and read again shortly. Reporting it showed an Error phase
+// that was never final.
 func (r *Reconciler) markError(ctx context.Context, cfg *configv1alpha1.Config, err error) (ctrl.Result, error) {
+	if apierrors.IsConflict(err) {
+		return ctrl.Result{RequeueAfter: time.Second}, nil
+	}
 	cfg.Status.Phase = configv1alpha1.ConfigPhaseError
 	cfg.Status.SetConditions(condition.ReconcileError(err))
 	if uerr := r.UpdateStatus(ctx, cfg); uerr != nil {
 		return ctrl.Result{}, uerr
 	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: errorRetryInterval}, nil
 }
 
 // UpdateStatus updates Config's Status with retry.RetryOnConflict
@@ -401,11 +614,7 @@ func (r *Reconciler) findConfigsForTemplate(ctx context.Context, obj client.Obje
 		if ref == nil || ref.Name != ct.Name {
 			continue
 		}
-		ns := ref.Namespace
-		if ns == "" {
-			ns = apitypes.DefaultKubeVelaNS
-		}
-		if ns != ct.Namespace {
+		if legacyconfig.TemplateRefNamespace(ref) != ct.Namespace {
 			continue
 		}
 		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})
@@ -413,25 +622,27 @@ func (r *Reconciler) findConfigsForTemplate(ctx context.Context, obj client.Obje
 	return requests
 }
 
-// findConfigsForSecret re-triggers Configs when their spec.propertiesFrom Secret changes.
+// findConfigsForSecret re-triggers Configs when their spec.propertiesFrom Secret changes,
+// and the Configs with a nacos block when a Nacos endpoint config Secret does.
 func (r *Reconciler) findConfigsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		return nil
 	}
+	requests := r.findConfigsForEndpoint(ctx, secret)
 	var list configv1alpha1.ConfigList
 	if err := r.List(ctx, &list, client.InNamespace(secret.Namespace)); err != nil {
 		klog.ErrorS(err, "failed to list Configs for Secret watch", "secret", klog.KObj(secret))
-		return nil
+		return requests
 	}
-	var requests []reconcile.Request
 	for i := range list.Items {
 		cfg := &list.Items[i]
-		ref := cfg.Spec.PropertiesFrom
-		if ref == nil || ref.SecretRef.Name != secret.Name {
-			continue
+		// The Config reads it as properties, or it is the Config's own output Secret: one of
+		// that name that someone else owns blocks the render, and its deletion is the event
+		// the Config is waiting for.
+		if ref := cfg.Spec.PropertiesFrom; (ref != nil && ref.SecretRef.Name == secret.Name) || cfg.Name == secret.Name {
+			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})
 		}
-		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})
 	}
 	return requests
 }
@@ -455,11 +666,7 @@ func (r *Reconciler) findConfigsForLegacyTemplateConfigMap(ctx context.Context, 
 		if ref == nil || ref.Name != name {
 			continue
 		}
-		ns := ref.Namespace
-		if ns == "" {
-			ns = apitypes.DefaultKubeVelaNS
-		}
-		if ns != cm.Namespace {
+		if legacyconfig.TemplateRefNamespace(ref) != cm.Namespace {
 			continue
 		}
 		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})
@@ -473,6 +680,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithAnnotations("controller", "Config")
 	if r.applicator == nil {
 		r.applicator = apply.NewAPIApplicator(mgr.GetClient())
+	}
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &configv1alpha1.Config{}, nacosEndpointIndex, nacosEndpointIndexValue); err != nil {
+		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{

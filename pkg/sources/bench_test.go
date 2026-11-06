@@ -37,8 +37,8 @@ import (
 // alwaysHit answers every read as a fresh hit, which is the steady state.
 type alwaysHit struct{ data map[string]interface{} }
 
-func (a alwaysHit) Read(_ context.Context, _ string, _ time.Duration) (map[string]interface{}, bool, bool, time.Time, error) {
-	return a.data, false, true, time.Now().Add(time.Hour), nil
+func (a alwaysHit) Read(_ context.Context, _ string, _ time.Duration) (velaprocess.SourceCacheRead, error) {
+	return velaprocess.SourceCacheRead{Data: a.data, Found: true, ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
 
 func (a alwaysHit) Write(_ context.Context, _, _ string, _ map[string]interface{}, _ velaprocess.SourceCacheWriteMeta) error {

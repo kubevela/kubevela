@@ -1,0 +1,7 @@
+# Must never appear on the cluster: the v1beta1 line is disabled.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: widget-kit-inline-v1beta1-preview
+data:
+  line: v1beta1

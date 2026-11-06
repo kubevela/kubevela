@@ -688,6 +688,10 @@ func loadSubject(file string) (Subject, error) {
 
 // Run evaluates the case and returns its failures; none means it passed.
 func (c *Case) Run() []string {
+	// Each case is its own world. A refresh hold left by an earlier case would
+	// refuse this one's fetch of the same cache entry and report that earlier
+	// failure as this case's result.
+	sources.ForgetRefreshHolds()
 	if tests[c.Test].mode == "exec" {
 		return c.runExec()
 	}

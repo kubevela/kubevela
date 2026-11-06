@@ -1,0 +1,22 @@
+# A TraitDefinition written as a plain Kubernetes manifest (.yaml definitions
+# are unmarshalled as-is). metadata.name is the SHORT name; it is installed as
+# widget-kit-inline-v1-labeler. Patch-only trait: it emits no `outputs`.
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: labeler
+  annotations:
+    definition.oam.dev/description: Adds widget-kit-inline labels to the component's workload.
+spec:
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |
+        patch: metadata: labels: {
+        	"kitinline.example.com/tier":       parameter.tier
+        	"kitinline.example.com/labeled-by": "widget-kit-inline-v1-labeler"
+        }
+        parameter: {
+        	// +usage=Value of the kitinline.example.com/tier label
+        	tier: *"bronze" | string
+        }

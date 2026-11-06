@@ -103,16 +103,43 @@ _web: {
 "healthy once its Ingress exists": test.#TraitStatus & _web & {
 	parameter: http: "/": 80
 	expect: healthy: true
-} @pending(the status template fails under CUE 0.14 at ig: *_|_ | _ and no upgrade pass rescues it)
+}
 
 "suggests port-forwarding before a load balancer is assigned": test.#TraitStatus & _web & {
 	parameter: http: "/": 80
 	expect: message: =~"No loadBalancer found, visiting by using 'vela port-forward shop'"
-} @pending(the status template fails under CUE 0.14 at ig: *_|_ | _ and no upgrade pass rescues it)
+}
 
-// Kubernetes reports status.loadBalancer; the template reads status.loadbalancer.
 "shows the URL and IP once a load balancer is assigned": test.#TraitStatus & _web & {
 	parameter: {domain: "shop.example.com", http: "/": 80}
 	observed: outputs: ingress: status: loadBalancer: ingress: [{ip: "203.0.113.7"}]
 	expect: message: "Visiting URL: shop.example.com, IP: 203.0.113.7\n"
-} @pending(the status reads status.loadbalancer, which Kubernetes spells loadBalancer)
+}
+
+"shows the IP alone when no host is set": test.#TraitStatus & _web & {
+	parameter: http: "/": 80
+	observed: outputs: ingress: status: loadBalancer: ingress: [{ip: "203.0.113.7"}]
+	expect: message: "Host not specified, visit the cluster or load balancer in front of the cluster, IP: 203.0.113.7\n"
+}
+
+"shows the URL alone when the load balancer has a hostname, not an IP": test.#TraitStatus & _web & {
+	parameter: {domain: "shop.example.com", http: "/": 80}
+	observed: outputs: ingress: status: loadBalancer: ingress: [{hostname: "lb.example.net"}]
+	expect: message: "Visiting URL: shop.example.com\n"
+}
+
+"a named gateway reads its own Ingress": test.#TraitStatus & _web & {
+	parameter: {name: "admin", http: "/": 80}
+	observed: outputs: "ingress-admin": status: loadBalancer: ingress: [{ip: "203.0.113.8"}]
+	expect: message: "Host not specified, visit the cluster or load balancer in front of the cluster, IP: 203.0.113.8\n"
+}
+
+"pathType applies to every path": test.#TraitRender & _web & {
+	parameter: {http: {"/": 8080, "/api": 9090}, pathType: "Prefix"}
+	expect: outputs: ingress: spec: rules: [{http: {
+		paths: [
+			{path: "/", pathType: "Prefix"},
+			{path: "/api", pathType: "Prefix"},
+		] @contains()
+	}}]
+}

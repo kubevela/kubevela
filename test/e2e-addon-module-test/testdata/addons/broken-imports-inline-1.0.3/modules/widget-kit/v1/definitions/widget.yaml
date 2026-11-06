@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: widget
+spec:
+  workload:
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+  schematic:
+    cue:
+      template: |-
+        output: {
+        	apiVersion: "v1"
+        	kind:       "ConfigMap"
+        	metadata: name: context.name
+        	data: {}
+        }
+        parameter: {}

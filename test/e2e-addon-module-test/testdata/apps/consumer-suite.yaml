@@ -15,7 +15,7 @@ spec:
           properties:
             tier: platinum
     - name: suite-gadget
-      type: gadget                          # Form 1: unique, only gadget-kit ships "gadget"
+      type: gadget-kit/v1/gadget            # Form 3: module-backed definitions must use Form 3
       properties:
         mode: turbo
       traits:

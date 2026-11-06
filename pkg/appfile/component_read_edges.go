@@ -42,11 +42,29 @@ const topLevel = -1
 // apply-component step dependsOn the step named after each component its
 // component reads beside itself, as that component's own dependsOn would.
 //
-// The edge is left out when no step has that name, when it would point at a
-// later step in a workflow run in order, and when it would close a cycle.
+// The edge is left out when no step has that name, when it would close a cycle,
+// and in a workflow run in order, where an earlier step finishes first anyway
+// and a later one could never be read in time. A dependsOn there would only
+// change when the reader is skipped: with one, a failure of another earlier
+// step no longer skips it.
 func (af *Appfile) StepsWithReadDependencies(steps []workflowv1alpha1.WorkflowStep) []workflowv1alpha1.WorkflowStep {
+	out, _ := af.readEdges(steps)
+	return out
+}
+
+// StepReadDependencies is, by step name, the steps each step waits on because a
+// component it applies reads theirs: the edges StepsWithReadDependencies adds,
+// and the earlier steps a workflow run in order puts first without one. A
+// written dependsOn is the spec's, not a read's, and is not included.
+func (af *Appfile) StepReadDependencies(steps []workflowv1alpha1.WorkflowStep) map[string][]string {
+	_, read := af.readEdges(steps)
+	return read
+}
+
+func (af *Appfile) readEdges(steps []workflowv1alpha1.WorkflowStep) ([]workflowv1alpha1.WorkflowStep, map[string][]string) {
+	read := map[string][]string{}
 	if !sources.ExpressionsEnabledFor(af.AppAnnotations) || len(steps) == 0 {
-		return steps
+		return steps, read
 	}
 	out := make([]workflowv1alpha1.WorkflowStep, len(steps))
 	for i := range steps {
@@ -78,6 +96,11 @@ func (af *Appfile) StepsWithReadDependencies(steps []workflowv1alpha1.WorkflowSt
 	}
 
 	for i, step := range steps {
+		// A group's own mode orders its sub-steps over the workflow's.
+		groupInOrder := subStepsInOrder
+		if step.Mode != "" {
+			groupInOrder = step.Mode == wfmode.WorkflowModeStep
+		}
 		refs := []stepRef{{i, topLevel}}
 		if len(step.SubSteps) > 0 {
 			refs = refs[:0]
@@ -96,19 +119,25 @@ func (af *Appfile) StepsWithReadDependencies(steps []workflowv1alpha1.WorkflowSt
 					continue
 				}
 				f, t := from, to
+				inOrder := groupInOrder
 				if f.Top != t.Top {
 					f, t = stepRef{f.Top, topLevel}, stepRef{t.Top, topLevel}
-					if stepsInOrder && t.Top > f.Top {
-						continue
-					}
-				} else if subStepsInOrder && t.Sub > f.Sub {
-					continue
+					inOrder = stepsInOrder
 				}
-				dependOn(steps, base(f), base(t).Name)
+				name := base(t).Name
+				switch {
+				case inOrder && (t.Top > f.Top || t.Top == f.Top && t.Sub > f.Sub):
+				case inOrder:
+					if !slices.Contains(read[base(f).Name], name) && !slices.Contains(base(f).DependsOn, name) {
+						read[base(f).Name] = append(read[base(f).Name], name)
+					}
+				case dependOn(steps, base(f), name):
+					read[base(f).Name] = append(read[base(f).Name], name)
+				}
 			}
 		}
 	}
-	return steps
+	return steps, read
 }
 
 // appliedComponent is the component an apply-component step applies.
@@ -160,22 +189,26 @@ func (af *Appfile) readDependencies(component string) []string {
 }
 
 // dependOn adds name to step's dependsOn unless it is there already or would
-// close a cycle.
-func dependOn(steps []workflowv1alpha1.WorkflowStep, step *workflowv1alpha1.WorkflowStepBase, name string) {
+// close a cycle, and reports whether it did.
+func dependOn(steps []workflowv1alpha1.WorkflowStep, step *workflowv1alpha1.WorkflowStepBase, name string) bool {
 	if slices.Contains(step.DependsOn, name) || waitsFor(steps, name, step.Name) {
-		return
+		return false
 	}
 	step.DependsOn = append(step.DependsOn, name)
+	return true
 }
 
 // waitsFor reports whether the step named from cannot finish before the step
 // named to has: through dependsOn, a group through its sub-steps, and a sub-step
-// through what its group waits on to start.
+// through what its group waits on to start. Reaching a sub-step of to counts as
+// reaching to, since that sub-step cannot start before to does.
 func waitsFor(steps []workflowv1alpha1.WorkflowStep, from, to string) bool {
 	edges := map[string][]string{}
+	groupOf := map[string]string{}
 	for _, step := range steps {
 		edges[step.Name] = append(edges[step.Name], step.DependsOn...)
 		for _, sub := range step.SubSteps {
+			groupOf[sub.Name] = step.Name
 			edges[step.Name] = append(edges[step.Name], sub.Name)
 			edges[sub.Name] = append(edges[sub.Name], sub.DependsOn...)
 			edges[sub.Name] = append(edges[sub.Name], step.DependsOn...)
@@ -184,7 +217,7 @@ func waitsFor(steps []workflowv1alpha1.WorkflowStep, from, to string) bool {
 	seen := map[string]bool{}
 	var visit func(string) bool
 	visit = func(n string) bool {
-		if n == to {
+		if n == to || groupOf[n] == to {
 			return true
 		}
 		if seen[n] {

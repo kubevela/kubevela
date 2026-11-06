@@ -253,7 +253,6 @@ kind: ComponentDefinition
 metadata:
   annotations:
     definition.oam.dev/description: xxx
-  creationTimestamp: null
   labels:
     type: terraform
   name: tencent-vswitch
@@ -339,7 +338,6 @@ kind: ComponentDefinition
 metadata:
   annotations:
     definition.oam.dev/description: xxx
-  creationTimestamp: null
   labels:
     type: terraform
   name: alibaba-vswitch

@@ -3,7 +3,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: vela-system/kubevela-vela-core-root-cert
-    controller-gen.kubebuilder.io/version: v0.16.5
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: applications.core.oam.dev
 spec:
   group: core.oam.dev
@@ -244,6 +244,40 @@ spec:
                           items:
                             type: string
                           type: array
+                        forEach:
+                          description: |-
+                            ForEach runs the step once per item. On a step-group, the whole group runs once
+                            per item.
+                          properties:
+                            from:
+                              description: |-
+                                From reads the list from a workflow variable, with the same path syntax as
+                                inputs[].from.
+                              type: string
+                            items:
+                              description: |-
+                                Items is the list itself. It is any JSON value rather than a list so that a
+                                KubeVela Application can give a single $( ) expression, resolved to the list
+                                before the workflow runs.
+                              x-kubernetes-preserve-unknown-fields: true
+                            key:
+                              description: |-
+                                Key names each item's steps by its value instead of its index: paths into the
+                                item whose values, joined with "-", replace the index in the step names. Each
+                                value must be a string or an integer, and the joined keys unique in the list.
+                              items:
+                                type: string
+                              maxItems: 8
+                              minItems: 1
+                              type: array
+                            mode:
+                              description: 'Mode is StepByStep (the default: one item
+                                at a time) or DAG (every item at once).'
+                              enum:
+                              - StepByStep
+                              - DAG
+                              type: string
+                          type: object
                         if:
                           description: If is the if condition of the step
                           type: string
@@ -784,9 +818,9 @@ spec:
 
                         Consumption hangs off the source rather than off each consumer because the
                         consumers do not all have somewhere to put it: a workflow step's status is
-                        workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, and that
-                        engine is deliberately unaware sources exist - properties are substituted
-                        before it ever sees them.
+                        workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, which
+                        resolves a step's expressions through KubeVela's resolvers without knowing
+                        what a source is.
                       items:
                         description: SourceConsumer records one reader of a source
                           and the values it received.
@@ -985,6 +1019,31 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  dependencies:
+                    description: |-
+                      Dependencies is what each workflow step waits on before it starts, whether
+                      named in its dependsOn or read by its expressions.
+                    items:
+                      description: |-
+                        WorkflowStepDependency is one step a workflow step waits on before it starts,
+                        and why. Its own type rather than the workflow engine's, so that this API does
+                        not change with the engine's version.
+                      properties:
+                        dependsOn:
+                          type: string
+                        source:
+                          description: |-
+                            Source says why the step waits on DependsOn: dependsOn when the step names
+                            it in its dependsOn, expression when one of the step's expressions reads it.
+                          type: string
+                        step:
+                          type: string
+                      required:
+                      - dependsOn
+                      - source
+                      - step
+                      type: object
+                    type: array
                   endTime:
                     format: date-time
                     nullable: true

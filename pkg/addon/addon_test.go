@@ -32,7 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-github/v32/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

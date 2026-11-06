@@ -10,9 +10,10 @@ gotchas that trip people up.
 | Goal | Command |
 |---|---|
 | Unit tests | `make test` |
-| Controller e2e (self-provisions a cluster) | `make e2e-test-local` |
+| Shipped definition tests (`*_test.cue` beside `vela-templates/definitions/internal`) | `make test-definitions` |
+| Module/addon-module e2e (self-provisions a cluster) | `make e2e-test-local` |
 | Controller e2e against a cluster you already deployed to | `make e2e-test` |
-| One e2e spec / flake check | `ginkgo -v --focus="<text>" ./test/e2e-test` |
+| One application e2e spec / flake check | `ginkgo -v --focus="<text>" ./test/e2e-application-test` |
 | CLI-driven application e2e | `make e2e-application-test-local` |
 | Coverage-instrumented main e2e | `make e2e-test-main-local` |
 | Addon / multicluster / API e2e | `make e2e-addon-test`, `make e2e-multicluster-test`, `make e2e-api-test` |
@@ -42,7 +43,7 @@ make test
 This chains three targets:
 
 1. `envtest`: downloads the pinned Kubernetes control-plane test binaries
-   (currently **1.31.0**) via `setup-envtest`, so unit tests can talk to a
+   (currently **1.37.0**) via `setup-envtest`, so unit tests can talk to a
    real (in-memory) API server without a full cluster.
 2. `unit-test-core`: runs `go test` over `./pkg/... ./cmd/... ./apis/...`
    and `./references/...` (excluding `apiserver` and
@@ -55,10 +56,10 @@ package's result instead of stopping early), both `go test` invocations,
 matching the Makefile exactly:
 
 ```bash
-KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.31.0 -p path)" \
+KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.37.0 -p path)" \
   go test $(go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 
-KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.31.0 -p path)" \
+KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.37.0 -p path)" \
   go test $(go list ./references/... | grep -v apiserver)
 ```
 
@@ -85,16 +86,36 @@ go test ./pkg/<subpath>/... -count=1
 > If exactly these three fail and everything else is green, that's this, not
 > a regression.
 
+
+## Shipped definition tests
+
+```bash
+make test-definitions
+```
+
+Runs every `*_test.cue` beside the built-in definitions in
+`vela-templates/definitions/internal` through `vela def test --check-pending`, which also
+runs each `@pending` case and fails any that now passes: the defect it pinned is fixed,
+so its marker comes off in the same PR. Then two guards:
+every definition has a test file (or is listed in `untested` in
+`pkg/definition/cuetest/shipped_test.go`, with why), and every parameter it
+declares, two levels deep, is set by a case that runs (or is listed in
+`uncovered`, with why). Step and source cases start envtest, as unit tests do;
+no cluster or kubeconfig is needed. CI runs this as its own workflow,
+`Definition-Test`, so `make test` leaves these tests out; to run them through
+`go test` instead, set `VELA_SHIPPED_DEFINITION_TESTS=1`.
+
 ## Controller e2e tests
 
 ### Self-provisioned cluster (`make e2e-test-local`)
 
 The most self-contained option. It creates (or reuses) a `kubevela-debug` k3d
 cluster, builds and imports a `vela-core:e2e-test` image, pre-loads the
-public registry images the "Helmchart Auth" suite needs
-(`ghcr.io/project-zot/zot-minimal-linux-amd64`, `ghcr.io/helm/chartmuseum`,
-`docker.io/library/nginx`), installs the chart with the webhook enabled, and
-runs `./test/e2e-test`:
+public registry images the module and addon-module packages pull (zot for the
+module suite's credentialed-registry test, ChartMuseum and nginx for their
+registries: `ghcr.io/project-zot/zot-minimal-linux-amd64`,
+`ghcr.io/helm/chartmuseum`, `docker.io/library/nginx`), installs the chart with
+the webhook enabled, and runs those two packages:
 
 ```bash
 make e2e-test-local
@@ -135,11 +156,16 @@ It` path. Focus on the parent `Describe` if the spec you care about depends
 on a sibling setup spec; focusing too narrowly will skip it.
 
 ```bash
-ginkgo -v --focus="<some spec description>" ./test/e2e-test
+ginkgo -v --focus="<some spec description>" ./test/e2e-application-test
 
 # Run it a few times in a row to rule out a timing-sensitive flake:
-ginkgo -v --repeat=2 --focus="<some spec description>" ./test/e2e-test
+ginkgo -v --repeat=2 --focus="<some spec description>" ./test/e2e-application-test
 ```
+
+Choose the corresponding definition, config or combined Helm lifecycle/authentication package for
+other core specs. `make e2e-test` runs all four core packages; their individual
+targets and CPU-based worker defaults are documented in
+[`test/E2E_PARALLEL.md`](../../test/E2E_PARALLEL.md).
 
 A handful of controller e2e specs are known to be timing-sensitive under CPU
 load (they assert on a resource reaching some state without a generous

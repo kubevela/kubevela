@@ -19,13 +19,14 @@ spec:
         	"vela/metrics"
         	"vela/builtin"
         )
+        // optional in the schema, so a client may leave them out; an absent one takes its default here
         check: metrics.#PromCheck & {
         	$params: {
-        		query:          parameter.query
-        		metricEndpoint: parameter.metricEndpoint
-        		condition:      parameter.condition
-        		duration:       parameter.duration
-        		failDuration:   parameter.failDuration
+        		query: parameter.query
+        		metricEndpoint: [if parameter.metricEndpoint != _|_ {parameter.metricEndpoint}, "http://prometheus-server.o11y-system.svc:9090"][0]
+        		condition: parameter.condition
+        		duration: [if parameter.duration != _|_ {parameter.duration}, "5m"][0]
+        		failDuration: [if parameter.failDuration != _|_ {parameter.failDuration}, "2m"][0]
         	}
         }
 
@@ -50,7 +51,7 @@ spec:
         	// +usage=Query is a raw prometheus query to perform
         	query: string
         	// +usage=The HTTP address and port of the prometheus server
-        	metricEndpoint?: "http://prometheus-server.o11y-system.svc:9090" | string
+        	metricEndpoint?: *"http://prometheus-server.o11y-system.svc:9090" | string
         	// +usage=Condition is an expression which determines if a measurement is considered successful. eg: >=0.95
         	condition: string
         	// +usage=Duration defines the duration of time required for this step to be considered successful.

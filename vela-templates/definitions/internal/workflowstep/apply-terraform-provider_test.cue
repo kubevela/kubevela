@@ -131,7 +131,7 @@ _type: _stored & {
 		ARM_SUBSCRIPTION_ID: "sub"
 		ARM_TENANT_ID:       "tenant"
 	}
-} @pending(the azure provider schema declares no type field, so type azure matches no disjunct and the step fails with an empty disjunction before storing anything)
+}
 
 "stores baidu credentials": test.#WorkflowStepExec & _type & {
 	parameter: {type: "baidu", accessKey: "AK", secretKey: "SECRET", region: "bj"}

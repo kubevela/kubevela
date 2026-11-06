@@ -64,6 +64,10 @@ func init() {
 const (
 	// PackagePlaceHolder is the package name placeholder
 	PackagePlaceHolder = "github.com/kubevela/vela-go-sdk"
+
+	// goImage runs go commands on the generated SDK. Its Go version must be at
+	// least the go directive in _scaffold/go/go.mod_.
+	goImage = "golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414"
 )
 
 var (
@@ -265,7 +269,7 @@ func (m *GoModuleModifier) addSubGoMod() error {
 			"--rm",
 			"-v", m.apiDir+":/api",
 			"-w", "/api",
-			"golang:1.23.8-alpine@sha256:b7486658b87d34ecf95125e5b97e8dfe86c21f712aa36fc0c702e5dc41dc63e1",
+			goImage,
 			"go", "get", fmt.Sprintf("%s@%s", m.Package, m.LangArgs.Get(mainModuleVersionKey)),
 		))
 	}
@@ -275,7 +279,7 @@ func (m *GoModuleModifier) addSubGoMod() error {
 		"-v", m.apiDir+":/api",
 		"-w", "/api",
 		"--env", "GOPROXY="+m.LangArgs.Get(goProxyKey),
-		"golang:1.23.8-alpine@sha256:b7486658b87d34ecf95125e5b97e8dfe86c21f712aa36fc0c702e5dc41dc63e1",
+		goImage,
 		"go", "mod", "tidy",
 	))
 	for _, cmd := range cmds {
@@ -307,7 +311,7 @@ func (m *GoModuleModifier) tidyMainMod() error {
 		"--rm",
 		"-v", outDir+":/api",
 		"-w", "/api",
-		"golang:1.23.8-alpine@sha256:b7486658b87d34ecf95125e5b97e8dfe86c21f712aa36fc0c702e5dc41dc63e1",
+		goImage,
 		"go", "mod", "tidy",
 	)
 	if m.Verbose {

@@ -76,8 +76,8 @@ _app: {
 	definition: "webhook"
 	parameter: data: app: "shop"
 	expect: {
-		phase:  "failed"
-		reason: "Execute"
+		phase:   "failed"
+		message: "url is required: set url.value or url.secretRef"
 		calls: "vela/http"?: _|_
 	}
-} @pending(webhook reads url only through != _|_ guards, so a step without one succeeds and sends nothing)
+}

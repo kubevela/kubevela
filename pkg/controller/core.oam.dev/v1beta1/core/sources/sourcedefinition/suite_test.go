@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	oamCore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -142,4 +143,42 @@ output: {host: "example.com"}
 			t.Fatal("the manager did not stop; a Runnable is ignoring its context")
 		}
 	})
+}
+
+// A generated schema template someone marked sensitive: the CRD refuses turning sensitive
+// off, so the reconcile that rewrites the template must keep it, or every later reconcile
+// of the definition fails. Against a real API server, which enforces the CRD's rule.
+func TestSchemaTemplateKeepsAStoredSensitive(t *testing.T) {
+	cfg := startEnv(t)
+	require.NoError(t, configv1alpha1.AddToScheme(scheme.Scheme))
+	ctx := context.Background()
+	cli, err := client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	require.NoError(t, err)
+	_ = cli.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}})
+
+	r := &Reconciler{Client: cli}
+	def := &v1beta1.SourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "marked-source", Namespace: "vela-system"},
+		Spec: v1beta1.SourceDefinitionSpec{
+			Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: `
+schema: {host: string}
+output: {host: "example.com"}
+`}},
+		},
+	}
+	ref, err := r.reconcileSchemaTemplate(ctx, def)
+	require.NoError(t, err)
+	key := client.ObjectKey{Namespace: sourceTemplateNamespace, Name: ref.Name}
+	var ct configv1alpha1.ConfigTemplate
+	require.NoError(t, cli.Get(ctx, key, &ct))
+	require.False(t, ct.Spec.Sensitive)
+
+	ct.Spec.Sensitive = true
+	require.NoError(t, cli.Update(ctx, &ct))
+
+	again, err := r.reconcileSchemaTemplate(ctx, def)
+	require.NoError(t, err, "the rewrite must not try to turn sensitive off")
+	require.Equal(t, ref, again)
+	require.NoError(t, cli.Get(ctx, key, &ct))
+	require.True(t, ct.Spec.Sensitive)
 }

@@ -144,6 +144,19 @@ func TestPrefetchSkipsChainedBindings(t *testing.T) {
 		"chained itself is excluded; leaf0, which it reads, is reached through its properties")
 }
 
+// A malformed expression leaves the lazy path to report it, and costs only its
+// own property: the other bindings the blob reads are still prefetched.
+func TestPrefetchReachesPastAMalformedExpression(t *testing.T) {
+	pCtx := prefetchContext(t, 2)
+	r := newSourceResolver(pCtx.GetCtx(), contextValuesFor(pCtx), SurfaceComponent, sourceInputsFromContext(pCtx))
+
+	got := r.independentBindings(map[string]interface{}{
+		"a": "$(source.leaf0.v +)",
+		"b": "$(source.leaf1.v)",
+	})
+	assert.Equal(t, []string{"leaf1"}, got)
+}
+
 // TestPrefetchIsBehaviourNeutral is the safety property. Whatever the render
 // produced before, it must produce now - including for bindings that fail.
 func TestPrefetchIsBehaviourNeutral(t *testing.T) {

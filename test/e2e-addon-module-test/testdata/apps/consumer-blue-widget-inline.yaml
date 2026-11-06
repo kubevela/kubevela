@@ -1,0 +1,18 @@
+# Inline-module mirror of consumer-blue-widget.yaml: same shape, renamed to
+# widget-kit-inline's identity. Used by the self-healing scenario, which does
+# not install the addon-level trait's addon parameters.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: widget-consumer-inline
+  namespace: default
+spec:
+  components:
+    - name: blue-widget
+      type: widget-kit-inline/v1/widget
+      properties:
+        color: blue
+      traits:
+        - type: widget-kit-inline/v1/labeler
+          properties:
+            tier: gold

@@ -18,6 +18,9 @@ template: {
 		namespace: *context.namespace | string
 	}
 
+	// Interpolating resolves the parameter's default before it meets kube.#Delete's own default.
+	let targetNamespace = "\(parameter.namespace)"
+
 	cleanJobs: kube.#Delete & {
 		$params: {
 			value: {
@@ -25,11 +28,11 @@ template: {
 				kind:       "Job"
 				metadata: {
 					name:      context.name
-					namespace: parameter.namespace
+					namespace: targetNamespace
 				}
 			}
 			filter: {
-				namespace: parameter.namespace
+				namespace: targetNamespace
 				if parameter.labelselector != _|_ {
 					matchingLabels: parameter.labelselector
 				}
@@ -49,11 +52,11 @@ template: {
 				kind:       "pod"
 				metadata: {
 					name:      context.name
-					namespace: parameter.namespace
+					namespace: targetNamespace
 				}
 			}
 			filter: {
-				namespace: parameter.namespace
+				namespace: targetNamespace
 				if parameter.labelselector != _|_ {
 					matchingLabels: parameter.labelselector
 				}

@@ -38,8 +38,7 @@ if [ ! -f "$VELA_CMD" ]; then
     echo -e "${HEAD_PROMPT}${YELLOW}Failed to get vela command, fallback to use \`go run\`.${NC}"
     VELA_CMD="go run ../references/cmd/cli/main.go"
 else
-  echo -e "${HEAD_PROMPT}${GREEN}Got vela command binary, version information:"
-  $VELA_CMD version
+  echo -e "${HEAD_PROMPT}${GREEN}Got vela command binary ${VELA_CMD}.${NC}"
 fi
 
 function render {

@@ -19,7 +19,6 @@ package oam
 import (
 	"context"
 	_ "embed"
-	"fmt"
 
 	"cuelang.org/go/cue"
 	"k8s.io/apimachinery/pkg/types"
@@ -59,7 +58,7 @@ func RenderComponent(ctx context.Context, params *oamprovidertypes.OAMParams[cue
 	for _, trait := range traits {
 		name := trait.GetLabels()[oam.TraitResource]
 		if name != "" {
-			v = v.FillPath(cue.ParsePath(fmt.Sprintf("outputs.%s", name)), workload.Object)
+			v = v.FillPath(cue.MakePath(cue.Str("outputs"), cue.Str(name)), trait)
 		}
 	}
 
@@ -90,7 +89,7 @@ func ApplyComponent(ctx context.Context, params *oamprovidertypes.OAMParams[cue.
 	for _, trait := range traits {
 		name := trait.GetLabels()[oam.TraitResource]
 		if name != "" {
-			v = v.FillPath(cue.ParsePath(fmt.Sprintf("outputs.%s", name)), trait)
+			v = v.FillPath(cue.MakePath(cue.Str("outputs"), cue.Str(name)), trait)
 		}
 	}
 

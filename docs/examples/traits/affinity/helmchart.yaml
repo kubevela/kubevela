@@ -1,0 +1,36 @@
+# helmchart with affinity trait. Trait fields overlay any scheduling already
+# set via chart values (nodeSelector / affinity / tolerations).
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: affinity-helmchart-example
+  namespace: vela-system
+spec:
+  components:
+    - name: cert-manager
+      type: helmchart
+      properties:
+        chart:
+          source: cert-manager
+          repoURL: https://charts.jetstack.io
+          version: v1.9.1
+        release:
+          name: cert-manager
+          namespace: cert-manager
+        values:
+          installCRDs: true
+          replicaCount: 1
+      traits:
+        - type: affinity
+          properties:
+            nodeSelector:
+              disktype: ssd
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: node-type
+                          operator: In
+                          values:
+                            - infra

@@ -30,33 +30,3 @@ import (
 // One per call: a cue.Value belongs to the context that made it, so the scope
 // and the expression have to share one.
 func newContext() *cue.Context { return cuecontext.New() }
-
-// isIndexSegment reports a segment that came from a list index. selectorPath
-// records those as decimal text, and nothing else in a path is all digits: a
-// struct field cannot start with one.
-func isIndexSegment(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-func isCUEIdent(s string) bool {
-	if s == "" {
-		return false
-	}
-	for i, r := range s {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r == '_', r == '$':
-		case i > 0 && r >= '0' && r <= '9':
-		default:
-			return false
-		}
-	}
-	return true
-}

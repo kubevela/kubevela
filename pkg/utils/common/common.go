@@ -41,6 +41,8 @@ import (
 	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/cue/cuex"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
 	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
@@ -53,6 +55,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	metricsV1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -131,6 +134,18 @@ func InitBaseRestConfig() (Args, error) {
 	return args, nil
 }
 
+func outboundHTTPPolicy() httpguard.Policy {
+	policy := httpguard.Current()
+	if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {
+		policy.BlockPrivate = true
+	}
+	return policy
+}
+
+func secureHTTPTransport(base *http.Transport) *http.Transport {
+	return httpguard.SecureTransport(base, outboundHTTPPolicy())
+}
+
 // HTTPGetResponse use HTTP option and default client to send request and get raw response
 func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.Response, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
@@ -141,7 +156,14 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	if err != nil {
 		return nil, err
 	}
-	httpClient := &http.Client{}
+	policy := outboundHTTPPolicy()
+	if err := policy.BlockedHost(req.URL.Host); err != nil {
+		return nil, err
+	}
+	httpClient := &http.Client{
+		Transport:     secureHTTPTransport(http.DefaultTransport.(*http.Transport).Clone()),
+		CheckRedirect: guardedRedirect(policy, nil),
+	}
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
 	}
@@ -154,7 +176,7 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 		req.Header.Set("Authorization", "Bearer "+opts.BearerToken)
 	}
 	if opts != nil && opts.InsecureSkipTLS {
-		httpClient.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} // nolint
+		httpClient.Transport = secureHTTPTransport(&http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}) // nolint
 	}
 	// if specify the caFile, we cannot re-use the default httpClient, so create a new one.
 	if opts != nil && (len(opts.CaFile) != 0 || len(opts.KeyFile) != 0 || len(opts.CertFile) != 0) {
@@ -177,7 +199,7 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 		}
 		tr.TLSClientConfig = tlsConfig
 		defer tr.CloseIdleConnections()
-		httpClient.Transport = &tr
+		httpClient.Transport = secureHTTPTransport(&tr)
 		if len(tlsConfig.Certificates) != 0 {
 			// A client certificate is presented during the TLS handshake, so it
 			// belongs to the transport rather than to a header. net/http strips
@@ -185,7 +207,7 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 			// cannot strip a client certificate: every hop in the chain reuses
 			// this transport and so authenticates the caller to whatever host it
 			// lands on. Refuse the crossing instead.
-			httpClient.CheckRedirect = rejectCrossOriginRedirect
+			httpClient.CheckRedirect = guardedRedirect(policy, rejectCrossOriginRedirect)
 		}
 	}
 	return httpClient.Do(req)
@@ -195,15 +217,32 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 // CheckRedirect replaces rather than adds to.
 const defaultRedirectLimit = 10
 
+// guardedRedirect checks every redirect hop: the redirect limit, then the
+// workflow HTTP deny policy on the target host, then next when it is set. A
+// custom CheckRedirect replaces the net/http default, so the limit is enforced
+// here.
+func guardedRedirect(policy httpguard.Policy, next func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= defaultRedirectLimit {
+			return fmt.Errorf("stopped after %d redirects", defaultRedirectLimit)
+		}
+		if err := policy.BlockedHost(req.URL.Host); err != nil {
+			return err
+		}
+		if next != nil {
+			return next(req, via)
+		}
+		return nil
+	}
+}
+
 // rejectCrossOriginRedirect follows redirects only while they stay on the
 // original request's origin. It exists for requests that carry a TLS client
-// certificate; see the call site in HTTPGetResponse.
+// certificate; see the call site in HTTPGetResponse. guardedRedirect enforces
+// the redirect limit before it calls this.
 func rejectCrossOriginRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) == 0 {
 		return nil
-	}
-	if len(via) >= defaultRedirectLimit {
-		return fmt.Errorf("stopped after %d redirects", defaultRedirectLimit)
 	}
 	if origin := via[0].URL; !sameOriginURL(origin, req.URL) {
 		return fmt.Errorf("refusing to follow the redirect from %s to %s: this request presents a TLS client certificate, which would be sent to the redirect target", redactedOrigin(origin), redactedOrigin(req.URL))

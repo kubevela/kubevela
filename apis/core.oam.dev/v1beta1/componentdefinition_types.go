@@ -30,6 +30,18 @@ type ComponentDefinitionSpec struct {
 	// +optional
 	Version string `json:"version,omitempty"`
 
+	// Module names the module this definition was published in, for example
+	// "s3". It identifies a versioned definition on the spec itself, not only
+	// through labels. Set it together with apiVersion, or leave both empty.
+	// +optional
+	Module string `json:"module,omitempty"`
+
+	// APIVersion is the API line of the module this definition belongs to, for
+	// example "v1" or "v1beta2". Set it together with module, or leave both empty.
+	// +kubebuilder:validation:Pattern=`^v\d+(alpha\d+|beta\d+)?$`
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
 	// Extends names a ComponentDefinition this one builds on. The parent renders
 	// with the parameters this definition's template passes it in its `$super`
 	// block, and its output, outputs and parameter schema are inherited unless
@@ -128,6 +140,12 @@ func (cd *ComponentDefinition) SetConditions(c ...condition.Condition) {
 func (cd *ComponentDefinition) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return cd.Status.GetCondition(conditionType)
 }
+
+// GetModule returns the module this definition was published in, or "" for a
+// legacy, non-module definition. One accessor per X-Definition kind, so a
+// caller that only needs the module identity (e.g. Form 1 resolution) does
+// not need a type switch over every kind that carries one.
+func (cd *ComponentDefinition) GetModule() string { return cd.Spec.Module }
 
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

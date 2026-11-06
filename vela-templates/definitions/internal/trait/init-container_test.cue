@@ -86,7 +86,7 @@ _web: {
 		containers: [{volumeMounts: [{name: "config", mountPath: "/etc/shop"}, {name: "workdir", mountPath: "/srv/data"}]}, {}]
 		volumes: [{name: "config", configMap: name: "shop", emptyDir?: _|_}, {name: "workdir", emptyDir: {}}]
 	}
-} @pending(the patch key of volumes and volumeMounts is the defaulted mountName, which the patcher does not resolve, so the shared entry merges into the first existing one by index)
+}
 
 "the mount paths are required": test.#TraitRender & {
 	definition: "init-container"
@@ -103,4 +103,9 @@ _web: {
 	expect: error: {
 		parameter: [=~"imagePullPolicy"] @contains()
 	}
+}
+
+"a plain env value is passed to the init container": test.#TraitRender & _web & {
+	parameter: env: [{name: "TARGET", value: "/work"}]
+	expect: output: spec: template: spec: initContainers: [{env: [{name: "TARGET", value: "/work"}]}]
 }

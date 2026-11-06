@@ -241,7 +241,10 @@ func TestRenderModuleComponentsNoImportsIsEmpty(t *testing.T) {
 	assert.Empty(t, comps)
 }
 
-func TestRenderModuleComponentsSkipsModuleAlreadyDeclaredByProperties(t *testing.T) {
+func TestRenderModuleComponentsErrorsWhenModuleAlreadyDeclaredByProperties(t *testing.T) {
+	// No source silently wins over another: a hand-written component and an
+	// import claiming the same module name is a packaging mistake, not an
+	// intentional override, so this fails the whole render.
 	addon := &InstallPackage{
 		Imports: []ModuleImport{{Module: "aws-s3", Enabled: true}},
 	}
@@ -252,12 +255,13 @@ func TestRenderModuleComponentsSkipsModuleAlreadyDeclaredByProperties(t *testing
 			Properties: &runtime.RawExtension{Raw: []byte(`{"module":"aws-s3"}`)},
 		},
 	}
-	comps, err := RenderModuleComponents(addon, existing, nil)
-	require.NoError(t, err)
-	assert.Empty(t, comps)
+	_, err := RenderModuleComponents(addon, existing, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"aws-s3"`)
+	assert.Contains(t, err.Error(), "author-declared-aws-s3")
 }
 
-func TestRenderModuleComponentsSkipsModuleAlreadyDeclaredByComponentName(t *testing.T) {
+func TestRenderModuleComponentsErrorsWhenModuleAlreadyDeclaredByComponentName(t *testing.T) {
 	// The type: module component template defaults properties.module to the
 	// component's own name (module: *context.name | string), so a
 	// hand-authored component with no explicit "module" property must still
@@ -268,9 +272,9 @@ func TestRenderModuleComponentsSkipsModuleAlreadyDeclaredByComponentName(t *test
 	existing := []common2.ApplicationComponent{
 		{Name: "aws-s3", Type: "module"},
 	}
-	comps, err := RenderModuleComponents(addon, existing, nil)
-	require.NoError(t, err)
-	assert.Empty(t, comps)
+	_, err := RenderModuleComponents(addon, existing, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"aws-s3"`)
 }
 
 func TestRenderModuleComponentsDoesNotSkipOnNonModuleComponentNameCollision(t *testing.T) {
@@ -285,18 +289,16 @@ func TestRenderModuleComponentsDoesNotSkipOnNonModuleComponentNameCollision(t *t
 	require.Len(t, comps, 1)
 }
 
-func TestRenderModuleComponentsDedupesRepeatedModuleName(t *testing.T) {
-	// Two imports entries naming the same module must not both be emitted --
-	// the second occurrence is treated the same as an author-declared
-	// component that already claimed the name.
+func TestRenderModuleComponentsErrorsOnRepeatedModuleName(t *testing.T) {
+	// Two imports entries naming the same module is also a collision: nothing
+	// picks a winner, including between two entries of the same kind.
 	addon := &InstallPackage{
 		Imports: []ModuleImport{
 			{Module: "aws-s3", Enabled: true, Registry: "oam-modules", Version: "1.0.0"},
 			{Module: "aws-s3", Enabled: true, Registry: "oam-modules", Version: "2.0.0"},
 		},
 	}
-	comps, err := RenderModuleComponents(addon, nil, nil)
-	require.NoError(t, err)
-	require.Len(t, comps, 1)
-	assert.Equal(t, "aws-s3", comps[0].Name)
+	_, err := RenderModuleComponents(addon, nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"aws-s3"`)
 }

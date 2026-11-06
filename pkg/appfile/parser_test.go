@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
@@ -1081,8 +1081,7 @@ func TestValidateExpressionSurfaces(t *testing.T) {
 			wantErr: `"source" cannot be read here`,
 		},
 		{
-			// Workflow steps resolve via a pre-pass in generateWorkflowInstance
-			// that substitutes before the workflow engine sees the properties.
+			// The workflow resolves a step's sources when the step runs.
 			name: "workflow step reading a source is accepted",
 			af:   &Appfile{WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{step("notify", raw(`{"url":"$(source.cfg.webhook)"}`))}},
 		},
@@ -1157,6 +1156,19 @@ func TestValidateExpressionSurfaces(t *testing.T) {
 				WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{step("notify", raw(`{"text":"deployed at $(date)"}`))}},
 		},
 		{
+			name: "a workflow step reading an earlier step's output and the iteration is accepted",
+			af: &Appfile{WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				step("notify", raw(`{"msg":"$(steps.build.outputs.image) for $(each.item.name)"}`)),
+			}},
+		},
+		{
+			name: "a policy reading a step's output is refused",
+			af: &Appfile{Policies: []v1beta1.AppPolicy{
+				{Name: "override-image", Type: "override", Properties: raw(`{"image":"$(steps.build.outputs.image)"}`)},
+			}},
+			wantErr: `"steps" cannot be read here`,
+		},
+		{
 			// A step renders outside the component workflow, so there is no
 			// producer it could wait on.
 			name: "a workflow step reading a component is refused",
@@ -1223,6 +1235,47 @@ func TestValidateExpressionSurfaces(t *testing.T) {
 			if !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("expected error containing %q, got: %v", tc.wantErr, err)
 			}
+		})
+	}
+}
+
+func TestParsePoliciesLeavesContextExpressionsLiteralWhenExpressionsDisabled(t *testing.T) {
+	for name, gates := range map[string]map[string]bool{
+		"feature off": {
+			string(features.EnableCelExpressions): false,
+		},
+		"feature on without the opt-in annotation": {
+			string(features.EnableCelExpressions):      true,
+			string(features.RequireCelExpressionOptIn): true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			before := map[string]bool{
+				string(features.EnableCelExpressions):      utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCelExpressions),
+				string(features.RequireCelExpressionOptIn): utilfeature.DefaultMutableFeatureGate.Enabled(features.RequireCelExpressionOptIn),
+			}
+			require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(gates))
+			t.Cleanup(func() { require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(before)) })
+
+			const props = `{"namespace":"$(context.namespace)","clusters":["local"]}`
+			newAppfile := func() *Appfile {
+				app := &v1beta1.Application{
+					ObjectMeta: metav1.ObjectMeta{Name: "checkout", Namespace: "prod"},
+					Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{{
+						Name: "place", Type: "topology", Properties: &runtime.RawExtension{Raw: []byte(props)},
+					}}},
+				}
+				return &Appfile{Name: "checkout", Namespace: "prod", app: app}
+			}
+			p := NewApplicationParser(fake.NewClientBuilder().WithScheme(common2.Scheme).Build())
+
+			af := newAppfile()
+			require.NoError(t, p.parsePolicies(context.Background(), af))
+			require.JSONEq(t, props, string(af.Policies[0].Properties.Raw))
+
+			af = newAppfile()
+			require.NoError(t, p.parsePoliciesFromRevision(context.Background(), af))
+			require.JSONEq(t, props, string(af.Policies[0].Properties.Raw))
 		})
 	}
 }
@@ -1474,4 +1527,47 @@ func TestResolvePolicyExpressionsOnAnApplicationScopedPolicy(t *testing.T) {
 		require.Contains(t, got, `"where":"prod"`,
 			"a leaf this pass can answer is still answered")
 	})
+}
+
+// The parser refuses a declared cycle on its own, which is what protects a
+// cluster running with the webhook disabled.
+//
+// It is judged from the spec before any definition is looked up, so the parser
+// needs no client to reach the error, and an Application that never opted in to
+// expressions is refused just the same.
+func TestGenerateAppFileRefusesADeclaredCycle(t *testing.T) {
+	cyclic := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "cycle-demo", Namespace: "default"},
+		Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+			{Name: "a", Type: "webservice", DependsOn: []string{"b"}},
+			{Name: "b", Type: "webservice", DependsOn: []string{"a"}},
+		}},
+	}
+
+	_, err := NewApplicationParser(nil).GenerateAppFile(context.TODO(), cyclic)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "components wait on each other in a cycle")
+}
+
+// An Application rendered from its latest published revision takes the
+// revision path, which parses appRev.Spec.Application.Spec and so has to judge
+// that spec too. Otherwise a pinned cyclic Application reaches the workflow and
+// waits for ever, which is the hang the check exists to stop.
+func TestGenerateAppFileFromRevisionRefusesADeclaredCycle(t *testing.T) {
+	appRev := &v1beta1.ApplicationRevision{
+		ObjectMeta: metav1.ObjectMeta{Name: "cycle-demo-v1", Namespace: "default"},
+		Spec: v1beta1.ApplicationRevisionSpec{ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+			Application: v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "cycle-demo", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+					{Name: "a", Type: "webservice", DependsOn: []string{"b"}},
+					{Name: "b", Type: "webservice", DependsOn: []string{"a"}},
+				}},
+			},
+		}},
+	}
+
+	_, err := NewApplicationParser(nil).GenerateAppFileFromRevision(appRev)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "components wait on each other in a cycle")
 }

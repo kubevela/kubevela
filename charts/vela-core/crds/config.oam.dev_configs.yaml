@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.5
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: configs.config.oam.dev
 spec:
   group: config.oam.dev
@@ -63,8 +63,9 @@ spec:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
               propertiesFrom:
-                description: PropertiesReference sources properties from a Secret
-                  instead of storing them inline.
+                description: |-
+                  PropertiesFrom reads the properties from a Secret. A Config that uses it is always
+                  sensitive: its Secret is marked config.oam.dev/sensitive, whatever the template says.
                 properties:
                   secretRef:
                     description: SecretKeySelector selects a key of a Secret in the
@@ -134,6 +135,68 @@ spec:
                   - type
                   type: object
                 type: array
+              expandedWriter:
+                description: |-
+                  ExpandedWriter records the last confirmed sync of the template's expanded writer
+                  block (today: nacos), published or found current. Unset when the template has no
+                  such block.
+                properties:
+                  nacos:
+                    description: |-
+                      NacosSyncStatus is the last confirmed sync of the template's nacos block: where the
+                      content lives in Nacos and a hash of the content and its target, recorded both when
+                      the controller published and when it found Nacos already current (a config adopted
+                      from the CLI, say), so the next reconcile publishes again only when the rendered
+                      content or its target changes.
+                    properties:
+                      contentHash:
+                        type: string
+                      dataId:
+                        type: string
+                      endpoint:
+                        description: |-
+                          Endpoint is the endpoint config (the config made from the nacos-server template) the
+                          template names, recorded on every sync attempt whether it succeeded or not, so a
+                          change to that config re-triggers exactly the Configs that use it, including the
+                          ones still waiting for it to exist.
+                        properties:
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                        required:
+                        - name
+                        - namespace
+                        type: object
+                      endpointHash:
+                        description: |-
+                          EndpointHash is a digest of that endpoint config's server part (addresses, ports,
+                          discovery endpoint, region), never its credentials. A changed endpoint, another
+                          server say, is re-synced like changed content: read first, published only when the
+                          server does not hold it. Rotated credentials change nothing in Nacos and are not
+                          part of it; the status is readable by whoever can read Configs.
+                        type: string
+                      group:
+                        type: string
+                      lastSyncTime:
+                        description: |-
+                          LastSyncTime is when the content was last confirmed current in Nacos, by a
+                          publish or by a read that found it already there.
+                        format: date-time
+                        type: string
+                    required:
+                    - contentHash
+                    - dataId
+                    - group
+                    type: object
+                type: object
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the spec generation the rest of the status describes, so a
+                  reader can tell an Available from the last spec apart from one for the current
+                  spec; the create-config workflow step waits on it.
+                format: int64
+                type: integer
               phase:
                 description: ConfigPhase describes the lifecycle phase of a Config.
                 type: string

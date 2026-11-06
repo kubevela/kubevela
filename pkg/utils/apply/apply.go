@@ -24,7 +24,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -48,6 +48,10 @@ const (
 	// LabelRenderHash is the label that record the hash value of the rendering resource.
 	LabelRenderHash = "oam.dev/render-hash"
 )
+
+// logDebug equals pkg/controller/common.LogDebug, which this package cannot import:
+// it is part of the apply/ResourceTracker library (see pkg/resourcekeeper/boundary_test.go).
+const logDebug klog.Level = 1
 
 // Applicator applies new state to an object or create it if not exist.
 // It uses the same mechanism as `kubectl apply`, that is, for each resource being applied,
@@ -121,10 +125,10 @@ func loggingApply(msg string, desired client.Object, quiet bool) {
 	}
 	d, ok := desired.(metav1.Object)
 	if !ok {
-		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
+		klog.V(logDebug).InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
 		return
 	}
-	klog.InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
+	klog.V(logDebug).InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
 }
 
 // trimLastAppliedConfigurationForSpecialResources will filter special object that can reduce the record for "app.oam.dev/last-applied-configuration" annotation.
@@ -432,6 +436,18 @@ func ReadOnly() ApplyOption {
 func TakeOver() ApplyOption {
 	return func(act *applyAction, _, _ client.Object) error {
 		act.takeOver = true
+		return nil
+	}
+}
+
+// TakeOverIf is TakeOver for the existing objects the predicate accepts: the caller names
+// the shape it may claim and leaves every other unowned object to the refusal. It must run
+// before MustBeControlledBy.
+func TakeOverIf(accept func(existing client.Object) bool) ApplyOption {
+	return func(act *applyAction, existing, _ client.Object) error {
+		if existing != nil && accept(existing) {
+			act.takeOver = true
+		}
 		return nil
 	}
 }

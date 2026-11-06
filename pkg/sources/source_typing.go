@@ -26,6 +26,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	cueformat "cuelang.org/go/cue/format"
+	"github.com/kubevela/pkg/cel/template"
 	"github.com/kubevela/workflow/pkg/cue/process"
 	"k8s.io/utils/lru"
 
@@ -164,10 +165,10 @@ func (t *paramTyper) walk(node any) (any, bool, error) {
 // typeOfLeaf returns what a string leaf should contribute: itself when it holds
 // no expression, otherwise the type the expression produces.
 func (t *paramTyper) typeOfLeaf(raw string) (any, error) {
-	if !propexpr.MayContainExpr(raw) {
+	if !template.MayContainExpr(raw) {
 		return raw, nil
 	}
-	parsed, err := propexpr.Parse(raw)
+	parsed, err := template.Parse(raw)
 	if err != nil {
 		//nolint:nilerr // a malformed expression is reported by the expression validator
 		return raw, nil
@@ -204,7 +205,7 @@ func (t *paramTyper) fromSchema(expr string) (any, bool) {
 		return nil, false
 	}
 	ref := refs[0]
-	if !ref.IsSource() || len(ref.Path) == 0 || ref.String() != expr {
+	if !propexpr.IsSource(ref) || len(ref.Path) == 0 || ref.String() != expr {
 		// Not a bare read: the expression does something with the value.
 		return nil, false
 	}

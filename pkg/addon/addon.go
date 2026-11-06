@@ -112,9 +112,14 @@ const (
 	// GoDefModuleFileName is the module.yaml file name in godef/
 	GoDefModuleFileName string = "module.yaml"
 
+	// ModulesDirName is the addon's modules/ directory. Everything under it
+	// except ModulesImportsFileName (claimed by its own, more specific
+	// pattern) is a candidate inline module, read by readInlineModulesDir.
+	ModulesDirName string = "modules"
+
 	// ModulesImportsFileName is the addon's modules/_imports.cue file name:
 	// the external-module-import declaration read by GetInstallPackageFromReader.
-	ModulesImportsFileName string = "modules/_imports.cue"
+	ModulesImportsFileName string = ModulesDirName + "/_imports.cue"
 
 	// AddonParameterDataKey is the key of parameter in addon args secrets
 	AddonParameterDataKey string = "addonParameterDataKey"
@@ -172,8 +177,12 @@ var Patterns = []Pattern{
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
 	// parameter in resource directory
 	{Value: ParameterFileName},
-	// external module imports
+	// external module imports -- exact-path, so it must be checked before the
+	// broader modules/ directory pattern below (GetPatternFromItem returns on
+	// first match)
 	{Value: ModulesImportsFileName},
+	// inline modules: everything else under modules/
+	{IsDir: true, Value: ModulesDirName},
 	// directory files
 	{IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName},
 	// Go-based definitions directory
@@ -330,6 +339,13 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 				return nil, fmt.Errorf("fail to read addon %s file %s: %w", meta.Name, r.RelativePath(it), err)
 			}
 		}
+	}
+
+	// Inline modules are grouped by name before they can be parsed, so unlike
+	// every other content type above, this one is not a per-item dispatch
+	// entry: it reads the whole modules/ bucket at once.
+	if err := readInlineModulesDir(addon, r, ptItems[ModulesDirName], meta.Name); err != nil {
+		return nil, fmt.Errorf("fail to read addon %s inline modules: %w", meta.Name, err)
 	}
 
 	return addon, nil
@@ -819,6 +835,8 @@ type Installer struct {
 	dryRunBuff *bytes.Buffer
 
 	installerRuntime map[string]interface{}
+	scheduling       SchedulingProperties
+	schedulingErr    error
 
 	registries []Registry
 }
@@ -849,6 +867,13 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 	// clean injected data from runtime option
 	delete(args, InstallerRuntimeOption)
 
+	sched, err := ExtractSchedulingFromArgs(args)
+	if err != nil {
+		i.schedulingErr = err
+	} else {
+		i.scheduling = sched
+	}
+
 	for _, opt := range opts {
 		opt(&i)
 	}
@@ -858,6 +883,9 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 func (h *Installer) enableAddon(ctx context.Context, addon *InstallPackage) (string, error) {
 	var err error
 	h.addon = addon
+	if h.schedulingErr != nil {
+		return "", errors.Wrap(h.schedulingErr, "invalid addon scheduling args")
+	}
 	if !h.skipVersionValidate {
 		err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 		if err != nil {
@@ -1444,6 +1472,9 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}
+	if err := AttachSchedulingTrait(app, h.scheduling); err != nil {
+		return errors.Wrap(err, "attach affinity scheduling traits")
+	}
 	appName, err := determineAddonAppName(h.ctx, h.cli, h.addon.Name)
 	if err != nil {
 		return err
@@ -1540,6 +1571,7 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 		return nil
 	}
 
+	InjectSchedulingIntoArgs(h.args, h.scheduling)
 	if len(h.args) > 0 {
 		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)

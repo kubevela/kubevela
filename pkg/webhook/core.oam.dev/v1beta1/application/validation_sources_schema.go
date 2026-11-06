@@ -18,6 +18,7 @@ package application
 
 import (
 	"strconv"
+	"strings"
 
 	"cuelang.org/go/cue"
 )
@@ -27,6 +28,28 @@ import (
 // (input contract) validators; the path/type helpers are identical for both.
 type cueStruct struct {
 	root cue.Value
+	// found and required memoise lookups by path. A cueStruct lives for one
+	// admission, whose leaves repeat the same paths (every component of one
+	// type), and each CUE lookup evaluates the nodes it passes.
+	found    map[string]lookupResult
+	required map[string]bool
+}
+
+type lookupResult struct {
+	v  cue.Value
+	ok bool
+}
+
+// pathKey renders a path as a memo key, each segment prefixed by its length,
+// since a JSON property key may hold any character a separator would use.
+func pathKey(segs []string) string {
+	var b strings.Builder
+	for _, seg := range segs {
+		b.WriteString(strconv.Itoa(len(seg)))
+		b.WriteByte(':')
+		b.WriteString(seg)
+	}
+	return b.String()
 }
 
 // lookup walks a path through the struct, resolving optional fields the same
@@ -37,6 +60,19 @@ type cueStruct struct {
 // Kubernetes-style label - and splitting the rendered path would read one key
 // as two.
 func (c *cueStruct) lookup(segs []string) (cue.Value, bool) {
+	key := pathKey(segs)
+	if r, ok := c.found[key]; ok {
+		return r.v, r.ok
+	}
+	v, ok := c.walk(segs)
+	if c.found == nil {
+		c.found = map[string]lookupResult{}
+	}
+	c.found[key] = lookupResult{v: v, ok: ok}
+	return v, ok
+}
+
+func (c *cueStruct) walk(segs []string) (cue.Value, bool) {
 	cur := c.root
 	for _, seg := range segs {
 		if seg == "" {
@@ -137,6 +173,19 @@ func (c *cueStruct) kindAt(segs []string) (cue.Kind, bool) {
 // requiredAt reports whether path names a field that the struct declares AND
 // requires: present, not optional, and with no default to fall back on.
 func (c *cueStruct) requiredAt(segs []string) bool {
+	key := pathKey(segs)
+	if r, ok := c.required[key]; ok {
+		return r
+	}
+	r := c.isRequired(segs)
+	if c.required == nil {
+		c.required = map[string]bool{}
+	}
+	c.required[key] = r
+	return r
+}
+
+func (c *cueStruct) isRequired(segs []string) bool {
 	if len(segs) == 0 || segs[len(segs)-1] == "" {
 		return false
 	}
@@ -192,40 +241,4 @@ func kindName(k cue.Kind) string {
 		return "null"
 	}
 	return k.String()
-}
-
-// kindsCompatible reports whether a value of kind src can satisfy a target of
-// kind dst.
-//
-// Compatibility is by kind intersection, permissive enough to avoid false
-// positives from value-level constraints - enums, bounds - while still catching
-// a genuine mismatch such as string into int.
-//
-// Numbers are compatible in both directions, and the float-into-int direction is
-// deliberate rather than an oversight. CEL types arithmetic as double even when
-// every value involved is integral, so `$(source.cfg.port / 2)` is a double
-// feeding an int parameter, and refusing it would reject an expression that
-// resolves perfectly well. Whether the value really is integral is not knowable
-// here - this runs before anything is fetched - so the check that a fractional
-// value cannot reach an int parameter is CUE's, when the resolved value is
-// unified against the schema at render.
-//
-// An unknown kind on either side is accepted. This check exists to catch a
-// mismatch it can prove, and refusing what it cannot type would make an
-// unparseable definition look like a broken Application.
-func kindsCompatible(src, dst cue.Kind) bool {
-	if src == cue.BottomKind || dst == cue.BottomKind {
-		return true // unknown on either side: do not block
-	}
-	if src&dst != 0 {
-		return true
-	}
-	// int is a subset of number/float.
-	if src == cue.IntKind && dst&(cue.NumberKind|cue.FloatKind) != 0 {
-		return true
-	}
-	if dst == cue.IntKind && src&(cue.NumberKind|cue.FloatKind) != 0 {
-		return true
-	}
-	return false
 }

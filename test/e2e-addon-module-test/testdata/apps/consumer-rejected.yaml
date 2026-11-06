@@ -1,4 +1,4 @@
-# Five Applications that admission refuses. Each is created on its own and its
+# Six Applications that admission refuses. Each is created on its own and its
 # error message checked; nothing is created.
 apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -49,3 +49,15 @@ spec:
   components:
     - name: w
       type: kit/widget-kit/v1/widget
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-installed-name
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit-v1-widget
+      properties:
+        color: green

@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/model"
+	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/cue/process"
 
@@ -461,7 +462,8 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if base == nil {
 			return fmt.Errorf("patch trait %s into an invalid workload", td.name)
 		}
-		if err := base.Unify(patcher, patchOptionsFromLevels(levels, patcher)...); err != nil {
+		opts := patchOptionsFromLevels(levels, patcher)
+		if err := base.Unify(marshalablePatch(ctx, patcher, opts), opts...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
 		// The patch carries the trait's own parameters, so a source-fed one
@@ -473,12 +475,31 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	outputsPatcher := val.LookupPath(value.FieldPath(PatchOutputsFieldName))
 	if outputsPatcher.Exists() {
+		// Honor +patchStrategy on patchOutputs (nearest parent declaration, then
+		// fall back to the patch field) so overlays like affinity nodeSelector
+		// can win over chart values.
+		outOpts := sets.CreateUnifyOptionsForPatcher(outputsPatcher)
+		if len(outOpts) == 0 {
+			for i := len(levels) - 1; i >= 0; i-- {
+				p := levels[i].LookupPath(value.FieldPath(PatchOutputsFieldName))
+				if !p.Exists() {
+					continue
+				}
+				if opts := sets.CreateUnifyOptionsForPatcher(p); len(opts) > 0 {
+					outOpts = opts
+					break
+				}
+			}
+		}
+		if len(outOpts) == 0 && patcher.Exists() {
+			outOpts = patchOptionsFromLevels(levels, patcher)
+		}
 		for i, auxiliary := range auxiliaries {
 			target := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
 			if !target.Exists() {
 				continue
 			}
-			if err = auxiliary.Ins.Unify(target); err != nil {
+			if err = auxiliary.Ins.Unify(marshalablePatch(ctx, target, outOpts), outOpts...); err != nil {
 				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
 			if err = repruneAuxiliary(ctx, auxiliaries, i); err != nil {
@@ -797,4 +818,76 @@ func repruneAuxiliary(ctx process.Context, auxiliaries []process.Auxiliary, i in
 	}
 	auxiliaries[i].Ins = next
 	return nil
+}
+
+// marshalablePatch prunes what an open render cannot know from a patch whose
+// strategy hands it to a JSON patch library, which takes concrete JSON only.
+// Elsewhere CUE unifies the patch and an open value is no obstacle.
+//
+// For a JSON patch, an operation keeps its path, so admission still checks the
+// path exists, and loses only what of its value is unknowable; a value with
+// nothing left is applied as an empty list for a list and as null otherwise. A test with anything unknowable in its value
+// is left out instead, since comparing against what remains would refuse a value
+// that may well match.
+func marshalablePatch(ctx process.Context, patcher cue.Value, opts []sets.UnifyOption) cue.Value {
+	if !sources.OpenParams(ctx.GetCtx()) {
+		return patcher
+	}
+	params := &sets.UnifyParams{}
+	for _, o := range opts {
+		o.ApplyToOption(params)
+	}
+	switch params.PatchStrategy {
+	case sets.StrategyJSONMergePatch:
+		pruned, _ := sources.ConcreteForOpenRender(ctx.GetCtx(), patcher)
+		return pruned
+	case sets.StrategyJSONPatch:
+		return marshalableJSONPatch(ctx, patcher)
+	default:
+		return patcher
+	}
+}
+
+// marshalableJSONPatch prunes each operation of a JSON patch on its own, so one
+// unknowable value does not take the whole operations list with it.
+func marshalableJSONPatch(ctx process.Context, patcher cue.Value) cue.Value {
+	iter, err := patcher.LookupPath(cue.ParsePath("operations")).List()
+	if err != nil {
+		pruned, _ := sources.ConcreteForOpenRender(ctx.GetCtx(), patcher)
+		return pruned
+	}
+	ops := []any{}
+	for iter.Next() {
+		op := iter.Value()
+		val := op.LookupPath(cue.ParsePath("value"))
+		// A struct or list is concrete even with an unknowable leaf, so the
+		// prune decides.
+		known := true
+		if val.Exists() {
+			_, pruned := sources.ConcreteForOpenRender(ctx.GetCtx(), val)
+			known = !pruned
+		}
+		if !known {
+			if kind, _ := op.LookupPath(cue.ParsePath("op")).String(); kind == "test" {
+				continue
+			}
+		}
+		pruned, _ := sources.ConcreteForOpenRender(ctx.GetCtx(), op)
+		var decoded map[string]any
+		if err := pruned.Decode(&decoded); err != nil {
+			return patcher
+		}
+		if _, kept := decoded["value"]; val.Exists() && !kept {
+			decoded["value"] = nil
+			if val.IncompleteKind() == cue.ListKind {
+				decoded["value"] = []any{}
+			}
+		}
+		ops = append(ops, decoded)
+	}
+	out := patcher.Context().Encode(map[string]any{"operations": ops})
+	if out.Err() != nil {
+		return patcher
+	}
+	return out
 }

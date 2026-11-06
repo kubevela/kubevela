@@ -11,8 +11,7 @@ _query: {
 	condition: ">=0.95"
 }
 
-// _full also gives the optional parameters, which the template passes on
-// whether or not they are set.
+// _full also overrides each defaulted parameter.
 _full: _query & {
 	metricEndpoint: "http://prom.monitoring:9090"
 	duration:       "10m"
@@ -33,7 +32,7 @@ _full: _query & {
 			failDuration:   "2m"
 		}}]
 	}
-} @pending(metricEndpoint, duration and failDuration are optional parameters the template reads unconditionally, so leaving any out fails the step with a non-concrete value instead of taking the default)
+}
 
 "checks against the given endpoint and durations": test.#WorkflowStepExec & _prom & {
 	_returns: {result: true, failed: false}

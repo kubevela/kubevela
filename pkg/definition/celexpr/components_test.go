@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"testing"
 
+	celengine "github.com/kubevela/pkg/cel"
+	"github.com/kubevela/pkg/cel/template"
 	"github.com/stretchr/testify/require"
 
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
@@ -36,7 +38,7 @@ func TestComponentReferences(t *testing.T) {
 			[]string{"component.db.output.status.endpoint", "source.cfg.port"}},
 		// An index below the read is kept out of the path: the value is exported
 		// whole and the index applied to it.
-		{`component.db.output.status.addresses[0]`, []string{"component.db.output.status.addresses"}},
+		{`component.db.output.status.addresses[0]`, []string{"component.db.output.status.addresses[0]"}},
 		// A bracketed key is still below its parent, so the parent is not a read
 		// of its own.
 		{`component.db.output.metadata.labels["app.oam.dev/team"]`,
@@ -44,7 +46,7 @@ func TestComponentReferences(t *testing.T) {
 		{`source.cfg.data["app.properties"]`, []string{`source.cfg.data["app.properties"]`}},
 	} {
 		t.Run(tc.expr, func(t *testing.T) {
-			refs, err := PropertyReferences(tc.expr)
+			refs, err := Vela.PropertyReferences(tc.expr)
 			require.NoError(t, err)
 			var got []string
 			for _, r := range refs {
@@ -58,15 +60,17 @@ func TestComponentReferences(t *testing.T) {
 func TestComponentsRootIsPerSurface(t *testing.T) {
 	props := map[string]interface{}{"url": `$(component.db.output.status.endpoint)`}
 
-	require.NoError(t, ValidateTree(props, propexpr.SourceIdent, propexpr.ContextIdent, propexpr.ComponentIdent))
+	plan, err := Vela.Plan(props)
+	require.NoError(t, err)
+	require.Empty(t, plan.Check([]string{propexpr.SourceIdent, propexpr.ContextIdent, propexpr.ComponentIdent}, nil))
 
-	err := ValidateTree(props, propexpr.SourceIdent, propexpr.ContextIdent)
-	require.ErrorContains(t, err, `"component" cannot be read here`)
+	faults := plan.Check([]string{propexpr.SourceIdent, propexpr.ContextIdent}, nil)
+	require.Len(t, faults, 1)
+	require.ErrorContains(t, faults[0], `"component" cannot be read here`)
 }
 
 func TestEvalReadsComponents(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
 	in := map[string]interface{}{
 		"source":  map[string]interface{}{},
 		"context": map[string]interface{}{},
@@ -79,12 +83,12 @@ func TestEvalReadsComponents(t *testing.T) {
 		},
 	}
 
-	got, err := EvalProperty(env, `pg://$(component.db.output.status.endpoint):$(component.db.output.status.port)`, in)
+	got, err := Vela.EvalProperty(env, `pg://$(component.db.output.status.endpoint):$(component.db.output.status.port)`, in)
 	require.NoError(t, err)
 	require.Equal(t, "pg://db.internal:5432", got)
 
 	// A lone read keeps its type, as a source read does.
-	got, err = EvalProperty(env, `$(component.db.output.status.port)`, in)
+	got, err = Vela.EvalProperty(env, `$(component.db.output.status.port)`, in)
 	require.NoError(t, err)
 	require.Equal(t, int64(5432), got)
 }
@@ -92,9 +96,9 @@ func TestEvalReadsComponents(t *testing.T) {
 // The typed environment admission uses must accept the root too, or every
 // component read fails there as an undeclared reference.
 func TestTypedEnvDeclaresComponents(t *testing.T) {
-	env, err := EnvForContext(nil, ComponentCtx())
+	env, err := EnvForContext(nil, propexpr.ComponentContext)
 	require.NoError(t, err)
-	typ, err := OutputType(env, `component.db.output.status.endpoint`)
+	typ, err := Vela.OutputType(env, `component.db.output.status.endpoint`)
 	require.NoError(t, err)
 	require.Equal(t, "dyn", typ.String())
 }
@@ -115,7 +119,7 @@ func TestPlacementQualifiedReferences(t *testing.T) {
 			[]string{`component.cache.cluster("data").output.status.host`, `component.cache.output.status.host`}},
 	} {
 		t.Run(tc.expr, func(t *testing.T) {
-			refs, err := PropertyReferences(tc.expr)
+			refs, err := Vela.PropertyReferences(tc.expr)
 			require.NoError(t, err)
 			var got []string
 			for _, r := range refs {
@@ -130,16 +134,15 @@ func TestPlacementQualifiedReferences(t *testing.T) {
 // and the functions only look it up: where a placement is, is decided before
 // evaluation.
 func TestPlacementFunctionsEvaluate(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
 	view := func(host string) map[string]interface{} {
 		return map[string]interface{}{"output": map[string]interface{}{"status": map[string]interface{}{"endpoint": host}}}
 	}
-	call := propexpr.PlacementCall
+	call := template.Call
 	data := view("db.data")
-	data[propexpr.QualifiedKey] = map[string]interface{}{call(propexpr.PlaceNamespace, "orders"): view("db.data.orders")}
+	data[celengine.QualifiedKey] = map[string]interface{}{call(propexpr.PlaceNamespace, "orders"): view("db.data.orders")}
 	db := view("db.here")
-	db[propexpr.QualifiedKey] = map[string]interface{}{
+	db[celengine.QualifiedKey] = map[string]interface{}{
 		call(propexpr.PlaceCluster, "data"):     data,
 		call(propexpr.PlaceNamespace, "team-a"): view("db.team-a"),
 	}
@@ -153,23 +156,23 @@ func TestPlacementFunctionsEvaluate(t *testing.T) {
 		`component.db.namespace("team-a").output.status.endpoint`:                 "db.team-a",
 	} {
 		t.Run(expr, func(t *testing.T) {
-			got, err := Eval(env, expr, in)
+			got, err := Vela.Eval(env, expr, in)
 			require.NoError(t, err)
 			require.Equal(t, want, got)
 		})
 	}
 
-	_, err = Eval(env, `component.db.cluster("nowhere").output.status.endpoint`, in)
+	_, err := Vela.Eval(env, `component.db.cluster("nowhere").output.status.endpoint`, in)
 	require.ErrorContains(t, err, `.cluster("nowhere") was not delivered`)
 }
 
 func TestPlacementFunctionsType(t *testing.T) {
-	env, err := EnvForContext(nil, ComponentCtx())
+	env, err := EnvForContext(nil, propexpr.ComponentContext)
 	require.NoError(t, err)
 	for expr, want := range map[string]string{
 		`component.db.cluster("data").output.status.endpoint`: "dyn",
 	} {
-		typ, err := OutputType(env, expr)
+		typ, err := Vela.OutputType(env, expr)
 		require.NoError(t, err, expr)
 		require.Equal(t, want, typ.String(), expr)
 	}
@@ -182,18 +185,18 @@ func TestPlacementCallsOnlyOnAComponent(t *testing.T) {
 		`source.cfg.cluster("east").host`,
 		`context.namespace.namespace("x")`,
 	} {
-		_, err := PropertyReferences(expr)
+		_, err := Vela.PropertyReferences(expr)
 		require.ErrorContains(t, err, "only on a component read", expr)
 	}
 	// A read names one placement at most; there is no reading every placement.
-	_, err := PropertyReferences(`component.db.placements("hub")[0].output`)
+	_, err := Vela.PropertyReferences(`component.db.placements("hub")[0].output`)
 	require.ErrorContains(t, err, "undeclared reference to 'placements'")
 
-	_, err = PropertyReferences("component.db.output.data[\"a\\u0000b\"]")
+	_, err = Vela.PropertyReferences("component.db.output.data[\"a\\u0000b\"]")
 	require.ErrorContains(t, err, "NUL")
 
 	// A NUL in a value, not a key, is no business of the read path.
-	_, err = PropertyReferences("component.db.output.data.v == \"a\\u0000b\"")
+	_, err = Vela.PropertyReferences("component.db.output.data.v == \"a\\u0000b\"")
 	require.NoError(t, err)
 
 	// A placement call goes straight after the name, or after another one; after
@@ -202,27 +205,27 @@ func TestPlacementCallsOnlyOnAComponent(t *testing.T) {
 		`component.db.output.namespace("x").status`,
 		`component.db.output.cluster("data").status`,
 	} {
-		_, err := PropertyReferences(expr)
-		require.ErrorContains(t, err, "go straight after the component", expr)
+		_, err := Vela.PropertyReferences(expr)
+		require.ErrorContains(t, err, "go straight after component.<name>", expr)
 	}
-	_, err = PropertyReferences(`component[context.appName].cluster("a").output`)
-	require.ErrorContains(t, err, "go straight after the component", "a computed name cannot carry a placement")
-	_, err = PropertyReferences(`component["db"].cluster("a").output`)
+	_, err = Vela.PropertyReferences(`component[context.appName].cluster("a").output`)
+	require.ErrorContains(t, err, "go straight after component.<name>", "a computed name cannot carry a placement")
+	_, err = Vela.PropertyReferences(`component["db"].cluster("a").output`)
 	require.NoError(t, err)
 
-	_, err = PropertyReferences(`component.db.cluster("a\u0000b").output`)
-	require.ErrorContains(t, err, "a placement argument containing a NUL")
+	_, err = Vela.PropertyReferences(`component.db.cluster("a\u0000b").output`)
+	require.ErrorContains(t, err, "argument containing a NUL")
 
-	// A non-literal placement argument is reported as that, even mid-chain.
-	_, err = PropertyReferences(`component.db.cluster(context.cluster).namespace("west").output`)
-	require.NoError(t, err, "left to the read's own validation, which names the literal-argument rule")
+	// A non-literal placement argument is refused as that, even mid-chain.
+	_, err = Vela.PropertyReferences(`component.db.cluster(context.cluster).namespace("west").output`)
+	require.ErrorContains(t, err, "takes a literal string")
 }
 
 // A hyphenated component name read with a dot parses as subtraction; the error
 // says to read it by index, and the index form reads it.
 func TestHyphenatedComponentName(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
+	var err error
 
 	_, err = OutputType(env, `component.my-db.output.data.host`)
 	require.Error(t, err)
@@ -248,8 +251,8 @@ func TestHyphenatedComponentName(t *testing.T) {
 // A component name may start with a digit or hold a run of hyphens, and is
 // still read by index.
 func TestHyphenatedComponentNameShapes(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
+	var err error
 	for name, expr := range map[string]string{
 		"2-tier": `component.2-tier.output.x`,
 		"my--db": `component.my--db.output.x`,
@@ -263,8 +266,8 @@ func TestHyphenatedComponentNameShapes(t *testing.T) {
 // The hint is for an error the hyphenated read caused, not one elsewhere in an
 // expression that happens to hold such text.
 func TestHyphenatedComponentHintFollowsTheError(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
+	var err error
 	_, err = OutputType(env, `'component.web-db' == missing`)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "undeclared reference to 'missing'")
@@ -274,8 +277,8 @@ func TestHyphenatedComponentHintFollowsTheError(t *testing.T) {
 // CEL reports an error's location in runes, so text with multi-byte runes
 // before the read still places the error on it.
 func TestHyphenatedComponentHintAfterMultiByteText(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
+	var err error
 	_, err = OutputType(env, `"hé" == component.my-db`)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `write "hé" == component["my-db"]`)

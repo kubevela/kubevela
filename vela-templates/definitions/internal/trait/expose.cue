@@ -14,7 +14,9 @@ expose: {
 		status: {
 			customStatus: #"""
 				service: context.outputs.service
-				message: *"" | string
+				if service.spec.type != "ClusterIP" && service.spec.type != "LoadBalancer" {
+					message: ""
+				}
 				if service.spec.type == "ClusterIP" {
 					message: "ClusterIP: \(service.spec.clusterIP)"
 				}

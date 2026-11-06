@@ -60,7 +60,7 @@ type defTestResult struct {
 
 // NewDefinitionTestCommand creates the `vela def test` command.
 func NewDefinitionTestCommand() *cobra.Command {
-	var verbose, asJSON, failOnPending, useUpgrades, failOnUpgrade bool
+	var verbose, asJSON, failOnPending, checkPending, useUpgrades, failOnUpgrade bool
 	var envtestAssets string
 	var crds []string
 	var filterOpts cuetest.FilterOptions
@@ -78,7 +78,8 @@ func NewDefinitionTestCommand() *cobra.Command {
 			"test file, with \".cue\" optional. " +
 			"A case passes when its expectation subsumes the result. Label cases with @label(...) and select them with " +
 			"the Ginkgo-compatible --label-filter, --focus, --skip and --focus-file. A case marked @pending(reason) " +
-			"is not run, and is counted as pending. Definitions are tested as written; --upgrade first applies every " +
+			"is not run, and is counted as pending; --check-pending runs it too, and fails it if it passes, since " +
+			"its marker is then stale. Definitions are tested as written; --upgrade first applies every " +
 			"rewrite of KubeVela's CUE upgrader, to see whether it would rescue one. A case marked @upgrade(reason=...) " +
 			"is a known dependency on the upgrader: if it fails as written it is retried upgraded and counted as " +
 			"upgraded, and if it passes as written it fails until the marker is removed. " +
@@ -142,7 +143,7 @@ func NewDefinitionTestCommand() *cobra.Command {
 				return err
 			}
 			var results []defTestResult
-			var passed, failed, skipped, pending, upgraded, loadFailed int
+			var passed, failed, skipped, pending, unpended, upgraded, loadFailed int
 			for _, s := range suites {
 				if s.Err != nil {
 					loadFailed++
@@ -153,7 +154,7 @@ func NewDefinitionTestCommand() *cobra.Command {
 				// are reported in file order with the rest.
 				var run []*cuetest.Case
 				for _, c := range s.Cases {
-					if filter.Match(c) && !c.Pending {
+					if filter.Match(c) && (!c.Pending || checkPending) {
 						run = append(run, c)
 					}
 				}
@@ -172,8 +173,14 @@ func NewDefinitionTestCommand() *cobra.Command {
 						continue
 					}
 					if c.Pending {
-						pending++
 						result.Pending, result.Reason = true, c.PendingReason
+						// with --check-pending a pending case runs, and one that passes is no longer pending
+						if outcome, ran := outcomes[c]; ran && len(outcome.Failures) == 0 {
+							unpended++
+							result.Failures = []string{fmt.Sprintf("passes, but is marked @pending(%s): the defect is fixed, so remove the marker", c.PendingReason)}
+						} else {
+							pending++
+						}
 						results = append(results, result)
 						continue
 					}
@@ -207,6 +214,9 @@ func NewDefinitionTestCommand() *cobra.Command {
 				if pending > 0 {
 					summary += fmt.Sprintf(", %d pending", pending)
 				}
+				if unpended > 0 {
+					summary += fmt.Sprintf(", %d no longer pending", unpended)
+				}
 				if upgraded > 0 {
 					summary += fmt.Sprintf(", %d upgraded", upgraded)
 				}
@@ -222,6 +232,10 @@ func NewDefinitionTestCommand() *cobra.Command {
 			if loadFailed > 0 {
 				problems = append(problems, fmt.Sprintf("%d test %s failed to load", loadFailed, plural(loadFailed, "file", "files")))
 			}
+			if unpended > 0 {
+				problems = append(problems, fmt.Sprintf("%d pending definition %s now %s; remove %s @pending %s",
+					unpended, plural(unpended, "test", "tests"), plural(unpended, "passes", "pass"), plural(unpended, "its", "their"), plural(unpended, "marker", "markers")))
+			}
 			if failOnPending && pending > 0 {
 				problems = append(problems, fmt.Sprintf("%d definition %s pending", pending, plural(pending, "test is", "tests are")))
 			}
@@ -234,6 +248,7 @@ func NewDefinitionTestCommand() *cobra.Command {
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "list passing cases as well as failures")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print results as JSON")
 	cmd.Flags().BoolVar(&failOnPending, "fail-on-pending", false, "fail if any selected case is @pending")
+	cmd.Flags().BoolVar(&checkPending, "check-pending", false, "run @pending cases too, and fail any that now pass, since their marker is stale")
 	cmd.Flags().BoolVar(&useUpgrades, "upgrade", false, "run definitions through KubeVela's CUE upgrader, with every rewrite pass on, instead of testing them as written")
 	cmd.Flags().StringVar(&envtestAssets, "envtest-assets", "", "directory holding etcd and kube-apiserver for step and source cases (default: KUBEBUILDER_ASSETS)")
 	cmd.Flags().StringArrayVar(&crds, "crds", nil, "CRD file or directory to install for step and source cases (default: the vela-core chart's, when found); repeatable")
@@ -256,9 +271,9 @@ func printDefTestResults(out io.Writer, results []defTestResult, verbose bool) {
 			if r.Reason != "" {
 				fmt.Fprintf(out, "  %s\n", r.Reason)
 			}
-		case (r.Passed || r.Skipped || r.Pending) && !verbose:
+		case (r.Passed || r.Skipped || r.Pending && len(r.Failures) == 0) && !verbose:
 			continue
-		case r.Pending:
+		case r.Pending && len(r.Failures) == 0:
 			fmt.Fprintf(out, "pend %s:%d %s / %s\n", r.File, r.Line, r.Definition, r.Case)
 			if r.Reason != "" {
 				fmt.Fprintf(out, "  %s\n", r.Reason)

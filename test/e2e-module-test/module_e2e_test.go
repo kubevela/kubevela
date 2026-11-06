@@ -29,7 +29,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -65,6 +64,7 @@ var _ = Describe("Module as a component", Ordered, func() {
 		repoRoot     string
 		registryURL  string
 		registryBase string
+		registryNS   *corev1.Namespace
 		store        regcomponent.RegistryDataStore
 		// moduleInstallNamespace is where the deploy Application currently
 		// lives. It starts in vela-system and moves to a tenant namespace
@@ -81,9 +81,14 @@ var _ = Describe("Module as a component", Ordered, func() {
 		moduleInstallNamespace = veltypes.DefaultKubeVelaNS
 
 		By("bringing up the in-cluster OCI registry")
-		Expect(applyManifestFile(ctx, k8sClient, "testdata/module/registry.yaml")).Should(Succeed())
-		waitForOCIRegistryDeploymentAvailable(ctx)
-		registryURL = moduleE2ERegistryURL(ctx)
+		registryNS = &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: randomNamespaceName("module-registry")}}
+		Expect(k8sClient.Create(ctx, registryNS)).Should(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, registryNS, client.PropagationPolicy(metav1.DeletePropagationForeground)))).Should(Succeed())
+		})
+		Expect(createOCIRegistry(ctx, k8sClient, registryNS.Name)).Should(Succeed())
+		waitForOCIRegistryDeploymentAvailable(ctx, registryNS.Name)
+		registryURL = moduleE2ERegistryURL(ctx, registryNS.Name)
 		var err error
 		registryBase, err = registryHTTPBase(registryURL)
 		Expect(err).ShouldNot(HaveOccurred())
@@ -104,8 +109,6 @@ var _ = Describe("Module as a component", Ordered, func() {
 			err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: demoStoreOwnedAppName, Namespace: veltypes.DefaultKubeVelaNS}, &v1beta1.Application{})
 			g.Expect(k8serrors.IsNotFound(err)).Should(BeTrue(), "the owned Application must be gone before the next run of this suite reuses this cluster")
 		}, 90*time.Second, 3*time.Second).Should(Succeed())
-		_ = k8sClient.Delete(ctx, &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "oci-registry", Namespace: "default"}})
-		_ = k8sClient.Delete(ctx, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "oci-registry", Namespace: "default"}})
 	})
 
 	// --- Scenario 1: registry management ---
@@ -266,6 +269,72 @@ var _ = Describe("Module as a component", Ordered, func() {
 			err := applyManifestFile(ctx, k8sClient, "testdata/module/consumer-ambiguous.yaml")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("is ambiguous"))
+		})
+
+		It("rejects Form 1 when the exact-name hit is module-backed, while keeping legacy Form 1 accepted", func() {
+			legacyDef := &v1beta1.ComponentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "form1-legacy",
+					Namespace: "default",
+				},
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Workload: common.WorkloadTypeDescriptor{
+						Definition: common.WorkloadGVK{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
+					},
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `output: {
+  apiVersion: "v1"
+  kind:       "ConfigMap"
+  metadata: name: context.name
+  data: renderedBy: "legacy"
+}`,
+						},
+					},
+				},
+			}
+			moduleBackedDef := legacyDef.DeepCopy()
+			moduleBackedDef.Name = "form1-module-backed"
+			moduleBackedDef.Spec.Module = "demo-store"
+			moduleBackedDef.Spec.APIVersion = "v1"
+
+			Expect(k8sClient.Create(ctx, legacyDef)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, moduleBackedDef)).Should(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, legacyDef)
+				_ = k8sClient.Delete(ctx, moduleBackedDef)
+				_ = k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "form1-legacy-ok", Namespace: "default"}})
+				_ = k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "form1-module-backed-bad", Namespace: "default"}})
+				_ = k8sClient.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "legacy-ok", Namespace: "default"}})
+			})
+
+			By("accepting Form 1 on a non-module legacy definition")
+			Expect(k8sClient.Create(ctx, &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "form1-legacy-ok", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "legacy-ok",
+						Type: "form1-legacy",
+					}},
+				},
+			})).Should(Succeed())
+
+			By("rejecting Form 1 when the exact-name definition is module-backed")
+			err := k8sClient.Create(ctx, &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "form1-module-backed-bad", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "module-backed-bad",
+						Type: "form1-module-backed",
+					}},
+				},
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("module-backed definition"))
+			Expect(err.Error()).Should(ContainSubstring("Form 3"))
 		})
 
 		It("stops the render when a required parameter has no value", func() {
@@ -750,9 +819,50 @@ var _ = Describe("Module as a component", Ordered, func() {
 			Expect(k8serrors.IsNotFound(getErr)).Should(BeTrue())
 		})
 
+		It("an unknown registry name is rejected at admission", func() {
+			// Keep the original precondition: a known registry is configured, so
+			// this checks rejection of one unknown name rather than an empty store.
+			_, err := store.GetRegistry(ctx, demoStoreRegistryName)
+			Expect(err).Should(Succeed())
+			app := &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "demo-store-unknown-registry-consumer", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name:       "unknownreg",
+						Type:       "module",
+						Properties: rawExtension(fmt.Sprintf(`{"module":"%s","registry":"doesnotexist"}`, demoStoreModuleName)),
+					}},
+				},
+			}
+			err = k8sClient.Create(ctx, app)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(`properties.registry": is not a configured module registry`))
+			Expect(err.Error()).Should(ContainSubstring(demoStoreRegistryName), "the message lists the configured registries")
+		})
+
+	})
+})
+
+// Malformed properties fail at admission before any registry lookup. This case
+// can run alongside the ordered registry lifecycle on another Ginkgo process.
+// Keep the original Ginkgo path so existing focus expressions still select it.
+var _ = Describe("Module as a component", func() {
+	ctx := context.Background()
+	var namespace string
+
+	Context("error paths (group D)", func() {
+		BeforeEach(func() {
+			namespace = randomNamespaceName("module-errors")
+			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
+			Expect(k8sClient.Create(ctx, ns)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ns, client.PropagationPolicy(metav1.DeletePropagationForeground)))).To(Succeed())
+			})
+		})
+
 		It("malformed component properties are refused at admission", func() {
 			app := &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{Name: "demo-store-malformed-consumer", Namespace: "default"},
+				ObjectMeta: metav1.ObjectMeta{Name: "demo-store-malformed-consumer", Namespace: namespace},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
 						Name:       "malformed",
@@ -764,31 +874,6 @@ var _ = Describe("Module as a component", Ordered, func() {
 			err := k8sClient.Create(ctx, app)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring("cannot be decoded as module component properties"))
-		})
-
-		It("an unknown registry name is admitted and refused at reconcile", func() {
-			app := &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{Name: "demo-store-unknown-registry-consumer", Namespace: "default"},
-				Spec: v1beta1.ApplicationSpec{
-					Components: []common.ApplicationComponent{{
-						Name:       "unknownreg",
-						Type:       "module",
-						Properties: rawExtension(fmt.Sprintf(`{"module":"%s","registry":"doesnotexist"}`, demoStoreModuleName)),
-					}},
-				},
-			}
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-			DeferCleanup(func() {
-				_ = k8sClient.Delete(ctx, app)
-			})
-
-			Eventually(func(g Gomega) string {
-				got := &v1beta1.Application{}
-				if k8sClient.Get(ctx, k8stypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}, got) != nil {
-					return ""
-				}
-				return workflowMessage(got)
-			}, 60*time.Second, 2*time.Second).Should(ContainSubstring(`module registry "doesnotexist" not found`))
 		})
 	})
 })

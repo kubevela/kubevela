@@ -1,0 +1,18 @@
+# Inline-module mirror of consumer-suite-keep-doomed.yaml. One component per
+# module of kit-suite-inline 1.0.0. The Gadget disappears with its CRD when
+# kit-suite-inline 2.0.0 drops the gadget-kit-inline module.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: suite-consumer-inline
+  namespace: default
+spec:
+  components:
+    - name: keep-widget
+      type: widget-kit-inline/v1/widget
+      properties:
+        color: green
+    - name: doomed-gadget
+      type: gadget-kit-inline/v1/gadget
+      properties:
+        mode: eco

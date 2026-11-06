@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/fatih/color"
 	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/slices"

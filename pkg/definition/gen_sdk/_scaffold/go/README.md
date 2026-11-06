@@ -8,7 +8,7 @@ Recommended way to install this SDK is run command below.
 
 ```shell
 go get github.com/kubevela-contrib/kubevela-go-sdk
-go mod edit -replace=sigs.k8s.io/apiserver-network-proxy/konnectivity-client=sigs.k8s.io/apiserver-network-proxy/konnectivity-client@v0.0.24
+go mod edit -replace=sigs.k8s.io/apiserver-network-proxy/konnectivity-client=sigs.k8s.io/apiserver-network-proxy/konnectivity-client@v0.0.36
 ```
 
 ## Features:

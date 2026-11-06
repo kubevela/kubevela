@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -190,4 +191,34 @@ output: {}
 	require.NoError(t, err)
 	assert.Equal(t, PathCuex, path)
 	assert.Contains(t, sch.Properties, "resource")
+}
+
+// What PruneTo keeps of a template's imports compiles, however they were written.
+func TestPruneToKeepsImportsThatCompile(t *testing.T) {
+	for name, tc := range map[string]struct {
+		imports string
+		uses    string
+		want    []string
+	}{
+		"one import in parentheses":  {"import (\n\t\"strconv\"\n)", `strconv.FormatInt(1, 10)`, []string{`"strconv"`}},
+		"one import, no parentheses": {`import "strconv"`, `strconv.FormatInt(1, 10)`, []string{`"strconv"`}},
+		"two in parentheses, both used": {"import (\n\t\"strconv\"\n\t\"strings\"\n)",
+			`strings.ToUpper(strconv.FormatInt(1, 10))`, []string{`"strconv"`, `"strings"`}},
+		"two in parentheses, one used": {"import (\n\t\"strconv\"\n\t\"strings\"\n)", `strconv.FormatInt(1, 10)`, []string{`"strconv"`}},
+		"an aliased import":            {"import (\n\tconv \"strconv\"\n)", `conv.FormatInt(1, 10)`, []string{`conv "strconv"`}},
+		"two declarations": {"import \"strconv\"\nimport \"strings\"", `strings.ToUpper(strconv.FormatInt(1, 10))`,
+			[]string{`"strconv"`, `"strings"`}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			src := tc.imports + "\n\nparameter: n: *" + tc.uses + " | string\noutput: kind: \"ConfigMap\"\n"
+			pruned, err := PruneTo(src, "parameter")
+			require.NoError(t, err)
+			v := cuecontext.New().CompileString(pruned)
+			require.NoError(t, v.Err(), "pruned:\n%s", pruned)
+			for _, w := range tc.want {
+				require.Contains(t, pruned, w)
+			}
+			require.NotContains(t, pruned, "output")
+		})
+	}
 }

@@ -28,11 +28,11 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -106,8 +106,12 @@ var ErrTemplateNotFound = errors.New("the template does not exist")
 // validating webhook so both enforcement points agree on one message.
 var ErrMutuallyExclusiveProperties = errors.New("spec.properties and spec.propertiesFrom are mutually exclusive")
 
-// sensitiveAnnotationValue is the AnnotationConfigSensitive value that marks a config/template sensitive.
-const sensitiveAnnotationValue = "true"
+// SensitiveAnnotationValue is the AnnotationConfigSensitive value that marks a config/template sensitive.
+const SensitiveAnnotationValue = "true"
+
+// NacosEndpointAnnotationValue is the AnnotationConfigNacosEndpoint value that marks a
+// config for use as a Nacos endpoint.
+const NacosEndpointAnnotationValue = "true"
 
 // ErrChangeTemplate means the template of the config can not be changed
 var ErrChangeTemplate = errors.New("the template of the config can not be changed")
@@ -147,6 +151,15 @@ type Template struct {
 	// ConfigTemplate read back from the CRD has no ConfigMap at all.
 	Labels map[string]string `json:"-"`
 
+	// MigratedTo is the UID of the ConfigTemplate CR that adopted this legacy
+	// ConfigMap, read from its config.oam.dev/migrated-to annotation. Empty for a
+	// template that is a CR and for a ConfigMap migration never touched. It is
+	// the one piece of the stored object the list code needs; the object itself
+	// is not carried, so a Template read back is safe to write again.
+	MigratedTo string `json:"-"`
+
+	// ConfigMap is the legacy object ParseTemplate builds for the writer; a
+	// Template read from the cluster does not carry one.
 	ConfigMap *v1.ConfigMap `json:"-"`
 }
 
@@ -258,9 +271,26 @@ type Factory interface {
 
 	ReadConfig(ctx context.Context, namespace, name string) (map[string]interface{}, error)
 	GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error)
+	// ListConfigs returns the legacy configs only: the Secrets a Config CR materialises
+	// are left out, so the CLI's merged list can add the CR rows itself with their source.
 	ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error)
+	// ListAllConfigs returns every config once, legacy or CR-backed, read from its Secret
+	// (the controller writes the same labels, annotations and input-properties key as the
+	// legacy CLI did). For callers that want the configs, not where they came from.
+	ListAllConfigs(ctx context.Context, namespace, template string) ([]*Config, error)
+	// DeleteConfig removes the config whichever backend holds it: a Config CR of that
+	// name is deleted (its Secret, outputs and distribution follow through owner
+	// references); otherwise the legacy Secret and the objects it references are removed.
 	DeleteConfig(ctx context.Context, namespace, name string) error
 	CreateOrUpdateConfig(ctx context.Context, i *Config, ns string) error
+	// ApplyConfigCR applies a Config CR and its companion properties Secret, if any,
+	// through the factory's dispatcher: in the Application controller that is the
+	// application's ResourceTracker, so the Config is garbage-collected with the app the
+	// way the legacy Secret was. The objects come from BuildConfigCR. The Secret goes in
+	// a dispatch of its own, before the Config: the application's dispatcher applies a
+	// batch in parallel, after a dry run of the whole batch, and the Config's admission
+	// webhook reads the properties Secret, which neither has created by then.
+	ApplyConfigCR(ctx context.Context, cfg *configv1alpha1.Config, properties *v1.Secret) error
 	IsExist(ctx context.Context, namespace, name string) (bool, error)
 
 	CreateOrUpdateDistribution(ctx context.Context, ns, name string, ads *CreateDistributionSpec) error
@@ -381,17 +411,20 @@ func IsFieldNotExist(err error) bool {
 
 // CreateOrUpdateConfigTemplate parse and update the config template
 func (k *kubeConfigFactory) CreateOrUpdateConfigTemplate(ctx context.Context, ns string, it *Template) error {
+	if it == nil || it.ConfigMap == nil {
+		// Only ParseTemplate builds the ConfigMap. A template read back with
+		// LoadTemplate or ListTemplates carries none, so writing it here would be a
+		// nil dereference; say so instead.
+		return fmt.Errorf("the template has no ConfigMap to write; parse it with ParseTemplate before CreateOrUpdateConfigTemplate")
+	}
 	if ns != "" {
 		it.ConfigMap.Namespace = ns
 	}
 	applyTemplateLabels(it.ConfigMap, it.Labels)
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(it.ConfigMap)
+	us, err := toUnstructured(it.ConfigMap, v1.SchemeGroupVersion.WithKind("ConfigMap"))
 	if err != nil {
-		return fmt.Errorf("fail to convert configmap to unstructured: %w", err)
+		return err
 	}
-	us := &unstructured.Unstructured{Object: obj}
-	us.SetAPIVersion("v1")
-	us.SetKind("ConfigMap")
 	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()})
 }
 
@@ -406,10 +439,11 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 		},
 		Alias:       cm.Annotations[types.AnnotationConfigAlias],
 		Description: cm.Annotations[types.AnnotationConfigDescription],
-		Sensitive:   cm.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue,
+		Sensitive:   cm.Annotations[types.AnnotationConfigSensitive] == SensitiveAnnotationValue,
 		Scope:       cm.Labels[types.LabelConfigScope],
 		CreateTime:  cm.CreationTimestamp.Time,
 		Template:    script.CUE(cm.Data[SaveTemplateKey]),
+		MigratedTo:  cm.Annotations[types.AnnotationConfigMigratedTo],
 	}
 	if cm.Data[SaveSchemaKey] != "" {
 		var schema openapi3.Schema
@@ -466,7 +500,7 @@ func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string)
 				}
 			}
 		}
-	} else if !apierrors.IsNotFound(err) && !meta.IsNoMatchError(err) && !runtime.IsNotRegisteredError(err) {
+	} else if !apierrors.IsNotFound(err) && !IsCRDTypeMissing(err) {
 		return nil, err
 	}
 
@@ -551,7 +585,7 @@ func (k *kubeConfigFactory) LoadTemplate(ctx context.Context, name, ns string) (
 	switch err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: ns, Name: name}, &ct); {
 	case err == nil:
 		return configTemplateCRDToTemplate(ctx, &ct)
-	case apierrors.IsNotFound(err), meta.IsNoMatchError(err), runtime.IsNotRegisteredError(err):
+	case apierrors.IsNotFound(err), IsCRDTypeMissing(err):
 		// fall back to the legacy ConfigMap convention
 	default:
 		return nil, err
@@ -621,9 +655,9 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 			Name:      meta.Name,
 			Namespace: meta.Namespace,
 		}
-		// Compile the config template
-		val, err := template.Template.RunAndOutputWithCueX(ctx, contextValue, meta.Properties)
-		if err != nil && !velacue.IsFieldNotExist(err) {
+		// Compile the config template, once for the Secret, the outputs and the nacos block
+		val, err := RenderTemplate(ctx, template.Template, template.ExpandedWriter, contextValue, meta.Properties)
+		if err != nil {
 			return nil, err
 		}
 		// Render the validation response and check validation result
@@ -658,12 +692,14 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 		if secret.Annotations == nil {
 			secret.Annotations = map[string]string{}
 		}
+		// the Nacos endpoint marker is the config owner's to set, never the template's
+		delete(secret.Annotations, types.AnnotationConfigNacosEndpoint)
 		secret.Annotations[types.AnnotationConfigSensitive] = fmt.Sprintf("%t", template.Sensitive)
 		secret.Annotations[types.AnnotationConfigTemplateNamespace] = template.Namespace
 		config.Template = *template
 
-		// Render the expanded writer configuration
-		data, err := writer.RenderForExpandedWriter(template.ExpandedWriter, config.Template.Template, contextValue, meta.Properties)
+		// Render the expanded writer configuration from the same compile as the Secret
+		data, err := writer.RenderForExpandedWriter(template.ExpandedWriter, val)
 		if err != nil {
 			return nil, fmt.Errorf("fail to render the content for the expanded writer:%w ", err)
 		}
@@ -730,15 +766,48 @@ func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name stri
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		return nil, err
 	}
-	if secret.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue {
+	return ReadConfigSecret(&secret)
+}
+
+// ReadConfigSecret returns the input properties a config Secret holds, refusing a
+// sensitive one: the Secret-level half of ReadConfig.
+func ReadConfigSecret(secret *v1.Secret) (map[string]interface{}, error) {
+	if SecretSensitive(secret) {
 		return nil, ErrSensitiveConfig
 	}
-	properties := secret.Data[SaveInputPropertiesKey]
+	return SecretInputProperties(secret)
+}
+
+// SecretInputProperties returns the input properties a config Secret holds, sensitive or
+// not. The sensitive mark guards what users read back; a controller reading a config it
+// keeps for its own use, as the application controller reads its source cache entries
+// and the Config controller a Nacos endpoint config its owner marked for that use
+// (AnnotationConfigNacosEndpoint), reads it whatever the sensitive mark.
+func SecretInputProperties(secret *v1.Secret) (map[string]interface{}, error) {
+	properties, ok := secret.Data[SaveInputPropertiesKey]
+	if !ok || len(properties) == 0 {
+		return nil, fmt.Errorf("secret %s/%s has no %s", secret.Namespace, secret.Name, SaveInputPropertiesKey)
+	}
 	var input = map[string]interface{}{}
 	if err := json.Unmarshal(properties, &input); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s of secret %s/%s is not json: %w", SaveInputPropertiesKey, secret.Namespace, secret.Name, err)
 	}
 	return input, nil
+}
+
+// RenderTemplate compiles a config template with CueX for the render context and the
+// properties, and returns the value the Secret, the outputs and the nacos block are read
+// from. The one rule on partial renders lives here, for the CLI and the controller
+// alike: an error that says a field does not exist is tolerated for a template without
+// a nacos block (the output is then read as absent, as the legacy path always did), and
+// never for a template with the block, which is read from this value and would
+// otherwise fail with a message about a missing block instead of the real error.
+func RenderTemplate(ctx context.Context, template script.CUE, ewc writer.ExpandedWriterConfig, renderCtx icontext.ConfigRenderContext, properties map[string]interface{}) (cue.Value, error) {
+	val, err := template.RunAndOutputWithCueX(ctx, renderCtx, properties)
+	if err != nil && (!velacue.IsFieldNotExist(err) || ewc.Nacos != nil) {
+		return cue.Value{}, err
+	}
+	return val, nil
 }
 
 func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error) {
@@ -749,7 +818,7 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 		}
 		return nil, err
 	}
-	if secret.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue {
+	if secret.Annotations[types.AnnotationConfigSensitive] == SensitiveAnnotationValue {
 		return nil, ErrSensitiveConfig
 	}
 	item, err := convertSecret2Config(&secret)
@@ -775,25 +844,37 @@ func (k *kubeConfigFactory) CreateOrUpdateConfigTemplateCR(ctx context.Context, 
 	if it == nil {
 		return nil
 	}
-	scope := configv1alpha1.ConfigTemplateScopeNamespace
-	if it.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
-		scope = configv1alpha1.ConfigTemplateScopeSystem
-	}
 	ct := &configv1alpha1.ConfigTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: it.Name, Namespace: ns},
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, k.cli, ct, func() error {
 		applyTemplateLabels(ct, it.Labels)
-		ct.Spec = configv1alpha1.ConfigTemplateSpec{
-			Template:    string(it.Template),
-			Scope:       scope,
-			Sensitive:   it.Sensitive,
-			Alias:       it.Alias,
-			Description: it.Description,
-		}
+		stored := ct.Spec.Sensitive
+		ct.Spec = configTemplateSpecFromTemplate(it)
+		// sensitive is never turned off (the CRD rule refuses it): a template someone
+		// marked sensitive stays so when its writer, which knows nothing of the mark,
+		// rewrites it
+		ct.Spec.Sensitive = ct.Spec.Sensitive || stored
 		return nil
 	})
 	return err
+}
+
+// configTemplateSpecFromTemplate maps a template, legacy or parsed, onto the CR
+// spec. Legacy scope strings other than "system" (project, env, global written by
+// older tools) all become "namespace"; only "system" carries a distinct meaning.
+func configTemplateSpecFromTemplate(it *Template) configv1alpha1.ConfigTemplateSpec {
+	scope := configv1alpha1.ConfigTemplateScopeNamespace
+	if it.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
+		scope = configv1alpha1.ConfigTemplateScopeSystem
+	}
+	return configv1alpha1.ConfigTemplateSpec{
+		Template:    string(it.Template),
+		Scope:       scope,
+		Sensitive:   it.Sensitive,
+		Alias:       it.Alias,
+		Description: it.Description,
+	}
 }
 
 func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config, _ string) error {
@@ -809,13 +890,10 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 		}
 	}
 
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(i.Secret)
+	us, err := toUnstructured(i.Secret, v1.SchemeGroupVersion.WithKind("Secret"))
 	if err != nil {
-		return fmt.Errorf("fail to convert secret to unstructured: %w", err)
+		return err
 	}
-	us := &unstructured.Unstructured{Object: obj}
-	us.SetAPIVersion("v1")
-	us.SetKind("Secret")
 
 	if err := k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()}); err != nil {
 		return fmt.Errorf("fail to apply the secret: %w", err)
@@ -836,6 +914,43 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 	return nil
 }
 
+func (k *kubeConfigFactory) ApplyConfigCR(ctx context.Context, cfg *configv1alpha1.Config, properties *v1.Secret) error {
+	// The last-applied annotation stays on: the dispatcher's three-way merge then drops a
+	// property the caller removed, as the direct write does. A Config, or a properties
+	// Secret, the migration library wrote for a legacy config is nobody's in the dispatcher's
+	// eyes and is claimed; any other unowned object of the name is left to its refusal.
+	opts := []apply.ApplyOption{apply.Quiet(), apply.TakeOverIf(func(existing client.Object) bool { return CreatedByMigration(existing) })}
+	if properties != nil {
+		us, err := toUnstructured(properties, v1.SchemeGroupVersion.WithKind("Secret"))
+		if err != nil {
+			return err
+		}
+		if err := k.apiApply(ctx, []*unstructured.Unstructured{us}, opts); err != nil {
+			return fmt.Errorf("fail to apply the properties secret %s: %w", properties.Name, err)
+		}
+	}
+	us, err := toUnstructured(cfg, configv1alpha1.ConfigGroupVersionKind)
+	if err != nil {
+		return err
+	}
+	if err := k.apiApply(ctx, []*unstructured.Unstructured{us}, opts); err != nil {
+		return fmt.Errorf("fail to apply the config %s: %w", cfg.Name, err)
+	}
+	return nil
+}
+
+// toUnstructured converts a typed object for the dispatcher, with its kind set: the
+// converter leaves TypeMeta empty on an object built in code.
+func toUnstructured(obj runtime.Object, gvk schema.GroupVersionKind) (*unstructured.Unstructured, error) {
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		return nil, fmt.Errorf("fail to convert %s to unstructured: %w", strings.ToLower(gvk.Kind), err)
+	}
+	us := &unstructured.Unstructured{Object: content}
+	us.SetGroupVersionKind(gvk)
+	return us, nil
+}
+
 func (k *kubeConfigFactory) IsExist(ctx context.Context, namespace, name string) (bool, error) {
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
@@ -850,7 +965,7 @@ func (k *kubeConfigFactory) IsExist(ctx context.Context, namespace, name string)
 // isConfigCRDOwned reports whether secret is a Config CRD's materialized output Secret.
 func isConfigCRDOwned(secret *v1.Secret) bool {
 	for _, ref := range secret.OwnerReferences {
-		if ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String() {
+		if IsConfigOwnerRef(ref) {
 			return true
 		}
 	}
@@ -858,6 +973,17 @@ func isConfigCRDOwned(secret *v1.Secret) bool {
 }
 
 func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error) {
+	return k.listConfigSecrets(ctx, namespace, template, scope, false, withStatus)
+}
+
+func (k *kubeConfigFactory) ListAllConfigs(ctx context.Context, namespace, template string) ([]*Config, error) {
+	return k.listConfigSecrets(ctx, namespace, template, "", true, false)
+}
+
+// listConfigSecrets lists the velacore-config Secrets of a namespace as configs. The
+// Secrets a Config CR materialises carry the same labels, so only the owner reference
+// tells them apart; includeCROwned says whether they are wanted.
+func (k *kubeConfigFactory) listConfigSecrets(ctx context.Context, namespace, template, scope string, includeCROwned, withStatus bool) ([]*Config, error) {
 	var list = &v1.SecretList{}
 	requirement := fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig)
 	if template != "" {
@@ -878,8 +1004,7 @@ func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template
 	var configs []*Config
 	for i := range list.Items {
 		item := list.Items[i]
-		// CRD-materialized secrets carry the same legacy labels for compat; only the owner ref distinguishes them.
-		if isConfigCRDOwned(&item) {
+		if !includeCROwned && isConfigCRDOwned(&item) {
 			continue
 		}
 		it, err := convertSecret2Config(&item)
@@ -899,6 +1024,22 @@ func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template
 }
 
 func (k *kubeConfigFactory) DeleteConfig(ctx context.Context, namespace, name string) error {
+	// A Config CR of that name takes the CR path: deleting it recalls everything it owns.
+	crBacked, err := ConfigCRExists(ctx, k.cli, namespace, name)
+	if err != nil {
+		return fmt.Errorf("fail to delete the config %s:%w", name, err)
+	}
+	if crBacked {
+		if err := k.cli.Delete(ctx, &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("fail to delete the config %s:%w", name, err)
+		}
+		// the Secret and outputs follow the Config through owner references; the companion
+		// properties Secret has none (it must exist before the Config), so it goes here
+		if err := DeletePropertiesSecretOf(ctx, k.cli, namespace, name); err != nil {
+			return fmt.Errorf("fail to delete the properties secret of config %s:%w", name, err)
+		}
+		return nil
+	}
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -1037,13 +1178,10 @@ func (k *kubeConfigFactory) CreateOrUpdateDistribution(ctx context.Context, ns, 
 			Policies: policies,
 		},
 	}
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(distribution)
+	us, err := toUnstructured(distribution, v1beta1.SchemeGroupVersion.WithKind(v1beta1.ApplicationKind))
 	if err != nil {
-		return fmt.Errorf("fail to convert application to unstructured: %w", err)
+		return err
 	}
-	us := &unstructured.Unstructured{Object: obj}
-	us.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
-	us.SetKind(v1beta1.ApplicationKind)
 
 	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()})
 }
@@ -1140,7 +1278,7 @@ func convertSecret2Config(se *v1.Secret) (*Config, error) {
 		config.Alias = se.Annotations[types.AnnotationConfigAlias]
 		config.Description = se.Annotations[types.AnnotationConfigDescription]
 		config.Template.Namespace = se.Annotations[types.AnnotationConfigTemplateNamespace]
-		config.Template.Sensitive = se.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue
+		config.Template.Sensitive = se.Annotations[types.AnnotationConfigSensitive] == SensitiveAnnotationValue
 	}
 	if !config.Template.Sensitive && len(se.Data[SaveInputPropertiesKey]) > 0 {
 		var properties = map[string]interface{}{}

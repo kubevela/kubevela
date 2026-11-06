@@ -21,8 +21,10 @@ import (
 	"sort"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
@@ -34,6 +36,11 @@ type PolicyDefinition struct {
 	policyTemplate    func(tpl *PolicyTemplate) // template function for policy logic (type-specific)
 	labels            map[string]string
 	manageHealthCheck bool
+	scope             v1beta1.PolicyScope
+	global            bool
+	priority          *int32
+	ctxSchema         []Param
+	ctxSchemaClosed   bool
 }
 
 // PolicyTemplate provides the building context for policy templates.
@@ -41,6 +48,9 @@ type PolicyDefinition struct {
 type PolicyTemplate struct {
 	// Policies usually don't have output resources, but may have computed values
 	computedFields map[string]Value
+	// enabled and output are only honoured on an Application-scoped policy
+	enabled Condition
+	output  *PolicyOutput
 }
 
 // NewPolicy creates a new PolicyDefinition builder.
@@ -187,6 +197,20 @@ func (p *PolicyDefinition) NotRunOn(conditions ...placement.Condition) *PolicyDe
 	return p
 }
 
+// RestrictNamespaces limits the definition to namespaces matching any of the
+// names or path.Match globs. With RestrictNamespaceSelector, matching either is enough.
+func (p *PolicyDefinition) RestrictNamespaces(namespaces ...string) *PolicyDefinition {
+	p.addRestrictNamespaces(namespaces...)
+	return p
+}
+
+// RestrictNamespaceSelector limits the definition to namespaces matching the
+// selector. With RestrictNamespaces, matching either is enough.
+func (p *PolicyDefinition) RestrictNamespaceSelector(selector *metav1.LabelSelector) *PolicyDefinition {
+	p.setRestrictNamespaceSelector(selector)
+	return p
+}
+
 // DefName implements Definition.DefName.
 func (p *PolicyDefinition) DefName() string { return p.GetName() }
 
@@ -242,10 +266,21 @@ func (p *PolicyDefinition) ToYAML() ([]byte, error) {
 	if p.manageHealthCheck {
 		cr["spec"].(map[string]any)["manageHealthCheck"] = true
 	}
+	if p.scope != "" {
+		cr["spec"].(map[string]any)["scope"] = string(p.scope)
+	}
+	if p.global {
+		cr["spec"].(map[string]any)["global"] = true
+	}
+	if p.priority != nil {
+		cr["spec"].(map[string]any)["priority"] = *p.priority
+	}
 
 	if p.GetVersion() != "" {
 		cr["spec"].(map[string]any)["version"] = p.GetVersion()
 	}
+
+	setRestrictionsSpec(cr["spec"].(map[string]any), p.GetRestrictions())
 
 	return yaml.Marshal(cr)
 }
@@ -292,8 +327,49 @@ func (g *PolicyCUEGenerator) WithImports(imports ...string) *PolicyCUEGenerator 
 	return g
 }
 
+// addImportIfMissing adds an import if it's not already present.
+func (g *PolicyCUEGenerator) addImportIfMissing(imp string) {
+	for _, existing := range g.imports {
+		if existing == imp {
+			return
+		}
+	}
+	g.imports = append(g.imports, imp)
+}
+
+// detectRequiredImports adds the CUE standard library imports the policy's
+// values declare via the ImportRequirer interface, so that a parameter or
+// context schema field such as String("team").MinLen(3) (strings.MinRunes)
+// pulls "strings" without the policy author calling WithImports. Computed
+// fields are scanned in name order, so the import block is stable.
+func (g *PolicyCUEGenerator) detectRequiredImports(p *PolicyDefinition) {
+	scan := NewCUEGenerator()
+	for _, param := range append(append([]Param{}, p.GetParams()...), p.ctxSchema...) {
+		scan.collectImportsFromValue(param)
+		scan.collectImportsFromParamValidators(param)
+	}
+	if p.policyTemplate != nil {
+		pt := NewPolicyTemplate()
+		p.policyTemplate(pt)
+		fields := pt.GetComputedFields()
+		for _, name := range sortedKeys(fields) {
+			scan.collectImportsFromValue(fields[name])
+		}
+		scan.collectImportsFromValue(pt.enabled)
+		if pt.output != nil {
+			scan.collectImportsFromResource(pt.output.res)
+		}
+	}
+	for _, imp := range scan.imports {
+		g.addImportIfMissing(imp)
+	}
+}
+
 // GenerateFullDefinition generates the complete CUE definition for a policy.
 func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string {
+	// Auto-detect imports needed by parameters and template values.
+	g.detectRequiredImports(p)
+
 	var sb strings.Builder
 
 	// Write imports if any
@@ -326,9 +402,6 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, p.GetDescription()))
-	if p.GetVersion() != "" {
-		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, p.GetVersion()))
-	}
 	if len(p.labels) > 0 {
 		keys := make([]string, 0, len(p.labels))
 		for k := range p.labels {
@@ -343,7 +416,7 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 	} else {
 		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
-	sb.WriteString(fmt.Sprintf("%sattributes: {}\n", g.indent))
+	g.writeAttributes(&sb, p)
 	sb.WriteString(fmt.Sprintf("%stype: \"policy\"\n", g.indent))
 	sb.WriteString("}\n\n")
 
@@ -351,6 +424,23 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 	sb.WriteString(g.GenerateTemplate(p))
 
 	return sb.String()
+}
+
+// writeAttributes writes the attributes block, which FromCUE copies into the spec.
+func (g *PolicyCUEGenerator) writeAttributes(sb *strings.Builder, p *PolicyDefinition) {
+	if p.GetVersion() == "" && !p.manageHealthCheck && p.GetRestrictions() == nil && p.scope == "" && p.priority == nil {
+		sb.WriteString(fmt.Sprintf("%sattributes: {}\n", g.indent))
+		return
+	}
+	indent := strings.Repeat(g.indent, 2)
+	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
+	writeVersion(sb, p.GetVersion(), indent)
+	writeRestrictions(sb, p.GetRestrictions(), indent)
+	writeAppScopeAttributes(sb, p, indent)
+	if p.manageHealthCheck {
+		sb.WriteString(fmt.Sprintf("%smanageHealthCheck: true\n", indent))
+	}
+	sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 }
 
 // GenerateTemplate generates the template block for a policy.
@@ -375,7 +465,14 @@ func (g *PolicyCUEGenerator) GenerateTemplate(p *PolicyDefinition) string {
 			val := pt.GetComputedFields()[name]
 			sb.WriteString(fmt.Sprintf("%s%s: %s\n", g.indent, name, gen.valueToCUE(val)))
 		}
+		if pt.enabled != nil {
+			sb.WriteString(fmt.Sprintf("%sconfig: enabled: %s\n", g.indent, gen.conditionToCUEValue(pt.enabled)))
+		}
+		if pt.output != nil {
+			g.writePolicyOutput(&sb, gen, pt.output)
+		}
 	}
+	g.writeCtxSchema(&sb, gen, p)
 
 	// Generate parameter section
 	sb.WriteString(g.generateParameterBlock(p, 1))

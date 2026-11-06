@@ -94,8 +94,6 @@ _job: {
 	}]
 }
 
-// The template writes path beside the volume's name rather than under
-// hostPath, so the API server, finding no volume source, makes it an emptyDir.
 "mounts a host path": test.#WorkflowStepExec & _cli & {
 	_app: "host"
 	parameter: storage: hostPath: [{name: "docker", path: "/var/run/docker.sock", mountPath: "/var/run/docker.sock", type: "Socket"}]
@@ -108,7 +106,7 @@ _job: {
 			volumes: [{name: "hostpath-docker", hostPath: {path: "/var/run/docker.sock", type: "Socket"}}]
 		}
 	}]
-} @pending(vela-cli emits a hostPath volume as name and path with no hostPath source, so the API server stores it as an emptyDir)
+}
 
 "finishes once the Job has succeeded": test.#WorkflowStepExec & _cli & {
 	_app: "done"
@@ -153,4 +151,15 @@ _job: {
 		phase:   "failed"
 		message: "failed to execute vela command"
 	}
+}
+
+"a host path is a directory by default": test.#WorkflowStepExec & _cli & {
+	_app: "hostdir"
+	parameter: storage: hostPath: [{name: "cache", path: "/var/cache/vela", mountPath: "/cache"}]
+	expect: resources: [{
+		apiVersion: "batch/v1"
+		kind:       "Job"
+		metadata: {name: "hostdir-test-step-test-step-id", namespace: "vela-system"}
+		spec: template: spec: volumes: [{name: "hostpath-cache", hostPath: {path: "/var/cache/vela", type: "Directory"}}]
+	}]
 }

@@ -23,9 +23,6 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/require"
-
-	configcontext "github.com/oam-dev/kubevela/pkg/config/context"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
 func TestConvertMap2PropertiesKV(t *testing.T) {
@@ -162,7 +159,7 @@ func TestRenderForExpandedWriter(t *testing.T) {
 	r := require.New(t)
 	t.Run("no nacos config", func(t *testing.T) {
 		ewc := ExpandedWriterConfig{}
-		data, err := RenderForExpandedWriter(ewc, script.CUE(""), configcontext.ConfigRenderContext{}, nil)
+		data, err := RenderForExpandedWriter(ewc, cuecontext.New().CompileString("template: {}"))
 		r.NoError(err)
 		r.Nil(data.Nacos)
 	})
@@ -171,8 +168,7 @@ func TestRenderForExpandedWriter(t *testing.T) {
 		ewc := ExpandedWriterConfig{
 			Nacos: &NacosConfig{},
 		}
-		s := script.CUE("parameter: {}")
-		_, err := RenderForExpandedWriter(ewc, s, configcontext.ConfigRenderContext{}, nil)
+		_, err := RenderForExpandedWriter(ewc, cuecontext.New().CompileString("template: parameter: {}"))
 		r.Error(err)
 	})
 }

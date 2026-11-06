@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.5
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: applicationrevisions.core.oam.dev
 spec:
   group: core.oam.dev
@@ -285,6 +285,41 @@ spec:
                                   items:
                                     type: string
                                   type: array
+                                forEach:
+                                  description: |-
+                                    ForEach runs the step once per item. On a step-group, the whole group runs once
+                                    per item.
+                                  properties:
+                                    from:
+                                      description: |-
+                                        From reads the list from a workflow variable, with the same path syntax as
+                                        inputs[].from.
+                                      type: string
+                                    items:
+                                      description: |-
+                                        Items is the list itself. It is any JSON value rather than a list so that a
+                                        KubeVela Application can give a single $( ) expression, resolved to the list
+                                        before the workflow runs.
+                                      x-kubernetes-preserve-unknown-fields: true
+                                    key:
+                                      description: |-
+                                        Key names each item's steps by its value instead of its index: paths into the
+                                        item whose values, joined with "-", replace the index in the step names. Each
+                                        value must be a string or an integer, and the joined keys unique in the list.
+                                      items:
+                                        type: string
+                                      maxItems: 8
+                                      minItems: 1
+                                      type: array
+                                    mode:
+                                      description: 'Mode is StepByStep (the default:
+                                        one item at a time) or DAG (every item at
+                                        once).'
+                                      enum:
+                                      - StepByStep
+                                      - DAG
+                                      type: string
+                                  type: object
                                 if:
                                   description: If is the if condition of the step
                                   type: string
@@ -838,9 +873,9 @@ spec:
 
                                 Consumption hangs off the source rather than off each consumer because the
                                 consumers do not all have somewhere to put it: a workflow step's status is
-                                workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, and that
-                                engine is deliberately unaware sources exist - properties are substituted
-                                before it ever sees them.
+                                workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, which
+                                resolves a step's expressions through KubeVela's resolvers without knowing
+                                what a source is.
                               items:
                                 description: SourceConsumer records one reader of
                                   a source and the values it received.
@@ -1040,6 +1075,31 @@ spec:
                                 type: string
                             type: object
                             x-kubernetes-map-type: atomic
+                          dependencies:
+                            description: |-
+                              Dependencies is what each workflow step waits on before it starts, whether
+                              named in its dependsOn or read by its expressions.
+                            items:
+                              description: |-
+                                WorkflowStepDependency is one step a workflow step waits on before it starts,
+                                and why. Its own type rather than the workflow engine's, so that this API does
+                                not change with the engine's version.
+                              properties:
+                                dependsOn:
+                                  type: string
+                                source:
+                                  description: |-
+                                    Source says why the step waits on DependsOn: dependsOn when the step names
+                                    it in its dependsOn, expression when one of the step's expressions reads it.
+                                  type: string
+                                step:
+                                  type: string
+                              required:
+                              - dependsOn
+                              - source
+                              - step
+                              type: object
+                            type: array
                           endTime:
                             format: date-time
                             nullable: true
@@ -1210,6 +1270,12 @@ spec:
                             It is not inherited: a definition that extends an abstract one is usable
                             unless it marks itself abstract too.
                           type: boolean
+                        apiVersion:
+                          description: |-
+                            APIVersion is the API line of the module this definition belongs to, for
+                            example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          pattern: ^v\d+(alpha\d+|beta\d+)?$
+                          type: string
                         childResourceKinds:
                           description: ChildResourceKinds are the list of GVK of the
                             child resources this workload generates
@@ -1251,6 +1317,12 @@ spec:
                             platform builders
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
+                        module:
+                          description: |-
+                            Module names the module this definition was published in, for example
+                            "s3". It identifies a versioned definition on the spec itself, not only
+                            through labels. Set it together with apiVersion, or leave both empty.
+                          type: string
                         podSpecPath:
                           description: |-
                             PodSpecPath indicates where/if this workload has K8s podSpec field
@@ -1724,6 +1796,12 @@ spec:
                       description: PolicyDefinitionSpec defines the desired state
                         of PolicyDefinition
                       properties:
+                        apiVersion:
+                          description: |-
+                            APIVersion is the API line of the module this definition belongs to, for
+                            example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          pattern: ^v\d+(alpha\d+|beta\d+)?$
+                          type: string
                         definitionRef:
                           description: Reference to the CustomResourceDefinition that
                             defines this trait kind.
@@ -1752,6 +1830,12 @@ spec:
                             ManageHealthCheck means the policy will handle health checking and skip application controller
                             built-in health checking.
                           type: boolean
+                        module:
+                          description: |-
+                            Module names the module this definition was published in, for example
+                            "s3". It identifies a versioned definition on the spec itself, not only
+                            through labels. Set it together with apiVersion, or leave both empty.
+                          type: string
                         priority:
                           description: |-
                             Priority defines the order in which global policies are applied.
@@ -2563,6 +2647,12 @@ spec:
                             It is not inherited: a definition that extends an abstract one is usable
                             unless it marks itself abstract too.
                           type: boolean
+                        apiVersion:
+                          description: |-
+                            APIVersion is the API line of the module this definition belongs to, for
+                            example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          pattern: ^v\d+(alpha\d+|beta\d+)?$
+                          type: string
                         appliesToWorkloads:
                           description: |-
                             AppliesToWorkloads specifies the list of workload kinds this trait
@@ -2626,6 +2716,12 @@ spec:
                           description: ManageWorkload defines the trait would be responsible
                             for creating the workload
                           type: boolean
+                        module:
+                          description: |-
+                            Module names the module this definition was published in, for example
+                            "s3". It identifies a versioned definition on the spec itself, not only
+                            through labels. Set it together with apiVersion, or leave both empty.
+                          type: string
                         podDisruptive:
                           description: |-
                             PodDisruptive indicates that this trait is disruptive to the pod: applying or
@@ -3056,6 +3152,40 @@ spec:
                           items:
                             type: string
                           type: array
+                        forEach:
+                          description: |-
+                            ForEach runs the step once per item. On a step-group, the whole group runs once
+                            per item.
+                          properties:
+                            from:
+                              description: |-
+                                From reads the list from a workflow variable, with the same path syntax as
+                                inputs[].from.
+                              type: string
+                            items:
+                              description: |-
+                                Items is the list itself. It is any JSON value rather than a list so that a
+                                KubeVela Application can give a single $( ) expression, resolved to the list
+                                before the workflow runs.
+                              x-kubernetes-preserve-unknown-fields: true
+                            key:
+                              description: |-
+                                Key names each item's steps by its value instead of its index: paths into the
+                                item whose values, joined with "-", replace the index in the step names. Each
+                                value must be a string or an integer, and the joined keys unique in the list.
+                              items:
+                                type: string
+                              maxItems: 8
+                              minItems: 1
+                              type: array
+                            mode:
+                              description: 'Mode is StepByStep (the default: one item
+                                at a time) or DAG (every item at once).'
+                              enum:
+                              - StepByStep
+                              - DAG
+                              type: string
+                          type: object
                         if:
                           description: If is the if condition of the step
                           type: string
@@ -3226,6 +3356,12 @@ spec:
                       description: WorkflowStepDefinitionSpec defines the desired
                         state of WorkflowStepDefinition
                       properties:
+                        apiVersion:
+                          description: |-
+                            APIVersion is the API line of the module this definition belongs to, for
+                            example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          pattern: ^v\d+(alpha\d+|beta\d+)?$
+                          type: string
                         definitionRef:
                           description: Reference to the CustomResourceDefinition that
                             defines this trait kind.
@@ -3241,6 +3377,12 @@ spec:
                           required:
                           - name
                           type: object
+                        module:
+                          description: |-
+                            Module names the module this definition was published in, for example
+                            "s3". It identifies a versioned definition on the spec itself, not only
+                            through labels. Set it together with apiVersion, or leave both empty.
+                          type: string
                         restrictions:
                           description: |-
                             Restrictions limits where this definition may be used. Absent or empty means
@@ -3884,6 +4026,31 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  dependencies:
+                    description: |-
+                      Dependencies is what each workflow step waits on before it starts, whether
+                      named in its dependsOn or read by its expressions.
+                    items:
+                      description: |-
+                        WorkflowStepDependency is one step a workflow step waits on before it starts,
+                        and why. Its own type rather than the workflow engine's, so that this API does
+                        not change with the engine's version.
+                      properties:
+                        dependsOn:
+                          type: string
+                        source:
+                          description: |-
+                            Source says why the step waits on DependsOn: dependsOn when the step names
+                            it in its dependsOn, expression when one of the step's expressions reads it.
+                          type: string
+                        step:
+                          type: string
+                      required:
+                      - dependsOn
+                      - source
+                      - step
+                      type: object
+                    type: array
                   endTime:
                     format: date-time
                     nullable: true

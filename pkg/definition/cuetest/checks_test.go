@@ -17,8 +17,10 @@ limitations under the License.
 package cuetest
 
 import (
+	"context"
 	"testing"
 
+	"cuelang.org/go/cue"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,12 +54,6 @@ _cm: {apiVersion: "v1", kind: "ConfigMap"}
 			checks: `gone: {call: kube.#Read & {$params: value: _cm & {metadata: {name: "cfg", namespace: "check-failures"}}}, returns: err: =~"not found"}`,
 			want:   `checks.gone.returns.err: missing`,
 		},
-		// kube.#List reads $params.value in kubevela/workflow, not the
-		// $params.resource its schema declares, and panics without it.
-		"a provider that panics": {
-			checks: `list: {call: kube.#List & {$params: resource: {apiVersion: "v1", kind: "ConfigMap"}}}`,
-			want:   `checks.list: provider kube.list panicked: `,
-		},
 		"@not when it matches": {
 			checks: `not: {call: kube.#Read & {$params: value: _cm & {metadata: {name: "cfg", namespace: "check-failures"}}}, returns: value: data: a: "2" @not()}`,
 			want:   `checks.not.returns.value.data.a: expected not to match "2"`,
@@ -82,4 +78,18 @@ _cm: {apiVersion: "v1", kind: "ConfigMap"}
 			require.Contains(t, failures[0], tc.want)
 		})
 	}
+}
+
+// panickingProvider is a provider with a bug: it panics on every call.
+type panickingProvider struct{}
+
+func (panickingProvider) Call(context.Context, cue.Value) (cue.Value, error) {
+	panic("boom")
+}
+
+// A provider that panics fails the case that reached it, as an error naming the
+// provider, rather than the whole run.
+func TestCallProviderRecoversAPanic(t *testing.T) {
+	_, err := callProvider(context.Background(), panickingProvider{}, cue.Value{}, "kube", "list")
+	require.EqualError(t, err, "provider kube.list panicked: boom")
 }

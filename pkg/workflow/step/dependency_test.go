@@ -53,7 +53,7 @@ func TestLoadExternalPoliciesForWorkflow(t *testing.T) {
 	}}, []v1beta1.AppPolicy{{
 		Name: "internal",
 		Type: "internal",
-	}})
+	}}, false)
 	r.NoError(err)
 	r.Equal(2, len(policies))
 	r.Equal("ex", policies[1].Name)
@@ -66,7 +66,7 @@ func TestLoadExternalPoliciesForWorkflow(t *testing.T) {
 			Type:       DeployWorkflowStep,
 			Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["ex","non"]}`)},
 		},
-	}}, []v1beta1.AppPolicy{})
+	}}, []v1beta1.AppPolicy{}, false)
 	r.NotNil(err)
 	r.Contains(err.Error(), "external policy non not found")
 
@@ -77,7 +77,7 @@ func TestLoadExternalPoliciesForWorkflow(t *testing.T) {
 			Type:       DeployWorkflowStep,
 			Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["ex","non"],"unknown-field":"value"}`)},
 		},
-	}}, []v1beta1.AppPolicy{})
+	}}, []v1beta1.AppPolicy{}, false)
 	r.NotNil(err)
 	r.Contains(err.Error(), "invalid WorkflowStep deploy")
 }
@@ -111,14 +111,15 @@ func TestDeployStepFieldNamesMatchSpec(t *testing.T) {
 // only the types are unknowable before substitution.
 func TestDeployStepDecodeToleratesExpressionsButNotTypos(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		raw     string
-		wantErr string
+		name               string
+		raw                string
+		expressionsEnabled bool
+		wantErr            string
 	}{
-		{"expression in a typed field", `{"policies":["p"],"parallelism":"$(source.n.count)"}`, ""},
-		{"typo alongside an expression", `{"policys":["p"],"parallelism":"$(source.n.count)"}`, `unknown field "policys"`},
-		{"typo with no expression", `{"policys":["p"]}`, `unknown field "policys"`},
-		{"plain valid properties", `{"policies":["p"],"parallelism":4}`, ""},
+		{"expression in a typed field", `{"policies":["p"],"parallelism":"$(source.n.count)"}`, true, ""},
+		{"typo alongside an expression", `{"policys":["p"],"parallelism":"$(source.n.count)"}`, true, `unknown field "policys"`},
+		{"typo with no expression", `{"policys":["p"]}`, false, `unknown field "policys"`},
+		{"plain valid properties", `{"policies":["p"],"parallelism":4}`, false, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			steps := []wfTypesv1alpha1.WorkflowStep{{
@@ -129,7 +130,7 @@ func TestDeployStepDecodeToleratesExpressionsButNotTypos(t *testing.T) {
 			}}
 			// The named policy is supplied inline, so no client lookup happens.
 			inline := []v1beta1.AppPolicy{{Name: "p", Type: "topology"}}
-			_, err := LoadExternalPoliciesForWorkflow(context.Background(), nil, "default", steps, inline)
+			_, err := LoadExternalPoliciesForWorkflow(context.Background(), nil, "default", steps, inline, tc.expressionsEnabled)
 			if tc.wantErr == "" {
 				if err != nil {
 					t.Fatalf("expected acceptance, got: %v", err)
@@ -158,7 +159,36 @@ func TestLoadExternalPoliciesLeavesExpressionNamesToTheStep(t *testing.T) {
 		},
 	}}
 
-	policies, err := LoadExternalPoliciesForWorkflow(context.Background(), cli, "default", steps, nil)
+	policies, err := LoadExternalPoliciesForWorkflow(context.Background(), cli, "default", steps, nil, true)
 	require.NoError(t, err)
 	require.Empty(t, policies)
+}
+
+func TestLoadExternalPoliciesRejectsExpressionTypeWhenExpressionsDisabled(t *testing.T) {
+	steps := []wfTypesv1alpha1.WorkflowStep{{
+		WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+			Name: "deploy", Type: DeployWorkflowStep,
+			Properties: &runtime.RawExtension{
+				Raw: []byte(`{"parallelism":"$(2)"}`),
+			},
+		},
+	}}
+
+	_, err := LoadExternalPoliciesForWorkflow(context.Background(), nil, "default", steps, nil, false)
+	require.ErrorContains(t, err, "invalid WorkflowStep deploy")
+}
+
+func TestLoadExternalPoliciesLooksUpExpressionNameWhenExpressionsDisabled(t *testing.T) {
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	steps := []wfTypesv1alpha1.WorkflowStep{{
+		WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+			Name: "deploy", Type: DeployWorkflowStep,
+			Properties: &runtime.RawExtension{
+				Raw: []byte(`{"policies":["$(missing)"]}`),
+			},
+		},
+	}}
+
+	_, err := LoadExternalPoliciesForWorkflow(context.Background(), cli, "default", steps, nil, false)
+	require.ErrorContains(t, err, "external policy $(missing) not found")
 }

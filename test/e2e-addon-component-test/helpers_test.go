@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
@@ -34,11 +35,14 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	veltypes "github.com/oam-dev/kubevela/apis/types"
 )
 
 const (
@@ -216,4 +220,160 @@ func apierrIsAlreadyExists(err error) bool {
 		return false
 	}
 	return strings.Contains(err.Error(), "already exists")
+}
+
+// addonScope is one group's own copy of the fixtures. An addon's identity is
+// cluster-wide (one addon-<name> Application in vela-system, one namespace,
+// one ComponentDefinition), so groups that install the same addon cannot run
+// at once. Each group installs renamed copies instead and can take its own
+// Ginkgo worker; the specs inside a group still share its copy and run in
+// order.
+type addonScope struct {
+	echo            string // addon name, ComponentDefinition and workload name
+	echoNamespace   string
+	config          string
+	configNamespace string
+	wrappingApp     string
+	bundleApp       string
+}
+
+func newAddonScope(id string) addonScope {
+	echo, config := echoAddonName+"-"+id, configAddonName+"-"+id
+	return addonScope{
+		echo:            echo,
+		echoNamespace:   echoNamespace + "-" + id,
+		config:          config,
+		configNamespace: config + "-system",
+		wrappingApp:     echo + "-addon",
+		bundleApp:       bundleAppName + "-" + id,
+	}
+}
+
+func (s addonScope) echoOwnedApp() string   { return "addon-" + s.echo }
+func (s addonScope) configOwnedApp() string { return "addon-" + s.config }
+
+var (
+	installScope   = newAddonScope("install")
+	reconcileScope = newAddonScope("reconcile")
+	uninstallScope = newAddonScope("uninstall")
+	ownershipScope = newAddonScope("owner")
+	versionScope   = newAddonScope("version")
+	bundleScope    = newAddonScope("bundle")
+	admissionScope = newAddonScope("admit")
+	addonScopes    = []addonScope{installScope, reconcileScope, uninstallScope, ownershipScope, versionScope, bundleScope, admissionScope}
+)
+
+// echoImageRepo contains the addon's name but is the container image, so a
+// scoped copy must keep it as it is.
+const echoImageRepo = "ealen/echo-server"
+
+// writeScopedFixture copies an addon fixture directory to dst, applying the
+// old/new renames to every file so the copy installs as a separate addon.
+func writeScopedFixture(src, dst string, renames ...string) error {
+	replacer := strings.NewReplacer(renames...)
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o750)
+		}
+		data, err := os.ReadFile(filepath.Clean(path))
+		if err != nil {
+			return err
+		}
+		text := strings.ReplaceAll(string(data), echoImageRepo, "\x00")
+		text = strings.ReplaceAll(replacer.Replace(text), "\x00", echoImageRepo)
+		return os.WriteFile(target, []byte(text), 0o600)
+	})
+}
+
+// setUpSharedRegistry runs once, before any worker starts: it brings up the
+// registry, registers it, and pushes the fixtures and every group's copy.
+func setUpSharedRegistry(ctx context.Context) string {
+	// ADDON_E2E_REGISTRY_URL points the suite at a registry that is already
+	// running, and skips bringing up the in-cluster one. It exists because
+	// the NodePort route needs the node's address to be reachable from both
+	// the CLI on the host and the controller in the cluster. That holds on a
+	// CI runner; on Docker Desktop for macOS a connection to a container IP
+	// is accepted and then reset, so a developer there runs ChartMuseum on
+	// the host and passes its LAN address here instead.
+	var url string
+	if external := os.Getenv(addonE2ERegistryURLEnv); external != "" {
+		By("using the externally provided registry at " + external)
+		url = external
+	} else {
+		By("bringing up the in-cluster ChartMuseum")
+		Expect(applyManifestFile(ctx, k8sClient, "testdata/addon/chartmuseum.yaml")).Should(Succeed())
+		waitForChartMuseumAvailable(ctx)
+		url = addonE2ERegistryURL(ctx)
+	}
+	waitForChartMuseumReachable(url)
+
+	By("registering it as an addon registry")
+	// A previous run that died before teardown leaves the entry behind, and
+	// `registry add` refuses an existing name.
+	_, _ = runVelaCommand(root, "addon", "registry", "delete", addonRegistryName)
+	runVelaCommandSucceed(root, "addon", "registry", "add", addonRegistryName,
+		"--type", "helm", "--endpoint", url)
+
+	By("pushing echo-server 1.0.0 and 1.1.0, and config-store 1.0.0")
+	runVelaCommandSucceed(root, "addon", "push", echoFixturePath, addonRegistryName, "--use-http", "-f")
+	runVelaCommandSucceed(root, "addon", "push", echoUpgradePath, addonRegistryName, "--use-http", "-f")
+	runVelaCommandSucceed(root, "addon", "push", configFixturePath, addonRegistryName, "--use-http", "-f")
+
+	By("pushing each group's renamed copy of those fixtures")
+	dir, err := os.MkdirTemp("", "kubevela-addon-component-fixtures-")
+	Expect(err).NotTo(HaveOccurred())
+	defer os.RemoveAll(dir)
+	for _, s := range addonScopes {
+		echoRenames := []string{echoAddonName, s.echo, echoNamespace, s.echoNamespace}
+		for _, fixture := range []struct {
+			src, name string
+			renames   []string
+		}{
+			{echoFixturePath, s.echo + "-" + echoAddonVersion, echoRenames},
+			{echoUpgradePath, s.echo + "-" + echoAddonUpgrade, echoRenames},
+			{configFixturePath, s.config, []string{configAddonName, s.config}},
+		} {
+			dst := filepath.Join(dir, fixture.name)
+			Expect(writeScopedFixture(filepath.Join(root, fixture.src), dst, fixture.renames...)).To(Succeed())
+			runVelaCommandSucceed(root, "addon", "push", dst, addonRegistryName, "--use-http", "-f")
+		}
+	}
+	return url
+}
+
+// tearDownSharedRegistry runs once, after every worker has finished.
+func tearDownSharedRegistry(ctx context.Context) {
+	for _, s := range addonScopes {
+		for _, n := range []string{s.wrappingApp, s.bundleApp} {
+			_ = k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: n, Namespace: veltypes.DefaultKubeVelaNS}})
+		}
+		_, _ = runVelaCommand(root, "addon", "disable", s.echo)
+		_, _ = runVelaCommand(root, "addon", "disable", s.config)
+	}
+	Eventually(func(g Gomega) {
+		for _, s := range addonScopes {
+			for _, n := range []string{s.echoOwnedApp(), s.configOwnedApp()} {
+				err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: n, Namespace: veltypes.DefaultKubeVelaNS}, &v1beta1.Application{})
+				g.Expect(k8serrors.IsNotFound(err)).Should(BeTrue(),
+					"owned Application %s must be gone before the next run of this suite reuses this cluster", n)
+			}
+		}
+	}, waitTimeout, pollPeriod).Should(Succeed())
+	_, _ = runVelaCommand(root, "addon", "registry", "delete", addonRegistryName)
+	if os.Getenv(addonE2ERegistryURLEnv) == "" {
+		_ = k8sClient.Delete(ctx, &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "addon-chartmuseum", Namespace: "default"}})
+		_ = k8sClient.Delete(ctx, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "addon-chartmuseum", Namespace: "default"}})
+	}
+	for _, s := range addonScopes {
+		_ = k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: s.echoNamespace}})
+		_ = k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: s.configNamespace}})
+	}
 }

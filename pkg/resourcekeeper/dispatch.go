@@ -67,10 +67,9 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		return err
 	}
 	// 1. pre-dispatch check
-	opts := []apply.ApplyOption{h.mustBeControlled(), apply.NotUpdateRenderHashEqual()}
-	if len(applyOpts) > 0 {
-		opts = append(opts, applyOpts...)
-	}
+	// The caller's options first: one that decides how the ownership check reads an existing
+	// object (apply.TakeOverIf) has to run before it, as the policy options do in dispatch.
+	opts := append(append([]apply.ApplyOption{}, applyOpts...), h.mustBeControlled(), apply.NotUpdateRenderHashEqual())
 	if h.preDispatchDryRun() {
 		if err = h.dispatch(ctx,
 			velaslices.Map(manifests, func(manifest *unstructured.Unstructured) *unstructured.Unstructured { return manifest.DeepCopy() }),

@@ -41,7 +41,7 @@ _web: {
 		{name: "web", securityContext: {runAsNonRoot: true, privileged: false}},
 		_,
 	]
-} @pending(the parameter is a disjunction with no default, so with no fields set neither branch is chosen and the patch fails to resolve)
+}
 
 "group, read-only root and capabilities when given": test.#TraitRender & _web & {
 	parameter: {
@@ -84,4 +84,37 @@ _web: {
 "each of several containers must be named": test.#TraitRender & _web & {
 	parameter: containers: [{runAsUser: 1000}]
 	expect: error: user: ["containerName must be set for containers"]
+}
+
+"privilege escalation can be allowed": test.#TraitRender & _web & {
+	parameter: allowPrivilegeEscalation: true
+	expect: output: spec: template: spec: containers: [{securityContext: allowPrivilegeEscalation: true}, _]
+}
+
+"each of several containers takes every field": test.#TraitRender & _web & {
+	parameter: containers: [
+		{
+			containerName:          "web"
+			runAsGroup:             3000
+			readOnlyRootFilesystem: true
+			addCapabilities: ["NET_BIND_SERVICE"]
+			dropCapabilities: ["ALL"]
+		},
+		{containerName: "log", privileged: true, runAsNonRoot: false},
+	]
+	expect: output: spec: template: spec: containers: [
+		{name: "web", securityContext: {
+			runAsGroup:             3000
+			readOnlyRootFilesystem: true
+			privileged:             false
+			runAsNonRoot:           true
+			capabilities: {add: ["NET_BIND_SERVICE"], drop: ["ALL"]} @exact()
+		}},
+		{name: "log", securityContext: {
+			privileged:             true
+			runAsNonRoot:           false
+			readOnlyRootFilesystem: false
+			capabilities: {} @exact()
+		}},
+	]
 }

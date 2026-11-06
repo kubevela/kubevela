@@ -5,7 +5,7 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     custom.definition.oam.dev/category: Config Management
-    definition.oam.dev/description: Create or update a config
+    definition.oam.dev/description: 'Create or update a config: a Config the Config controller renders into its Secret, written through the application and garbage-collected with it (a legacy Secret where the cluster does not serve the Config kind)'
   name: create-config
   namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:

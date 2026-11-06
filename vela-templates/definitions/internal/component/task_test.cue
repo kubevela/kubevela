@@ -121,7 +121,7 @@ _task: {
 		livenessProbe: exec: command: ["cat", "/alive"]
 		readinessProbe: tcpSocket: port: 8080
 	}]
-} @pending(livenessProbe and readinessProbe are accepted as parameters but never rendered into the container)
+}
 
 "healthy once every parallel pod has succeeded": test.#ComponentStatus & _task & {
 	parameter: {image: "shop-migrate:1.0", count: 2}
@@ -144,4 +144,75 @@ _task: {
 "not healthy with no status reported": test.#ComponentStatus & _task & {
 	parameter: image: "shop-migrate:1.0"
 	expect: {healthy: false, message: "Active/Failed/Succeeded:0/0/0"}
+}
+
+"every probe field passes through": test.#ComponentRender & _task & {
+	parameter: {
+		image: "shop-migrate:1.0"
+		livenessProbe: {
+			httpGet: {path: "/healthz", port: 8080}
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			exec: command: ["cat", "/alive"]
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}
+	expect: output: spec: template: spec: containers: [{
+		livenessProbe: {
+			httpGet: {path: "/healthz", port: 8080}
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			exec: command: ["cat", "/alive"]
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}]
+}
+
+"a tcpSocket liveness and an httpGet readiness probe pass through": test.#ComponentRender & _task & {
+	parameter: {
+		image: "shop-migrate:1.0"
+		livenessProbe: tcpSocket: port: 8080
+		readinessProbe: httpGet: {path: "/ready", port: 8080}
+	}
+	expect: output: spec: template: spec: containers: [{
+		livenessProbe: tcpSocket: port: 8080
+		readinessProbe: httpGet: {path: "/ready", port: 8080}
+	}]
+}
+
+"a plain environment value passes through": test.#ComponentRender & _task & {
+	parameter: {
+		image: "shop-migrate:1.0"
+		env: [{name: "MODE", value: "batch"}]
+	}
+	expect: output: spec: template: spec: containers: [{env: [{name: "MODE", value: "batch"}]}]
+}
+
+"a deprecated emptyDir volume keeps its medium": test.#ComponentRender & _task & {
+	parameter: {
+		image: "shop-migrate:1.0"
+		volumes: [{name: "cache", mountPath: "/cache", type: "emptyDir", medium: "Memory"}]
+	}
+	expect: output: spec: template: spec: {
+		containers: [{volumeMounts: [{name: "cache", mountPath: "/cache"}]}]
+		volumes: [{name: "cache", emptyDir: medium: "Memory"}]
+	}
 }

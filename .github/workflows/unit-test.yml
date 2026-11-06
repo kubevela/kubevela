@@ -45,8 +45,11 @@ jobs:
       - name: Setup Env
         uses: ./.github/actions/env-setup
 
+      # Unit tests do not use the vela-core image, so skip building it.
       - name: Setup KinD with Kubernetes
         uses: ./.github/actions/setup-kind-cluster
+        with:
+          load-image: 'false'
 
       - name: Run unit tests
         uses: ./.github/actions/unit-test

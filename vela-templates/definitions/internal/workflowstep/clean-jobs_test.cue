@@ -53,7 +53,7 @@ _kept: {
 		checks: _gone & {_name: "ours"}
 		resources: (_kept & {_name: "theirs"}).objects
 	}
-} @pending(the namespace parameter defaults to context.namespace while kube.#Delete defaults metadata.namespace to default, so the two defaults conflict and the call gets no concrete namespace)
+}
 
 "deletes the application's jobs and pods in the given namespace": test.#WorkflowStepExec & {
 	definition: "clean-jobs"

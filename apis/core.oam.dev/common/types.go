@@ -265,9 +265,9 @@ type ApplicationSourceStatus struct {
 	//
 	// Consumption hangs off the source rather than off each consumer because the
 	// consumers do not all have somewhere to put it: a workflow step's status is
-	// workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, and that
-	// engine is deliberately unaware sources exist - properties are substituted
-	// before it ever sees them.
+	// workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, which
+	// resolves a step's expressions through KubeVela's resolvers without knowing
+	// what a source is.
 	// +optional
 	ConsumedBy []SourceConsumer `json:"consumedBy,omitempty"`
 }
@@ -471,6 +471,17 @@ type PolicyStatus struct {
 	Status *runtime.RawExtension `json:"status,omitempty"`
 }
 
+// WorkflowStepDependency is one step a workflow step waits on before it starts,
+// and why. Its own type rather than the workflow engine's, so that this API does
+// not change with the engine's version.
+type WorkflowStepDependency struct {
+	Step      string `json:"step"`
+	DependsOn string `json:"dependsOn"`
+	// Source says why the step waits on DependsOn: dependsOn when the step names
+	// it in its dependsOn, expression when one of the step's expressions reads it.
+	Source string `json:"source"`
+}
+
 // WorkflowStatus record the status of workflow
 type WorkflowStatus struct {
 	AppRevision string                            `json:"appRevision,omitempty"`
@@ -486,6 +497,9 @@ type WorkflowStatus struct {
 
 	ContextBackend *corev1.ObjectReference               `json:"contextBackend,omitempty"`
 	Steps          []workflowv1alpha1.WorkflowStepStatus `json:"steps,omitempty"`
+	// Dependencies is what each workflow step waits on before it starts, whether
+	// named in its dependsOn or read by its expressions.
+	Dependencies []WorkflowStepDependency `json:"dependencies,omitempty"`
 
 	StartTime metav1.Time `json:"startTime,omitempty"`
 	// +nullable

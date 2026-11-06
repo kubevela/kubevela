@@ -25,12 +25,15 @@ limitations under the License.
 // (ociURLIsPlainHTTP accepts only a literal "http://" URL), so an OCI registry
 // here would need certificates materialised into the cluster before the
 // controller could pull -- which tests TLS plumbing, not addons.
+//
+// Each group that installs an addon is an Ordered container with its own
+// renamed copy of the fixtures (see addonScope), so groups run on separate
+// Ginkgo workers while the specs inside one group run in order.
 package controllers_test
 
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -59,29 +62,18 @@ const (
 
 	configAddonName   = "config-store"
 	configFixturePath = "test/e2e-addon-component-test/testdata/addon/config-store"
-	configNamespace   = "config-store-system"
 
 	addonRegistryName = "addon-e2e-cm"
 
-	// ownedAppName is what the renderer forces the inner Application to be
-	// called, for both install paths: addon-<name> in vela-system.
-	echoOwnedAppName   = "addon-" + echoAddonName
-	configOwnedAppName = "addon-" + configAddonName
-
-	// wrappingAppName is the outer Application declaring the addon.
-	echoWrappingApp = "echo-server-addon"
-	bundleAppName   = "platform-bundle"
+	// bundleAppName prefixes the outer Application declaring two addons.
+	bundleAppName = "platform-bundle"
 
 	waitTimeout = 300 * time.Second
 	pollPeriod  = 3 * time.Second
 )
 
-var _ = Describe("Addon as a component", Ordered, func() {
-	var (
-		ctx         context.Context
-		root        string
-		registryURL string
-	)
+var _ = Describe("Addon as a component", func() {
+	ctx := context.Background()
 
 	// applyWrappingApp builds and creates an outer Application with a single
 	// type: addon component. Properties go through a RawExtension because the
@@ -134,64 +126,11 @@ var _ = Describe("Addon as a component", Ordered, func() {
 		}, waitTimeout, pollPeriod).Should(Succeed())
 	}
 
-	BeforeAll(func() {
-		ctx = context.Background()
-		root = repoRoot()
-
-		// ADDON_E2E_REGISTRY_URL points the suite at a registry that is already
-		// running, and skips bringing up the in-cluster one. It exists because
-		// the NodePort route needs the node's address to be reachable from both
-		// the CLI on the host and the controller in the cluster. That holds on a
-		// CI runner; on Docker Desktop for macOS a connection to a container IP
-		// is accepted and then reset, so a developer there runs ChartMuseum on
-		// the host and passes its LAN address here instead.
-		if external := os.Getenv(addonE2ERegistryURLEnv); external != "" {
-			By("using the externally provided registry at " + external)
-			registryURL = external
-		} else {
-			By("bringing up the in-cluster ChartMuseum")
-			Expect(applyManifestFile(ctx, k8sClient, "testdata/addon/chartmuseum.yaml")).Should(Succeed())
-			waitForChartMuseumAvailable(ctx)
-			registryURL = addonE2ERegistryURL(ctx)
-		}
-		waitForChartMuseumReachable(registryURL)
-
-		By("registering it as an addon registry")
-		// A previous run that died before AfterAll leaves the entry behind, and
-		// `registry add` refuses an existing name.
-		_, _ = runVelaCommand(root, "addon", "registry", "delete", addonRegistryName)
-		runVelaCommandSucceed(root, "addon", "registry", "add", addonRegistryName,
-			"--type", "helm", "--endpoint", registryURL)
-
-		By("pushing echo-server 1.0.0 and 1.1.0, and config-store 1.0.0")
-		runVelaCommandSucceed(root, "addon", "push", echoFixturePath, addonRegistryName, "--use-http", "-f")
-		runVelaCommandSucceed(root, "addon", "push", echoUpgradePath, addonRegistryName, "--use-http", "-f")
-		runVelaCommandSucceed(root, "addon", "push", configFixturePath, addonRegistryName, "--use-http", "-f")
-	})
-
-	AfterAll(func() {
-		for _, n := range []string{echoWrappingApp, bundleAppName} {
-			deleteApp(n)
-		}
-		_, _ = runVelaCommand(root, "addon", "disable", echoAddonName)
-		_, _ = runVelaCommand(root, "addon", "disable", configAddonName)
-		Eventually(func(g Gomega) {
-			err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoOwnedAppName, Namespace: veltypes.DefaultKubeVelaNS}, &v1beta1.Application{})
-			g.Expect(k8serrors.IsNotFound(err)).Should(BeTrue(),
-				"the owned Application must be gone before the next run of this suite reuses this cluster")
-		}, waitTimeout, pollPeriod).Should(Succeed())
-		_, _ = runVelaCommand(root, "addon", "registry", "delete", addonRegistryName)
-		if os.Getenv(addonE2ERegistryURLEnv) == "" {
-			_ = k8sClient.Delete(ctx, &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "addon-chartmuseum", Namespace: "default"}})
-			_ = k8sClient.Delete(ctx, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "addon-chartmuseum", Namespace: "default"}})
-		}
-		_ = k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: echoNamespace}})
-		_ = k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: configNamespace}})
-	})
-
 	// --- Scenario 1: registry management ---
 
-	Context("registry management (scenario 1)", func() {
+	// Serial: it adds and deletes entries in the cluster-wide registry
+	// ConfigMap that every other group reads.
+	Context("registry management (scenario 1)", Ordered, Serial, func() {
 		const secondRegistry = "addon-e2e-cm-2"
 
 		AfterEach(func() {
@@ -283,65 +222,67 @@ var _ = Describe("Addon as a component", Ordered, func() {
 
 	// --- Scenario 3: install and use ---
 
-	Context("install and use (scenario 3)", func() {
+	Context("install and use (scenario 3)", Ordered, func() {
+		s := installScope
+
 		AfterEach(func() {
-			deleteApp(echoWrappingApp)
-			expectAppGone(echoOwnedAppName)
+			deleteApp(s.wrappingApp)
+			expectAppGone(s.echoOwnedApp())
 		})
 
 		It("installs a pinned version and the outer Application owns the inner one", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoWrappingApp)
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.wrappingApp)
+			expectAppHealthy(s.echoOwnedApp())
 
 			owned := &v1beta1.Application{}
-			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoOwnedAppName, Namespace: veltypes.DefaultKubeVelaNS}, owned)).Should(Succeed())
-			Expect(owned.Labels["app.oam.dev/name"]).Should(Equal(echoWrappingApp),
+			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echoOwnedApp(), Namespace: veltypes.DefaultKubeVelaNS}, owned)).Should(Succeed())
+			Expect(owned.Labels["app.oam.dev/name"]).Should(Equal(s.wrappingApp),
 				"the inner Application must record which outer Application installed it")
 			Expect(owned.Labels["addons.oam.dev/version"]).Should(Equal(echoAddonVersion))
 		})
 
 		It("renders the addon's own workloads into its namespace", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 
 			Eventually(func(g Gomega) {
 				deploy := &appsv1.Deployment{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: echoNamespace}, deploy)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: s.echoNamespace}, deploy)).Should(Succeed())
 				g.Expect(deploy.Labels["addons.oam.dev/version"]).Should(Equal(echoAddonVersion))
 
 				svc := &corev1.Service{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: echoNamespace}, svc)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: s.echoNamespace}, svc)).Should(Succeed())
 			}, waitTimeout, pollPeriod).Should(Succeed())
 		})
 
 		It("registers the addon's definitions, labelled with the owning Application", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 
 			Eventually(func(g Gomega) {
 				cd := &v1beta1.ComponentDefinition{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: veltypes.DefaultKubeVelaNS}, cd)).Should(Succeed())
-				g.Expect(cd.Labels["app.oam.dev/name"]).Should(Equal(echoOwnedAppName),
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: veltypes.DefaultKubeVelaNS}, cd)).Should(Succeed())
+				g.Expect(cd.Labels["app.oam.dev/name"]).Should(Equal(s.echoOwnedApp()),
 					"definitions are dispatched as components of the inner Application, so they carry its tracking label")
 			}, waitTimeout, pollPeriod).Should(Succeed())
 		})
 
 		It("passes the addon's own parameters through the nested properties block", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, `{"replicas":3}`)).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, `{"replicas":3}`)).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 
 			Eventually(func(g Gomega) {
 				deploy := &appsv1.Deployment{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: echoNamespace}, deploy)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: s.echoNamespace}, deploy)).Should(Succeed())
 				g.Expect(deploy.Spec.Replicas).ShouldNot(BeNil())
 				g.Expect(*deploy.Spec.Replicas).Should(BeEquivalentTo(3))
 			}, waitTimeout, pollPeriod).Should(Succeed())
 		})
 
 		It("makes the addon's component type usable by an ordinary Application", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 
 			consumerNS := randomNamespaceName("addon-consumer")
 			Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: consumerNS}})).Should(Succeed())
@@ -354,7 +295,7 @@ var _ = Describe("Addon as a component", Ordered, func() {
 				Spec: v1beta1.ApplicationSpec{
 					Components: []oamcommon.ApplicationComponent{{
 						Name:       "my-echo",
-						Type:       echoAddonName,
+						Type:       s.echo,
 						Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":1}`)},
 					}},
 				},
@@ -368,12 +309,12 @@ var _ = Describe("Addon as a component", Ordered, func() {
 		})
 
 		It("resolves the latest version when none is pinned", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, "", "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, "", "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 
 			Eventually(func(g Gomega) {
 				deploy := &appsv1.Deployment{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: echoNamespace}, deploy)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: s.echoNamespace}, deploy)).Should(Succeed())
 				g.Expect(deploy.Labels["addons.oam.dev/version"]).Should(Equal(echoAddonUpgrade),
 					"an empty version must resolve to the highest published one, not the lowest")
 			}, waitTimeout, pollPeriod).Should(Succeed())
@@ -382,31 +323,33 @@ var _ = Describe("Addon as a component", Ordered, func() {
 
 	// --- Scenario 4: reconciler behaviour ---
 
-	Context("reconciler (scenario 4)", func() {
+	Context("reconciler (scenario 4)", Ordered, func() {
+		s := reconcileScope
+
 		BeforeAll(func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 		})
 
 		AfterAll(func() {
-			deleteApp(echoWrappingApp)
-			expectAppGone(echoOwnedAppName)
+			deleteApp(s.wrappingApp)
+			expectAppGone(s.echoOwnedApp())
 		})
 
 		It("recreates a deleted definition", func() {
 			cd := &v1beta1.ComponentDefinition{}
-			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: veltypes.DefaultKubeVelaNS}, cd)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: veltypes.DefaultKubeVelaNS}, cd)).Should(Succeed())
 			Expect(k8sClient.Delete(ctx, cd)).Should(Succeed())
 
 			Eventually(func(g Gomega) {
 				restored := &v1beta1.ComponentDefinition{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: veltypes.DefaultKubeVelaNS}, restored)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: veltypes.DefaultKubeVelaNS}, restored)).Should(Succeed())
 			}, waitTimeout, pollPeriod).Should(Succeed())
 		})
 
 		It("reverts an edited workload", func() {
 			deploy := &appsv1.Deployment{}
-			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: echoNamespace}, deploy)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: s.echoNamespace}, deploy)).Should(Succeed())
 			edited := deploy.DeepCopy()
 			replicas := int32(7)
 			edited.Spec.Replicas = &replicas
@@ -414,54 +357,56 @@ var _ = Describe("Addon as a component", Ordered, func() {
 
 			Eventually(func(g Gomega) {
 				current := &appsv1.Deployment{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: echoNamespace}, current)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: s.echoNamespace}, current)).Should(Succeed())
 				g.Expect(*current.Spec.Replicas).Should(BeEquivalentTo(1), "drift must be corrected back to the addon's rendered value")
 			}, waitTimeout, pollPeriod).Should(Succeed())
 		})
 
 		It("restores the inner Application when it is deleted directly", func() {
 			owned := &v1beta1.Application{}
-			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoOwnedAppName, Namespace: veltypes.DefaultKubeVelaNS}, owned)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echoOwnedApp(), Namespace: veltypes.DefaultKubeVelaNS}, owned)).Should(Succeed())
 			Expect(k8sClient.Delete(ctx, owned)).Should(Succeed())
 
 			Eventually(func(g Gomega) {
 				restored := &v1beta1.Application{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoOwnedAppName, Namespace: veltypes.DefaultKubeVelaNS}, restored)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echoOwnedApp(), Namespace: veltypes.DefaultKubeVelaNS}, restored)).Should(Succeed())
 			}, waitTimeout, pollPeriod).Should(Succeed())
 		})
 	})
 
 	// --- Group A: uninstall ---
 
-	Context("uninstall (group A)", func() {
-		It("removes the inner Application, its definitions and its workloads", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+	Context("uninstall (group A)", Ordered, func() {
+		s := uninstallScope
 
-			deleteApp(echoWrappingApp)
-			expectAppGone(echoOwnedAppName)
+		It("removes the inner Application, its definitions and its workloads", func() {
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
+
+			deleteApp(s.wrappingApp)
+			expectAppGone(s.echoOwnedApp())
 
 			Eventually(func(g Gomega) {
-				err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: veltypes.DefaultKubeVelaNS}, &v1beta1.ComponentDefinition{})
+				err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: veltypes.DefaultKubeVelaNS}, &v1beta1.ComponentDefinition{})
 				g.Expect(k8serrors.IsNotFound(err)).Should(BeTrue(), "the addon's ComponentDefinition must go with it")
 			}, waitTimeout, pollPeriod).Should(Succeed())
 
 			Eventually(func(g Gomega) {
-				err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: echoNamespace}, &appsv1.Deployment{})
+				err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: s.echoNamespace}, &appsv1.Deployment{})
 				g.Expect(k8serrors.IsNotFound(err)).Should(BeTrue(), "the addon's Deployment must go with it")
 			}, waitTimeout, pollPeriod).Should(Succeed())
 		})
 
 		It("reinstall restores the definition set", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 
 			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: veltypes.DefaultKubeVelaNS}, &v1beta1.ComponentDefinition{})).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: veltypes.DefaultKubeVelaNS}, &v1beta1.ComponentDefinition{})).Should(Succeed())
 			}, waitTimeout, pollPeriod).Should(Succeed())
 
-			deleteApp(echoWrappingApp)
-			expectAppGone(echoOwnedAppName)
+			deleteApp(s.wrappingApp)
+			expectAppGone(s.echoOwnedApp())
 		})
 
 		It("leaves the registry entry alone when the addon is removed", func() {
@@ -473,22 +418,24 @@ var _ = Describe("Addon as a component", Ordered, func() {
 
 	// --- Group B: ownership between the two install paths ---
 
-	Context("ownership (group B)", func() {
+	Context("ownership (group B)", Ordered, func() {
+		s := ownershipScope
+
 		AfterEach(func() {
-			deleteApp(echoWrappingApp)
-			_, _ = runVelaCommand(root, "addon", "disable", echoAddonName)
-			expectAppGone(echoOwnedAppName)
+			deleteApp(s.wrappingApp)
+			_, _ = runVelaCommand(root, "addon", "disable", s.echo)
+			expectAppGone(s.echoOwnedApp())
 		})
 
 		It("enabling the same addon twice is idempotent", func() {
-			runVelaCommandSucceed(root, "addon", "enable", echoAddonName, "--version", echoAddonVersion, "-y")
-			runVelaCommandSucceed(root, "addon", "enable", echoAddonName, "--version", echoAddonVersion, "-y")
+			runVelaCommandSucceed(root, "addon", "enable", s.echo, "--version", echoAddonVersion, "-y")
+			runVelaCommandSucceed(root, "addon", "enable", s.echo, "--version", echoAddonVersion, "-y")
 
 			apps := &v1beta1.ApplicationList{}
 			Expect(k8sClient.List(ctx, apps, client.InNamespace(veltypes.DefaultKubeVelaNS))).Should(Succeed())
 			count := 0
 			for i := range apps.Items {
-				if apps.Items[i].Name == echoOwnedAppName {
+				if apps.Items[i].Name == s.echoOwnedApp() {
 					count++
 				}
 			}
@@ -496,17 +443,17 @@ var _ = Describe("Addon as a component", Ordered, func() {
 		})
 
 		It("a declarative install refuses to take over an imperatively installed addon", func() {
-			runVelaCommandSucceed(root, "addon", "enable", echoAddonName, "--version", echoAddonVersion, "-y")
+			runVelaCommandSucceed(root, "addon", "enable", s.echo, "--version", echoAddonVersion, "-y")
 
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
 
 			// Admitted, because the conflict is only discoverable at dispatch,
 			// then never healthy. The inner Application keeps its original
 			// owner rather than being adopted.
 			Consistently(func(g Gomega) {
 				owned := &v1beta1.Application{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoOwnedAppName, Namespace: veltypes.DefaultKubeVelaNS}, owned)).Should(Succeed())
-				g.Expect(owned.Labels["app.oam.dev/name"]).ShouldNot(Equal(echoWrappingApp),
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echoOwnedApp(), Namespace: veltypes.DefaultKubeVelaNS}, owned)).Should(Succeed())
+				g.Expect(owned.Labels["app.oam.dev/name"]).ShouldNot(Equal(s.wrappingApp),
 					"the declarative install must not hijack an addon owned by the imperative one")
 			}, 30*time.Second, pollPeriod).Should(Succeed())
 		})
@@ -519,17 +466,17 @@ var _ = Describe("Addon as a component", Ordered, func() {
 		// would add a permanently failing spec to this suite.
 
 		It("a second Application declaring the same addon does not take ownership", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 
-			const secondApp = "echo-server-addon-2"
-			Expect(applyWrappingApp(secondApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
+			secondApp := s.wrappingApp + "-2"
+			Expect(applyWrappingApp(secondApp, s.echo, echoAddonVersion, "")).Should(Succeed())
 			defer deleteApp(secondApp)
 
 			Consistently(func(g Gomega) {
 				owned := &v1beta1.Application{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoOwnedAppName, Namespace: veltypes.DefaultKubeVelaNS}, owned)).Should(Succeed())
-				g.Expect(owned.Labels["app.oam.dev/name"]).Should(Equal(echoWrappingApp),
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echoOwnedApp(), Namespace: veltypes.DefaultKubeVelaNS}, owned)).Should(Succeed())
+				g.Expect(owned.Labels["app.oam.dev/name"]).Should(Equal(s.wrappingApp),
 					"the first owner keeps the addon; the second must not adopt it")
 			}, 30*time.Second, pollPeriod).Should(Succeed())
 		})
@@ -537,42 +484,44 @@ var _ = Describe("Addon as a component", Ordered, func() {
 
 	// --- Group C: version movement ---
 
-	Context("version (group C)", func() {
+	Context("version (group C)", Ordered, func() {
+		s := versionScope
+
 		AfterEach(func() {
-			deleteApp(echoWrappingApp)
-			expectAppGone(echoOwnedAppName)
+			deleteApp(s.wrappingApp)
+			expectAppGone(s.echoOwnedApp())
 		})
 
 		expectRenderedVersion := func(want string) {
 			Eventually(func(g Gomega) {
 				deploy := &appsv1.Deployment{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: echoNamespace}, deploy)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: s.echoNamespace}, deploy)).Should(Succeed())
 				g.Expect(deploy.Labels["addons.oam.dev/version"]).Should(Equal(want))
 			}, waitTimeout, pollPeriod).Should(Succeed())
 		}
 
 		It("a pinned version does not move when a newer one exists", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 			expectRenderedVersion(echoAddonVersion)
 
 			Consistently(func(g Gomega) {
 				deploy := &appsv1.Deployment{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoAddonName, Namespace: echoNamespace}, deploy)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.echo, Namespace: s.echoNamespace}, deploy)).Should(Succeed())
 				g.Expect(deploy.Labels["addons.oam.dev/version"]).Should(Equal(echoAddonVersion))
 			}, 30*time.Second, pollPeriod).Should(Succeed())
 		})
 
 		It("changing the pin moves the installed version in place", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 			expectRenderedVersion(echoAddonVersion)
 
 			Eventually(func(g Gomega) {
 				app := &v1beta1.Application{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoWrappingApp, Namespace: veltypes.DefaultKubeVelaNS}, app)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.wrappingApp, Namespace: veltypes.DefaultKubeVelaNS}, app)).Should(Succeed())
 				app.Spec.Components[0].Properties = &runtime.RawExtension{
-					Raw: []byte(fmt.Sprintf(`{"addon":%q,"registry":%q,"version":%q}`, echoAddonName, addonRegistryName, echoAddonUpgrade)),
+					Raw: []byte(fmt.Sprintf(`{"addon":%q,"registry":%q,"version":%q}`, s.echo, addonRegistryName, echoAddonUpgrade)),
 				}
 				g.Expect(k8sClient.Update(ctx, app)).Should(Succeed())
 			}, 30*time.Second, time.Second).Should(Succeed())
@@ -581,15 +530,15 @@ var _ = Describe("Addon as a component", Ordered, func() {
 		})
 
 		It("downgrading back to the older pin is allowed", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonUpgrade, "")).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonUpgrade, "")).Should(Succeed())
+			expectAppHealthy(s.echoOwnedApp())
 			expectRenderedVersion(echoAddonUpgrade)
 
 			Eventually(func(g Gomega) {
 				app := &v1beta1.Application{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoWrappingApp, Namespace: veltypes.DefaultKubeVelaNS}, app)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.wrappingApp, Namespace: veltypes.DefaultKubeVelaNS}, app)).Should(Succeed())
 				app.Spec.Components[0].Properties = &runtime.RawExtension{
-					Raw: []byte(fmt.Sprintf(`{"addon":%q,"registry":%q,"version":%q}`, echoAddonName, addonRegistryName, echoAddonVersion)),
+					Raw: []byte(fmt.Sprintf(`{"addon":%q,"registry":%q,"version":%q}`, s.echo, addonRegistryName, echoAddonVersion)),
 				}
 				g.Expect(k8sClient.Update(ctx, app)).Should(Succeed())
 			}, 30*time.Second, time.Second).Should(Succeed())
@@ -598,11 +547,11 @@ var _ = Describe("Addon as a component", Ordered, func() {
 		})
 
 		It("a version that was never published leaves the Application unhealthy", func() {
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, "9.9.9", "")).Should(Succeed())
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, "9.9.9", "")).Should(Succeed())
 
 			Eventually(func(g Gomega) {
 				app := &v1beta1.Application{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: echoWrappingApp, Namespace: veltypes.DefaultKubeVelaNS}, app)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.wrappingApp, Namespace: veltypes.DefaultKubeVelaNS}, app)).Should(Succeed())
 				g.Expect(app.Status.Phase).ShouldNot(Equal(oamcommon.ApplicationRunning))
 				// status.Workflow is nil until the first step runs, so this has
 				// to be polled rather than read once.
@@ -611,8 +560,8 @@ var _ = Describe("Addon as a component", Ordered, func() {
 				// searched -- a bad version is a registry fact admission
 				// deliberately does not fetch, so this is where it surfaces.
 				found := false
-				for _, s := range app.Status.Workflow.Steps {
-					if strings.Contains(s.Message, "9.9.9") {
+				for _, step := range app.Status.Workflow.Steps {
+					if strings.Contains(step.Message, "9.9.9") {
 						found = true
 					}
 				}
@@ -623,11 +572,13 @@ var _ = Describe("Addon as a component", Ordered, func() {
 
 	// --- Group D: multiple addons in one Application ---
 
-	Context("multiple addons in one Application (group D)", func() {
+	Context("multiple addons in one Application (group D)", Ordered, func() {
+		s := bundleScope
+
 		AfterEach(func() {
-			deleteApp(bundleAppName)
-			expectAppGone(echoOwnedAppName)
-			expectAppGone(configOwnedAppName)
+			deleteApp(s.bundleApp)
+			expectAppGone(s.echoOwnedApp())
+			expectAppGone(s.configOwnedApp())
 		})
 
 		applyBundle := func() error {
@@ -641,11 +592,11 @@ var _ = Describe("Addon as a component", Ordered, func() {
 				}
 			}
 			return k8sClient.Create(ctx, &v1beta1.Application{
-				ObjectMeta: metav1.ObjectMeta{Name: bundleAppName, Namespace: veltypes.DefaultKubeVelaNS},
+				ObjectMeta: metav1.ObjectMeta{Name: s.bundleApp, Namespace: veltypes.DefaultKubeVelaNS},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []oamcommon.ApplicationComponent{
-						mk(echoAddonName, echoAddonVersion),
-						mk(configAddonName, "1.0.0"),
+						mk(s.echo, echoAddonVersion),
+						mk(s.config, "1.0.0"),
 					},
 				},
 			})
@@ -653,41 +604,43 @@ var _ = Describe("Addon as a component", Ordered, func() {
 
 		It("installs every addon it declares", func() {
 			Expect(applyBundle()).Should(Succeed())
-			expectAppHealthy(bundleAppName)
-			expectAppHealthy(echoOwnedAppName)
-			expectAppHealthy(configOwnedAppName)
+			expectAppHealthy(s.bundleApp)
+			expectAppHealthy(s.echoOwnedApp())
+			expectAppHealthy(s.configOwnedApp())
 		})
 
 		It("reports one status entry per addon component", func() {
 			Expect(applyBundle()).Should(Succeed())
-			expectAppHealthy(bundleAppName)
+			expectAppHealthy(s.bundleApp)
 
 			Eventually(func(g Gomega) {
 				app := &v1beta1.Application{}
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: bundleAppName, Namespace: veltypes.DefaultKubeVelaNS}, app)).Should(Succeed())
+				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: s.bundleApp, Namespace: veltypes.DefaultKubeVelaNS}, app)).Should(Succeed())
 				names := map[string]bool{}
-				for _, s := range app.Status.Services {
-					names[s.Name] = true
+				for _, svc := range app.Status.Services {
+					names[svc.Name] = true
 				}
-				g.Expect(names).Should(HaveKey(echoAddonName))
-				g.Expect(names).Should(HaveKey(configAddonName))
+				g.Expect(names).Should(HaveKey(s.echo))
+				g.Expect(names).Should(HaveKey(s.config))
 			}, waitTimeout, pollPeriod).Should(Succeed())
 		})
 
 		It("deleting the bundle removes every addon it installed", func() {
 			Expect(applyBundle()).Should(Succeed())
-			expectAppHealthy(echoOwnedAppName)
-			expectAppHealthy(configOwnedAppName)
+			expectAppHealthy(s.echoOwnedApp())
+			expectAppHealthy(s.configOwnedApp())
 
-			deleteApp(bundleAppName)
-			expectAppGone(echoOwnedAppName)
-			expectAppGone(configOwnedAppName)
+			deleteApp(s.bundleApp)
+			expectAppGone(s.echoOwnedApp())
+			expectAppGone(s.configOwnedApp())
 		})
 	})
 
 	// --- Group E: admission refusals ---
 
-	Context("admission refusals (group E)", func() {
+	Context("admission refusals (group E)", Ordered, func() {
+		s := admissionScope
+
 		It("refuses a component naming a registry that is not configured", func() {
 			app := &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{Name: "reject-unknown-registry", Namespace: veltypes.DefaultKubeVelaNS},
@@ -726,12 +679,12 @@ var _ = Describe("Addon as a component", Ordered, func() {
 		It("admits a valid component", func() {
 			// The negative control. Without it, a webhook rejecting everything
 			// would pass every other spec in this Context.
-			Expect(applyWrappingApp(echoWrappingApp, echoAddonName, echoAddonVersion, "")).Should(Succeed())
+			Expect(applyWrappingApp(s.wrappingApp, s.echo, echoAddonVersion, "")).Should(Succeed())
 			defer func() {
-				deleteApp(echoWrappingApp)
-				expectAppGone(echoOwnedAppName)
+				deleteApp(s.wrappingApp)
+				expectAppGone(s.echoOwnedApp())
 			}()
-			expectAppHealthy(echoWrappingApp)
+			expectAppHealthy(s.wrappingApp)
 		})
 
 		It("admits an unknown addon name and reports it at reconcile", func() {

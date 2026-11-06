@@ -177,13 +177,14 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, pre
 
 			// Check if component properties have changed (only for healthy components)
 			// Note: componentPropertiesChanged handles nil comp.Params correctly, so we don't check it here
+			settled := isHealth && err == nil
 			propertiesChanged := false
-			if isHealth && err == nil {
+			if settled {
 				comparisonRev := appRev // Default: use currentAppRev (existing behavior)
 
 				// If autoRevision=true and we have a previous revision, compare against it
 				// This detects policy-driven changes when ApplicationRevisions are created
-				if annotations[oam.AnnotationAutoRevision] == "true" && previousAppRev != nil {
+				if anyPolicySettingEnabled(annotations, settingAutoRevision) && previousAppRev != nil {
 					comparisonRev = previousAppRev // Use previous revision for comparison
 				}
 
@@ -199,14 +200,17 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, pre
 				updating:  autoUpdating,
 				consumes:  consumesSource,
 				trackable: !comp.SkipApplyWorkload && readyWorkload != nil,
-				settled:   isHealth && err == nil,
+				settled:   settled,
 			})
 
+			// Inherited labels and annotations (e.g. from a changed global policy) are not
+			// properties; compare them with what was last recorded.
+			metadataChanged := settled && h.resourceKeeper.ManifestMetadataChanged(dispatchManifests)
+
 			// Dispatch if: unhealthy, health error, properties changed, source
-			// values changed, or auto-update enabled for the Application or
-			// requested by the component's definition
-			redispatch := isAutoUpdateEnabled || definitionRequestsRedispatch(comp)
-			requiresDispatch := !isHealth || err != nil || propertiesChanged || sourceValuesChanged || (!comp.SkipApplyWorkload && redispatch)
+			// values changed, metadata changed, or a redispatch on every run is asked for
+			requiresDispatch := !isHealth || err != nil || propertiesChanged || sourceValuesChanged || metadataChanged ||
+				h.forceRedispatch || redispatchOnRun(comp, isAutoUpdateEnabled)
 
 			if requiresDispatch {
 				// Record the resolved-source hashes so the next reconcile can
@@ -327,6 +331,36 @@ func definitionRequestsRedispatch(comp *appfile.Component) bool {
 		return false
 	}
 	return comp.FullTemplate.ComponentDefinition.Annotations[types.AnnoDefinitionRedispatchOnWorkflowRun] == "true"
+}
+
+// redispatchOnRun reports whether comp is applied on every workflow run whatever
+// changed: auto-update is on for the Application, its definition asks for it, or
+// it reads other components.
+//
+// A component whose workload a trait manages still dispatches its traits, and
+// its reads are delivered into those, so a read asks for the run whatever
+// SkipApplyWorkload says. Auto-update and a definition's own request are about
+// the workload, so they stay with it.
+func redispatchOnRun(comp *appfile.Component, autoUpdate bool) bool {
+	if componentReadsRequestRedispatch(comp) {
+		return true
+	}
+	if comp == nil || comp.SkipApplyWorkload {
+		return false
+	}
+	return autoUpdate || definitionRequestsRedispatch(comp)
+}
+
+// componentReadsRequestRedispatch reports whether comp's render read other
+// components. What it renders follows the producers' live objects, which can
+// change while its own properties do not, so it is applied on every workflow
+// run like a definition that asks for that; an unchanged render is not
+// rewritten, as its render hash matches.
+func componentReadsRequestRedispatch(comp *appfile.Component) bool {
+	if comp == nil || comp.Ctx == nil {
+		return false
+	}
+	return sources.HasComponentScope(comp.Ctx.GetCtx())
 }
 
 func componentPropertiesChanged(comp *appfile.Component, appRev *v1beta1.ApplicationRevision) bool {

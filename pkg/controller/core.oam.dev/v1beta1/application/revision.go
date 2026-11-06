@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strconv"
 
 	"github.com/hashicorp/go-version"
 	"github.com/kubevela/pkg/util/k8s"
@@ -47,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/component"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -238,9 +240,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 		for name, versionInfo := range h.policyVersions {
 			appRev.Spec.PolicyVersions[name] = versionInfo
 		}
-		klog.InfoS("Stored PolicyVersions in ApplicationRevision", "count", len(h.policyVersions), "policies", h.policyVersions)
+		klog.V(common2.LogDebug).InfoS("Stored PolicyVersions in ApplicationRevision", "count", len(h.policyVersions), "policies", h.policyVersions)
 	} else {
-		klog.InfoS("No PolicyVersions to store in ApplicationRevision", "policyVersionsNil", h.policyVersions == nil, "count", len(h.policyVersions))
+		klog.V(common2.LogDebug).InfoS("No PolicyVersions to store in ApplicationRevision", "policyVersionsNil", h.policyVersions == nil, "count", len(h.policyVersions))
 	}
 
 	var err error
@@ -385,6 +387,9 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 		isLatestRev = h.app.Status.LatestRevision.RevisionHash == h.currentRevHash && DeepEqualRevision(h.latestAppRev, h.currentAppRev)
 	}
 	if h.latestAppRev != nil && oam.GetPublishVersion(h.app) != oam.GetPublishVersion(h.latestAppRev) {
+		isLatestRev = false
+	}
+	if h.policyUpdatesAdopted {
 		isLatestRev = false
 	}
 
@@ -540,6 +545,12 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 	}
 	appRev := h.currentAppRev
 	appRev.Namespace = h.app.Namespace
+	// A held revision runs while the author's later edits wait, so it keeps the generation it
+	// recorded, or none: that is how the policy render tells those edits from what it holds.
+	generation, recordGeneration := strconv.FormatInt(h.app.Generation, 10), true
+	if h.heldByGlobalPolicy != nil {
+		generation, recordGeneration = h.heldByGlobalPolicy.GetAnnotations()[oam.AnnotationAppGeneration]
+	}
 	appRev.SetGroupVersionKind(v1beta1.ApplicationRevisionGroupVersionKind)
 	// pass application's annotations & labels to app revision
 	appRev.SetAnnotations(h.app.GetAnnotations())
@@ -549,6 +560,9 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		oam.LabelAppName:         h.app.GetName(),
 		oam.LabelAppRevisionHash: h.currentRevHash,
 	})
+	if recordGeneration {
+		util.AddAnnotations(appRev, map[string]string{oam.AnnotationAppGeneration: generation})
+	}
 	// ApplicationRevision must use Application as ctrl-owner
 	appRev.SetOwnerReferences([]metav1.OwnerReference{{
 		APIVersion: v1beta1.SchemeGroupVersion.String(),
@@ -622,7 +636,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchSta
 	// Restore the spec after patchStatus to preserve policy modifications
 	h.app.Spec = *savedSpec
 
-	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
+	klog.V(common2.LogDebug).InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
 		"latest revision", revName)
 
 	return nil

@@ -228,8 +228,8 @@ func TestParseConsumableFrom(t *testing.T) {
 			want:     []string{"component", "trait"},
 		},
 		{
-			// Workflow steps resolve via the pre-pass in
-			// generateWorkflowInstance, so a definition may name them.
+			// The workflow resolves a step's sources when the step runs, so a
+			// definition may name it.
 			name:     "accept a workflow step",
 			template: "consumableFrom: [\"workflowstep\"]\nschema: {a: string}\n",
 			want:     []string{"workflowstep"},

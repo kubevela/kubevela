@@ -114,6 +114,34 @@ const (
 	AnnotationConfigDescription = "config.oam.dev/description"
 	// AnnotationConfigAlias is the annotation for config alias
 	AnnotationConfigAlias = "config.oam.dev/alias"
+	// LabelConfigCreatedBy records which tool created a Config or ConfigTemplate CR.
+	// Migration sets it so a later run can tell its own CRs from hand-made ones.
+	LabelConfigCreatedBy = "config.oam.dev/created-by"
+	// ConfigCreatedByMigration is the LabelConfigCreatedBy value for CRs written by
+	// legacy-to-CRD migration.
+	ConfigCreatedByMigration = "migration"
+	// AnnotationConfigMigratedTo is set on a legacy template ConfigMap or config Secret
+	// once migration has adopted it, holding the UID of the CR that now owns it.
+	AnnotationConfigMigratedTo = "config.oam.dev/migrated-to"
+	// AnnotationConfigAdoptBy is set on a legacy config Secret by migration right before it
+	// creates the Config of that name; the Config controller adopts the Secret, and the
+	// outputs it records, for that Config on sight, and both remove the mark. Writing it
+	// takes write access to the Secret, which is what makes it a proof.
+	AnnotationConfigAdoptBy = "config.oam.dev/adopt-by"
+	// AnnotationConfigNacosEndpoint set to "true" lets a sensitive config serve as the
+	// Nacos endpoint a ConfigTemplate's nacos block names; without it the Config
+	// controller refuses a sensitive endpoint config. Its owner sets it: on a Config CR,
+	// which the controller carries to the Config's Secret, or on a legacy config Secret.
+	AnnotationConfigNacosEndpoint = "config.oam.dev/nacos-endpoint"
+	// AnnotationConfigPropertiesOf marks the companion Secret that holds a sensitive
+	// Config's properties (spec.propertiesFrom), with the Config's name as value (an
+	// annotation: a Config name may be longer than a label value allows). The CLI, the
+	// workflow step and migration write such a Secret only where one of theirs stands,
+	// and the Config's deletion takes it.
+	AnnotationConfigPropertiesOf = "config.oam.dev/properties-of"
+	// AnnotationConfigMigrate set to "false" on a legacy object tells migration to
+	// leave it alone.
+	AnnotationConfigMigrate = "config.oam.dev/migrate"
 	// AnnotationConfigDistributionSpec is the annotation key of the application that distributes the configs
 	AnnotationConfigDistributionSpec = "config.oam.dev/distribution-spec"
 	// AnnotationConfigLastSyncAt is the annotation recording when a source cache entry was last refreshed (RFC3339).

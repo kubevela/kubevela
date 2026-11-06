@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue/format"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
@@ -41,6 +42,8 @@ var topLevelTemplateRegex = regexp.MustCompile(`(?m)^[^\S\n]*template:`)
 // with ComponentDefinition and other definition types.
 type TraitDefinition struct {
 	baseDefinition                       // embedded common fields (name, description, params, template, etc.)
+	inheritance                          // extends and abstract
+	parent             *TraitDefinition  // the definition Extends names, when typed
 	appliesToWorkloads []string          // e.g., ["deployments.apps", "statefulsets.apps"]
 	conflictsWith      []string          // traits that conflict with this one
 	conflictsWithSet   bool              // true when ConflictsWith() was explicitly called
@@ -306,6 +309,33 @@ func (t *TraitDefinition) NotRunOn(conditions ...placement.Condition) *TraitDefi
 	return t
 }
 
+// RestrictNamespaces limits the definition to namespaces matching any of the
+// names or path.Match globs. With RestrictNamespaceSelector, matching either is enough.
+func (t *TraitDefinition) RestrictNamespaces(namespaces ...string) *TraitDefinition {
+	t.addRestrictNamespaces(namespaces...)
+	return t
+}
+
+// RestrictNamespaceSelector limits the definition to namespaces matching the
+// selector. With RestrictNamespaces, matching either is enough.
+func (t *TraitDefinition) RestrictNamespaceSelector(selector *metav1.LabelSelector) *TraitDefinition {
+	t.setRestrictNamespaceSelector(selector)
+	return t
+}
+
+// Quota caps how many times each namespace may use this TraitDefinition, counted
+// across its Applications and separately from any ComponentDefinition quota. The
+// first entry matching a namespace applies.
+//
+//	Quota(
+//	    defkit.QuotaFor("tenant-dev-*").Limit(3),
+//	    defkit.DefaultQuota().Warn(5),
+//	)
+func (t *TraitDefinition) Quota(entries ...*NamespaceQuota) *TraitDefinition {
+	t.addQuota(entries...)
+	return t
+}
+
 // DefName implements Definition.DefName.
 func (t *TraitDefinition) DefName() string { return t.name }
 
@@ -445,6 +475,9 @@ func (t *TraitDefinition) ToYAML() ([]byte, error) {
 	if t.revisionEnabled {
 		cr["spec"].(map[string]any)["revisionEnabled"] = true
 	}
+
+	setRestrictionsSpec(cr["spec"].(map[string]any), t.GetRestrictions())
+	setInheritanceSpec(cr["spec"].(map[string]any), t.inheritance)
 
 	return yaml.Marshal(cr)
 }
@@ -600,9 +633,6 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, t.GetDescription()))
-	if t.GetVersion() != "" {
-		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, t.GetVersion()))
-	}
 
 	// Write attributes
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
@@ -620,6 +650,10 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 // writeAttributes writes the trait attributes block.
 func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinition, depth int) {
 	indent := strings.Repeat(g.indent, depth)
+
+	writeVersion(sb, t.GetVersion(), indent)
+	writeRestrictions(sb, t.GetRestrictions(), indent)
+	writeInheritance(sb, t.inheritance, indent)
 
 	// podDisruptive (always emit — vela CUE always includes this attribute)
 	sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
@@ -753,6 +787,8 @@ func (g *TraitCUEGenerator) writeUnifiedTemplate(sb *strings.Builder, t *TraitDe
 
 	indent := strings.Repeat(g.indent, depth)
 	gen := NewCUEGenerator()
+
+	gen.writeInheritanceBlock(sb, tpl, depth)
 
 	// Generate PatchContainer pattern if configured
 	if config := tpl.GetPatchContainerConfig(); config != nil {

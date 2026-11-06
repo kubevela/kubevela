@@ -656,7 +656,6 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
   apiVersion: core.oam.dev/v1beta1
   kind: Application
   metadata:
-    creationTimestamp: null
 -   finalizers:
 -   - app.oam.dev/resource-tracker-finalizer
     name: test-vela-app

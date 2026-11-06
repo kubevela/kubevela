@@ -38,7 +38,7 @@ _deployed: mocks: "vela/multicluster": "#Deploy": $returns: {}
 	context: stepName: "deploy-prod"
 	parameter: auto:   false
 	expect: message:   "Waiting approval to the deploy step \"deploy-prod\""
-} @pending(kubevela/workflow builtin.#Suspend ignores its message parameter)
+}
 
 "deploying needs an Application, so a test mocks it": test.#WorkflowStepExec & {
 	definition: "deploy"

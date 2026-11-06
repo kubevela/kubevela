@@ -189,7 +189,7 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 		}
 	}
 
-	logger.WithSuccess(len(errs) == 0, startTime).Info(
+	logger.WithSuccess(len(errs) == 0, startTime).Debug(
 		"Addon component validation completed",
 		"addonComponentCount", addonComponentCount,
 		"errorCount", len(errs),

@@ -235,6 +235,8 @@ var clusterScopedKinds = map[k8sschema.GroupKind]bool{
 	{Group: "admissionregistration.k8s.io", Kind: "ValidatingWebhookConfiguration"}:   true,
 	{Group: "admissionregistration.k8s.io", Kind: "ValidatingAdmissionPolicy"}:        true,
 	{Group: "admissionregistration.k8s.io", Kind: "ValidatingAdmissionPolicyBinding"}: true,
+	{Group: "admissionregistration.k8s.io", Kind: "MutatingAdmissionPolicy"}:          true,
+	{Group: "admissionregistration.k8s.io", Kind: "MutatingAdmissionPolicyBinding"}:   true,
 	{Group: "certificates.k8s.io", Kind: "CertificateSigningRequest"}:                 true,
 	{Group: "flowcontrol.apiserver.k8s.io", Kind: "FlowSchema"}:                       true,
 	{Group: "flowcontrol.apiserver.k8s.io", Kind: "PriorityLevelConfiguration"}:       true,
@@ -244,6 +246,7 @@ var clusterScopedKinds = map[k8sschema.GroupKind]bool{
 	{Group: "networking.k8s.io", Kind: "ServiceCIDR"}:                                 true,
 	{Group: "resource.k8s.io", Kind: "DeviceClass"}:                                   true,
 	{Group: "resource.k8s.io", Kind: "ResourceSlice"}:                                 true,
+	{Group: "resource.k8s.io", Kind: "DeviceTaintRule"}:                               true,
 	{Group: "storage.k8s.io", Kind: "VolumeAttributesClass"}:                          true,
 	{Group: "storagemigration.k8s.io", Kind: "StorageVersionMigration"}:               true,
 }

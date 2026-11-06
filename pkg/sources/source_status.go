@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 )
 
 // The phases a binding is reported in. Declared here because this package
@@ -58,9 +60,17 @@ type SourceRead struct {
 // SourceResolutionStatus is what one binding's resolution produced, for the
 // caller to report.
 type SourceResolutionStatus struct {
-	Name      string
-	Type      string
-	Phase     string
+	Name  string
+	Type  string
+	Phase string
+	// Stale says the value was served past its TTL. The resolver reports
+	// PhaseResolved alongside it, because a value is in hand; the Application
+	// controller is what turns the pair into the Stale phase it reports.
+	//
+	// A flag and not the expiry timestamp: a value served from the in-process
+	// layer carries the persistent store's expiry while being fresh by that
+	// layer's own rules, so the timestamp does not say what happened.
+	Stale     bool
 	Message   string
 	Config    string
 	ExpiresAt string
@@ -74,6 +84,16 @@ type SourceResolutionStatus struct {
 	// only, never hashed.
 	Reads          []SourceRead
 	SensitivePaths []string
+}
+
+// setStaleStatus records a value served past its TTL: resolved, with the flag
+// the controller reads. Separate from setSourceStatus rather than a seventh
+// argument to it, because that one already takes six strings in a row.
+func (r *sourceResolver) setStaleStatus(sourceName, sourceType, reason, config, expiresAt string) {
+	r.setSourceStatus(sourceName, sourceType, PhaseResolved, reason, config, expiresAt)
+	st := r.statuses[sourceName]
+	st.Stale = true
+	r.statuses[sourceName] = st
 }
 
 func (r *sourceResolver) setSourceStatus(sourceName, sourceType, phase, message, config, expiresAt string) {
@@ -206,10 +226,7 @@ type staleFallback struct {
 	name       string
 	sourceType string
 	policy     sourceCachePolicy
-	cached     map[string]interface{}
-	found      bool
-	stale      bool
-	expiresAt  time.Time
+	stored     velaprocess.SourceCacheRead
 }
 
 // serveStale returns the stored value when a refresh has failed and the
@@ -220,14 +237,23 @@ type staleFallback struct {
 // each is also a place where forgetting to record status would leave a binding
 // looking unresolved while its value was in use.
 func (r *sourceResolver) serveStale(f staleFallback, reason string) (map[string]interface{}, bool) {
-	if !f.found || !f.stale || f.policy.OnStaleFailure != sourceCachePolicyUseStale {
+	if !f.stored.Found || !f.stored.Stale || f.policy.OnStaleFailure != sourceCachePolicyUseStale {
 		return nil, false
 	}
 	r.touchSourceCache(f.policy.Key)
-	r.resolved[f.name] = f.cached
-	r.setSourceStatus(f.name, f.sourceType, PhaseResolved, reason,
-		f.policy.Key, formatExpiry(f.expiresAt))
-	return f.cached, true
+	r.resolved[f.name] = f.stored.Data
+	r.setStaleStatus(f.name, f.sourceType, reason, f.policy.Key, formatExpiry(f.stored.ExpiresAt))
+	return f.stored.Data, true
+}
+
+// refreshFailed gives the upstream a rest before the next attempt, then serves
+// the stored value if the definition asked for that. Separate from serveStale,
+// which is also reached while a hold is in force, where there is no new failure
+// to record.
+func (r *sourceResolver) refreshFailed(f staleFallback, reason string, cause error) (map[string]interface{}, bool) {
+	v, servingStale := r.serveStale(f, reason)
+	recordRefreshFailure(f.policy.Key, f.policy.TTL, time.Now(), cause, servingStale)
+	return v, servingStale
 }
 
 // fail records a binding as failed and returns the error to hand back, so a

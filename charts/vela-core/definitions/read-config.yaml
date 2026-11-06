@@ -5,7 +5,7 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     custom.definition.oam.dev/category: Config Management
-    definition.oam.dev/description: Read a config
+    definition.oam.dev/description: 'Read a config, whichever holds it: a Config''s Secret or a legacy one'
   name: read-config
   namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:

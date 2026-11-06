@@ -61,7 +61,6 @@ func TestFormatApplicationString(t *testing.T) {
 	assert.Equal(t, true, strings.Contains(str, `apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  creationTimestamp: null
   name: app-name
 spec:
   components: null
@@ -74,8 +73,7 @@ status: {}
   "kind": "Application",
   "apiVersion": "core.oam.dev/v1beta1",
   "metadata": {
-    "name": "app-name",
-    "creationTimestamp": null
+    "name": "app-name"
   },
   "spec": {
     "components": null
@@ -144,13 +142,11 @@ func TestConvertApplicationRevisionTo(t *testing.T) {
 		}, exp: Exp{out: `apiVersion: core.oam.dev/v1beta1
 kind: ApplicationRevision
 metadata:
-  creationTimestamp: null
   name: test-apprev
   namespace: dev
 spec:
   application:
     metadata:
-      creationTimestamp: null
       name: test-app
       namespace: dev
     spec:
@@ -179,15 +175,13 @@ spec:
   "apiVersion": "core.oam.dev/v1beta1",
   "metadata": {
     "name": "test-apprev",
-    "namespace": "dev",
-    "creationTimestamp": null
+    "namespace": "dev"
   },
   "spec": {
     "application": {
       "metadata": {
         "name": "test-app",
-        "namespace": "dev",
-        "creationTimestamp": null
+        "namespace": "dev"
       },
       "spec": {
         "components": null`, err: ""}},

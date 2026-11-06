@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -44,6 +45,9 @@ import (
 const (
 	// ClusterLocalName specifies the local cluster
 	ClusterLocalName = pkgmulticluster.Local
+
+	// ClusterGatewayAPIServiceName the name of the APIService that serves cluster-gateway
+	ClusterGatewayAPIServiceName = "v1alpha1.cluster.core.oam.dev"
 )
 
 var (
@@ -84,9 +88,8 @@ func ResourcesWithClusterName(clusterName string, objs ...*unstructured.Unstruct
 // if service exists but is not ready, both service and error are returned
 // if service does not exist, only error is returned
 func GetClusterGatewayService(ctx context.Context, c client.Client) (*apiregistrationv1.ServiceReference, error) {
-	gv := v1alpha1.SchemeGroupVersion
 	apiService := &apiregistrationv1.APIService{}
-	apiServiceName := gv.Version + "." + gv.Group
+	apiServiceName := ClusterGatewayAPIServiceName
 	if err := c.Get(ctx, types.NamespacedName{Name: apiServiceName}, apiService); err != nil {
 		if errors.IsNotFound(err) {
 			return nil, fmt.Errorf("ClusterGateway APIService %s is not found", apiServiceName)
@@ -106,7 +109,7 @@ func GetClusterGatewayService(ctx context.Context, c client.Client) (*apiregistr
 	if status == apiregistrationv1.ConditionTrue {
 		return svc, nil
 	}
-	return svc, fmt.Errorf("ClusterGateway APIService (%s/%s:%d) is not ready, current status: %s", svc.Namespace, svc.Name, svc.Port, status)
+	return svc, fmt.Errorf("ClusterGateway APIService (%s/%s:%d) is not ready, current status: %s", svc.Namespace, svc.Name, ptr.Deref(svc.Port, 443), status)
 }
 
 // WaitUntilClusterGatewayReady wait cluster gateway service to be ready to serve

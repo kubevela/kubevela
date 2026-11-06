@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
@@ -265,6 +266,20 @@ func (w *WorkflowStepDefinition) NotRunOn(conditions ...placement.Condition) *Wo
 	return w
 }
 
+// RestrictNamespaces limits the definition to namespaces matching any of the
+// names or path.Match globs. With RestrictNamespaceSelector, matching either is enough.
+func (w *WorkflowStepDefinition) RestrictNamespaces(namespaces ...string) *WorkflowStepDefinition {
+	w.addRestrictNamespaces(namespaces...)
+	return w
+}
+
+// RestrictNamespaceSelector limits the definition to namespaces matching the
+// selector. With RestrictNamespaces, matching either is enough.
+func (w *WorkflowStepDefinition) RestrictNamespaceSelector(selector *metav1.LabelSelector) *WorkflowStepDefinition {
+	w.setRestrictNamespaceSelector(selector)
+	return w
+}
+
 // DefName implements Definition.DefName.
 func (w *WorkflowStepDefinition) DefName() string { return w.GetName() }
 
@@ -332,6 +347,8 @@ func (w *WorkflowStepDefinition) ToYAML() ([]byte, error) {
 	if w.GetVersion() != "" {
 		cr["spec"].(map[string]any)["version"] = w.GetVersion()
 	}
+
+	setRestrictionsSpec(cr["spec"].(map[string]any), w.GetRestrictions())
 
 	return yaml.Marshal(cr)
 }
@@ -488,8 +505,85 @@ func (g *WorkflowStepCUEGenerator) WithImports(imports ...string) *WorkflowStepC
 	return g
 }
 
+// addImportIfMissing adds an import if it's not already present.
+func (g *WorkflowStepCUEGenerator) addImportIfMissing(imp string) {
+	for _, existing := range g.imports {
+		if existing == imp {
+			return
+		}
+	}
+	g.imports = append(g.imports, imp)
+}
+
+// detectRequiredImports adds the CUE standard library imports the step's
+// values declare via the ImportRequirer interface, so that a parameter such as
+// String("team").MinLen(3) (strings.MinRunes) or a condition such as
+// StringList("tags").Contains("gpu") (list.Contains) pulls its package without
+// the author calling WithImports. Mirrors PolicyCUEGenerator.detectRequiredImports.
+func (g *WorkflowStepCUEGenerator) detectRequiredImports(w *WorkflowStepDefinition) {
+	scan := NewCUEGenerator()
+	params := append([]Param{}, w.GetParams()...)
+	for _, helper := range w.GetHelperDefinitions() {
+		params = append(params, helperRenderedParams(helper)...)
+	}
+	for _, param := range params {
+		scan.collectImportsFromValue(param)
+		scan.collectImportsFromParamValidators(param)
+	}
+	if w.stepTemplate != nil {
+		wt := NewWorkflowStepTemplate()
+		w.stepTemplate(wt)
+		for _, action := range wt.GetActions() {
+			collectImportsFromWorkflowAction(scan, action)
+		}
+	}
+	for _, imp := range scan.imports {
+		g.addImportIfMissing(imp)
+	}
+}
+
+// helperRenderedParams returns the params a helper definition renders in full.
+// WriteHelperDefinition writes the fields of an Object or Array helper with
+// writeParam, but renders a scalar as `_` and drops an array's own constraints,
+// so only those fields can need an import.
+func helperRenderedParams(helper HelperDefinition) []Param {
+	switch p := helper.GetParam().(type) {
+	case *MapParam:
+		return p.GetFields()
+	case *ArrayParam:
+		return p.GetFields()
+	}
+	return nil
+}
+
+// collectImportsFromWorkflowAction adds the imports an action's values and
+// conditions need to scan.
+func collectImportsFromWorkflowAction(scan *CUEGenerator, action WorkflowAction) {
+	switch a := action.(type) {
+	case *BuiltinAction:
+		if a.useFullParam {
+			// The call passes the whole parameter object; params are not rendered.
+			break
+		}
+		for _, name := range sortedKeys(a.params) {
+			scan.collectImportsFromValue(a.params[name])
+		}
+	case *ValueAction:
+		scan.collectImportsFromValue(a.value)
+	case *ConditionalAction:
+		scan.collectImportsFromValue(a.cond)
+		collectImportsFromWorkflowAction(scan, a.action)
+	case *GuardedBlockAction:
+		scan.collectImportsFromValue(a.cond)
+		scan.collectImportsFromValue(a.value)
+	}
+}
+
 // GenerateFullDefinition generates the complete CUE definition for a workflow step.
 func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinition) string {
+	// Auto-detect imports needed by parameters and template values.
+	g.detectRequiredImports(w)
+
 	var sb strings.Builder
 
 	// Write imports if any
@@ -552,8 +646,11 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 	}
 
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, w.GetDescription()))
-	if w.GetVersion() != "" {
-		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, w.GetVersion()))
+	if w.GetVersion() != "" || w.GetRestrictions() != nil {
+		sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
+		writeVersion(&sb, w.GetVersion(), strings.Repeat(g.indent, 2))
+		writeRestrictions(&sb, w.GetRestrictions(), strings.Repeat(g.indent, 2))
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	}
 	sb.WriteString("}\n")
 

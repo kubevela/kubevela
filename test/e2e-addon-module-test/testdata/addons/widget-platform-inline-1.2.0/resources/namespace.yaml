@@ -1,0 +1,7 @@
+# Every resources/*.yaml file is merged into ONE k8s-objects component named
+# <addon>-resources (here widget-platform-inline-resources). That component is in the
+# module component's dependsOn.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: widget-platform-inline-system

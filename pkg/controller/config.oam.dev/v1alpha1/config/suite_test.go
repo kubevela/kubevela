@@ -102,6 +102,7 @@ var _ = BeforeSuite(func() {
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}
+	errorRetryInterval = 2 * time.Second // the recovery spec waits for it
 	Expect(r.SetupWithManager(mgr)).ToNot(HaveOccurred())
 
 	var ctx context.Context

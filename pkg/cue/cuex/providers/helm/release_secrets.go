@@ -37,9 +37,9 @@ import (
 // This method is designed to be called asynchronously (in a goroutine) after
 // a successful cache-hit reconciliation, so it does not block the main render
 // path. It acquires the release mutex only when it needs to clear the cache.
-func (p *Provider) validateReleaseHealth(releaseName, releaseNamespace string) {
-	cacheKey := releaseCacheKey(releaseNamespace, releaseName)
-	actionConfig, err := p.actionConfigFactory(releaseNamespace)
+func (p *Provider) validateReleaseHealth(ctx context.Context, releaseName, releaseNamespace string) {
+	cacheKey := releaseCacheKey(clusterFrom(ctx), releaseNamespace, releaseName)
+	actionConfig, err := p.actionConfigFactory(ctx, releaseNamespace)
 	if err != nil {
 		klog.Warningf("Helm provider health check: failed to get action config for release %s: %v", releaseName, err)
 		return
@@ -83,11 +83,11 @@ func (p *Provider) validateReleaseHealth(releaseName, releaseNamespace string) {
 // Strategy: always delete the secrets directly via the Kubernetes API first,
 // since corrupted secrets cannot be reliably handled by Helm's own storage
 // driver or uninstall action.
-func (p *Provider) cleanOrphanedReleaseSecrets(_ *action.Configuration, releaseName, releaseNamespace string, velaCtx *ContextParams) error {
+func (p *Provider) cleanOrphanedReleaseSecrets(ctx context.Context, releaseName, releaseNamespace string, velaCtx *ContextParams) error {
 	// Primary approach: delete secrets directly via Kubernetes API.
 	// This is the most reliable method for corrupted secrets.
 	klog.Infof("Helm provider [%s]: Cleaning up release secrets for %s in namespace %s via direct deletion", velaContextStr(velaCtx), releaseName, releaseNamespace)
-	if err := p.deleteReleaseSecretsDirect(releaseNamespace, releaseName, velaCtx); err != nil {
+	if err := p.deleteReleaseSecretsDirect(ctx, releaseNamespace, releaseName, velaCtx); err != nil {
 		return fmt.Errorf("failed to clean release secrets for %s: %w", releaseName, err)
 	}
 	return nil
@@ -96,8 +96,8 @@ func (p *Provider) cleanOrphanedReleaseSecrets(_ *action.Configuration, releaseN
 // listReleaseSecretNames returns the names of all Helm release secrets for the
 // given release. Used to track all revision secrets in the ResourceTracker so
 // GC cleans them all up on Application deletion.
-func (p *Provider) listReleaseSecretNames(namespace, releaseName string) []string {
-	clientset, err := p.kubeClientFactory()
+func (p *Provider) listReleaseSecretNames(ctx context.Context, namespace, releaseName string) []string {
+	clientset, err := p.kubeClientFactory(ctx)
 	if err != nil {
 		klog.V(4).Infof("Helm provider: Failed to build kubernetes client for listing secrets: %v", err)
 		return nil
@@ -125,11 +125,11 @@ func (p *Provider) listReleaseSecretNames(namespace, releaseName string) []strin
 // labelReleaseSecrets adds KubeVela ownership labels to all existing Helm
 // release secrets that don't already have them. Called during adoption of
 // external releases so that listReleaseSecretNames picks them up for GC tracking.
-func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *ContextParams) {
+func (p *Provider) labelReleaseSecrets(ctx context.Context, namespace, releaseName string, velaCtx *ContextParams) {
 	if velaCtx == nil {
 		return
 	}
-	clientset, err := p.kubeClientFactory()
+	clientset, err := p.kubeClientFactory(ctx)
 	if err != nil {
 		klog.V(4).Infof("Helm provider [%s]: Failed to build kubernetes client for labeling release secrets: %v", velaContextStr(velaCtx), err)
 		return
@@ -163,8 +163,8 @@ func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *C
 // deleteReleaseSecretsDirect uses the Kubernetes API directly to delete Helm
 // release secrets. This is the last-resort cleanup for secrets that are too
 // corrupted for Helm's own storage driver or uninstall action to handle.
-func (p *Provider) deleteReleaseSecretsDirect(namespace, releaseName string, velaCtx *ContextParams) error {
-	clientset, err := p.kubeClientFactory()
+func (p *Provider) deleteReleaseSecretsDirect(ctx context.Context, namespace, releaseName string, velaCtx *ContextParams) error {
+	clientset, err := p.kubeClientFactory(ctx)
 	if err != nil {
 		return err
 	}
@@ -191,8 +191,8 @@ func (p *Provider) deleteReleaseSecretsDirect(namespace, releaseName string, vel
 // InvalidateRelease clears the in-memory cache for a specific release. This
 // can be called by external components (e.g., ResourceTracker GC) when they
 // detect that a Helm release secret has been deleted or is missing.
-func (p *Provider) InvalidateRelease(releaseName, releaseNamespace string) {
-	cacheKey := releaseCacheKey(releaseNamespace, releaseName)
+func (p *Provider) InvalidateRelease(cluster, releaseName, releaseNamespace string) {
+	cacheKey := releaseCacheKey(cluster, releaseNamespace, releaseName)
 	p.releaseMu.Lock()
 	defer p.releaseMu.Unlock()
 	delete(p.releaseFingerprints, cacheKey)

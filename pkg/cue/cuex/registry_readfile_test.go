@@ -29,6 +29,7 @@ import (
 
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	cuexregistry "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/registry"
+	"github.com/oam-dev/kubevela/pkg/cue/render"
 	di "github.com/oam-dev/kubevela/pkg/registry"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -74,6 +75,10 @@ func compileGitFile(t *testing.T, params string) (map[string]interface{}, error)
 	if err != nil {
 		return nil, err
 	}
+	// errs is how the template refuses, and the source resolver reports it as a failure
+	if userErrs := render.UserErrors(val, "source definition", "git-file"); len(userErrs) > 0 {
+		return nil, fmt.Errorf("source definition git-file reported errors: %s", strings.Join(userErrs, "; "))
+	}
 	if err := val.Err(); err != nil {
 		return nil, err
 	}
@@ -117,8 +122,7 @@ func TestGitFileTemplateHandlesAbsence(t *testing.T) {
 
 		_, err := compileGitFile(t, `{registry: "catalog", path: "velaux/override.yaml"}`)
 		require.Error(t, err, "required is the default, so a missing file must fail resolution")
-		// The reason has to reach the user. A bare "conflicting values false and
-		// true" would leave them guessing which of several files was missing.
+		// The reason reaches the user, naming the file and how to make it optional.
 		msg := err.Error()
 		assert.Contains(t, msg, "velaux/override.yaml", "the error must name the file")
 		assert.Contains(t, msg, "catalog", "the error must name the registry")

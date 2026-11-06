@@ -27,8 +27,8 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
@@ -2488,4 +2488,15 @@ func TestRenderPolicyKeepsOutputNames(t *testing.T) {
 	assert.Equal(t, "guard", outputs["extra"].GetName())
 	assert.Equal(t, "test-ns", outputs["extra"].GetNamespace())
 	assert.Equal(t, "test-app", outputs["extra"].GetLabels()[oam.LabelAppName])
+}
+
+func TestFilteredKeysTrimEachEntry(t *testing.T) {
+	annotations := map[string]string{
+		oam.AnnotationFilterLabelKeys:      "a, b",
+		oam.AnnotationFilterAnnotationKeys: "c, d",
+	}
+	assert.Equal(t, []string{"a", "b"}, FilteredLabelKeys(annotations))
+	got := FilteredAnnotationKeys(annotations)
+	assert.Subset(t, got, []string{"c", "d"})
+	assert.NotContains(t, got, " d")
 }

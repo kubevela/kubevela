@@ -24,6 +24,7 @@ import (
 	"github.com/kubevela/pkg/util/compression"
 	"github.com/kubevela/pkg/util/k8s"
 	"github.com/kubevela/pkg/util/singleton"
+	wfUtils "github.com/kubevela/workflow/pkg/utils"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -74,6 +75,11 @@ func (h *Hook) Run(ctx context.Context) error {
 	timeout := 2 * time.Minute
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	// forEach has no feature gate, so an old CRD is reported rather than refused: failing
+	// here would stop upgrades for every installation that never loops.
+	wfUtils.WarnIfCRDLacksForEach(ctx, h.Client, "applications.core.oam.dev", "spec", "workflow", "steps")
+	wfUtils.WarnIfCRDLacksForEach(ctx, h.Client, "workflows.core.oam.dev", "steps")
 
 	zstdEnabled := feature.DefaultMutableFeatureGate.Enabled(features.ZstdApplicationRevision)
 	gzipEnabled := feature.DefaultMutableFeatureGate.Enabled(features.GzipApplicationRevision)

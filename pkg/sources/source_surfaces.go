@@ -26,7 +26,8 @@ import (
 //
 // These live here, next to the resolver, because which of them can read a
 // `source` or a `component` value is a property of this package: both are
-// substituted by ResolveSourceExpressions and nowhere else. The admission
+// answered by its resolvers and nowhere else, ResolveSourceExpressions for a
+// render and StepExpressions for a workflow step. The admission
 // webhook and the appfile parser both enforce that rule, so it is stated once
 // rather than restated per enforcement point - which is exactly the divergence
 // that let admission accept `$(context...)` in every policy while only one kind
@@ -117,7 +118,8 @@ func SurfaceReadsComponents(surface string) bool {
 }
 
 // RootsFor is every root an expression on this surface may read. Every surface
-// offers `context`; the rest follow from the surface lists above.
+// offers `context`, a workflow step alone offers `steps` and `each`, and the rest
+// follow from the surface lists above.
 func RootsFor(surface string) []string {
 	roots := []string{propexpr.ContextIdent}
 	if SurfaceReadsSource(surface) {
@@ -125,6 +127,9 @@ func RootsFor(surface string) []string {
 	}
 	if SurfaceReadsComponents(surface) {
 		roots = append(roots, propexpr.ComponentIdent)
+	}
+	if surface == SurfaceWorkflowStep {
+		roots = append(roots, propexpr.StepsIdent, propexpr.EachIdent)
 	}
 	return roots
 }

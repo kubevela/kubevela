@@ -53,7 +53,7 @@ _web: {
 "suggests port-forwarding before a load balancer is assigned": test.#TraitStatus & _web & {
 	parameter: {domain: "shop.example.com", http: "/": 80}
 	expect: message: "No loadBalancer found, visiting by using 'vela port-forward shop --route'\n"
-} @pending(the status takes len of the absent loadBalancer ingress list, so it fails until one is assigned)
+}
 
 "shows the URL and IP once a load balancer is assigned": test.#TraitStatus & _web & {
 	parameter: {domain: "shop.example.com", http: "/": 80}

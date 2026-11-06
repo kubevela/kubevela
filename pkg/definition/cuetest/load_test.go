@@ -309,7 +309,7 @@ func TestAttachedTraits(t *testing.T) {
 		"observed a trait that is not attached":                    nil,
 		"two sources render the same object":                       nil,
 		"an unreadable context only matters when asked about":      nil,
-		"asking about an unreadable context fails":                 {"context: reading context: json: error calling MarshalJSON for type cue.Value: cue: marshal error: outputs: cannot convert incomplete value \"_\" to JSON"},
+		"asking about an unreadable context fails":                 {"context: reading context: json: error calling MarshalJSON for type *cue.Value: cue: marshal error: outputs: cannot convert incomplete value \"_\" to JSON"},
 		"context: a later trait's output replaces the component's": nil,
 		"context is what the templates saw":                        nil,
 	}, got)

@@ -68,6 +68,8 @@ package helm
 			name: string
 			// +usage=Component namespace
 			namespace: string
+			// +usage=Cluster the component is rendered for, the local cluster when unset
+			cluster?: string
 		}
 
 		// +usage=Rendering options

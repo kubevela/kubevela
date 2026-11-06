@@ -18,13 +18,10 @@ package controllers_test
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
-
-	"os/exec"
-	"strconv"
-
 	"time"
 
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
@@ -32,13 +29,13 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -47,60 +44,33 @@ var _ = Describe("Addon tests", func() {
 	var namespaceName string
 	var ns corev1.Namespace
 	var app v1beta1.Application
-
-	createNamespace := func() {
-		ns = corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespaceName,
-			},
-		}
-		// delete the namespaceName with all its resources
-		Eventually(
-			func() error {
-				return k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
-			},
-			time.Second*120, time.Millisecond*500).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-		By("make sure all the resources are removed")
-		objectKey := client.ObjectKey{
-			Name: namespaceName,
-		}
-		res := &corev1.Namespace{}
-		Eventually(
-			func() error {
-				return k8sClient.Get(ctx, objectKey, res)
-			},
-			time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
-		Eventually(
-			func() error {
-				return k8sClient.Create(ctx, &ns)
-			},
-			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	}
+	var namespaceCreated bool
 
 	BeforeEach(func() {
-		By("Start to run a test, clean up previous resources")
-		namespaceName = "app-terraform" + "-" + strconv.FormatInt(rand.Int63(), 16)
-		createNamespace()
+		namespaceCreated = false
+		app = v1beta1.Application{}
+		namespaceName = uniqueAddonNamespace()
+		var err error
+		ns, err = createAddonNamespace(ctx, k8sClient, namespaceName)
+		Expect(err).To(Succeed())
+		namespaceCreated = true
 	})
 
 	AfterEach(func() {
+		if !namespaceCreated {
+			return
+		}
 		By("Clean up resources after a test")
-		k8sClient.Delete(ctx, &app)
-		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
-		// delete the namespaceName with all its resources
-		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
+		if app.Name != "" {
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &app))).To(Succeed())
+		}
+		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground)))).To(Succeed())
+		Eventually(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Name: namespaceName}, &corev1.Namespace{}))
+		}, 120*time.Second, 500*time.Millisecond).Should(BeTrue(), "namespace %s did not finish terminating", namespaceName)
 	})
 
 	It("Addon Terraform is successfully enabled and Terraform application works", func() {
-		By("Install Addon Terraform")
-		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable terraform-alibaba").Output()
-		var ee *exec.ExitError
-		if errors.As(err, &ee) {
-			fmt.Println("exit code error:", string(ee.Stderr))
-		}
-		Expect(err).Should(BeNil())
-		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
-
 		By("Checking Provider")
 		Eventually(func() error {
 			var provider terraformv1beta1.Provider
@@ -129,26 +99,10 @@ var _ = Describe("Addon tests", func() {
 
 	PIt("Addon observability is successfully enabled", func() {
 		By("Install Addon Observability")
-		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable observability domain=abc.com disk-size=20Gi").Output()
-		var ee *exec.ExitError
-		if errors.As(err, &ee) {
-			fmt.Println("exit code error:", string(ee.Stderr))
-		}
-		Expect(err).Should(BeNil())
-		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
+		enableAddonForSuite("observability", "domain=abc.com", "disk-size=20Gi")
 	})
 
 	It("Addon Workflow is successfully enabled and WorkflowRun creates Deployment", func() {
-		By("Install Addon Workflow")
-
-		output, err := exec.Command("bash", "-c", "/tmp/vela addon enable vela-workflow").Output()
-		var ee *exec.ExitError
-		if errors.As(err, &ee) {
-			fmt.Println("exit code error:", string(ee.Stderr))
-		}
-		Expect(err).Should(BeNil())
-		Expect(string(output)).Should(ContainSubstring("enabled successfully"))
-
 		By("Apply a WorkflowRun which creates a Deployment")
 		var wr workflowv1alpha1.WorkflowRun
 		Expect(common.ReadYamlToObject("./testdata/workflow/workflowrun_nginx.yaml", &wr)).Should(BeNil())
@@ -175,3 +129,19 @@ var _ = Describe("Addon tests", func() {
 		}, 300*time.Second, 2*time.Second).Should(Succeed())
 	})
 })
+
+func uniqueAddonNamespace() string {
+	var token [12]byte
+	if _, err := cryptorand.Read(token[:]); err != nil {
+		panic(fmt.Errorf("generate addon test namespace: %w", err))
+	}
+	return fmt.Sprintf("app-addon-p%d-%s", GinkgoParallelProcess(), hex.EncodeToString(token[:]))
+}
+
+func createAddonNamespace(ctx context.Context, cli client.Client, name string) (corev1.Namespace, error) {
+	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	if err := cli.Create(ctx, &ns); err != nil {
+		return corev1.Namespace{}, err
+	}
+	return ns, nil
+}

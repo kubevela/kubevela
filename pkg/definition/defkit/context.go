@@ -16,6 +16,8 @@ limitations under the License.
 
 package defkit
 
+import "fmt"
+
 // ContextRef represents a reference to a context value.
 // Context values are runtime values provided by KubeVela.
 type ContextRef struct {
@@ -102,6 +104,65 @@ func (c *ClusterVersionRef) GitVersion() *ContextRef {
 	return &ContextRef{path: c.basePath + ".gitVersion"}
 }
 
+// StepName returns the name of the workflow step being run.
+func (c *VelaContext) StepName() *ContextRef {
+	return &ContextRef{path: "context.stepName"}
+}
+
+// StepSessionID returns the running step's ID in the workflow status.
+func (c *VelaContext) StepSessionID() *ContextRef {
+	return &ContextRef{path: "context.stepSessionID"}
+}
+
+// WorkflowName returns the name of the workflow being run, when set.
+func (c *VelaContext) WorkflowName() *ContextRef {
+	return &ContextRef{path: "context.workflowName"}
+}
+
+// Each returns the pass of a forEach running a workflow step. It is set only
+// inside a forEach, so guard a read with IsSet; a step that takes its item
+// through inputs works in and out of a loop alike.
+func (c *VelaContext) Each() *EachRef {
+	return &EachRef{basePath: "context.each"}
+}
+
+// EachRef provides access to the pass of a forEach.
+type EachRef struct {
+	basePath string
+}
+
+func (e *EachRef) expr()  {}
+func (e *EachRef) value() {}
+
+// Path returns the base path of the pass.
+func (e *EachRef) Path() string { return e.basePath }
+
+// Item returns the item this pass runs for.
+func (e *EachRef) Item() *ContextRef {
+	return &ContextRef{path: e.basePath + ".item"}
+}
+
+// ItemField returns a dotted path within the item.
+func (e *EachRef) ItemField(path string) *ContextRef {
+	return &ContextRef{path: e.basePath + ".item." + path}
+}
+
+// Index returns the item's position in the list, from 0.
+func (e *EachRef) Index() *ContextRef {
+	return &ContextRef{path: e.basePath + ".index"}
+}
+
+// Key returns the name of this pass: the item's forEach.key, or its index when
+// the loop has none.
+func (e *EachRef) Key() *ContextRef {
+	return &ContextRef{path: e.basePath + ".key"}
+}
+
+// IsSet holds when the step runs inside a forEach.
+func (e *EachRef) IsSet() Condition {
+	return PathExists(e.basePath)
+}
+
 // Revision returns the component revision from context.
 func (c *VelaContext) Revision() *ContextRef {
 	return &ContextRef{path: "context.revision"}
@@ -115,6 +176,73 @@ func (c *VelaContext) Output() *ContextRef {
 // Outputs returns a reference to auxiliary outputs by name.
 func (c *VelaContext) Outputs(name string) *ContextRef {
 	return &ContextRef{path: "context.outputs." + name}
+}
+
+// AppComponents returns the Application's components, as an Application-scoped
+// policy sees them.
+func (c *VelaContext) AppComponents() *ContextRef {
+	return &ContextRef{path: "context.appComponents"}
+}
+
+// AppWorkflow returns the Application's workflow, as an Application-scoped policy sees it.
+func (c *VelaContext) AppWorkflow() *ContextRef {
+	return &ContextRef{path: "context.appWorkflow"}
+}
+
+// AppPolicies returns the Application's policies, as an Application-scoped policy sees them.
+func (c *VelaContext) AppPolicies() *ContextRef {
+	return &ContextRef{path: "context.appPolicies"}
+}
+
+// AppLabels returns the Application's labels, without KubeVela's internal ones.
+func (c *VelaContext) AppLabels() *ContextRef {
+	return &ContextRef{path: "context.appLabels"}
+}
+
+// AppAnnotations returns the Application's annotations, without KubeVela's internal ones.
+func (c *VelaContext) AppAnnotations() *ContextRef {
+	return &ContextRef{path: "context.appAnnotations"}
+}
+
+// AppAnnotation returns one of the Application's annotations.
+func (c *VelaContext) AppAnnotation(key string) *ContextRef {
+	return &ContextRef{path: fmt.Sprintf("context.appAnnotations[%q]", key)}
+}
+
+// AppLabel returns one of the Application's labels.
+func (c *VelaContext) AppLabel(key string) *ContextRef {
+	return &ContextRef{path: fmt.Sprintf("context.appLabels[%q]", key)}
+}
+
+// PolicyName returns the name the Application gives the policy.
+func (c *VelaContext) PolicyName() *ContextRef {
+	return &ContextRef{path: "context.policyName"}
+}
+
+// PolicyType returns the policy's definition name.
+func (c *VelaContext) PolicyType() *ContextRef {
+	return &ContextRef{path: "context.policyType"}
+}
+
+// PolicyRevision returns the revision number of the policy's definition.
+func (c *VelaContext) PolicyRevision() *ContextRef {
+	return &ContextRef{path: "context.policyRevision"}
+}
+
+// PolicyRevisionName returns the name of the policy definition's revision.
+func (c *VelaContext) PolicyRevisionName() *ContextRef {
+	return &ContextRef{path: "context.policyRevisionName"}
+}
+
+// PolicyRevisionHash returns the hash of the policy definition's revision.
+func (c *VelaContext) PolicyRevisionHash() *ContextRef {
+	return &ContextRef{path: "context.policyRevisionHash"}
+}
+
+// Custom returns a value an Application-scoped policy put in its output's ctx,
+// as components and traits read it.
+func (c *VelaContext) Custom(path string) *ContextRef {
+	return &ContextRef{path: "context.custom." + path}
 }
 
 // String returns the path as a placeholder string for template building.

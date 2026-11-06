@@ -74,6 +74,7 @@ func TestRenderPassesThrough(t *testing.T) {
 		Registry:            "my-registry",
 		Properties:          map[string]interface{}{"foo": "bar"},
 		SkipVersionValidate: true,
+		Namespace:           "kit-tenant",
 	}
 
 	got, err := Render(context.Background(), params)
@@ -85,6 +86,7 @@ func TestRenderPassesThrough(t *testing.T) {
 	assert.Equal(t, "my-registry", fake.req.Registry)
 	assert.Equal(t, map[string]interface{}{"foo": "bar"}, fake.req.Properties)
 	assert.True(t, fake.req.SkipVersionValidate)
+	assert.Equal(t, "kit-tenant", fake.req.Namespace)
 
 	// result passed back unchanged
 	assert.Equal(t, "1.2.3", got.Returns.ResolvedVersion)

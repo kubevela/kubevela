@@ -98,9 +98,9 @@ func TestValidateComponentReads(t *testing.T) {
 		{"namespace before cluster", []common.ApplicationComponent{db, read(`$(component.db.namespace("a").cluster("b").output.status.x)`)},
 			`name a placement with .cluster("<cluster>")`},
 		{"a qualifier elsewhere", []common.ApplicationComponent{db, read(`$(component.db.output.cluster("data").status.x)`)},
-			`cluster and namespace go straight after the component`},
+			`cluster and namespace go straight after component.<name>`},
 		{"a computed placement", []common.ApplicationComponent{db, read(`$(component.db.cluster(context.cluster).output.status.x)`)},
-			`read component.db.output or component.db.outputs.<resource>`},
+			`cluster() takes a literal string`},
 		{"cycle through reads", []common.ApplicationComponent{
 			comp(t, "db", map[string]interface{}{"x": `$(component.api.output.status.x)`}),
 			read(`$(component.db.output.status.x)`)},
@@ -127,6 +127,73 @@ func TestValidateComponentReads(t *testing.T) {
 				return
 			}
 			require.ErrorContains(t, err, tc.err)
+		})
+	}
+}
+
+// ValidateDependencyCycles judges only what the spec declares outright, so it
+// holds on a cluster with expressions turned off. It must not look at reads:
+// without the opt-in a $( ) is ordinary text.
+func TestValidateDependencyCycles(t *testing.T) {
+	out := func(name, from string) common.ApplicationComponent {
+		c := comp(t, name, nil)
+		c.Outputs = wfTypesv1alpha1.StepOutputs{{Name: from, ValueFrom: "output.status.host"}}
+		return c
+	}
+	in := func(name, from string) common.ApplicationComponent {
+		c := comp(t, name, nil)
+		c.Inputs = wfTypesv1alpha1.StepInputs{{From: from, ParameterKey: "host"}}
+		return c
+	}
+
+	for _, tc := range []struct {
+		name  string
+		comps []common.ApplicationComponent
+		err   string
+	}{
+		{"no waiting at all", []common.ApplicationComponent{comp(t, "a", nil), comp(t, "b", nil)}, ""},
+		{"a line of dependsOn", []common.ApplicationComponent{
+			{Name: "a", Type: "webservice", DependsOn: []string{"b"}}, comp(t, "b", nil)}, ""},
+		{"a dependsOn cycle", []common.ApplicationComponent{
+			{Name: "a", Type: "webservice", DependsOn: []string{"b"}},
+			{Name: "b", Type: "webservice", DependsOn: []string{"a"}}},
+			`cycle: a -> b -> a`},
+		{"a longer dependsOn cycle", []common.ApplicationComponent{
+			{Name: "a", Type: "webservice", DependsOn: []string{"b"}},
+			{Name: "b", Type: "webservice", DependsOn: []string{"c"}},
+			{Name: "c", Type: "webservice", DependsOn: []string{"a"}}},
+			`cycle: a -> b -> c -> a`},
+		{"a cycle through inputs", []common.ApplicationComponent{
+			func() common.ApplicationComponent {
+				c := in("a", "b-host")
+				c.Outputs = wfTypesv1alpha1.StepOutputs{{Name: "a-host", ValueFrom: "output.status.host"}}
+				return c
+			}(),
+			func() common.ApplicationComponent {
+				c := in("b", "a-host")
+				c.Outputs = wfTypesv1alpha1.StepOutputs{{Name: "b-host", ValueFrom: "output.status.host"}}
+				return c
+			}()},
+			`cycle: a -> b -> a`},
+		// An input naming nothing declares no waiting, so it closes no cycle.
+		{"an input naming no output", []common.ApplicationComponent{in("a", "nowhere"), out("b", "b-host")}, ""},
+		// A read is not this function's business, even a broken one.
+		{"a read of a component that does not exist", []common.ApplicationComponent{
+			comp(t, "a", map[string]interface{}{"x": `$(component.nope.output.status.x)`})}, ""},
+		// And a cycle that exists only through reads belongs to
+		// ValidateComponentReads, which runs where expressions are enabled.
+		{"a cycle only through reads", []common.ApplicationComponent{
+			comp(t, "a", map[string]interface{}{"x": `$(component.b.output.status.x)`}),
+			comp(t, "b", map[string]interface{}{"x": `$(component.a.output.status.x)`})}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateDependencyCycles(v1beta1.ApplicationSpec{Components: tc.comps})
+			if tc.err == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.err)
 		})
 	}
 }

@@ -1,0 +1,42 @@
+{{- $raw := .Values.workflow.httpDeny.configTemplateName }}
+{{- /* A number would be decoded as float64 and lose its text (1e+06, 1.1). */}}
+{{- if not (or (kindIs "invalid" $raw) (kindIs "string" $raw)) }}
+{{- fail "workflow.httpDeny.configTemplateName must be a quoted string" }}
+{{- end }}
+{{- $tpl := $raw | default "" }}
+{{- /* The name lands in a ConfigMap name, a label value and a ConfigTemplate name. Dots are valid in all three. */}}
+{{- if and $tpl (or (gt (len $tpl) 63) (not (regexMatch "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$" $tpl))) }}
+{{- fail "workflow.httpDeny.configTemplateName must be dot-separated parts of lowercase letters, digits and -, each starting and ending with a letter or digit, at most 63 characters in total" }}
+{{- end }}
+{{- if and .Values.workflow.httpDeny.installConfigTemplate $tpl }}
+apiVersion: config.oam.dev/v1alpha1
+kind: ConfigTemplate
+metadata:
+  name: {{ $tpl | quote }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- /* A system-scoped template must live in vela-system. Elsewhere it stays
+         namespace-scoped next to the controller, where discovery looks. */}}
+  scope: {{ if eq .Release.Namespace "vela-system" }}system{{ else }}namespace{{ end }}
+  sensitive: false
+  alias: Workflow HTTP Denylist
+  description: Additional host, IP, and CIDR destinations denied for workflow HTTP requests.
+  template: |
+{{ .Files.Get "config-templates/workflow-http-deny.cue" | replace "vela-core-http-deny" $tpl | indent 4 }}
+---
+{{- end }}
+{{- if and .Values.workflow.httpDeny.defaultConfig.enabled $tpl }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.workflow.httpDeny.defaultConfig.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    config.oam.dev/type: {{ $tpl | quote }}
+    config.oam.dev/scope: system
+data:
+  denyHosts: |-
+{{ join "\n" .Values.workflow.httpDeny.defaultConfig.denyHosts | indent 4 }}
+  denyCIDRs: |-
+{{ join "\n" .Values.workflow.httpDeny.defaultConfig.denyCIDRs | indent 4 }}
+{{- end }}

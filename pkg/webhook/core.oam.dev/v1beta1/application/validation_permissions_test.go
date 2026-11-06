@@ -58,6 +58,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 		userInfo            authenticationv1.UserInfo
 		allowedDefinitions  map[string]bool // resource/namespace/name -> allowed
 		existingDefinitions map[string]bool // namespace/name -> exists
+		moduleBackedDefs    map[string]string
 		expectedErrorCount  int
 		expectedErrorFields []string
 		expectedErrorMsgs   []string
@@ -150,6 +151,39 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				"vela-system/cluster-config-reader": true,
 			},
 			expectedErrorCount: 0,
+		},
+		{
+			name: "form1 module-backed component type is rejected with guidance",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test-ns",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name: "comp1",
+							Type: "bucket",
+						},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "test-user",
+				Groups:   []string{"test-group"},
+			},
+			allowedDefinitions: map[string]bool{
+				"componentdefinitions/vela-system/bucket": true,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/bucket": true,
+			},
+			moduleBackedDefs: map[string]string{
+				"vela-system/bucket": "s3",
+			},
+			expectedErrorCount:  1,
+			expectedErrorFields: []string{"spec.components[0].type"},
+			expectedErrorMsgs:   []string{"use {module}/{apiVersion}/{name} (Form 3)"},
 		},
 		{
 			name: "user lacks ComponentDefinition permission",
@@ -751,6 +785,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				Client:              fake.NewClientBuilder().WithScheme(scheme).Build(),
 				allowedDefinitions:  tc.allowedDefinitions,
 				existingDefinitions: tc.existingDefinitions,
+				moduleBackedDefs:    tc.moduleBackedDefs,
 			}
 
 			handler := &ValidatingHandler{
@@ -1056,6 +1091,7 @@ type mockSARClient struct {
 	client.Client
 	allowedDefinitions  map[string]bool
 	existingDefinitions map[string]bool // namespace/name -> exists
+	moduleBackedDefs    map[string]string
 }
 
 func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
@@ -1105,10 +1141,26 @@ func (m *mockSARClient) Get(ctx context.Context, key client.ObjectKey, obj clien
 	defKey := fmt.Sprintf("%s/%s", key.Namespace, key.Name)
 	if m.existingDefinitions != nil {
 		if exists, ok := m.existingDefinitions[defKey]; ok && exists {
-			// Definition exists - return success
+			setModuleField(obj, m.moduleBackedDefs[defKey])
 			return nil
 		}
 	}
 	// Definition not found - use correct resource type in error
 	return errors.NewNotFound(v1beta1.SchemeGroupVersion.WithResource(resource).GroupResource(), key.Name)
+}
+
+func setModuleField(obj client.Object, module string) {
+	if module == "" {
+		return
+	}
+	switch d := obj.(type) {
+	case *v1beta1.ComponentDefinition:
+		d.Spec.Module = module
+	case *v1beta1.TraitDefinition:
+		d.Spec.Module = module
+	case *v1beta1.PolicyDefinition:
+		d.Spec.Module = module
+	case *v1beta1.WorkflowStepDefinition:
+		d.Spec.Module = module
+	}
 }

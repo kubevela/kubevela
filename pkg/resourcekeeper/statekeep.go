@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/maps"
 	"github.com/kubevela/pkg/util/slices"

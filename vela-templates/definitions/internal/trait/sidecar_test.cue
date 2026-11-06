@@ -77,3 +77,61 @@ _web: {
 	parameter: {name: "proxy", image: "envoy:1.30", ports: [{containerPort: 70000}]}
 	expect: error: parameter: [=~"containerPort"]
 }
+
+"every probe field passes through": test.#TraitRender & _web & {
+	parameter: {
+		name:  "proxy"
+		image: "envoy:1.30"
+		livenessProbe: {
+			exec: command: ["envoy", "--health"]
+			httpGet: {path: "/alive", port: 9901}
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			exec: command: ["envoy", "--ready"]
+			tcpSocket: port: 9901
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}
+	expect: output: spec: template: spec: containers: [_, {
+		livenessProbe: {
+			exec: command: ["envoy", "--health"]
+			httpGet: {path: "/alive", port: 9901}
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			exec: command: ["envoy", "--ready"]
+			tcpSocket: port: 9901
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}]
+}
+
+"a plain env value, and a port's protocol and hostPort": test.#TraitRender & _web & {
+	parameter: {
+		name:  "proxy"
+		image: "envoy:1.30"
+		env: [{name: "LOG_LEVEL", value: "debug"}]
+		ports: [{containerPort: 5353, protocol: "UDP", hostPort: 53}]
+	}
+	expect: output: spec: template: spec: containers: [_, {
+		env: [{name: "LOG_LEVEL", value: "debug"}]
+		ports: [{containerPort: 5353, protocol: "UDP", hostPort: 53}]
+	}]
+}

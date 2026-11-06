@@ -11,11 +11,12 @@ admission and render cannot disagree about what `context.x` means.
 | `context.cue` | the registry: field groups, composed into one type per surface |
 | `registry.go` | loads it (`//go:embed`); `ContextFor`, `SurfaceOffers`, `SurfaceDeclared`, `SurfacePlural`, `SurfaceNames` |
 | `context.go` | `ContextSchema`, a view over one surface's `cue.Value` |
-| `expr.go` | parsing a property value into literal and expression fragments |
-| `reference.go` | the shape of a read, shared by the parser and the type checker |
+| `roots.go` | the `source` and `component` roots, and what a read of each looks like |
+| `component_reads.go` | the placement calls a component read may make |
 | `optional.go` | which reads could be absent at render and carry no default |
-| `walk.go` | traversing a properties blob, since every string in it may hold an expression |
-| `helpers.go` | what survives the expression engine, given a source's schema is CUE |
+| `helpers.go` | the CUE context a schema is compiled in |
+
+Parsing `$( )` and walking a properties tree live in `github.com/kubevela/pkg/cel/template`.
 
 ## Shape
 

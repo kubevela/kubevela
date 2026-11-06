@@ -117,7 +117,8 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			wl.Params = augmented
 		}
 
-		pCtx, err := newValidationProcessContext(wl, ctxData)
+		evalParams := wl.Params
+		pCtx, err := newValidationProcessContext(wl, ctxData, "")
 		wl.Params = originalParams // Restore immediately
 
 		if err != nil {
@@ -132,16 +133,8 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			continue
 		}
 
-		for _, tr := range wl.Traits {
-			if tr.CapabilityCategory != types.CUECategory {
-				continue
-			}
-			if tr.FullTemplate != nil &&
-				tr.FullTemplate.TraitDefinition.Spec.Stage == v1beta1.PostDispatch {
-				// PostDispatch type trait validation at this point might fail as they could have
-				// references to fields that are populated/injected during runtime only
-				continue
-			}
+		traits := validatedTraits(wl)
+		for _, tr := range traits {
 			// The same identity baseGenerateComponent pushes on the real path.
 			// Trait.Name is the TraitDefinition's name - the trait's type.
 			pCtx.PushData(velaprocess.ContextTraitType, tr.Name)
@@ -149,8 +142,45 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 				return errors.WithMessagef(err, "cannot evaluate trait %q", tr.Name)
 			}
 		}
+
+		if a.PolicyContext != nil {
+			pass := &ctxPass{wl: wl, ctxData: ctxData, view: a.PolicyContext, params: evalParams, traits: traits, chained: isChained(wl, traits)}
+			if err := pass.run(); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
+}
+
+// validatedTraits returns the traits admission evaluates: CUE ones, and not
+// PostDispatch ones, which may read fields populated only at runtime.
+func validatedTraits(wl *Component) []*Trait {
+	var out []*Trait
+	for _, tr := range wl.Traits {
+		if tr.CapabilityCategory != types.CUECategory {
+			continue
+		}
+		if tr.FullTemplate != nil &&
+			tr.FullTemplate.TraitDefinition.Spec.Stage == v1beta1.PostDispatch {
+			continue
+		}
+		out = append(out, tr)
+	}
+	return out
+}
+
+// isChained reports whether the component or a trait extends a definition.
+func isChained(wl *Component, traits []*Trait) bool {
+	if len(wl.FullTemplate.Ancestors) > 0 {
+		return true
+	}
+	for _, tr := range traits {
+		if tr.FullTemplate != nil && len(tr.FullTemplate.Ancestors) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // placeholderRenderedTypes are the ComponentDefinitions whose output is a
@@ -223,6 +253,16 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 
 	// Apply the cue compatibility upgrades so that the render path applies
 	templateStr, _ := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	if view := app.PolicyContext; view != nil {
+		if len(wl.FullTemplate.Ancestors) > 0 {
+			baseCtx += "\n" + view.SourceWithoutImports()
+		} else {
+			imports, custom := view.Source()
+			templateStr = withImports(templateStr, imports)
+			baseCtx += "\n" + custom
+		}
+	}
+	baseCtx += contextCustomPlaceholders(templateStr)
 
 	cueSrc := strings.Join([]string{
 		renderTemplate(templateStr),
@@ -261,8 +301,8 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 			required = root
 		}
 	}
-	if err := enforceRequiredParams(required, resolvedParams, app); err != nil {
-		return errors.WithMessagef(err, "component %q", wl.Name)
+	if err := withoutContextDefaulted(enforceRequiredParams(required, resolvedParams, app), contextDefaultedParams(templateStr)); err != nil {
+		return errors.WithMessagef(explainMissingParams(ctx, wl, err), "component %q", wl.Name)
 	}
 
 	// ---------------------------------------------------------------------
@@ -473,10 +513,46 @@ func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) 
 		}
 
 		if len(missingParams) > 0 {
-			return fmt.Errorf("missing parameters: %v", strings.Join(missingParams, ","))
+			return &missingParamsError{names: missingParams}
 		}
 	}
 	return nil
+}
+
+// missingParamsError names the required parameters an Application did not
+// provide, so a caller able to explain one of them still has the names to work
+// from.
+type missingParamsError struct{ names []string }
+
+func (e *missingParamsError) Error() string {
+	return fmt.Sprintf("missing parameters: %v", strings.Join(e.names, ","))
+}
+
+// explainMissingParams appends, to a missing-parameter error, why each name a
+// source was to supply is absent.
+//
+// Without it the message reads as false: the parameter is set in the
+// properties, to a source read, and what the author has to change is the
+// source's schema or the parameter, neither of which the bare list points at.
+func explainMissingParams(ctx process.Context, wl *Component, err error) error {
+	var missing *missingParamsError
+	if !errors.As(err, &missing) {
+		return err
+	}
+	var clauses []string
+	for _, name := range missing.names {
+		binding, field, ok := sources.OptionalSourceField(ctx, wl.Params, name)
+		if !ok {
+			continue
+		}
+		clauses = append(clauses, fmt.Sprintf(
+			"source %q declares %s optional, so it may be unset: make it required in the SourceDefinition schema or optional in the parameter",
+			binding, field))
+	}
+	if len(clauses) == 0 {
+		return err
+	}
+	return fmt.Errorf("%s; %s", err.Error(), strings.Join(clauses, "; "))
 }
 
 type overrideSpec struct {
@@ -611,7 +687,9 @@ parameter: _
 `
 }
 
-func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData) (process.Context, error) {
+// newValidationProcessContext evaluates a component for validation. Extra CUE,
+// when given, joins the context file every template is evaluated with.
+func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData, extra string) (process.Context, error) {
 	baseHooks := []process.BaseHook{
 		// add more hook funcs here to validate CUE base
 	}
@@ -626,6 +704,9 @@ func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData) 
 	// Dry-run mode is already set on ctxData.Ctx by the caller
 	// (ValidateCUESchematicAppfile) so provider functions use client-only rendering.
 	pCtx := velaprocess.NewContext(ctxData)
+	if extra != "" {
+		pCtx = policyContextFile{Context: pCtx, extra: extra}
+	}
 	// The same identity PrepareProcessContext pushes on the real path. Without it
 	// this render is missing context the live one has, so an expression reading it
 	// fails here and works in production - the worst possible split.

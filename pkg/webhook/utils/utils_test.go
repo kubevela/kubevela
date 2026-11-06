@@ -24,6 +24,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/errors"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/stretchr/testify/assert"
@@ -32,10 +33,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
+	"github.com/oam-dev/kubevela/pkg/logging"
 )
 
 // TestMain disables external package loading so these tests run without a
@@ -556,4 +559,121 @@ output: kube.#Read & {
 		assert.Error(t, err, "if this now passes, cue.Final() stopped catching undefined selectors")
 		assert.Contains(t, err.Error(), "undefined field")
 	})
+}
+
+func TestValidateDefinitionIdentity(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		module     string
+		apiVersion string
+		wantErr    string
+	}{
+		"bothSet":         {module: "s3", apiVersion: "v1"},
+		"bothEmpty":       {},
+		"moduleOnly":      {module: "s3", wantErr: "spec.module is set but spec.apiVersion is empty"},
+		"apiVersionOnly":  {apiVersion: "v1", wantErr: "spec.apiVersion is set but spec.module is empty"},
+		"prereleaseValid": {module: "s3", apiVersion: "v1beta2"},
+		"moduleHasUppercase": {
+			module:     "Widget-Kit",
+			apiVersion: "v1",
+			wantErr:    "spec.module \"Widget-Kit\" is not a valid DNS-1123 label",
+		},
+		"moduleHasSpace": {
+			module:     "widget kit",
+			apiVersion: "v1",
+			wantErr:    "spec.module \"widget kit\" is not a valid DNS-1123 label",
+		},
+	}
+	for caseName, cs := range cases {
+		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateDefinitionIdentity(cs.module, cs.apiVersion)
+			if cs.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, cs.wantErr)
+		})
+	}
+}
+
+func TestDenyOnInvalidIdentity(t *testing.T) {
+	logger := logging.New()
+
+	t.Run("consistent identity is not denied", func(t *testing.T) {
+		resp, denied := DenyOnInvalidIdentity(logger, "ComponentDefinition", "s3", "v1", types.UID("req-1"))
+		assert.False(t, denied)
+		assert.Equal(t, admission.Response{}, resp)
+	})
+
+	t.Run("inconsistent identity is denied, naming the kind and the requestUID", func(t *testing.T) {
+		resp, denied := DenyOnInvalidIdentity(logger, "ComponentDefinition", "s3", "", types.UID("req-2"))
+		assert.True(t, denied)
+		assert.False(t, resp.Allowed)
+		assert.Contains(t, resp.Result.Message, "spec.module is set but spec.apiVersion is empty")
+		assert.Contains(t, resp.Result.Message, "requestUID=req-2")
+	})
+}
+
+// A policy's template is checked against the compiler that renders its scope:
+// the workload engine's for a default-scope policy, the upstream one for an
+// Application-scoped policy. The two offer different packages.
+func TestCompilePolicyTemplateByScope(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		scope   v1beta1.PolicyScope
+		pkg     string
+		wantErr bool
+	}{
+		"default scope offers vela/helm":     {v1beta1.DefaultScope, "vela/helm", false},
+		"default scope lacks vela/util":      {v1beta1.DefaultScope, "vela/util", true},
+		"Application scope offers vela/util": {v1beta1.ApplicationScope, "vela/util", false},
+		"Application scope lacks vela/helm":  {v1beta1.ApplicationScope, "vela/helm", true},
+		"both offer vela/kube (default)":     {v1beta1.DefaultScope, "vela/kube", false},
+		"both offer vela/kube (Application)": {v1beta1.ApplicationScope, "vela/kube", false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			use := map[string]string{"vela/helm": "helm.#Render", "vela/util": "util.#Truncate", "vela/kube": "kube.#Get"}[tc.pkg]
+			val, err := CompilePolicyTemplate(context.Background(), tc.scope, fmt.Sprintf("import %q\nparameter: {}\n_use: %s\n", tc.pkg, use))
+			if err == nil {
+				err = val.Err()
+			}
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// A template reading context does not compile on its own; opened, its
+// parameters can be read. Opening context excuses nothing else.
+func TestCompileOpenPolicyTemplate(t *testing.T) {
+	t.Parallel()
+	readsContext := "parameter: env: *\"prod\" | string\noutput: labels: {ns: context.namespace, env: parameter.env}\n"
+	for _, scope := range []v1beta1.PolicyScope{v1beta1.DefaultScope, v1beta1.ApplicationScope} {
+		t.Run(string(scope)+" reads context", func(t *testing.T) {
+			plain, err := CompilePolicyTemplate(context.Background(), scope, readsContext)
+			if err == nil {
+				err = plain.Err()
+			}
+			assert.Error(t, err, "the plain compile has no context")
+
+			opened, err := CompileOpenPolicyTemplate(context.Background(), scope, readsContext)
+			require.NoError(t, err)
+			require.NoError(t, opened.Err())
+			assert.True(t, opened.LookupPath(cue.ParsePath("parameter.env")).Exists())
+		})
+		t.Run(string(scope)+" undefined reference beside context", func(t *testing.T) {
+			opened, err := CompileOpenPolicyTemplate(context.Background(), scope,
+				"parameter: {}\noutput: labels: {ns: context.namespace, x: world}\n")
+			if err == nil {
+				err = opened.Err()
+			}
+			assert.Error(t, err)
+		})
+	}
 }

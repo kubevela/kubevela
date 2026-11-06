@@ -17,16 +17,10 @@ limitations under the License.
 package application
 
 import (
-	"encoding/json"
-	"fmt"
 	"sort"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-
-	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
-	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
 
 type sourceReference struct {
@@ -40,78 +34,6 @@ type sourceReference struct {
 	// Surface is where the read was found: a component, a trait, a policy, a
 	// workflow step, or another source's properties (chaining).
 	Surface string
-}
-
-// withSurface stamps the surface onto each collected reference.
-func withSurface(refs []sourceReference, surface string) []sourceReference {
-	for i := range refs {
-		refs[i].Surface = surface
-	}
-	return refs
-}
-
-// collectSourceRefs returns every `source` read an expression makes within a
-// properties blob, as the reference records the validation loop consumes.
-//
-// The loop is mechanism-agnostic: declared-ness, chaining order, surface and
-// consumableFrom are properties of *reading a source*, not of how the read was
-// spelled. Only this collector knew about the directive form, which is what let
-// it be removed without losing a single one of those checks.
-func collectSourceRefs(raw *runtime.RawExtension, basePath *field.Path, sourceIndex int) ([]sourceReference, field.ErrorList) {
-	if raw == nil || len(raw.Raw) == 0 {
-		return nil, nil
-	}
-	var decoded interface{}
-	if err := json.Unmarshal(raw.Raw, &decoded); err != nil {
-		return nil, field.ErrorList{field.Invalid(basePath, string(raw.Raw),
-			fmt.Sprintf("invalid properties: %v", err))}
-	}
-
-	var refs []sourceReference
-	for _, lf := range flattenLeafPaths(raw.Raw, basePath) {
-		text, ok := lf.literal.(string)
-		if !ok {
-			continue
-		}
-		parsed, err := propexpr.Parse(text)
-		if err != nil || !parsed.HasExpr() {
-			continue
-		}
-		for _, fragment := range parsed.Fragments {
-			if !fragment.IsExpr() {
-				continue
-			}
-			reads, rerr := celexpr.PropertyReferences(fragment.Expr)
-			if rerr != nil {
-				// Syntax errors are reported by validateExpressions with a
-				// better message; do not report them twice.
-				continue
-			}
-			for _, read := range reads {
-				// The binding name is all a reference needs. A whole-binding
-				// read - $(source.cfg) rather than $(source.cfg.host) - has
-				// nothing after it, and skipping those skipped every check the
-				// loop makes: the binding did not have to be declared, come
-				// earlier in a chain, or allow the surface reading it.
-				if !read.IsSource() || len(read.Path) < 1 {
-					continue
-				}
-				refs = append(refs, sourceReference{
-					SourceName: read.Path[0],
-					Path:       strings.Join(read.Path[1:], "."),
-					// Whether the dotted form round-trips has to be decided here,
-					// while the segments are still separate. `labels["a.b/c"]`
-					// joins to `labels.a.b/c`, which no longer says where the key
-					// began - and a list index joins to a segment the schema has
-					// no field for at all.
-					OpaquePath:  pathIsOpaque(read.Path[1:]),
-					FieldPath:   lf.fieldPath,
-					SourceIndex: sourceIndex,
-				})
-			}
-		}
-	}
-	return refs, nil
 }
 
 // pathIsOpaque reports a path the schema validator's dotted lookup cannot

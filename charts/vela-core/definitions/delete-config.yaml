@@ -5,7 +5,7 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     custom.definition.oam.dev/category: Config Management
-    definition.oam.dev/description: Delete a config
+    definition.oam.dev/description: 'Delete a config: the Config, and with it its Secret and outputs, or the legacy Secret and its outputs'
   name: delete-config
   namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:

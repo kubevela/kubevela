@@ -78,27 +78,29 @@ func NewLRUSourceCacheStore(delegate velaprocess.SourceCacheStore) velaprocess.S
 	}
 }
 
-// Read returns (data, stale, found, expiresAt, err). A Layer 1 hit within the
-// in-memory TTL is always returned fresh (stale=false); the persistent store's
-// own storageTTL freshness is only re-evaluated on a Layer 1 miss.
-func (s *lruSourceCacheStore) Read(ctx context.Context, cacheKey string, ttl time.Duration) (map[string]interface{}, bool, bool, time.Time, error) {
+// Read serves a Layer 1 hit within the in-memory TTL as fresh; the persistent
+// store's own storageTTL freshness is only re-evaluated on a Layer 1 miss.
+func (s *lruSourceCacheStore) Read(ctx context.Context, cacheKey string, ttl time.Duration) (velaprocess.SourceCacheRead, error) {
 	if s == nil || cacheKey == "" {
-		return nil, false, false, time.Time{}, nil
+		return velaprocess.SourceCacheRead{}, nil
 	}
 	if entry, ok := s.load(cacheKey); ok {
-		return entry.data, false, true, entry.storeExpiresAt, nil
+		return velaprocess.SourceCacheRead{Data: entry.data, Found: true, ExpiresAt: entry.storeExpiresAt}, nil
 	}
-	data, stale, found, expiresAt, err := s.delegate.Read(ctx, cacheKey, ttl)
+	got, err := s.delegate.Read(ctx, cacheKey, ttl)
 	if err != nil {
-		return data, stale, found, expiresAt, err
+		return got, err
 	}
 	// Only promote fresh persistent hits into Layer 1. A stale Layer 2 value
 	// must keep flowing through the resolver's refresh/onStaleFailure logic
 	// rather than being masked as an in-memory hit.
-	if found && !stale {
-		s.store(cacheKey, data, expiresAt, s.effectiveTTL(ttl))
+	// A window of nothing is not promoted: store reads a non-positive TTL as
+	// "use the default window", which is the opposite of what a spent deadline
+	// asks for.
+	if window := s.promotionTTL(ttl, got.ExpiresAt); got.Found && !got.Stale && window > 0 {
+		s.store(cacheKey, got.Data, got.ExpiresAt, window)
 	}
-	return data, stale, found, expiresAt, err
+	return got, nil
 }
 
 // Write persists through the delegate and, on success, refreshes Layer 1 so the
@@ -146,6 +148,24 @@ func (s *lruSourceCacheStore) Touch(ctx context.Context, cacheKey string) error 
 
 // effectiveTTL caps the in-memory freshness window at the caller's storageTTL so
 // a short per-source TTL is not masked by the longer default Layer 1 window.
+// promotionTTL is the window a value read from the persistent store is held
+// in Layer 1 for: the write-time window, bounded by what is left of this
+// value's own deadline. A promoted value is part-way through its storageTTL
+// already, so the full TTL would hold it past the deadline it arrived with.
+//
+// A store that records no expiry gives nothing to bound against, and the
+// write-time window stands.
+func (s *lruSourceCacheStore) promotionTTL(storageTTL time.Duration, expiresAt time.Time) time.Duration {
+	window := s.effectiveTTL(storageTTL)
+	if expiresAt.IsZero() {
+		return window
+	}
+	if left := time.Until(expiresAt); left < window {
+		return left
+	}
+	return window
+}
+
 func (s *lruSourceCacheStore) effectiveTTL(storageTTL time.Duration) time.Duration {
 	if storageTTL > 0 && storageTTL < s.ttl {
 		return storageTTL

@@ -94,9 +94,9 @@ type keyedStore struct {
 	stale   bool
 }
 
-func (s *keyedStore) Read(_ context.Context, cacheKey string, _ time.Duration) (map[string]interface{}, bool, bool, time.Time, error) {
+func (s *keyedStore) Read(_ context.Context, cacheKey string, _ time.Duration) (velaprocess.SourceCacheRead, error) {
 	v, ok := s.entries[cacheKey]
-	return v, ok && s.stale, ok, time.Time{}, nil
+	return velaprocess.SourceCacheRead{Data: v, Found: ok, Stale: ok && s.stale}, nil
 }
 
 func (s *keyedStore) Write(_ context.Context, cacheKey, sourceType string, data map[string]interface{}, _ velaprocess.SourceCacheWriteMeta) error {

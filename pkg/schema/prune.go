@@ -28,6 +28,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
+	"cuelang.org/go/cue/token"
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -124,7 +125,12 @@ func PruneTo(src string, fields ...string) (string, error) {
 		}
 	}
 	if len(specs) > 0 {
-		out.Decls = append(out.Decls, &ast.ImportDecl{Specs: specs})
+		// One parenthesised list, a spec a line, whatever layout the kept specs
+		// came from.
+		for _, spec := range specs {
+			ast.SetRelPos(spec, token.Newline)
+		}
+		out.Decls = append(out.Decls, &ast.ImportDecl{Lparen: token.Blank.Pos(), Specs: specs, Rparen: token.Newline.Pos()})
 	}
 	for _, d := range f.Decls {
 		if kept[d] {

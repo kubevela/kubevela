@@ -17,6 +17,9 @@ limitations under the License.
 package helm
 
 import (
+	"context"
+
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -36,7 +39,7 @@ func providerWithFakeClientset(seed ...*corev1.Secret) (*Provider, *clientsetfak
 	}
 	cs := clientsetfake.NewSimpleClientset(objs...)
 	p := NewProviderWithConfig(nil)
-	p.kubeClientFactory = func() (kubernetes.Interface, error) { return cs, nil }
+	p.kubeClientFactory = func(context.Context) (kubernetes.Interface, error) { return cs, nil }
 	return p, cs
 }
 
@@ -46,7 +49,7 @@ var _ = Describe("release_secrets", func() {
 		It("should clear all cache entries for a release", func() {
 			p := NewProviderWithConfig(nil)
 
-			cacheKey := "default/test-rel"
+			cacheKey := releaseCacheKey(pkgmulticluster.Local, "default", "test-rel")
 			p.releaseMu.Lock()
 			p.releaseFingerprints[cacheKey] = "fp1"
 			p.releaseManifests[cacheKey] = "manifest"
@@ -55,7 +58,7 @@ var _ = Describe("release_secrets", func() {
 
 			Expect(p.releaseFingerprints[cacheKey]).To(Equal("fp1"))
 
-			p.InvalidateRelease("test-rel", "default")
+			p.InvalidateRelease(pkgmulticluster.Local, "test-rel", "default")
 
 			_, ok := p.releaseFingerprints[cacheKey]
 			Expect(ok).To(BeFalse())
@@ -91,13 +94,13 @@ var _ = Describe("release_secrets", func() {
 				},
 			}
 			p, _ := providerWithFakeClientset(owned1, owned2, external)
-			names := p.listReleaseSecretNames(ns, "r")
+			names := p.listReleaseSecretNames(context.Background(), ns, "r")
 			Expect(names).To(ConsistOf("sh.helm.release.v1.r.v1", "sh.helm.release.v1.r.v2"))
 		})
 
 		It("returns empty when no matching helm secrets exist", func() {
 			p, _ := providerWithFakeClientset()
-			Expect(p.listReleaseSecretNames("default", "missing")).To(BeEmpty())
+			Expect(p.listReleaseSecretNames(context.Background(), "default", "missing")).To(BeEmpty())
 		})
 	})
 
@@ -114,7 +117,7 @@ var _ = Describe("release_secrets", func() {
 			p, cs := providerWithFakeClientset(external)
 			velaCtx := &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"}
 
-			p.labelReleaseSecrets(ns, "r", velaCtx)
+			p.labelReleaseSecrets(context.Background(), ns, "r", velaCtx)
 
 			patched, err := cs.CoreV1().Secrets(ns).Get(GinkgoT().Context(), "sh.helm.release.v1.r.v1", metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -138,7 +141,7 @@ var _ = Describe("release_secrets", func() {
 			p, cs := providerWithFakeClientset(already)
 			velaCtx := &ContextParams{AppName: "new-app", AppNamespace: ns, Name: "comp"}
 
-			p.labelReleaseSecrets(ns, "r", velaCtx)
+			p.labelReleaseSecrets(context.Background(), ns, "r", velaCtx)
 
 			got, err := cs.CoreV1().Secrets(ns).Get(GinkgoT().Context(), "sh.helm.release.v1.r.v1", metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -147,7 +150,7 @@ var _ = Describe("release_secrets", func() {
 
 		It("is a no-op for nil context", func() {
 			p, _ := providerWithFakeClientset()
-			Expect(func() { p.labelReleaseSecrets("default", "r", nil) }).ToNot(Panic())
+			Expect(func() { p.labelReleaseSecrets(context.Background(), "default", "r", nil) }).ToNot(Panic())
 		})
 	})
 
@@ -173,7 +176,7 @@ var _ = Describe("release_secrets", func() {
 				},
 			}
 			p, cs := providerWithFakeClientset(target1, target2, unrelated)
-			Expect(p.deleteReleaseSecretsDirect(ns, "r", nil)).To(Succeed())
+			Expect(p.deleteReleaseSecretsDirect(context.Background(), ns, "r", nil)).To(Succeed())
 
 			remaining, err := cs.CoreV1().Secrets(ns).List(GinkgoT().Context(), metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())

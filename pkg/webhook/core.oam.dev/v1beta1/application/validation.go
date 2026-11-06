@@ -18,14 +18,12 @@ package application
 
 import (
 	"context"
-	stderrors "errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
 	"github.com/kubevela/pkg/controller/sharding"
-	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -38,14 +36,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	wfexpressions "github.com/kubevela/workflow/pkg/expressions"
+	wfbuiltin "github.com/kubevela/workflow/pkg/tasks/builtin"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
+	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
+	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 // ValidateWorkflow validates the Application workflow
@@ -70,6 +75,18 @@ func (h *ValidatingHandler) ValidateWorkflow(_ context.Context, app *v1beta1.App
 					errs = append(errs, h.ValidateTimeout(step.Name, step.Timeout)...)
 				}
 			}
+		}
+		// forEach.items may be an expression only in an Application that opts in,
+		// where the workflow resolves it when the loop starts.
+		stepsPath := field.NewPath("spec", "workflow", "steps")
+		enabled := sources.ExpressionsEnabledFor(app.GetAnnotations())
+		errs = append(errs, wfbuiltin.ValidateForEachSteps(stepsPath, app.Spec.Workflow.Steps, enabled)...)
+		errs = append(errs, wfexpressions.MisplacedConditions(stepsPath, app.Spec.Workflow.Steps)...)
+		if enabled {
+			errs = append(errs, wfexpressions.Validate(stepsPath, app.Spec.Workflow.Steps, app.Spec.Workflow.Mode,
+				celexpr.Roots...)...)
+		} else {
+			errs = append(errs, wfexpressions.ConditionsWithoutExpressions(stepsPath, app.Spec.Workflow.Steps, conditionsDisabledMessage())...)
 		}
 	}
 	return errs
@@ -139,17 +156,18 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 		// cannot generate appfile, no need to validate further
 		return componentErrs
 	}
+	af.PolicyContext = h.policyContextView(ctx, app, af)
 	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, conciseSchematicError(err)))
 	}
 	return componentErrs
 }
 
+// conciseSchematicError renders a schematic validation error for admission. A
+// failed provider call names its path and the provider's own error, without the
+// call's parameters, so credentials passed to the provider stay out of the
+// response.
 func conciseSchematicError(err error) string {
-	var callErr cuex.FunctionCallError
-	if stderrors.As(err, &callErr) && callErr.Err != nil {
-		return callErr.Err.Error()
-	}
 	return err.Error()
 }
 
@@ -161,28 +179,20 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 	// asking for an object called "webservice@v1" denies every pinned binding.
 	definitionType = baseDefinitionName(definitionType)
 
-	// Check permission in vela-system namespace first since most definitions are there
-	// This optimizes for the common case and reduces API calls
-	systemNsSar := &authv1.SubjectAccessReview{
-		Spec: authv1.SubjectAccessReviewSpec{
-			User:   req.UserInfo.Username,
-			Groups: req.UserInfo.Groups,
-			ResourceAttributes: &authv1.ResourceAttributes{
-				Verb:      "get",
-				Group:     "core.oam.dev",
-				Version:   "v1beta1",
-				Resource:  resource,
-				Namespace: oam.SystemDefinitionNamespace,
-				Name:      definitionType,
-			},
-		},
+	canGetIn := func(namespace string) (bool, error) {
+		return auth.UserCan(ctx, h.Client, req.UserInfo, authv1.ResourceAttributes{
+			Verb: "get", Group: "core.oam.dev", Version: "v1beta1", Resource: resource, Namespace: namespace, Name: definitionType,
+		})
 	}
 
-	if err := h.Client.Create(ctx, systemNsSar); err != nil {
+	// Check permission in vela-system namespace first since most definitions are there
+	// This optimizes for the common case and reduces API calls
+	allowedInSystem, err := canGetIn(oam.SystemDefinitionNamespace)
+	if err != nil {
 		return false, fmt.Errorf("failed to check %s permission in system namespace: %w", resource, err)
 	}
 
-	if systemNsSar.Status.Allowed {
+	if allowedInSystem {
 		// User has permission in system namespace
 		// Verify the definition actually exists in vela-system
 		if exists, err := h.definitionExistsInNamespace(ctx, resource, definitionType, oam.SystemDefinitionNamespace); err != nil {
@@ -200,26 +210,12 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 
 	// If not in system namespace and app namespace is different, check app namespace
 	if appNamespace != oam.SystemDefinitionNamespace {
-		appNsSar := &authv1.SubjectAccessReview{
-			Spec: authv1.SubjectAccessReviewSpec{
-				User:   req.UserInfo.Username,
-				Groups: req.UserInfo.Groups,
-				ResourceAttributes: &authv1.ResourceAttributes{
-					Verb:      "get",
-					Group:     "core.oam.dev",
-					Version:   "v1beta1",
-					Resource:  resource,
-					Namespace: appNamespace,
-					Name:      definitionType,
-				},
-			},
-		}
-
-		if err := h.Client.Create(ctx, appNsSar); err != nil {
+		allowedInApp, err := canGetIn(appNamespace)
+		if err != nil {
 			return false, fmt.Errorf("failed to check %s permission in namespace %s: %w", resource, appNamespace, err)
 		}
 
-		if appNsSar.Status.Allowed {
+		if allowedInApp {
 			// User has permission in app namespace
 			// But we need to verify the definition actually exists in the app namespace
 			// to prevent users with wildcard permissions from using definitions that only exist in vela-system
@@ -541,14 +537,56 @@ func getWorkflowStepFieldPath(loc workflowStepLocation) *field.Path {
 }
 
 // ValidateAnnotations validates whether the application has both autoupdate and publish version annotations
-func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.Application) field.ErrorList {
+func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
 	var annotationsErrs field.ErrorList
+
+	// Only adding the opt-out is refused, and only while global policies apply at all. An app
+	// that already carries it stays updatable; the controller ignores the annotation there.
+	carriedForward := oldApp != nil && oldApp.Annotations[oam.AnnotationSkipGlobalPolicies] == "true"
+	globalsApply := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) &&
+		utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies)
+	if app.Annotations[oam.AnnotationSkipGlobalPolicies] == "true" && !carriedForward && globalsApply && !commonconfig.AllowSkipGlobalPolicies {
+		annotationsErrs = append(annotationsErrs, field.Forbidden(
+			field.NewPath("metadata", "annotations").Key(oam.AnnotationSkipGlobalPolicies),
+			"global platform policies are mandatory; applications cannot opt out of them"))
+	}
 
 	hasPublishVersion := app.Annotations[oam.AnnotationPublishVersion]
 	hasAutoUpdate := app.Annotations[oam.AnnotationAutoUpdate]
 	if hasAutoUpdate == "true" && hasPublishVersion != "" {
 		annotationsErrs = append(annotationsErrs, field.Invalid(field.NewPath("metadata", "annotations"), app,
 			"Application has both autoUpdate and publishVersion annotations. Only one can be present"))
+	}
+
+	// modules.oam.dev/install-namespace redirects where a type: module
+	// component's definitions install (vela-templates/.../module.cue's
+	// _fromAddon check). Only the addon renderer is meant to set it, on the
+	// addon's own owned Application; a user's own Application setting it
+	// directly would otherwise redirect a module install into any namespace
+	// the controller can reach, bypassing namespace restrictions and RBAC.
+	//
+	// Only a write that actually introduces, changes, or removes the value
+	// is checked -- removal matters too: clearing an already-set annotation
+	// flips _fromAddon back to false, silently falling through to
+	// context.namespace (vela-system, for the addon's owned Application),
+	// the same bypass as setting an arbitrary value, just landing on a
+	// fixed one instead of an attacker-chosen one. A write that carries an
+	// already-admitted value forward exactly as it was (present and equal,
+	// or absent on both sides) is left alone no matter who makes it: that
+	// state was already vetted, and requiring every subsequent write to
+	// come from the controller would make the addon's own owned Application
+	// unupdatable by anything else once the annotation lands on it.
+	newVal, hasNew := app.Annotations[oam.AnnotationModuleInstallNamespace]
+	var oldVal string
+	var hadOld bool
+	if oldApp != nil {
+		oldVal, hadOld = oldApp.Annotations[oam.AnnotationModuleInstallNamespace]
+	}
+	unchanged := hasNew == hadOld && oldVal == newVal
+	if !unchanged && (h.controllerUsername == "" || req.UserInfo.Username != h.controllerUsername) {
+		annotationsErrs = append(annotationsErrs, field.Forbidden(
+			field.NewPath("metadata", "annotations").Key(oam.AnnotationModuleInstallNamespace),
+			"only the addon renderer may set or remove this annotation"))
 	}
 	return annotationsErrs
 }
@@ -716,7 +754,7 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
 	var errs field.ErrorList
 
-	errs = append(errs, h.ValidateAnnotations(ctx, app)...)
+	errs = append(errs, h.ValidateAnnotations(ctx, app, oldApp, req)...)
 	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
 	restrictionErrs, warnings := h.ValidateDefinitionRestrictions(ctx, app, oldApp)
 	errs = append(errs, restrictionErrs...)

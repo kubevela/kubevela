@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	applicationcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
@@ -55,7 +56,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "PolicyDefinitionValidator")
 
-	logger.WithStep("start").Info("Starting admission validation for PolicyDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
+	logger.WithStep("start").Debug("Starting admission validation for PolicyDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	obj := &v1beta1.PolicyDefinition{}
 	if req.Resource.String() != policyDefGVR.String() {
@@ -76,7 +77,24 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)
 		}
-		logger.WithStep("decode").Info("Successfully decoded PolicyDefinition from admission request",
+		// Render picks a policy up only by its exact scope; a misspelled one would never render.
+		if obj.Spec.Scope != v1beta1.DefaultScope && obj.Spec.Scope != v1beta1.ApplicationScope {
+			return admission.Denied(fmt.Sprintf("unknown scope %q: a PolicyDefinition's scope is empty or %q (requestUID=%s)",
+				obj.Spec.Scope, v1beta1.ApplicationScope, req.UID))
+		}
+		// A global outside vela-system cannot be created or made global, but one that already is
+		// stays editable while it does not apply.
+		var namespaceGlobalWarnings []string
+		if obj.Spec.Global && obj.Namespace != oam.SystemDefinitionNamespace && !commonconfig.AllowNamespaceGlobalPolicies {
+			if !h.wasGlobal(req) {
+				return admission.Denied(fmt.Sprintf("global policy %s/%s must be in the %s namespace: global policies apply platform-wide "+
+					"(requestUID=%s)", obj.Namespace, obj.Name, oam.SystemDefinitionNamespace, req.UID))
+			}
+			namespaceGlobalWarnings = append(namespaceGlobalWarnings, fmt.Sprintf("global policy %s/%s does not apply: global policies "+
+				"apply only from the %s namespace unless the controller runs with --allow-namespace-global-policies",
+				obj.Namespace, obj.Name, oam.SystemDefinitionNamespace))
+		}
+		logger.WithStep("decode").Debug("Successfully decoded PolicyDefinition from admission request",
 			"definitionName", obj.Name,
 			"namespace", obj.Namespace,
 			"hasSchematic", obj.Spec.Schematic != nil,
@@ -89,7 +107,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		var cueTemplate string
 		var cueVal cue.Value
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for PolicyDefinition schematic")
+			logger.WithStep("validate-cue").Debug("Validating CUE template syntax and semantics for PolicyDefinition schematic")
 
 			// Validate against the effective template; with auto-upgrade is enabled
 			cueTemplate = obj.Spec.Schematic.CUE.Template
@@ -102,7 +120,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 
 			var err error
-			cueVal, err = webhookutils.CompileCuexTemplate(ctx, cueTemplate)
+			cueVal, err = webhookutils.CompilePolicyTemplate(ctx, obj.Spec.Scope, cueTemplate)
 			if err != nil {
 				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
@@ -115,7 +133,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
+			logger.WithStep("validate-cue").WithSuccess(true).Debug("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
 		}
 
 		if obj.Spec.Version != "" {
@@ -123,7 +141,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-version").WithError(err).Error(err, "PolicyDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-version").Info("PolicyDefinition version follows semantic versioning format", "version", obj.Spec.Version)
+			logger.WithStep("validate-version").Debug("PolicyDefinition version follows semantic versioning format", "version", obj.Spec.Version)
+		}
+
+		// Validate identity fields: module and apiVersion are set together or not at all.
+		if resp, denied := webhookutils.DenyOnInvalidIdentity(logger, "PolicyDefinition", obj.Spec.Module, obj.Spec.APIVersion, req.UID); denied {
+			return resp
 		}
 
 		// Validate namespace restrictions. A malformed glob would otherwise deny
@@ -140,7 +163,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-revision").WithError(err).Error(err, "PolicyDefinition revision conflicts with existing revision or has invalid format", "revisionName", revisionName, "expectedRevisionName", fmt.Sprintf("%s-v%s", obj.Name, revisionName))
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-revision").Info("PolicyDefinition revision validation completed - no conflicts detected", "revisionName", revisionName)
+			logger.WithStep("validate-revision").Debug("PolicyDefinition revision validation completed - no conflicts detected", "revisionName", revisionName)
 		}
 
 		if err := webhookutils.ValidateMultipleDefVersionsNotPresent(obj.Spec.Version, revisionName, obj.Kind); err != nil {
@@ -149,19 +172,20 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		// Validate Application-scoped policy constraints (global=true rules, scope consistency)
-		validationResult := applicationcontroller.ValidatePolicyDefinition(obj, cueTemplate, cueVal)
+		validationResult := applicationcontroller.ValidatePolicyDefinition(ctx, obj, cueTemplate, cueVal)
 		validationResult.Warnings = append(validationResult.Warnings, cueWarnings...)
+		validationResult.Warnings = append(validationResult.Warnings, namespaceGlobalWarnings...)
 		if !validationResult.IsValid() {
 			logger.WithStep("validate-policy-definition").Error(nil, "PolicyDefinition failed Application-scoped policy validation", "errors", validationResult.Errors)
 			return admission.Denied(fmt.Sprintf("invalid PolicyDefinition: %v (requestUID=%s)", validationResult.Errors, req.UID))
 		}
 
-		logger.WithStep("complete").WithSuccess(true, startTime).Info("PolicyDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+		logger.WithStep("complete").WithSuccess(true, startTime).Debug("PolicyDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
 		if len(validationResult.Warnings) > 0 {
 			return admission.ValidationResponse(true, "").WithWarnings(validationResult.Warnings...)
 		}
 	} else {
-		logger.WithStep("skip-validation").Info("Skipping PolicyDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
+		logger.WithStep("skip-validation").Debug("Skipping PolicyDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 	}
 	return admission.ValidationResponse(true, "")
 }
@@ -173,4 +197,16 @@ func RegisterValidatingHandler(mgr manager.Manager) {
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}})
+}
+
+// wasGlobal reports whether req updates a PolicyDefinition that was already global.
+func (h *ValidatingHandler) wasGlobal(req admission.Request) bool {
+	if req.Operation != admissionv1.Update || len(req.OldObject.Raw) == 0 {
+		return false
+	}
+	old := &v1beta1.PolicyDefinition{}
+	if err := h.Decoder.DecodeRaw(req.OldObject, old); err != nil {
+		return false
+	}
+	return old.Spec.Global
 }

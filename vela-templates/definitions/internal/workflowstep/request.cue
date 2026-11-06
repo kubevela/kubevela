@@ -42,7 +42,7 @@ template: {
 
 	wait: op.#ConditionalWait & {
 		continue: req.$returns != _|_
-		message?: "Waiting for response from \(parameter.url)"
+		message:  "Waiting for response from \(parameter.url)"
 	}
 
 	fail: op.#Steps & {

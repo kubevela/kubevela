@@ -79,9 +79,9 @@ func TestReaderFSKeepsOnlyFilesUnderTheModuleRoot(t *testing.T) {
 
 	fsys, err := readerFS(stubReader{meta: meta, files: files}, "s3")
 	require.NoError(t, err)
-	m, ok := fsys.(mapFS)
+	m, ok := fsys.(MapFS)
 	require.True(t, ok)
-	assert.Equal(t, mapFS{"_module.cue": []byte(`name: "s3"`)}, m,
+	assert.Equal(t, MapFS{"_module.cue": []byte(`name: "s3"`)}, m,
 		"directories, files of other modules and the bare root are skipped")
 }
 

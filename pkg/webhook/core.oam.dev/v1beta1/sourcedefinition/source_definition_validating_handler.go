@@ -54,7 +54,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "SourceDefinitionValidator")
 
-	logger.WithStep("start").Info("Starting admission validation for SourceDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
+	logger.WithStep("start").Debug("Starting admission validation for SourceDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	if req.Resource.String() != sourceDefGVR.String() {
 		err := fmt.Errorf("expect resource to be %s", sourceDefGVR)
@@ -66,7 +66,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	if req.Operation != admissionv1.Create && req.Operation != admissionv1.Update {
-		logger.WithStep("skip-validation").Info("Skipping SourceDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
+		logger.WithStep("skip-validation").Debug("Skipping SourceDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 		return admission.ValidationResponse(true, "")
 	}
 
@@ -97,7 +97,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		old := &v1beta1.SourceDefinition{}
 		if err := h.Decoder.DecodeRaw(req.OldObject, old); err == nil &&
 			apiequality.Semantic.DeepEqual(old.Spec, obj.Spec) {
-			logger.WithStep("skip-validation").Info("Skipping SourceDefinition validation - spec is unchanged", "reason", "metadata-only update")
+			logger.WithStep("skip-validation").Debug("Skipping SourceDefinition validation - spec is unchanged", "reason", "metadata-only update")
 			return admission.ValidationResponse(true, "")
 		}
 	}
@@ -109,7 +109,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 	cueTemplate := obj.Spec.Schematic.CUE.Template
 
-	logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for SourceDefinition schematic")
+	logger.WithStep("validate-cue").Debug("Validating CUE template syntax and semantics for SourceDefinition schematic")
 	// Without executing the providers: a source exists to fetch something, and
 	// admission has no parameters to hand them. Compiled against SourceCompiler,
 	// so a template importing a package a source may not use is refused here
@@ -185,7 +185,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
-	logger.WithStep("complete").WithSuccess(true, startTime).Info("SourceDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+	logger.WithStep("complete").WithSuccess(true, startTime).Debug("SourceDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
 	return admission.ValidationResponse(true, "")
 }
 

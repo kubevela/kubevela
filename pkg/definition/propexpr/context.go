@@ -78,9 +78,9 @@ var ComponentContext = surfaceSchema("component")
 // its own type. A trait has no instance name in the API to expose alongside it.
 var TraitContext = surfaceSchema("trait")
 
-// WorkflowStepContext is what a workflow step's properties see. The step's
-// properties are substituted before the engine receives them, from a context
-// built the same way a component's is.
+// WorkflowStepContext is what a workflow step's properties see. The workflow
+// resolves them when the step runs, from a context built the same way a
+// component's is.
 var WorkflowStepContext = surfaceSchema("workflowstep")
 
 // WorkflowStepTemplateContext is what a WorkflowStepDefinition template sees
@@ -117,6 +117,11 @@ func (c ContextSchema) field(name string) (cue.Value, bool) {
 		return cue.Value{}, false
 	}
 	v := c.value.LookupPath(cue.MakePath(cue.Str(name)))
+	if !v.Exists() {
+		// An optional field is offered only where the render sets it, as each
+		// is inside a forEach. readable leaves it out for that reason.
+		v = c.value.LookupPath(cue.MakePath(cue.Str(name).Optional()))
+	}
 	return v, v.Exists()
 }
 

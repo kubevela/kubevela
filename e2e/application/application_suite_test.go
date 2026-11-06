@@ -21,9 +21,21 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/e2e"
 )
 
 func TestApplication(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Application Suite")
 }
+
+// vela up takes its namespace from the current env and leaves it empty when
+// none is set, which a fresh vela home does not have. Ginkgo also shuffles the
+// top-level containers, so no spec can rely on another having run env sw.
+var _ = ginkgo.BeforeSuite(func() {
+	// e2e.Exec does not report the exit code, so check the success message.
+	output, err := e2e.Exec("vela env sw default")
+	gomega.Expect(err).NotTo(gomega.HaveOccurred(), output)
+	gomega.Expect(output).To(gomega.ContainSubstring("Current environment switched to default (namespace = default)"))
+})

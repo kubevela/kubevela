@@ -245,7 +245,8 @@ func (r *rendererImpl) restConfig() *rest.Config {
 
 // cacheKey builds the resolve-once cache key from every input that can change
 // the rendered output, including SkipVersionValidate so a validated request and
-// a skipped request never alias to the same cached result.
+// a skipped request never alias to the same cached result, and Namespace, which
+// the render records on the owned Application.
 //
 // It reports false when the properties cannot be hashed, in which case the
 // request must not participate in the cache at all: any placeholder key would be
@@ -255,7 +256,7 @@ func cacheKey(req api.AddonRequest) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return fmt.Sprintf("%s|%s|%s|%t|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, hash), true
+	return fmt.Sprintf("%s|%s|%s|%t|%s|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, req.Namespace, hash), true
 }
 
 // hashProperties returns a stable SHA-256 hex digest of the properties map.
@@ -378,6 +379,29 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	if err != nil {
 		return nil, fmt.Errorf("render module components for addon %q: %w", req.Name, err)
 	}
+	// Seed inline naming with moduleComps' names too, not just
+	// app.Spec.Components: RenderModuleComponents may have already claimed a
+	// collision-avoiding name (e.g. "foo-2") that RenderInlineModuleComponents
+	// would otherwise pick again independently, since each only sees
+	// app.Spec.Components on its own. The reserved entries carry no Type, so
+	// moduleDeclaredBy's hand-written-component check (which only looks at
+	// Type == "module") skips them -- moduleComps are already accounted for
+	// there via addon.Imports directly, and re-adding them as type: module
+	// would double-count the same import as a second, independent
+	// declaration of the same module.
+	existingForInline := append([]common2.ApplicationComponent{}, app.Spec.Components...)
+	for _, c := range moduleComps {
+		existingForInline = append(existingForInline, common2.ApplicationComponent{Name: c.Name})
+	}
+	// Unlike the external-import path (module.cue's _namespace, resolved from
+	// the install-namespace annotation when the type: module component's own
+	// CueX render runs later), an inline module renders eagerly, right here,
+	// so req.Namespace -- the addon's own installing namespace -- is already
+	// in hand and can be passed straight through with no annotation needed.
+	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn, req.Namespace)
+	if err != nil {
+		return nil, fmt.Errorf("render inline module components for addon %q: %w", req.Name, err)
+	}
 	if len(aux) > 0 {
 		// The addon template's own outputs: block (wrapped into addon-auxiliaries
 		// below) can carry arbitrary objects -- including operators/CRDs a
@@ -387,20 +411,32 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		// it: reserve the same name that call will end up choosing, against
 		// every component already in app.Spec.Components plus every module
 		// component actually emitted (which already excludes skipped imports and
-		// may include collision-avoiding suffixes).
-		used := make(map[string]bool, len(app.Spec.Components)+len(moduleComps))
+		// may include collision-avoiding suffixes). Inline module components
+		// need the exact same wait, for the exact same reason.
+		used := make(map[string]bool, len(app.Spec.Components)+len(moduleComps)+len(inlineModuleComps))
 		for _, c := range app.Spec.Components {
 			used[c.Name] = true
 		}
 		for _, c := range moduleComps {
 			used[c.Name] = true
 		}
+		for _, c := range inlineModuleComps {
+			used[c.Name] = true
+		}
 		auxName := uniqueComponentName(addonAuxiliariesComponentName, used)
 		for i := range moduleComps {
 			moduleComps[i].DependsOn = append(moduleComps[i].DependsOn, auxName)
 		}
+		for i := range inlineModuleComps {
+			inlineModuleComps[i].DependsOn = append(inlineModuleComps[i].DependsOn, auxName)
+		}
 	}
 	app.Spec.Components = append(app.Spec.Components, moduleComps...)
+	app.Spec.Components = append(app.Spec.Components, inlineModuleComps...)
+
+	// Pod scheduling for type: addon is the outer affinity trait on the
+	// installing Application (universal trait). Imperative CLI still uses
+	// AttachSchedulingTrait via the Installer.
 
 	groups, err := r.auxComponents(ctx, installPkg, req.Properties)
 	if err != nil {
@@ -411,6 +447,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	groups = append(groups, auxComponent{name: addonAuxiliariesComponentName, objects: aux})
 
 	setAddonRegistryLabel(app, registryName)
+	setModuleInstallNamespace(app, req.Namespace)
 
 	appMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(app)
 	if err != nil {
@@ -438,6 +475,23 @@ func setAddonRegistryLabel(app metav1.Object, registryName string) {
 	}
 	labels[oam.LabelAddonRegistry] = registryName
 	app.SetLabels(labels)
+}
+
+// setModuleInstallNamespace records the installing Application's namespace on
+// the owned addon Application. That Application always lives in vela-system, so
+// a type: module component inside it reads its namespace from here instead of
+// from its own context. Nothing is recorded when the namespace is unknown, and
+// the modules then install into vela-system.
+func setModuleInstallNamespace(app metav1.Object, namespace string) {
+	if namespace == "" {
+		return
+	}
+	annotations := app.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[oam.AnnotationModuleInstallNamespace] = namespace
+	app.SetAnnotations(annotations)
 }
 
 // sanitizeManifest removes the root status subresource and every

@@ -38,11 +38,15 @@ runs:
       shell: bash
       run: |
         echo "Installing KubeVela version: ${{ env.LATEST_TAG }}"
+        # The released chart can't finish a fresh install on Kubernetes 1.36+ with
+        # secure TLS for cluster-gateway (https://github.com/kubevela/kubevela/issues/7452).
+        # Drop this --set once the baseline release has the chart fix.
         helm install \
           --create-namespace \
           -n vela-system \
           kubevela kubevela/vela-core \
           --version ${{ env.LATEST_TAG }} \
+          --set multicluster.clusterGateway.secureTLS.enabled=false \
           --timeout 10m \
           --wait
         echo "KubeVela installation completed"

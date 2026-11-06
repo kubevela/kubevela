@@ -28,16 +28,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
+	"github.com/kubevela/pkg/cel/template"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // LoadExternalPoliciesForWorkflow detects policies used in workflow steps which are not declared in internal policies
-// try to load them from external policy objects in the application's namespace
-func LoadExternalPoliciesForWorkflow(ctx context.Context, cli client.Client, appNs string, steps []wfTypesv1alpha1.WorkflowStep, internalPolicies []v1beta1.AppPolicy) ([]v1beta1.AppPolicy, error) {
+// try to load them from external policy objects in the application's namespace.
+// expressionsEnabled allows unresolved expression types and defers expression policy names to the workflow step.
+func LoadExternalPoliciesForWorkflow(ctx context.Context, cli client.Client, appNs string, steps []wfTypesv1alpha1.WorkflowStep, internalPolicies []v1beta1.AppPolicy, expressionsEnabled bool) ([]v1beta1.AppPolicy, error) {
 	policies := internalPolicies
 	policyMap := map[string]struct{}{}
 	for _, policy := range policies {
@@ -59,7 +60,7 @@ func LoadExternalPoliciesForWorkflow(ctx context.Context, cli client.Client, app
 				// when the properties carry an expression, and the step's real
 				// contract is still enforced against its CUE parameter block at
 				// admission and again at render.
-				if !propertiesCarryExpression(_step.Properties.Raw) {
+				if !expressionsEnabled || !propertiesCarryExpression(_step.Properties.Raw) {
 					return nil, errors.Wrapf(err, "invalid WorkflowStep %s", _step.Name)
 				}
 				// Still strict about *which* fields exist - only lenient about
@@ -84,7 +85,7 @@ func LoadExternalPoliciesForWorkflow(ctx context.Context, cli client.Client, app
 				// looking it up here reported "external policy
 				// $(source.cfg.name) not found" and failed the appfile before
 				// the step that resolves it ever ran.
-				if propexpr.HasExpression(policyName) {
+				if expressionsEnabled && template.HasExpression(policyName) {
 					continue
 				}
 				if _, found := policyMap[policyName]; !found {
@@ -131,5 +132,5 @@ func propertiesCarryExpression(raw []byte) bool {
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		return false
 	}
-	return propexpr.HasExpression(decoded)
+	return template.HasExpression(decoded)
 }
