@@ -867,3 +867,36 @@ func TestHandle_TheControllersOwnWritesGetTheStructuralAnswer(t *testing.T) {
 		}
 	})
 }
+
+// A properties Secret may be created immediately before its Config, before the
+// controller cache observes it. Admission must validate against the API server.
+func TestHandle_PropertiesSecretNotYetCached(t *testing.T) {
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "ct-sensitive", Namespace: "default"},
+		Spec:       configv1alpha1.ConfigTemplateSpec{Template: templateWithRequiredUsername, Sensitive: true},
+		Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg-properties", Namespace: "default"},
+		Data:       map[string][]byte{"properties": []byte(`{"username":"alice"}`)},
+	}
+	h := newHandler(ct)
+	apiClient := fake.NewClientBuilder().WithScheme(k8sscheme.Scheme).WithObjects(secret).Build()
+	h.APIReader = apiClient
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef:    &configv1alpha1.ConfigTemplateReference{Name: ct.Name, Namespace: ct.Namespace},
+			PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: secret.Name}},
+		},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
+	resp := h.Handle(context.Background(), req)
+	require.True(t, resp.Allowed, "%v", resp.Result)
+
+	// An actual missing Secret must still be rejected.
+	require.NoError(t, apiClient.Delete(context.Background(), secret))
+	resp = h.Handle(context.Background(), req)
+	require.False(t, resp.Allowed)
+	assert.Contains(t, resp.Result.Message, "failed to load spec.propertiesFrom secret")
+}
