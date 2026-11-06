@@ -359,6 +359,7 @@ spec:
             - "--max-workflow-wait-backoff-time={{ .Values.workflow.backoff.maxTime.waitState }}"
             - "--max-workflow-failed-backoff-time={{ .Values.workflow.backoff.maxTime.failedState }}"
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
+            - "--workflow-http-deny-config-template-name={{ .Values.workflow.httpDeny.configTemplateName | default "" }}"
             - "--enable-external-package-for-default-compiler={{ .Values.workflow.enableExternalPackageForDefaultCompiler }}"
             - "--enable-external-package-watch-for-default-compiler={{ .Values.workflow.enableExternalPackageWatchForDefaultCompiler }}"
             - "--enable-cue-version-compatibility={{ .Values.workflow.enableCUEVersionCompatibility }}"
@@ -391,6 +392,8 @@ spec:
             - "--feature-gates=ValidateResourcesExist={{- .Values.featureGates.validateResourcesExist | toString -}}"
             - "--feature-gates=EnableApplicationScopedPolicies={{- .Values.featureGates.enableApplicationScopedPolicies | toString -}}"
             - "--feature-gates=EnableGlobalPolicies={{- .Values.featureGates.enableGlobalPolicies | toString -}}"
+            - "--feature-gates=DisableWorkflowHTTP={{- .Values.featureGates.disableWorkflowHTTP | toString -}}"
+            - "--feature-gates=BlockPrivateHTTPAddresses={{- .Values.featureGates.blockPrivateHTTPAddresses | toString -}}"
             - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authorization.definitionValidationEnabled | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
@@ -408,15 +411,18 @@ spec:
             - "--dev-logs={{ .Values.devLogs }}"
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
-          {{- if or .Values.extraEnvs .Values.featureGates.enableCueExpVariable }}
           env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
           {{- with .Values.extraEnvs }}
           {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- if .Values.featureGates.enableCueExpVariable }}
             - name: CUE_EXPERIMENT
               value: "evalv3=0,keepvalidators=0"
-          {{- end }}
           {{- end }}
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
