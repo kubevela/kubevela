@@ -86,6 +86,25 @@ func TestGenOpenAPIBoundedDefault(t *testing.T) {
 	}
 }
 
+// Bounded defaults inside pattern fields and struct disjunctions are restored too.
+func TestGenOpenAPIBoundedDefaultInPatternsAndDisjunctions(t *testing.T) {
+	s := parameterSchema(t, `
+parameter: {
+	limits: [string]: {
+		cpu: *2 | int & >=1 & <=64
+	}
+	volume: {type: "pvc", size: *10 | int & >=1} | {type: "emptyDir", limit: *1 | int & >=1 & <=8}
+}
+`)
+	cpu := prop(s, "limits")["additionalProperties"].(map[string]any)["properties"].(map[string]any)["cpu"].(map[string]any)
+	require.Equal(t, float64(2), cpu["default"])
+	require.Equal(t, float64(64), cpu["maximum"])
+	volume := prop(s, "volume")
+	require.Equal(t, float64(10), prop(volume, "size")["default"])
+	require.Equal(t, float64(1), prop(volume, "limit")["default"])
+	require.Equal(t, float64(8), prop(volume, "limit")["maximum"])
+}
+
 // The rest of a schema is unchanged by the fallback: helpers are inlined,
 // descriptions kept, other defaults kept, list items and imports handled.
 func TestGenOpenAPIBoundedDefaultKeepsTheRest(t *testing.T) {

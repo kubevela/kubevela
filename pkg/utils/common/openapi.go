@@ -261,6 +261,23 @@ func setNumberDefaults(v cue.Value, schema any) {
 	if !ok || !v.Exists() {
 		return
 	}
+	// A disjunction of structs encodes its branches' fields on the parent
+	// schema, so each branch is walked against it, and against its own
+	// oneOf/anyOf/allOf entry where one carries properties.
+	if op, branches := v.Expr(); op == cue.OrOp {
+		for i, b := range branches {
+			setNumberDefaults(b, s)
+			for _, key := range []string{"oneOf", "anyOf", "allOf"} {
+				if list, ok := s[key].([]any); ok && i < len(list) {
+					setNumberDefaults(b, list[i])
+				}
+			}
+		}
+	}
+	// Pattern fields, such as [string]: {...}, encode as additionalProperties.
+	if extra, ok := s["additionalProperties"].(map[string]any); ok {
+		setNumberDefaults(v.LookupPath(cue.MakePath(cue.AnyString)), extra)
+	}
 	if props, ok := s["properties"].(map[string]any); ok {
 		if it, err := v.Fields(cue.Optional(true)); err == nil {
 			for it.Next() {

@@ -71,12 +71,21 @@ func compileTemplate(t *testing.T, path string) (cue.Value, bool) {
 	return val, true
 }
 
+// standaloneSkips are built-ins whose template does not compile without the
+// rest of their definition file; any other compile failure fails the test, so
+// coverage cannot shrink unnoticed.
+var standaloneSkips = map[string]bool{
+	"source/git-file.cue": true,
+}
+
 // The fallback must never change a schema. For every built-in definition that
 // encodes today, a forced fallback either produces the same document or
 // declines with an error, in which case GenOpenAPI keeps the encoder's own
 // result. A built-in that fails today on the bounded-default bug must encode.
 func TestBuiltinDefinitionSchemas(t *testing.T) {
+	previous := cuex.EnableExternalPackageForDefaultCompiler
 	cuex.EnableExternalPackageForDefaultCompiler = false
+	t.Cleanup(func() { cuex.EnableExternalPackageForDefaultCompiler = previous })
 	files, err := filepath.Glob("../../../vela-templates/definitions/internal/*/*.cue")
 	require.NoError(t, err)
 	require.NotEmpty(t, files)
@@ -90,9 +99,11 @@ func TestBuiltinDefinitionSchemas(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			template, ok := compileTemplate(t, path)
 			if !ok {
+				require.True(t, standaloneSkips[name], "%s no longer compiles standalone; fix it or add it to standaloneSkips", name)
 				skipped++
 				t.Skip("template does not compile standalone")
 			}
+			require.False(t, standaloneSkips[name], "%s compiles now; remove it from standaloneSkips", name)
 			params, err := common.RefineParameterValue(template)
 			require.NoError(t, err)
 			want, encErr := openapi.Gen(params, common.ExpandRefs)
