@@ -162,6 +162,12 @@ func parseLine(fsys fs.FS, dir string, warnings *[]string) (*Line, error) {
 		if err := checkObjectPlacement(rendered, defPath); err != nil {
 			return nil, err
 		}
+		// A runtime mark on a definition does not move it. Definitions stay on
+		// the hub, so say so here. hub/ warns for the same mark because there
+		// the annotation wins.
+		if value, marked, _ := objectPlacementValue(rendered); marked && value == oam.PlacementRuntime {
+			notePlacement(warnings, fmt.Sprintf("%s has placement annotation %q; a definition stays on the hub, so the annotation is ignored", defPath, value))
+		}
 		defs = append(defs, rendered)
 	}
 
@@ -317,7 +323,7 @@ func notePlacement(warnings *[]string, msg string) {
 // checkObjectPlacement rejects a placement annotation that is not hub or
 // runtime, naming the file. An object with no annotation is valid. A marker
 // on a definition is checked the same way and then ignored: definitions
-// install on the hub either way.
+// install on the hub either way. The caller warns when that marker is runtime.
 func checkObjectPlacement(obj map[string]interface{}, filePath string) error {
 	_, _, err := objectPlacementValue(obj)
 	if err != nil {

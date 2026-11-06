@@ -378,6 +378,22 @@ func TestParseModule_RejectsBadObjectPlacement(t *testing.T) {
 	assert.Contains(t, err.Error(), "v1/auxiliary/bad.yaml")
 }
 
+func TestParseModule_WarnsRuntimeAnnotationOnDefinition(t *testing.T) {
+	fsys := fstest.MapFS{
+		"_module.cue":                {Data: []byte("module: \"s3\"\nversion: \"1.0.0\"\n")},
+		"v1/_version.cue":            {Data: []byte("apiVersion: \"v1\"\n")},
+		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n  annotations:\n    resource.oam.dev/placement: runtime\n")},
+	}
+
+	mod, err := ParseModule(fsys)
+	require.NoError(t, err)
+	require.Len(t, mod.Lines["v1"].Definitions, 1, "the definition is still installed")
+	require.Len(t, mod.Warnings, 1)
+	assert.Contains(t, mod.Warnings[0], "v1/definitions/bucket.yaml")
+	assert.Contains(t, mod.Warnings[0], "runtime")
+	assert.Contains(t, mod.Warnings[0], "ignored")
+}
+
 func TestParseModule_RejectsBadDefinitionPlacement(t *testing.T) {
 	fsys := fstest.MapFS{
 		"_module.cue":                {Data: []byte("module: \"s3\"\nversion: \"1.0.0\"\n")},
