@@ -426,7 +426,8 @@ var _ = Describe("Test the commands of the config", func() {
 		Expect(decoder.Decode(&configMap)).Should(Succeed())
 		Expect(configMap.Name).Should(Equal("vela-core-http-deny"))
 		Expect(configMap.Namespace).Should(Equal("vela-system"))
-		Expect(configMap.Labels["config.oam.dev/catalog"]).Should(Equal("velacore-config"))
+		// The deny ConfigMap is data, so it must not be listed as a config template.
+		Expect(configMap.Labels).ShouldNot(HaveKey("config.oam.dev/catalog"))
 		Expect(configMap.Labels["config.oam.dev/type"]).Should(Equal("vela-core-http-deny"))
 		Expect(configMap.Labels["config.oam.dev/scope"]).Should(Equal("system"))
 		Expect(configMap.Data).Should(Equal(map[string]string{
