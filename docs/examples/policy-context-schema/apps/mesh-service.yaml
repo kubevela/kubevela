@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: payments-gateway
+  namespace: payments
+spec:
+  components:
+    - name: gateway
+      type: mesh-service
+      properties:
+        image: nginx:1.27
