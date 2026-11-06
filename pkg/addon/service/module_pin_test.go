@@ -92,6 +92,22 @@ var _ = Describe("pinModuleComponentsToHub", func() {
 		]}`))
 	})
 
+	It("writes an empty selector when every component is a module", func() {
+		app := addonAppMap(`[
+			{"name":"store","type":"module"},
+			{"name":"cache","type":"module"}
+		]`, `[{"name":"topo-runtime","type":"topology","properties":{"clusters":["spoke"]}}]`)
+
+		pinModuleComponentsToHub(app, []string{"store", "cache"})
+
+		Expect(asJSON(specOf(app)["policies"])).To(MatchJSON(`[
+			{"name":"topo-runtime","type":"topology","properties":{"clusters":["spoke"]}},
+			{"name":"addon-components","type":"override","properties":{"selector":[]}},
+			{"name":"addon-modules-hub","type":"topology","properties":{"clusters":["local"]}},
+			{"name":"addon-modules","type":"override","properties":{"selector":["store","cache"]}}
+		]`), "a nil selector would select every component, so the modules-only case stays an empty list")
+	})
+
 	It("picks names the addon does not use yet", func() {
 		app := addonAppMap(pinComponents, `[
 			{"name":"addon-modules","type":"topology","properties":{"clusters":["spoke-a"]}},

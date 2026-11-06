@@ -80,7 +80,7 @@ func pinModuleComponentsToHub(app map[string]interface{}, moduleNames []string) 
 	}
 
 	components, _ := spec["components"].([]interface{})
-	var others []interface{}
+	others := []interface{}{}
 	for _, raw := range components {
 		comp, _ := raw.(map[string]interface{})
 		name, _ := comp["name"].(string)
