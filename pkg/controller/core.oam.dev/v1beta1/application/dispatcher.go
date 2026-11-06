@@ -150,21 +150,26 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, pre
 
 			// Check if component properties have changed (only for healthy components)
 			// Note: componentPropertiesChanged handles nil comp.Params correctly, so we don't check it here
+			settled := isHealth && err == nil
 			propertiesChanged := false
-			if isHealth && err == nil {
+			if settled {
 				comparisonRev := appRev // Default: use currentAppRev (existing behavior)
 
 				// If autoRevision=true and we have a previous revision, compare against it
 				// This detects policy-driven changes when ApplicationRevisions are created
-				if annotations[oam.AnnotationAutoRevision] == "true" && previousAppRev != nil {
+				if anyPolicySettingEnabled(annotations, settingAutoRevision) && previousAppRev != nil {
 					comparisonRev = previousAppRev // Use previous revision for comparison
 				}
 
 				propertiesChanged = componentPropertiesChanged(comp, comparisonRev)
 			}
 
-			// Dispatch if: unhealthy, health error, properties changed, or auto-update enabled
-			requiresDispatch := !isHealth || err != nil || propertiesChanged || (!comp.SkipApplyWorkload && isAutoUpdateEnabled)
+			// Inherited labels and annotations (e.g. from a changed global policy) are not
+			// properties; compare them with what was last recorded.
+			metadataChanged := settled && h.resourceKeeper.ManifestMetadataChanged(dispatchManifests)
+
+			// Dispatch if: unhealthy, health error, properties changed, metadata changed, or auto-update enabled
+			requiresDispatch := !isHealth || err != nil || propertiesChanged || metadataChanged || (!comp.SkipApplyWorkload && isAutoUpdateEnabled)
 
 			if requiresDispatch {
 				if err := h.Dispatch(ctx, h.Client, clusterName, common.WorkflowResourceCreator, dispatchManifests...); err != nil {

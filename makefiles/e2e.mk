@@ -35,6 +35,7 @@ e2e-setup-core-wo-auth:
 		--set featureGates.validateResourcesExist=true \
 		--set featureGates.enableApplicationScopedPolicies=true \
 		--set featureGates.enableGlobalPolicies=true \
+		--set controllerArgs.allowNamespaceGlobalPolicies=true \
 	    --wait kubevela ./charts/vela-core          \
 		--debug
 

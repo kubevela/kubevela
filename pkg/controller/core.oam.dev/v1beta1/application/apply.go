@@ -72,6 +72,29 @@ type AppHandler struct {
 	// policyVersions stores version metadata for each policy (parallel to applicationScopedPolicyDefs)
 	policyVersions map[string]v1beta1.PolicyVersionMetadata
 
+	// policyUpdatesAdopted is set when this reconcile renders new live versions of policies
+	// pinned in the latest revision, so it cuts a new revision.
+	policyUpdatesAdopted bool
+	// pendingPolicyUpdates names the policies whose newer live version this reconcile held back.
+	pendingPolicyUpdates []string
+	// heldByGlobalPolicy is the revision a failing mandatory global holds the app at, if any.
+	heldByGlobalPolicy *v1beta1.ApplicationRevision
+	// dataLabels and dataAnnotations are rendered policy metadata that may reach dispatched
+	// resources without a new revision (apply-data-changes).
+	dataLabels      map[string]string
+	dataAnnotations map[string]string
+	// policyResults are the policies rendered this reconcile.
+	policyResults []RenderedPolicyResult
+	// metadataRemovedFromApp are the policy labels and annotations the policies stopped setting
+	// this reconcile, to take off the Application (a new revision then renders resources without
+	// them); dataRemovedMetadata are those a refresh takes off resources without a new revision
+	// (apply-data-changes on for their policy).
+	metadataRemovedFromApp policyMetadataRecord
+	dataRemovedMetadata    resourcekeeper.MetadataRemoval
+	// policyConfigMap is the app's policy observability ConfigMap as read this reconcile, nil when
+	// there is none; the policy render's write updates it.
+	policyConfigMap *corev1.ConfigMap
+
 	mu sync.Mutex
 }
 

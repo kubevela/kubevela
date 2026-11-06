@@ -368,17 +368,38 @@ func TestPerformanceOptions_SyncToGlobals(t *testing.T) {
 func TestApplicationOptions_SyncToGlobals(t *testing.T) {
 	// Store original value
 	origPeriod := commonconfig.ApplicationReSyncPeriod
+	origAutoRevision := commonconfig.ApplicationDefaultAutoRevision
+	origPolicyUpdates := commonconfig.ApplicationDefaultApplyPolicyUpdates
+	origDataChanges := commonconfig.ApplicationDefaultApplyDataChanges
+	origAllowNamespaceGlobals := commonconfig.AllowNamespaceGlobalPolicies
+	origAllowSkipGlobals := commonconfig.AllowSkipGlobalPolicies
 
 	// Restore after test
 	defer func() {
 		commonconfig.ApplicationReSyncPeriod = origPeriod
+		commonconfig.ApplicationDefaultAutoRevision = origAutoRevision
+		commonconfig.ApplicationDefaultApplyPolicyUpdates = origPolicyUpdates
+		commonconfig.ApplicationDefaultApplyDataChanges = origDataChanges
+		commonconfig.AllowNamespaceGlobalPolicies = origAllowNamespaceGlobals
+		commonconfig.AllowSkipGlobalPolicies = origAllowSkipGlobals
 	}()
 
 	opts := NewCoreOptions()
 	fss := opts.Flags()
 
+	assert.False(t, opts.Application.DefaultAutoRevision, "auto-revision stays opt-in by default")
+	assert.False(t, opts.Application.DefaultApplyPolicyUpdates, "policy updates stay opt-in by default")
+	assert.False(t, opts.Application.DefaultApplyDataChanges, "data changes stay opt-in by default")
+	assert.True(t, opts.Application.AllowNamespaceGlobalPolicies, "1.11 keeps namespace globals working by default")
+	assert.True(t, opts.Application.AllowSkipGlobalPolicies, "1.11 keeps the skip-global opt-out working by default")
+
 	args := []string{
 		"--application-re-sync-period=10m",
+		"--application-default-auto-revision=true",
+		"--application-default-apply-policy-updates=true",
+		"--application-default-apply-data-changes=true",
+		"--allow-namespace-global-policies=false",
+		"--allow-skip-global-policies=false",
 	}
 
 	err := fss.FlagSet("application").Parse(args)
@@ -386,10 +407,20 @@ func TestApplicationOptions_SyncToGlobals(t *testing.T) {
 
 	// Verify struct field is updated
 	assert.Equal(t, 10*time.Minute, opts.Application.ReSyncPeriod)
+	assert.True(t, opts.Application.DefaultAutoRevision)
+	assert.True(t, opts.Application.DefaultApplyPolicyUpdates)
+	assert.True(t, opts.Application.DefaultApplyDataChanges)
+	assert.False(t, opts.Application.AllowNamespaceGlobalPolicies)
+	assert.False(t, opts.Application.AllowSkipGlobalPolicies)
 
 	// After sync, global should be updated
 	opts.Application.SyncToApplicationGlobals()
 	assert.Equal(t, 10*time.Minute, commonconfig.ApplicationReSyncPeriod)
+	assert.True(t, commonconfig.ApplicationDefaultAutoRevision)
+	assert.True(t, commonconfig.ApplicationDefaultApplyPolicyUpdates)
+	assert.True(t, commonconfig.ApplicationDefaultApplyDataChanges)
+	assert.False(t, commonconfig.AllowNamespaceGlobalPolicies)
+	assert.False(t, commonconfig.AllowSkipGlobalPolicies)
 }
 
 func TestResourceOptions_SyncToGlobals(t *testing.T) {
@@ -776,7 +807,7 @@ func TestCoreOptions_AllConfigModulesHaveFlags(t *testing.T) {
 		"kubernetes":    {"informer-sync-period", "kube-api-qps", "kube-api-burst"},
 		"multicluster":  {"enable-cluster-gateway", "enable-cluster-metrics"},
 		"cue":           {"enable-external-package-for-default-compiler", "cue-upgrade-list-concat-enabled", "cue-upgrade-error-field-label-enabled", "cue-upgrade-bool-default-guard-enabled", "cue-upgrade-generic-default-guard-enabled", "cue-upgrade-keepvalidators-singleton-enabled", "cue-upgrade-evalv3-selfref-guard-enabled"},
-		"application":   {"application-re-sync-period"},
+		"application":   {"application-re-sync-period", "application-default-auto-revision", "application-default-apply-policy-updates", "application-default-apply-data-changes", "allow-namespace-global-policies", "allow-skip-global-policies"},
 		"oam":           {"system-definition-namespace"},
 		"controller":    {"revision-limit", "application-revision-limit", "definition-revision-limit"},
 		"performance":   {"perf-enabled"},

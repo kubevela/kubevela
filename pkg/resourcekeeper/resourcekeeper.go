@@ -43,6 +43,8 @@ type ResourceKeeper interface {
 	GarbageCollect(context.Context, ...GCOption) (bool, []v1beta1.ManagedResource, error)
 	StateKeep(context.Context) error
 	ContainsResources([]*unstructured.Unstructured) bool
+	ManifestMetadataChanged([]*unstructured.Unstructured) bool
+	RefreshRecordedMetadata(ctx context.Context, labels, annotations map[string]string, removed MetadataRemoval) (bool, error)
 
 	DispatchComponentRevision(context.Context, *appsv1.ControllerRevision) error
 	DeleteComponentRevision(context.Context, *appsv1.ControllerRevision) error

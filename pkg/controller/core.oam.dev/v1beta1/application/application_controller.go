@@ -19,7 +19,9 @@ package application
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -31,6 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -178,8 +181,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	r.emitPolicyEvents(app)
+	r.emitPendingPolicyUpdates(app, handler.pendingPolicyUpdates)
+	r.emitIgnoredNamespaceGlobals(app)
+	r.emitIgnoredGlobalSkip(app)
+	for _, warning := range policyConfigWarnings(handler.policyResults) {
+		r.Recorder.Event(app, event.Warning("PolicySettingIgnored", errors.New(warning)))
+	}
 
-	appFile, err := appParser.GenerateAppFile(logCtx, app)
+	appFile, err := r.generateAppFile(logCtx, appParser, app, handler)
 	if err != nil {
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Parsed", err), common.ApplicationRendering)
@@ -335,6 +344,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
 	}
 
+	// The workflow does not re-run once it has succeeded, so changed policy metadata on an
+	// unchanged revision (apply-data-changes) is written to the stored manifests here, and
+	// StateKeep below applies the new values.
+	r.refreshPolicyMetadata(logCtx, handler, app)
+
 	r.stateKeep(logCtx, handler, app)
 
 	opts := []resourcekeeper.GCOption{
@@ -362,6 +376,44 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	// Use Update instead of Patch when components were removed to properly clear status arrays
 	return r.gcResourceTrackers(logCtx, handler, phase, true, componentsRemoved)
+}
+
+// refreshPolicyMetadata brings changed policy labels and annotations to the app's resources
+// without a new revision, for policies with apply-data-changes on. A publishVersion pin holds
+// them until it moves, and a failing mandatory global until it renders. Keys the Application
+// filters from inheritance are left out, since render never passes them down: a resource
+// carrying one set it itself.
+func (r *Reconciler) refreshPolicyMetadata(logCtx monitorContext.Context, handler *AppHandler, app *v1beta1.Application) {
+	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) || handler.heldByGlobalPolicy != nil {
+		return
+	}
+	labelKeys, annotationKeys := appfile.FilteredLabelKeys(app.Annotations), appfile.FilteredAnnotationKeys(app.Annotations)
+	removed := resourcekeeper.MetadataRemoval{
+		Labels:      withoutKeys(handler.dataRemovedMetadata.Labels, labelKeys),
+		Annotations: withoutKeys(handler.dataRemovedMetadata.Annotations, annotationKeys),
+	}
+	changed, err := handler.resourceKeeper.RefreshRecordedMetadata(logCtx,
+		withoutKeys(handler.dataLabels, labelKeys), withoutKeys(handler.dataAnnotations, annotationKeys), removed)
+	if err != nil {
+		logCtx.Error(err, "Failed to refresh policy metadata on dispatched resources")
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
+		return
+	}
+	if changed {
+		logCtx.Info("Refreshed policy metadata on dispatched resources")
+	}
+}
+
+// withoutKeys returns a copy of values without keys.
+func withoutKeys(values map[string]string, keys []string) map[string]string {
+	if len(values) == 0 {
+		return values
+	}
+	out := maps.Clone(values)
+	for _, k := range keys {
+		delete(out, k)
+	}
+	return out
 }
 
 func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandler, app *v1beta1.Application) {
@@ -593,6 +645,13 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 }
 
 func (r *Reconciler) emitPolicyEvents(app *v1beta1.Application) {
+	var appliedTypes []string
+	for _, appliedPolicy := range app.Status.AppliedApplicationPolicies {
+		appliedTypes = append(appliedTypes, appliedPolicy.Type)
+	}
+	for _, warning := range policySettingWarnings(app, appliedTypes) {
+		r.Recorder.Event(app, event.Warning("PolicySettingIgnored", errors.New(warning)))
+	}
 	for _, appliedPolicy := range app.Status.AppliedApplicationPolicies {
 		isGlobal := appliedPolicy.Source == PolicySourceGlobal
 		if appliedPolicy.Applied {
@@ -620,6 +679,57 @@ func (r *Reconciler) emitPolicyEvents(app *v1beta1.Application) {
 			}
 		}
 	}
+}
+
+// emitIgnoredGlobalSkip warns that the app's skip-global annotation is ignored because global
+// policies are mandatory (--allow-skip-global-policies=false).
+func (r *Reconciler) emitIgnoredGlobalSkip(app *v1beta1.Application) {
+	if !asksToSkipGlobalPolicies(app) || shouldSkipGlobalPolicies(app) ||
+		!feature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies) {
+		return
+	}
+	r.Recorder.Event(app, event.Warning("GlobalPolicySkipIgnored", errors.Errorf(
+		"annotation %s is ignored: global platform policies are mandatory", SkipGlobalPoliciesAnnotation)))
+}
+
+// generateAppFile parses app, or the revision a failing mandatory global holds it at.
+func (r *Reconciler) generateAppFile(logCtx monitorContext.Context, parser *appfile.Parser, app *v1beta1.Application, handler *AppHandler) (*appfile.Appfile, error) {
+	rev := handler.heldByGlobalPolicy
+	if rev == nil {
+		return parser.GenerateAppFile(logCtx, app)
+	}
+	r.Recorder.Event(app, event.Warning("GlobalPolicyHeld", errors.Errorf("held at revision %s: %s",
+		rev.Name, app.Status.GetCondition(globalPoliciesCondition).Message)))
+	app.Spec = rev.Spec.Application.Spec
+	af, err := parser.GenerateAppFileFromRevision(rev)
+	if err != nil {
+		return nil, err
+	}
+	af.Context = logCtx.GetContext()
+	return af, nil
+}
+
+// emitIgnoredNamespaceGlobals warns about global policies in the app's namespace that do not apply
+// because global policies are restricted to vela-system.
+func (r *Reconciler) emitIgnoredNamespaceGlobals(app *v1beta1.Application) {
+	if shouldSkipGlobalPolicies(app) || !feature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies) {
+		return
+	}
+	for _, policy := range policyScopeIndex.IgnoredNamespaceGlobals(app.Namespace) {
+		r.Recorder.Event(app, event.Warning("GlobalPolicyIgnored", errors.Errorf(
+			"global policy %s/%s is ignored: global policies must be in the %s namespace",
+			policy.Namespace, policy.Name, oam.SystemDefinitionNamespace)))
+	}
+}
+
+// emitPendingPolicyUpdates reports the policies whose newer version is held.
+func (r *Reconciler) emitPendingPolicyUpdates(app *v1beta1.Application, pending []string) {
+	if len(pending) == 0 {
+		return
+	}
+	r.Recorder.Event(app, event.Normal("PolicyUpdatePending", fmt.Sprintf(
+		"Newer versions of policies %s are held by %s, a publishVersion pin, a render failure or a spec rewrite; they apply at the next revision",
+		strings.Join(pending, ", "), oam.AnnotationApplyPolicyUpdates)))
 }
 
 func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta1.Application, handler *AppHandler, state workflowv1alpha1.WorkflowRunPhase) {
@@ -732,10 +842,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return true
 			},
 		}).
-		Watches(
-			&v1beta1.PolicyDefinition{},
-			ctrlHandler.EnqueueRequestsFromMapFunc(r.handlePolicyDefinitionChange),
-		).
+		Watches(&v1beta1.PolicyDefinition{}, r.policyDefinitionEventHandler()).
 		For(&v1beta1.Application{}).
 		Complete(r)
 }
@@ -814,18 +921,50 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	return !reflect.DeepEqual(newTracker, old)
 }
 
-func (r *Reconciler) handlePolicyDefinitionChange(ctx context.Context, obj client.Object) []reconcile.Request {
-	policy := obj.(*v1beta1.PolicyDefinition)
+// policyDefinitionEventHandler keeps policyScopeIndex in sync with PolicyDefinition events.
+// DeleteFunc must stay explicit: PolicyDefinitions have no finalizers, so delete events
+// arrive with a nil DeletionTimestamp and a MapFunc cannot tell them apart from updates.
+func (r *Reconciler) policyDefinitionEventHandler() ctrlHandler.Funcs {
+	return ctrlHandler.Funcs{
+		CreateFunc: func(_ context.Context, e ctrlEvent.CreateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.onPolicyDefinitionChanged(e.Object)
+		},
+		UpdateFunc: func(_ context.Context, e ctrlEvent.UpdateEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.onPolicyDefinitionChanged(e.ObjectNew)
+		},
+		DeleteFunc: func(_ context.Context, e ctrlEvent.DeleteEvent, _ workqueue.TypedRateLimitingInterface[reconcile.Request]) {
+			r.onPolicyDefinitionDeleted(e.Object)
+		},
+	}
+}
 
-	// Update the in-memory index so the next reconcile sees the new/updated policy.
-	// Without this, newly created global PolicyDefinitions are invisible until the
-	// controller restarts (the index is only populated once at startup).
+// onPolicyDefinitionChanged updates the in-memory index so the next reconcile sees the
+// new/updated policy. Without this, newly created global PolicyDefinitions are invisible
+// until the controller restarts (the index is only populated once at startup).
+func (r *Reconciler) onPolicyDefinitionChanged(obj client.Object) {
+	policy, ok := obj.(*v1beta1.PolicyDefinition)
+	if !ok {
+		return
+	}
 	if policy.GetDeletionTimestamp() != nil {
 		policyScopeIndex.Delete(policy.Name, policy.Namespace)
 	} else {
 		policyScopeIndex.AddOrUpdate(policy)
 	}
+	invalidatePolicyCacheFor(policy)
+}
 
+// onPolicyDefinitionDeleted evicts a deleted policy from the in-memory index.
+func (r *Reconciler) onPolicyDefinitionDeleted(obj client.Object) {
+	policy, ok := obj.(*v1beta1.PolicyDefinition)
+	if !ok {
+		return
+	}
+	policyScopeIndex.Delete(policy.Name, policy.Namespace)
+	invalidatePolicyCacheFor(policy)
+}
+
+func invalidatePolicyCacheFor(policy *v1beta1.PolicyDefinition) {
 	// Invalidate rendered policy cache when global policies change
 	if policy.Namespace == oam.SystemDefinitionNamespace {
 		// vela-system policy affects all namespaces - invalidate entire cache
@@ -834,8 +973,6 @@ func (r *Reconciler) handlePolicyDefinitionChange(ctx context.Context, obj clien
 		// Namespace-specific policy - invalidate for that namespace
 		applicationPolicyCache.InvalidateForNamespace(policy.Namespace)
 	}
-
-	return []reconcile.Request{}
 }
 
 func findObjectForResourceTracker(_ context.Context, rt client.Object) []reconcile.Request {

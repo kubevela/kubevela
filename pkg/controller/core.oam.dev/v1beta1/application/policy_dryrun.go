@@ -26,6 +26,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
@@ -56,12 +57,24 @@ type PolicyDryRunResult struct {
 	FinalContext map[string]interface{}
 	// Errors contains any errors encountered during simulation
 	Errors []string
+	// Flags are the controller flags the simulation assumed.
+	Flags PolicyDryRunFlags
+}
+
+// PolicyDryRunFlags are the controller flags that change which policies apply. A simulation reads
+// them from this process (AllowNamespaceGlobalPolicies and AllowSkipGlobalPolicies in
+// pkg/controller/common), so they match the controller's only when the caller sets them to its
+// values.
+type PolicyDryRunFlags struct {
+	AllowNamespaceGlobalPolicies bool `json:"allowNamespaceGlobalPolicies"`
+	AllowSkipGlobalPolicies      bool `json:"allowSkipGlobalPolicies"`
 }
 
 // SimulatePolicyApplication performs a dry-run simulation of policy application.
-// It runs the exact same code path as the controller (ApplyApplicationScopeTransforms)
-// on a deep copy of the Application, so results are guaranteed to match what the
-// controller would do.
+// It runs the controller's code path (ApplyApplicationScopeTransforms) on a deep copy of the
+// Application, through a client that drops every write. The result matches the controller's when
+// this process holds the controller's flags (see PolicyDryRunFlags) and the policies read the
+// same cluster data.
 func SimulatePolicyApplication(ctx context.Context, cli client.Client, app *v1beta1.Application) (*PolicyDryRunResult, error) {
 	// Dry-run bypasses feature gates so users can simulate policies regardless of
 	// whether EnableApplicationScopedPolicies / EnableGlobalPolicies are enabled.
@@ -80,15 +93,17 @@ func SimulatePolicyApplication(ctx context.Context, cli client.Client, app *v1be
 	}
 
 	appCopy := app.DeepCopy()
+	// A simulation always renders: the cache is keyed on the app alone, not on the flags.
+	applicationPolicyCache.InvalidateApplication(appCopy.Namespace, appCopy.Name)
 
-	// Attach a capture so ApplyApplicationScopeTransforms can stash rendered results
-	// before the spec is mutated (the cache key changes after mutation).
+	// ApplyApplicationScopeTransforms stashes the results the controller would apply, held data
+	// included, in the capture before it mutates the spec.
 	capture := &dryRunCapture{}
 	baseCtx := context.WithValue(ctx, dryRunCaptureKey, capture)
 	monCtx := monitorContext.NewTraceContext(baseCtx, "policy-dry-run")
 
 	handler := &AppHandler{
-		Client: cli,
+		Client: readOnlyClient{Client: cli},
 		app:    appCopy,
 	}
 
@@ -96,6 +111,10 @@ func SimulatePolicyApplication(ctx context.Context, cli client.Client, app *v1be
 		Application:   appCopy,
 		PolicyResults: []common.AppliedApplicationPolicy{},
 		Errors:        []string{},
+		Flags: PolicyDryRunFlags{
+			AllowNamespaceGlobalPolicies: common2.AllowNamespaceGlobalPolicies,
+			AllowSkipGlobalPolicies:      common2.AllowSkipGlobalPolicies,
+		},
 	}
 
 	_, err := handler.ApplyApplicationScopeTransforms(monCtx, appCopy)
@@ -111,7 +130,7 @@ func SimulatePolicyApplication(ctx context.Context, cli client.Client, app *v1be
 		result.PolicyDetails = make(map[string]map[string]interface{}, len(capture.results))
 		mergedCtx := make(map[string]interface{})
 		for _, r := range capture.results {
-			result.PolicyDetails[r.PolicyName] = buildPolicyObservabilityData(r)
+			result.PolicyDetails[r.PolicyName] = buildPolicyObservabilityData(appCopy, r)
 			for k, v := range r.AdditionalContext {
 				mergedCtx[k] = v
 			}
@@ -122,4 +141,53 @@ func SimulatePolicyApplication(ctx context.Context, cli client.Client, app *v1be
 	}
 
 	return result, nil
+}
+
+// readOnlyClient reads through to the cluster and drops every write, so a simulation changes
+// nothing there.
+type readOnlyClient struct {
+	client.Client
+}
+
+func (readOnlyClient) Create(context.Context, client.Object, ...client.CreateOption) error {
+	return nil
+}
+
+func (readOnlyClient) Update(context.Context, client.Object, ...client.UpdateOption) error {
+	return nil
+}
+
+func (readOnlyClient) Patch(context.Context, client.Object, client.Patch, ...client.PatchOption) error {
+	return nil
+}
+
+func (readOnlyClient) Delete(context.Context, client.Object, ...client.DeleteOption) error {
+	return nil
+}
+
+func (readOnlyClient) DeleteAllOf(context.Context, client.Object, ...client.DeleteAllOfOption) error {
+	return nil
+}
+
+func (c readOnlyClient) Status() client.SubResourceWriter { return c.SubResource("status") }
+
+func (c readOnlyClient) SubResource(name string) client.SubResourceClient {
+	return readOnlySubResource{SubResourceClient: c.Client.SubResource(name)}
+}
+
+// readOnlySubResource reads a subresource through to the cluster and drops every write.
+type readOnlySubResource struct {
+	client.SubResourceClient
+}
+
+func (readOnlySubResource) Create(context.Context, client.Object, client.Object, ...client.SubResourceCreateOption) error {
+	return nil
+}
+
+func (readOnlySubResource) Update(context.Context, client.Object, ...client.SubResourceUpdateOption) error {
+	return nil
+}
+
+func (readOnlySubResource) Patch(context.Context, client.Object, client.Patch, ...client.SubResourcePatchOption) error {
+	return nil
 }

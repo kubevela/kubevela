@@ -104,8 +104,44 @@ func CompileCuexTemplate(ctx context.Context, cueTemplate string) (cue.Value, er
 	return velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
 }
 
+// CompilePolicyTemplate compiles a PolicyDefinition template the way
+// CompileCuexTemplate compiles a component's, with provider functions left
+// unresolved, but against the compiler that renders a policy of the given
+// scope. It returns the value instead of a verdict: a caller that runs more
+// than one check against a template compiles it once here, then hands the
+// value to ValidateCompiledCuexTemplate and to its own checks.
+func CompilePolicyTemplate(ctx context.Context, scope v1beta1.PolicyScope, cueTemplate string) (cue.Value, error) {
+	ctx = helm.WithDryRun(ctx)
+	return policyCompiler(scope).CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
+}
+
+// CompileOpenPolicyTemplate is CompilePolicyTemplate with the fields a render
+// supplies, context and parameter, opened. A template that reads context does
+// not compile on its own, so this is what its parameter declaration is read
+// from.
+func CompileOpenPolicyTemplate(ctx context.Context, scope v1beta1.PolicyScope, cueTemplate string) (cue.Value, error) {
+	return CompilePolicyTemplate(ctx, scope, cueTemplate+"\ncontext: _\nparameter: _\n")
+}
+
+// policyCompiler returns the compiler a PolicyDefinition of the given scope is
+// rendered with, so admission checks the template against the packages render
+// will offer it.
+//
+// A default-scope policy is parsed into a component and rendered by the
+// workload engine, which compiles with WorkloadCompiler. Any other scope is
+// skipped by the parser and rendered in application_policies.go with the
+// upstream DefaultCompiler. The two register different packages: only the
+// upstream one has "vela/util", and only WorkloadCompiler has "vela/helm",
+// "vela/config" and the other KubeVela providers.
+func policyCompiler(scope v1beta1.PolicyScope) *upstreamcuex.Compiler {
+	if scope == v1beta1.DefaultScope {
+		return velacuex.WorkloadCompiler.Get()
+	}
+	return upstreamcuex.DefaultCompiler.Get()
+}
+
 // ValidateCompiledCuexTemplate is ValidateCuexTemplate for a value already
-// produced by CompileCuexTemplate.
+// produced by CompileCuexTemplate or CompilePolicyTemplate.
 func ValidateCompiledCuexTemplate(val cue.Value) error {
 	if e := checkError(val.Err()); e != nil {
 		return e

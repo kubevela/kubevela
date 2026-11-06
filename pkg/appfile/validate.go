@@ -145,6 +145,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 
 	// Apply the cue compatibility upgrades so that the render path applies
 	templateStr, _ := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	baseCtx += contextCustomPlaceholders(templateStr)
 
 	cueSrc := strings.Join([]string{
 		renderTemplate(templateStr),
@@ -160,7 +161,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 	// ---------------------------------------------------------------------
 	// 2. Strict required‑field enforcement (feature‑gated)
 	// ---------------------------------------------------------------------
-	if err := enforceRequiredParams(val, wl.Params, app); err != nil {
+	if err := withoutContextDefaulted(enforceRequiredParams(val, wl.Params, app), contextDefaultedParams(templateStr)); err != nil {
 		return errors.WithMessagef(err, "component %q", wl.Name)
 	}
 
@@ -382,10 +383,18 @@ func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) 
 		}
 
 		if len(missingParams) > 0 {
-			return fmt.Errorf("missing parameters: %v", strings.Join(missingParams, ","))
+			return &missingParamsError{names: missingParams}
 		}
 	}
 	return nil
+}
+
+// missingParamsError names the required parameters an Application did not
+// provide, so a caller can still tell which they were.
+type missingParamsError struct{ names []string }
+
+func (e *missingParamsError) Error() string {
+	return fmt.Sprintf("missing parameters: %v", strings.Join(e.names, ","))
 }
 
 type overrideSpec struct {

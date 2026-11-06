@@ -410,7 +410,7 @@ func TestValidateAnnotations(t *testing.T) {
 				},
 			}
 
-			errs := handler.ValidateAnnotations(context.Background(), app)
+			errs := handler.ValidateAnnotations(context.Background(), app, nil)
 			assert.Equal(t, tc.expectedErrorCount, len(errs),
 				"Expected %d errors, got %d: %v", tc.expectedErrorCount, len(errs), errs)
 		})

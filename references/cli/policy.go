@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	v1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	controllercommon "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	velacommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -274,11 +275,17 @@ func NewPolicyDryRunCommand(c velacommon.Args, ioStreams cmdutil.IOStreams) *cob
 	var outputFormat string
 	var file, policyFilter string
 	var details, outcome bool
+	flags := application.PolicyDryRunFlags{
+		AllowNamespaceGlobalPolicies: controllercommon.AllowNamespaceGlobalPolicies,
+		AllowSkipGlobalPolicies:      controllercommon.AllowSkipGlobalPolicies,
+	}
 
 	cmd := &cobra.Command{
 		Use:   "dry-run [app-name]",
 		Short: "Preview what policies would do to an Application without applying changes.",
-		Long:  "Simulates the full policy application using the same code path as the controller. No changes are made to the cluster.",
+		Long: "Simulates the full policy application using the same code path as the controller. No changes are made to the cluster.\n\n" +
+			"Which policies apply depends on two controller flags. Pass the controller's values with " +
+			"--allow-namespace-global-policies and --allow-skip-global-policies, or the result can differ from the controller's.",
 		Example: `  # Simulate policies for a live Application (fetched from cluster)
   vela policy dry-run my-app
 
@@ -308,6 +315,12 @@ func NewPolicyDryRunCommand(c velacommon.Args, ioStreams cmdutil.IOStreams) *cob
 			if namespace == "" {
 				namespace = "default"
 			}
+			// The policy render reads these from the process, as the controller does from its flags.
+			defer func(ns, skip bool) {
+				controllercommon.AllowNamespaceGlobalPolicies, controllercommon.AllowSkipGlobalPolicies = ns, skip
+			}(controllercommon.AllowNamespaceGlobalPolicies, controllercommon.AllowSkipGlobalPolicies)
+			controllercommon.AllowNamespaceGlobalPolicies = flags.AllowNamespaceGlobalPolicies
+			controllercommon.AllowSkipGlobalPolicies = flags.AllowSkipGlobalPolicies
 			if file != "" {
 				return runPolicyDryRunFile(context.Background(), c, file, namespace, outputFormat, policyFilter, details, outcome, ioStreams)
 			}
@@ -324,6 +337,10 @@ func NewPolicyDryRunCommand(c velacommon.Args, ioStreams cmdutil.IOStreams) *cob
 	cmd.Flags().StringVarP(&policyFilter, "policy", "p", "", "Filter output to policies matching a name or glob pattern (e.g. \"add-env-*\")")
 	cmd.Flags().BoolVar(&details, "details", false, "Include per-policy output details (context, labels, annotations, spec transforms)")
 	cmd.Flags().BoolVar(&outcome, "outcome", false, "Include outcome (final spec, labels, annotations and context) in output")
+	cmd.Flags().BoolVar(&flags.AllowNamespaceGlobalPolicies, "allow-namespace-global-policies", flags.AllowNamespaceGlobalPolicies,
+		"Simulate a controller run with --allow-namespace-global-policies")
+	cmd.Flags().BoolVar(&flags.AllowSkipGlobalPolicies, "allow-skip-global-policies", flags.AllowSkipGlobalPolicies,
+		"Simulate a controller run with --allow-skip-global-policies")
 
 	return cmd
 }
@@ -774,13 +791,15 @@ func outputDryRunTable(result *application.PolicyDryRunResult, details, outcome 
 	}
 
 	fmt.Fprintf(ioStreams.Out, "This is a dry-run. No changes were applied to the cluster.\n")
+	fmt.Fprintf(ioStreams.Out, "Assumed controller flags: %s\n", dryRunFlagsString(result.Flags))
 
 	return nil
 }
 
 func outputDryRunSummary(result *application.PolicyDryRunResult, ioStreams cmdutil.IOStreams) error {
 	applied, skipped := countApplied(result.PolicyResults)
-	fmt.Fprintf(ioStreams.Out, "Policies: %d enabled, %d disabled\n\n", applied, skipped)
+	fmt.Fprintf(ioStreams.Out, "Policies: %d enabled, %d disabled\n", applied, skipped)
+	fmt.Fprintf(ioStreams.Out, "Assumed controller flags: %s\n\n", dryRunFlagsString(result.Flags))
 	printLabelsAnnotations(result.Application.Labels, result.Application.Annotations, ioStreams)
 	return nil
 }
@@ -791,6 +810,7 @@ func outputDryRunJSON(result *application.PolicyDryRunResult, details, outcome b
 		policyDetails = result.PolicyDetails
 	}
 	out := buildPolicyOutput(result.Application.Name, result.Application.Namespace, result.PolicyResults, result.Application.Spec, result.Application.Labels, result.Application.Annotations, result.FinalContext, outcome, result.Errors, policyDetails)
+	out["assumedControllerFlags"] = result.Flags
 	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal JSON")
@@ -805,6 +825,7 @@ func outputDryRunYAML(result *application.PolicyDryRunResult, details, outcome b
 		policyDetails = result.PolicyDetails
 	}
 	out := buildPolicyOutput(result.Application.Name, result.Application.Namespace, result.PolicyResults, result.Application.Spec, result.Application.Labels, result.Application.Annotations, result.FinalContext, outcome, result.Errors, policyDetails)
+	out["assumedControllerFlags"] = result.Flags
 	data, err := yaml.Marshal(out)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal YAML")
@@ -896,6 +917,12 @@ func buildPolicyOutput(appName, namespace string, policies []common.AppliedAppli
 		out["errors"] = errs
 	}
 	return out
+}
+
+// dryRunFlagsString renders flags as the controller arguments they stand for.
+func dryRunFlagsString(flags application.PolicyDryRunFlags) string {
+	return fmt.Sprintf("--allow-namespace-global-policies=%t --allow-skip-global-policies=%t",
+		flags.AllowNamespaceGlobalPolicies, flags.AllowSkipGlobalPolicies)
 }
 
 // filterDryRunResult returns a shallow copy of result with PolicyResults and PolicyDetails
