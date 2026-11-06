@@ -234,7 +234,12 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 			return nil
 		}
 		if existing.GetDeletionTimestamp() == nil { // check if recreation needed
-			if err = a.c.Delete(ctx, existing); err != nil {
+			var opts []client.DeleteOption
+			// a sharer joining meanwhile must not be dropped by the recreate
+			if rv := existing.GetResourceVersion(); rv != "" && existing.GetAnnotations()[oam.AnnotationAppSharedBy] != "" {
+				opts = append(opts, client.Preconditions{ResourceVersion: &rv})
+			}
+			if err = a.c.Delete(ctx, existing, opts...); err != nil {
 				return errors.Wrap(err, "cannot delete object")
 			}
 		}
@@ -282,6 +287,11 @@ func (a *APIApplicator) addSharer(ctx context.Context, existing, desired client.
 		patchOpts = append(patchOpts, client.DryRunAll)
 	}
 	uid := existing.GetUID()
+	// a typed Get clears TypeMeta, so resolve the kind for errors up front
+	kind := existing.GetObjectKind().GroupVersionKind().Kind
+	if gvk, err := apiutil.GVKForObject(existing, a.c.Scheme()); err == nil {
+		kind = gvk.Kind
+	}
 	refresh := false
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if refresh {
@@ -289,11 +299,11 @@ func (a *APIApplicator) addSharer(ctx context.Context, existing, desired client.
 				return err
 			}
 			if uid != "" && existing.GetUID() != uid {
-				return fmt.Errorf("%s %s/%s was replaced by another object", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
+				return fmt.Errorf("%s %s/%s was replaced by another object", kind, existing.GetNamespace(), existing.GetName())
 			}
 			current := existing.GetAnnotations()[oam.AnnotationAppSharedBy]
 			if current == "" {
-				return fmt.Errorf("%s %s/%s is no longer shared", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
+				return fmt.Errorf("%s %s/%s is no longer shared", kind, existing.GetNamespace(), existing.GetName())
 			}
 			sharedBy = AddSharer(current, act.sharer)
 		}

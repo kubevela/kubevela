@@ -417,10 +417,12 @@ func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.Ma
 }
 
 // GC must recheck management after a refresh. Explicit workflow deletes also allow
-// unmanaged resources, so they retain their existing behavior.
+// unmanaged resources, so for those the recheck applies only if owner managed it at first.
 func deleteManagedResourceWithRetry(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, owner resourcetracker.Tracked, garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec, managedOnly bool) error {
 	_ctx := pkgmulticluster.WithCluster(ctx, mr.Cluster)
 	uid := obj.GetUID()
+	// an explicit delete of a resource owner manages must not delete it once another takes it over
+	managedOnly = managedOnly || IsResourceManaged(obj, owner)
 	refresh := false
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if refresh {
@@ -428,7 +430,7 @@ func deleteManagedResourceWithRetry(ctx context.Context, cli client.Client, mr v
 			latest := &unstructured.Unstructured{}
 			latest.SetGroupVersionKind(obj.GroupVersionKind())
 			if err := cli.Get(asSelf(_ctx), client.ObjectKeyFromObject(obj), latest); err != nil {
-				if kerrors.IsNotFound(err) {
+				if isResourceNotFound(err) {
 					return nil
 				}
 				return errors.Wrapf(err, "failed to get resource %s", mr.ResourceKey())

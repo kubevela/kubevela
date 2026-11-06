@@ -100,8 +100,9 @@ func (cache *resourceCache) get(ctx context.Context, mr v1beta1.ManagedResource)
 		cache.m.Set(key, entry)
 	}
 	if !entry.loaded {
+		entry.err = nil
 		if err := cache.cli.Get(pkgmulticluster.WithCluster(ctx, mr.Cluster), mr.NamespacedName(), entry.obj); err != nil {
-			if kubeutil.IsNotFoundOrClusterNotExists(err) || meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
+			if isResourceNotFound(err) {
 				entry.exists = false
 			} else {
 				entry.err = errors.Wrapf(err, "failed to get resource %s", key)
@@ -112,6 +113,11 @@ func (cache *resourceCache) get(ctx context.Context, mr v1beta1.ManagedResource)
 		entry.loaded = true
 	}
 	return entry
+}
+
+// isResourceNotFound reports whether a get failed because the resource, its kind or its cluster does not exist.
+func isResourceNotFound(err error) bool {
+	return kubeutil.IsNotFoundOrClusterNotExists(err) || meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err)
 }
 
 func (cache *resourceCache) exists(manifest *unstructured.Unstructured) bool {

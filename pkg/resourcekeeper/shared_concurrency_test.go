@@ -247,8 +247,8 @@ func isConflict(err error) bool {
 	return true
 }
 
-// B disables sharing while A's stale handoff is in flight. Only GC must stop
-// once A no longer manages the refreshed object; explicit deletes stay explicit.
+// B disables sharing while A's stale handoff is in flight. Neither GC nor an
+// explicit delete may delete the object once A no longer manages it.
 func TestDeleteRetryAfterManagementChanges(t *testing.T) {
 	for _, managedOnly := range []bool{true, false} {
 		t.Run(fmt.Sprintf("managedOnly=%t", managedOnly), func(t *testing.T) {
@@ -306,15 +306,11 @@ func TestDeleteRetryAfterManagementChanges(t *testing.T) {
 			r.True(raced)
 			live := &v1.ConfigMap{}
 			err = cli.Get(ctx, client.ObjectKeyFromObject(obj), live)
-			if managedOnly {
-				r.NoError(err)
-				r.Equal(types.UID("same-uid"), live.UID)
-				r.Equal("b", live.Labels[oam.LabelAppName])
-				r.Empty(live.Annotations)
-				r.Equal("owner-private", live.Data["sentinel"])
-			} else {
-				r.True(kerrors.IsNotFound(err))
-			}
+			r.NoError(err)
+			r.Equal(types.UID("same-uid"), live.UID)
+			r.Equal("b", live.Labels[oam.LabelAppName])
+			r.Empty(live.Annotations)
+			r.Equal("owner-private", live.Data["sentinel"])
 		})
 	}
 }
