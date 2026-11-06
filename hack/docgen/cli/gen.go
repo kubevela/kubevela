@@ -46,7 +46,8 @@ func PrintCLIByTag(cmd *cobra.Command, all []*cobra.Command, tag string) string 
 		cname := cmd.Name() + " " + c.Name()
 		link := cname
 		link = strings.Replace(link, " ", "_", -1)
-		pl = append(pl, cli.NewPrintable(c, fmt.Sprintf("* [%s](%s.md)\t - %s\n", cname, link, c.Long)))
+		// One line per command, the same summary vela --help prints.
+		pl = append(pl, cli.NewPrintable(c, fmt.Sprintf("* [%s](%s.md)\t - %s\n", cname, link, escapeProse(c.Short))))
 	}
 
 	slices.Sort(pl, func(i, j cli.Printable) bool { return i.Order < j.Order })
@@ -71,7 +72,8 @@ func GenMarkdownTreeForIndex(cmd *cobra.Command, dir string) error {
 	if _, err = f.WriteString("---\ntitle: CLI Commands\n---\n\n\n"); err != nil {
 		return err
 	}
-	for _, tp := range []string{types.TypeStart, types.TypeApp, types.TypeCD, types.TypeExtension, types.TypeSystem} {
+	// Same groups and order as vela --help, so every top-level command is indexed.
+	for _, tp := range cli.CommandGroups {
 		// write header of type
 		_, err = f.WriteString("## " + tp + "\n\n")
 		if err != nil {
@@ -148,10 +150,18 @@ func main() {
 		lines[0] = "---"
 		newlines := []string{"---", "title: " + title}
 
+		inFence := false
 		for idx, line := range lines {
+			if strings.HasPrefix(strings.TrimSpace(line), "```") {
+				inFence = !inFence
+				continue
+			}
 			if strings.Contains(line, "[vela](vela.md)") {
 				lines[idx] = ""
 				continue
+			}
+			if !inFence {
+				lines[idx] = escapeProse(line)
 			}
 			// Don't remove .md extensions - Docusaurus handles them properly
 			// and keeping them provides better IDE support and compatibility
@@ -164,4 +174,27 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// escapeProse escapes angle brackets outside inline code spans, so help text
+// such as config-template-<name> renders as text instead of being read by
+// MDX as an unclosed tag. Code spans and fenced blocks are left alone, where
+// the brackets already render literally.
+func escapeProse(line string) string {
+	var b strings.Builder
+	inCode := false
+	for _, r := range line {
+		switch {
+		case r == '`':
+			inCode = !inCode
+			b.WriteRune(r)
+		case !inCode && r == '<':
+			b.WriteString("&lt;")
+		case !inCode && r == '>':
+			b.WriteString("&gt;")
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
