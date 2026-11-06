@@ -289,6 +289,24 @@ parameter: #PatchParams
 			Expect(cue).To(ContainSubstring(`"strings"`))
 		})
 
+		It("should auto-detect imports from let bindings", func() {
+			name := defkit.String("name")
+
+			trait := defkit.NewTrait("digest-trait").
+				Description("Trait whose let binding requires crypto/md5").
+				AppliesTo("deployments.apps").
+				Params(name).
+				Template(func(tpl *defkit.Template) {
+					tpl.AddLetBinding("_digest", defkit.StdlibCall("crypto/md5", "Sum", name))
+					tpl.Patch().Set("metadata.annotations.digest", defkit.LetVariable("_digest"))
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring(`"crypto/md5"`))
+			Expect(cue).To(ContainSubstring("let _digest = md5.Sum(parameter.name)"))
+		})
+
 		It("should auto-detect the list import via Template helpers (Helper, ConcatHelper, DedupeHelper, StructArrayHelper)", func() {
 			volumes := defkit.Array("volumes").WithFields(
 				defkit.String("name"),
