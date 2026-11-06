@@ -220,6 +220,9 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 					}
 					return true
 				}))
+			if errors.Is(err, multicluster.ErrClusterOverwriteCancelled) {
+				return nil
+			}
 			if err != nil {
 				return err
 			}
