@@ -2127,12 +2127,7 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 
 	// Handle array notation
 	if node.isArray {
-		sb.WriteString(fmt.Sprintf("%s%s: [{\n", indent, cueLabel(name)))
-		// Write the first array element (index 0)
-		if child, exists := node.children["[0]"]; exists {
-			g.writeFieldTree(sb, child, depth+1)
-		}
-		sb.WriteString(fmt.Sprintf("%s}]\n", indent))
+		g.writeArrayNode(sb, name, node, depth)
 		return
 	}
 
@@ -2210,6 +2205,85 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 		g.writeFieldTree(sb, node, depth+1)
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	}
+}
+
+// writeArrayNode renders a node whose children are indexed array elements.
+// Every index is written in order; an element whose fields all share one
+// condition is emitted as a conditional list element (`if cond { {...} }`),
+// which CUE evaluates to an element only when the condition holds. A single
+// unconditional [0] element keeps the exact legacy layout so existing
+// definitions generate byte-identical CUE.
+func (g *CUEGenerator) writeArrayNode(sb *strings.Builder, name string, node *fieldNode, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+
+	// Hoist a condition shared by all of an element's fields onto the element
+	// itself, so it can guard the whole list entry.
+	g.liftChildConditions(node)
+
+	type arrayElem struct {
+		key string
+		n   *fieldNode
+	}
+	var elems []arrayElem
+	for _, k := range node.childOrder {
+		if child, ok := node.children[k]; ok && strings.HasPrefix(k, "[") {
+			elems = append(elems, arrayElem{key: k, n: child})
+		}
+	}
+	sort.SliceStable(elems, func(i, j int) bool { return elems[i].n.arrayIndex < elems[j].n.arrayIndex })
+
+	// A CUE list literal cannot leave holes: compacting sparse indices would
+	// silently shift user data to the wrong positions, so fail generation
+	// loudly instead (the same convention placement validation uses).
+	for i, e := range elems {
+		if e.n.arrayIndex != i {
+			panic(fmt.Sprintf(
+				"defkit: array %q has non-contiguous indices: found [%d] at position %d; indices must start at [0] with no gaps",
+				name, e.n.arrayIndex, i))
+		}
+	}
+
+	// Legacy fast path: exactly one unconditional element at index 0.
+	if len(elems) == 1 && elems[0].n.arrayIndex == 0 && elems[0].n.cond == nil {
+		if e := elems[0].n; e.value != nil && len(e.children) == 0 {
+			// Primitive element: the value is on the element node itself.
+			sb.WriteString(fmt.Sprintf("%s%s: [%s]\n", indent, cueLabel(name), g.valueToCUE(e.value)))
+			return
+		}
+		sb.WriteString(fmt.Sprintf("%s%s: [{\n", indent, cueLabel(name)))
+		g.writeFieldTree(sb, elems[0].n, depth+1)
+		sb.WriteString(fmt.Sprintf("%s}]\n", indent))
+		return
+	}
+
+	elemIndent := indent + g.indent
+	sb.WriteString(fmt.Sprintf("%s%s: [\n", indent, cueLabel(name)))
+	for _, e := range elems {
+		isPrimitive := e.n.value != nil && len(e.n.children) == 0
+		if e.n.cond != nil {
+			condStr := g.conditionToCUE(e.n.cond)
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", elemIndent, condStr))
+			if isPrimitive {
+				sb.WriteString(fmt.Sprintf("%s%s%s\n", elemIndent, g.indent, g.valueToCUE(e.n.value)))
+			} else {
+				clone := *e.n
+				clone.cond = nil
+				sb.WriteString(fmt.Sprintf("%s%s{\n", elemIndent, g.indent))
+				g.writeFieldTree(sb, &clone, depth+3)
+				sb.WriteString(fmt.Sprintf("%s%s}\n", elemIndent, g.indent))
+			}
+			sb.WriteString(fmt.Sprintf("%s},\n", elemIndent))
+			continue
+		}
+		if isPrimitive {
+			sb.WriteString(fmt.Sprintf("%s%s,\n", elemIndent, g.valueToCUE(e.n.value)))
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("%s{\n", elemIndent))
+		g.writeFieldTree(sb, e.n, depth+2)
+		sb.WriteString(fmt.Sprintf("%s},\n", elemIndent))
+	}
+	sb.WriteString(fmt.Sprintf("%s]\n", indent))
 }
 
 // writeBracketKeyNode renders a map-key access leaf (`[key]`) honoring the
