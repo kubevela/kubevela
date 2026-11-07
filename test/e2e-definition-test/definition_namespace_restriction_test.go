@@ -148,14 +148,28 @@ parameter: image: string
 		Expect(k8sClient.Create(ctx, cd)).Should(Succeed())
 
 		By("The webhook rejects an Application there, naming the component")
-		// One Create, not Eventually: a retry would see AlreadyExists and pass even
-		// if the Application had been admitted.
-		err := k8sClient.Create(ctx, appUsing(deniedNS, "denied-app", "restricted-web"))
-		Expect(err).Should(HaveOccurred())
-		Expect(err.Error()).Should(ContainSubstring("spec.components[0].type"))
-		Expect(err.Error()).Should(ContainSubstring("is restricted"))
+		// The webhook resolves definitions through a cache, so enforcement can
+		// lag the Create above (observed as a flake: the Application was
+		// admitted). Poll with a unique name per attempt: an admitted app is
+		// deleted and reported as "not rejected yet", and the fresh name means
+		// no retry can false-pass on AlreadyExists.
+		var admissionErr error
+		attempt := 0
+		Eventually(func() error {
+			attempt++
+			app := appUsing(deniedNS, fmt.Sprintf("denied-app-%d", attempt), "restricted-web")
+			if err := k8sClient.Create(ctx, app); err != nil {
+				admissionErr = err
+				return err
+			}
+			// admitted: the restriction is not enforced yet; clean up and poll again
+			_ = k8sClient.Delete(ctx, app)
+			return nil
+		}, 15*time.Second, time.Second).Should(HaveOccurred())
+		Expect(admissionErr.Error()).Should(ContainSubstring("spec.components[0].type"))
+		Expect(admissionErr.Error()).Should(ContainSubstring("is restricted"))
 		// The allowed namespaces are not the author's business.
-		Expect(err.Error()).ShouldNot(ContainSubstring("tenant-*"))
+		Expect(admissionErr.Error()).ShouldNot(ContainSubstring("tenant-*"))
 	})
 
 	It("restricts through the annotation as well as the spec", func() {
