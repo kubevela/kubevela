@@ -51,13 +51,22 @@ func CollectServiceEndpoints(ctx context.Context, params *ListParams) (*ListRetu
 	if err != nil {
 		return nil, fmt.Errorf("query app failure %w", err)
 	}
-	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
-	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(cli, opt)
 	resources, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
 		return nil, err
 	}
+	serviceEndpoints := ServiceEndpointsOf(ctx, cli, resources)
+	return &ListReturns[querytypes.ServiceEndpoint]{Returns: ListReturnVars[querytypes.ServiceEndpoint]{List: serviceEndpoints}}, nil
+}
+
+// ServiceEndpointsOf derives the access endpoints of resources an Application
+// manages, walking each resource's tree when it has one. It reads the
+// Services, Ingresses and HTTPRoutes it finds through cli, plus the nodes of a
+// cluster for a NodePort address and the Gateways a route attaches to.
+func ServiceEndpointsOf(ctx context.Context, cli client.Client, resources []querytypes.AppliedResource) []querytypes.ServiceEndpoint {
+	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
+	var clusterGatewayNodeIP = make(map[string]string)
 	for i, resource := range resources {
 		cluster := resources[i].Cluster
 		cachedSelectorNodeIP := func() string {
@@ -75,9 +84,8 @@ func CollectServiceEndpoints(ctx context.Context, params *ListParams) (*ListRetu
 		} else {
 			serviceEndpoints = append(serviceEndpoints, getServiceEndpoints(ctx, cli, resource.GroupVersionKind(), resource.Name, resource.Namespace, resource.Cluster, resource.Component, cachedSelectorNodeIP)...)
 		}
-
 	}
-	return &ListReturns[querytypes.ServiceEndpoint]{Returns: ListReturnVars[querytypes.ServiceEndpoint]{List: serviceEndpoints}}, nil
+	return serviceEndpoints
 }
 
 func getEndpointFromNode(ctx context.Context, cli client.Client, node *querytypes.ResourceTreeNode, component string, cachedSelectorNodeIP func() string) []querytypes.ServiceEndpoint {

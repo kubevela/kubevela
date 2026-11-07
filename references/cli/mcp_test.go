@@ -18,7 +18,10 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"runtime"
@@ -26,6 +29,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -52,6 +58,9 @@ func TestMCPCommandRejectsBadFlags(t *testing.T) {
 		"empty namespace":       {"--namespace", ""},
 		"positional argument":   {"extra"},
 		"direct without writes": {"--direct-namespace", "dev"},
+		"group without user":    {"--as-group", "team-a"},
+		"blank user":            {"--as", " "},
+		"empty group":           {"--as", "jane", "--as-group", " "},
 	}
 	for name, args := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -103,6 +112,50 @@ func TestMCPConfigJSON(t *testing.T) {
 	require.True(t, ok, out)
 	require.Equal(t, "/opt/vela tools/vela", server.Command)
 	require.Equal(t, []string{"mcp", "--namespace", "team-a", "--allow-write", "--direct-namespace", "dev"}, server.Args)
+}
+
+func TestMCPConfigCarriesImpersonation(t *testing.T) {
+	out, err := runMCPConfig(t, "--format", "command", "--as", "jane@example.com", "--as-group", "team-a", "--as-group", "dev")
+	require.NoError(t, err)
+	require.Equal(t, "'/opt/vela tools/vela' mcp --as jane@example.com --as-group team-a --as-group dev\n", out)
+}
+
+func TestImpersonatedFactorySendsHeaders(t *testing.T) {
+	var user string
+	var groups []string
+	var wrapped string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, groups = r.Header.Get("Impersonate-User"), r.Header.Values("Impersonate-Group")
+		wrapped = r.Header.Get("X-Caller-Wrapper")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"kind":"Namespace","apiVersion":"v1","metadata":{"name":"team-a"}}`))
+	}))
+	defer srv.Close()
+	base := &rest.Config{Host: srv.URL}
+	// The caller's own wrapper, such as the multicluster one, must still run.
+	base.Wrap(func(rt http.RoundTripper) http.RoundTripper { return headerRoundTripper{rt} })
+
+	f := impersonated(velacmd.NewTestFactory(base, nil), "jane@example.com", []string{"team-a", "dev"})
+	cs, err := kubernetes.NewForConfig(f.Config())
+	require.NoError(t, err)
+	_, err = cs.CoreV1().Namespaces().Get(context.Background(), "team-a", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "jane@example.com", user)
+	require.Equal(t, []string{"team-a", "dev"}, groups)
+	require.Empty(t, base.Impersonate.UserName, "the caller's config is not changed")
+	require.Equal(t, "seen", wrapped, "the caller's transport wrapper is kept")
+
+	plain := velacmd.NewTestFactory(base, nil)
+	require.Same(t, plain, impersonated(plain, "", nil), "without --as the factory is used as is")
+}
+
+// headerRoundTripper marks requests so a test can see the wrapper ran.
+type headerRoundTripper struct{ rt http.RoundTripper }
+
+func (h headerRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.Header.Set("X-Caller-Wrapper", "seen")
+	return h.rt.RoundTrip(r)
 }
 
 func TestMCPConfigDefaultsAreReadOnlyAndShort(t *testing.T) {

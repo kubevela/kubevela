@@ -66,7 +66,7 @@ func TestMapFS_ParsesThroughParser(t *testing.T) {
 	m := MapFS{
 		"_module.cue":                []byte("module: \"s3\"\nversion: \"1.0.0\""),
 		"v1/_version.cue":            []byte("apiVersion: \"v1\""),
-		"v1/definitions/bucket.yaml": []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n"),
+		"v1/definitions/bucket.yaml": []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n"),
 	}
 	mod, err := module.ParseModule(m)
 	require.NoError(t, err)
