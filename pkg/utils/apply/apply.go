@@ -234,12 +234,15 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 			return nil
 		}
 		if existing.GetDeletionTimestamp() == nil { // check if recreation needed
-			var opts []client.DeleteOption
-			// a sharer joining meanwhile must not be dropped by the recreate
-			if rv := existing.GetResourceVersion(); rv != "" && existing.GetAnnotations()[oam.AnnotationAppSharedBy] != "" {
-				opts = append(opts, client.Preconditions{ResourceVersion: &rv})
+			// don't delete a replacement, or drop a sharer joining meanwhile
+			preconditions := client.Preconditions{}
+			if uid := existing.GetUID(); uid != "" {
+				preconditions.UID = &uid
 			}
-			if err = a.c.Delete(ctx, existing, opts...); err != nil {
+			if rv := existing.GetResourceVersion(); rv != "" && existing.GetAnnotations()[oam.AnnotationAppSharedBy] != "" {
+				preconditions.ResourceVersion = &rv
+			}
+			if err = a.c.Delete(ctx, existing, preconditions); err != nil {
 				return errors.Wrap(err, "cannot delete object")
 			}
 		}
