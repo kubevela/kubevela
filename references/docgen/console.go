@@ -50,6 +50,8 @@ type Reference interface {
 type FromCluster struct {
 	Namespace string `json:"namespace"`
 	Rev       int64  `json:"revision"`
+	// Version selects the DefinitionRevision whose definition has this spec.version; it takes precedence over Rev.
+	Version string `json:"version,omitempty"`
 }
 
 // FromLocal is the struct for input Definition Path

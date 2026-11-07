@@ -67,11 +67,13 @@ func TestGenerateSideBar(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := generateSideBar(tc.capabilities, TestDir)
+			// Own temp dir so the test does not depend on TestCreateTestDir running first.
+			dir := t.TempDir()
+			got := generateSideBar(tc.capabilities, dir)
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngenerateSideBar(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
-			data, err := os.ReadFile(filepath.Clean(filepath.Join(TestDir, SideBar)))
+			data, err := os.ReadFile(filepath.Clean(filepath.Join(dir, SideBar)))
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				assert.Contains(t, string(data), c.Name)
@@ -124,11 +126,13 @@ func TestGenerateREADME(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := generateREADME(tc.capabilities, TestDir)
+			// Own temp dir so the test does not depend on TestCreateTestDir running first.
+			dir := t.TempDir()
+			got := generateREADME(tc.capabilities, dir)
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngenerateREADME(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
-			data, err := os.ReadFile(filepath.Clean(filepath.Join(TestDir, README)))
+			data, err := os.ReadFile(filepath.Clean(filepath.Join(dir, README)))
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				switch c.Type {
@@ -201,5 +205,40 @@ func TestDeleteTestDir(t *testing.T) {
 	if _, err := os.Stat(BaseDir); err == nil {
 		err := os.RemoveAll(BaseDir)
 		assert.NoError(t, err)
+	}
+}
+
+func TestParseShowRevision(t *testing.T) {
+	cases := map[string]struct {
+		in      string
+		rev     int64
+		version string
+		wantErr bool
+	}{
+		"empty":              {in: ""},
+		"revision number":    {in: "2", rev: 2},
+		"v revision number":  {in: "v2", rev: 2},
+		"semver":             {in: "1.2.3", version: "1.2.3"},
+		"v semver":           {in: "v1.2.3", version: "1.2.3"},
+		"semver prerelease":  {in: "1.2.3-beta.1", version: "1.2.3-beta.1"},
+		"not a version":      {in: "abc", wantErr: true},
+		"bare v":             {in: "v", wantErr: true},
+		"wildcard not exact": {in: "1.x", wantErr: true},
+		"double v semver":    {in: "vv1.2.3", wantErr: true},
+		"double v revision":  {in: "vv2", wantErr: true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			rev, version, err := parseShowRevision(tc.in)
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "revision number (2, v2)")
+				assert.Contains(t, err.Error(), "semantic version (1.2.3, v1.2.3)")
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.rev, rev)
+			assert.Equal(t, tc.version, version)
+		})
 	}
 }

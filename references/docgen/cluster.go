@@ -26,6 +26,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
+	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -582,8 +583,102 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, ns,
 		return nil, fmt.Errorf("no %s with revision %d found in namespace %s or %s", defName, r, ns, types.DefaultKubeVelaNS)
 	}
 
-	rev := revs[0]
+	return capabilityFromDefinitionRevision(revs[0], k8sClient.RESTMapper())
+}
 
+// GetCapabilityFromDefinitionVersion gets capabilities from the underlying Definition of the
+// DefinitionRevision whose embedded definition has the given semantic version (spec.version).
+func GetCapabilityFromDefinitionVersion(ctx context.Context, c common.Args, ns, defName, version string) (*types.Capability, error) {
+	k8sClient, err := c.GetClient()
+	if err != nil {
+		return nil, err
+	}
+
+	matches, err := searchDefinitionRevisionsByVersion(ctx, k8sClient, ns, defName, version)
+	if err != nil {
+		return nil, err
+	}
+	// Same double-search as GetCapabilityFromDefinitionRevision: `ns` defaults to `default`.
+	if len(matches) == 0 && ns == "default" {
+		matches, err = searchDefinitionRevisionsByVersion(ctx, k8sClient, types.DefaultKubeVelaNS, defName, version)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no %s with version %s found in namespace %s or %s", defName, version, ns, types.DefaultKubeVelaNS)
+	}
+
+	// Definition names are shared across kinds, so refuse to guess between them.
+	var kinds []string
+	for _, m := range matches {
+		if k := string(m.Spec.DefinitionType); !slices.Contains(kinds, k) {
+			kinds = append(kinds, k)
+		}
+	}
+	if len(kinds) > 1 {
+		sort.Strings(kinds)
+		return nil, fmt.Errorf("version %s of %s matches more than one definition type (%s)", version, defName, strings.Join(kinds, ", "))
+	}
+
+	// Prefer the newest revision if several revisions carry the same version.
+	best := matches[0]
+	for _, m := range matches[1:] {
+		if m.Spec.Revision > best.Spec.Revision {
+			best = m
+		}
+	}
+	return capabilityFromDefinitionRevision(best, k8sClient.RESTMapper())
+}
+
+func searchDefinitionRevisionsByVersion(ctx context.Context, k8sClient client.Client, ns, defName, version string) ([]v1beta1.DefinitionRevision, error) {
+	revs, err := definition.SearchDefinitionRevisions(ctx, k8sClient, ns, defName, "", 0)
+	if err != nil {
+		return nil, err
+	}
+	var matches []v1beta1.DefinitionRevision
+	for _, rev := range revs {
+		if definitionVersionEqual(definitionRevisionVersion(rev), version) {
+			matches = append(matches, rev)
+		}
+	}
+	return matches, nil
+}
+
+// definitionRevisionVersion returns spec.version of the definition embedded in rev.
+func definitionRevisionVersion(rev v1beta1.DefinitionRevision) string {
+	switch rev.Spec.DefinitionType {
+	case commontypes.ComponentType:
+		return rev.Spec.ComponentDefinition.Spec.Version
+	case commontypes.TraitType:
+		return rev.Spec.TraitDefinition.Spec.Version
+	case commontypes.PolicyType:
+		return rev.Spec.PolicyDefinition.Spec.Version
+	case commontypes.WorkflowStepType:
+		return rev.Spec.WorkflowStepDefinition.Spec.Version
+	case commontypes.SourceType:
+		return rev.Spec.SourceDefinition.Spec.Version
+	default:
+		return ""
+	}
+}
+
+// definitionVersionEqual compares two versions semantically, falling back to a
+// plain comparison (ignoring a leading "v") when either side is not a valid semver.
+func definitionVersionEqual(have, want string) bool {
+	if have == "" || want == "" {
+		return false
+	}
+	hv, herr := semver.NewVersion(have)
+	wv, werr := semver.NewVersion(want)
+	if herr == nil && werr == nil {
+		return hv.Equal(wv)
+	}
+	return strings.TrimPrefix(have, "v") == strings.TrimPrefix(want, "v")
+}
+
+// capabilityFromDefinitionRevision converts the definition embedded in rev to a capability.
+func capabilityFromDefinitionRevision(rev v1beta1.DefinitionRevision, mapper meta.RESTMapper) (*types.Capability, error) {
 	switch rev.Spec.DefinitionType {
 	case commontypes.ComponentType:
 		var refName string
@@ -593,7 +688,7 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, ns,
 		if componentDef.Spec.Workload.Type == types.AutoDetectWorkloadDefinition {
 			refName = types.AutoDetectWorkloadDefinition
 		} else {
-			ref, err := util.ConvertWorkloadGVK2Definition(k8sClient.RESTMapper(), componentDef.Spec.Workload.Definition)
+			ref, err := util.ConvertWorkloadGVK2Definition(mapper, componentDef.Spec.Workload.Definition)
 			if err != nil {
 				return nil, err
 			}
