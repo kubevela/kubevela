@@ -27,8 +27,11 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestAddLastAppliedConfig(t *testing.T) {
@@ -116,4 +119,27 @@ func TestGetOriginalConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWithResourceVersionRejectsOrSkips(t *testing.T) {
+	obj := &unstructured.Unstructured{}
+	raw := client.RawPatch(types.MergePatchType, []byte(`not json`))
+	patch, err := withResourceVersion(raw, obj)
+	require.NoError(t, err)
+	require.Equal(t, raw, patch, "nothing to compare with when the object has no resource version")
+
+	obj.SetResourceVersion("42")
+	_, err = withResourceVersion(raw, obj)
+	require.Error(t, err)
+}
+
+func TestWithResourceVersionKeepsLargeIntegers(t *testing.T) {
+	obj := &unstructured.Unstructured{}
+	obj.SetResourceVersion("42")
+	patch, err := withResourceVersion(client.RawPatch(types.MergePatchType, []byte(`{"spec":{"n":9007199254740993}}`)), obj)
+	require.NoError(t, err)
+	data, err := patch.Data(obj)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"n":9007199254740993`)
+	require.Contains(t, string(data), `"resourceVersion":"42"`)
 }
