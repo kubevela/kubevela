@@ -1,0 +1,7 @@
+# No annotation. v1/auxiliary/hub/ stamps hub, ahead of the v1 field.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placement-store-v1-controller
+data:
+  role: v1-controller

@@ -539,6 +539,11 @@ func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]str
 	}
 	// merge application's all labels
 	finalLabels := util.MergeMapOverrideWithDst(af.AppLabels, Labels)
+	// app.oam.dev/cluster says where this Application was dispatched, by an
+	// Application that deployed it. It is not about the objects this one renders:
+	// dispatch only sets the cluster on an object that has none, so an inherited
+	// value would override this Application's own topology.
+	delete(finalLabels, oam.LabelAppCluster)
 	for _, k := range FilteredLabelKeys(af.AppAnnotations) {
 		delete(finalLabels, k)
 	}
