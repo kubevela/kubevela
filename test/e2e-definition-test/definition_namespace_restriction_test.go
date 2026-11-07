@@ -158,13 +158,21 @@ parameter: image: string
 		Eventually(func() error {
 			attempt++
 			app := appUsing(deniedNS, fmt.Sprintf("denied-app-%d", attempt), "restricted-web")
-			if err := k8sClient.Create(ctx, app); err != nil {
-				admissionErr = err
-				return err
+			err := k8sClient.Create(ctx, app)
+			if err == nil {
+				// admitted: the restriction is not enforced yet. Remove the
+				// Application — asserted, so a cleanup failure is visible
+				// instead of silently leaking state — and poll again.
+				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, app))).To(Succeed())
+				return nil
 			}
-			// admitted: the restriction is not enforced yet; clean up and poll again
-			_ = k8sClient.Delete(ctx, app)
-			return nil
+			if !strings.Contains(err.Error(), "is restricted") {
+				// transient API or webhook error, not the denial under test:
+				// keep polling instead of failing the spec on it
+				return nil
+			}
+			admissionErr = err
+			return err
 		}, 15*time.Second, time.Second).Should(HaveOccurred())
 		Expect(admissionErr.Error()).Should(ContainSubstring("spec.components[0].type"))
 		Expect(admissionErr.Error()).Should(ContainSubstring("is restricted"))
