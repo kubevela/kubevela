@@ -227,6 +227,17 @@ func registerTools(s *Server, d *deps) {
 	}, d.explainApplication)
 
 	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "diagnose_application",
+		Description: "Root-cause an unhealthy Application: reads every managed resource live and interprets its " +
+			"conditions by the conventions of the provisioner family that owns its API group — ACK (ResourceSynced " +
+			"and Terminal, including the convergence-loop signature of a field the cloud service computes " +
+			"differently), Config Connector (Ready with reason UpToDate), Crossplane (Ready and Synced) — plus " +
+			"recent events and findings that each cite the object they came from. The resource tree defaults " +
+			"unknown kinds to Healthy, so use this, not explain_application alone, when a cloud resource looks " +
+			"fine but the application is not.",
+	}, d.diagnoseApplication)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
 		Name:        "list_clusters",
 		Description: "List the clusters KubeVela can deploy to, with alias, credential type, endpoint and labels. Credentials are never returned.",
 	}, d.listClusters)
@@ -253,6 +264,15 @@ func registerTools(s *Server, d *deps) {
 			"changes, and classifies risk LOW, MEDIUM or HIGH with every rule that fired. Returns a token that " +
 			"apply_application requires, so show this result to the user before any apply.",
 	}, d.diffApplication)
+
+	addTool(s, ToolClassPlan, &sdk.Tool{
+		Name: "diff_definition_impact",
+		Description: "Blast radius of a definition change before vela def apply: finds every Application using the " +
+			"definition, renders each against the cluster's current copy and against a proposed copy supplied the " +
+			"way dryrun_application accepts local definitions, and returns a per-Application change set and risk " +
+			"class. A consumer the proposed definition no longer renders is reported as that Application's render " +
+			"error. With no proposed copy it lists the consumers without rendering. Nothing is applied.",
+	}, d.diffDefinitionImpact)
 
 	if s.opts.AllowWrite {
 		addTool(s, ToolClassWrite, &sdk.Tool{
