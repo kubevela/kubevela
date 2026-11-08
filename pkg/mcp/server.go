@@ -232,8 +232,9 @@ func registerTools(s *Server, d *deps) {
 			"per call, and interprets their conditions by the conventions of the family that owns their API group " +
 			"— ACK (ResourceSynced and Terminal, including the convergence-loop signature of a field the cloud " +
 			"service computes differently), Config Connector (Ready with reason UpToDate), Crossplane (Ready and " +
-			"Synced). Plain Kubernetes resources keep the resource tree's pod-corrected health without a live read, " +
-			"and Secrets are never read or diagnosed. Adds recent events and findings that each cite the object " +
+			"Synced). Plain Kubernetes resources keep the resource tree's pod-corrected health without a live read; " +
+			"Secrets are never diagnosed and, as with every tool here, their content is never returned. Adds " +
+			"recent events and findings that each cite the object " +
 			"they came from; anything unread is named in unknowns. The resource tree defaults unknown kinds to " +
 			"Healthy, so use this, not explain_application alone, when a cloud resource looks fine but the " +
 			"application is not.",
