@@ -169,6 +169,18 @@ var _ = Describe("diagnose_application", func() {
 		Expect(out.Resources[0].Ready).To(BeTrue())
 	})
 
+	It("blames the unresolved reference, not the controller, when references block reconciliation", func() {
+		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1,
+			[]map[string]any{{"type": "ACK.ReferencesResolved", "status": "False",
+				"message": "the referenced resource has 'ACK.Terminal' condition 'True'. Cannot be referenced. resource:DBSubnetGroup"}}, nil)
+		h = startHarness(Options{}, diagnoseApp(db)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources[0].State).To(Equal(stateNotReady))
+		Expect(out.Resources[0].Summary).To(ContainSubstring("waiting on a referenced resource"))
+	})
+
 	It("requires both Ready and Synced from a Crossplane resource", func() {
 		table := cloudResource("dynamodb.aws.upbound.io/v1beta1", "Table", "orders-db", 1,
 			[]map[string]any{

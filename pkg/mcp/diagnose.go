@@ -277,6 +277,11 @@ func diagnoseACK(diag *ResourceDiagnosis, obj *unstructured.Unstructured, out *D
 		diag.Summary = "ACK.Terminal is True: the controller stopped reconciling this resource and will not retry without a spec change"
 		out.NextChecks = append(out.NextChecks, fmt.Sprintf("fix the cause in the %s's spec; the Terminal message names it", diag.Kind))
 	case synced == nil:
+		if refs := conditionOf(diag.Conditions, "ACK.ReferencesResolved"); refs != nil && refs.Status != string(corev1.ConditionTrue) {
+			diag.State = stateNotReady
+			diag.Summary = "ACK.ReferencesResolved is " + refs.Status + ": the controller is waiting on a referenced resource before it reconciles this one; the condition message names it"
+			break
+		}
 		diag.State = stateUnknown
 		diag.Summary = "no ACK.ResourceSynced condition yet: the controller has not reconciled this resource; check that the ACK " + service + " controller is running"
 	case synced.Status == string(corev1.ConditionTrue):
