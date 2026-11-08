@@ -173,7 +173,7 @@ classifier needs structured changes. Handlers never shell out and never call a m
 | `find_definition_consumers` | read | Applications by component and trait type | P1 |
 | `compare_definition_revisions` | read | Parameter and rendered-output diff between two DefinitionRevisions | P1 |
 | `diagnose_application` | read | Root-cause walk of an unhealthy Application: live conditions of every managed resource interpreted by its provisioner's conventions (ACK `ResourceSynced` and `Terminal`, Config Connector `Ready` with reason `UpToDate`, Crossplane `Ready` and `Synced`), correlated events, and findings that each cite the object they came from | P1 |
-| `diff_definition_impact` | plan | Blast radius of a definition change before it is applied: finds every consumer the way `find_definition_consumers` does, renders each against the cluster's current definition and against a proposed copy supplied the way `dryrun_application` accepts local definitions, and returns a per-Application change set and risk class, including consumers the proposed definition would fail to render | P1 |
+| `diff_definition_impact` | plan | Blast radius of a definition change before it is applied: finds consumers the way `find_definition_consumers` does, renders a bounded number of them against the cluster's current definition and against a proposed copy supplied the way `dryrun_application` accepts local definitions, and returns a per-Application change set and risk class. A consumer the proposed copy fails to render carries its render error and no change set or risk class — a missing risk class there is a blocked consumer, never a safe one | P1 |
 | `vet_definition` | plan | `vela def vet` | P1 |
 | `suspend_workflow`, `terminate_workflow` | write | `vela workflow` | P1, flag |
 | `resume_workflow` | write | `vela workflow resume`; separate flag; denies the recorded initiator | P1, flag |
@@ -199,7 +199,11 @@ breaks are other people's. It composes two capabilities this KEP already has —
 discovery and local-definition rendering — into the question a platform engineer
 actually asks before `vela def apply`: "who uses this, and what changes for each of
 them". A consumer the proposed definition no longer renders is reported as that
-Application's render error, not as a tool failure.
+Application's render error, not as a tool failure, and such an entry carries no risk
+class on purpose: the change blocks that consumer, and an agent must never read the
+absence of a risk class as safety. The result mixes a live consumer scan with rendered
+diffs; the envelope's source says rendered whenever renders ran, and the evidence lines
+say which parts came from the live scan.
 
 `explain_application`, `get_application` and `get_logs` return **correlation handles**:
 cluster, namespace, pod names, the label set KubeVela stamps on rendered resources,

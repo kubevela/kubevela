@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -47,6 +48,7 @@ metadata:
   name: webservice
   namespace: vela-system
 spec:
+  version: 2.1.0
   schematic:
     cue:
       template: |
@@ -146,7 +148,7 @@ var _ = Describe("diff_definition_impact", func() {
 			"definition": proposedWebservice(labeledWebserviceTemplate),
 		}, &out)
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
-		Expect(out.DefinitionChanged).To(BeTrue())
+		Expect(out.DefinitionChanged).To(HaveValue(BeTrue()))
 		Expect(out.Impacts).To(HaveLen(2))
 		for _, impact := range out.Impacts {
 			Expect(impact.RenderError).To(BeEmpty())
@@ -177,12 +179,20 @@ var _ = Describe("diff_definition_impact", func() {
 
 	It("says when the proposed copy is identical and every impact is unchanged", func() {
 		h = startHarness(Options{}, fixtures()...)
+		// the identical copy is the cluster's own, exported the way an author
+		// would export it before an edit
+		live := &v1beta1.ComponentDefinition{}
+		Expect(h.cli.Get(h.ctx, client.ObjectKey{Namespace: "vela-system", Name: "webservice"}, live)).To(Succeed())
+		live.TypeMeta = metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ComponentDefinitionKind}
+		raw, err := yaml.Marshal(live)
+		Expect(err).NotTo(HaveOccurred())
 		var out DefinitionImpactOutput
 		res := h.call("diff_definition_impact", map[string]any{
 			"name":       "webservice",
-			"definition": proposedWebservice(webserviceTemplate),
+			"definition": string(raw),
 		}, &out)
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.DefinitionChanged).To(HaveValue(BeFalse()))
 		Expect(out.Impacts).To(HaveLen(2))
 		for _, impact := range out.Impacts {
 			Expect(impact.Unchanged).To(BeTrue(), impact.Name)
@@ -205,13 +215,23 @@ var _ = Describe("diff_definition_impact", func() {
 		Expect(out.Meta.Truncated).To(BeTrue())
 	})
 
-	It("refuses a proposed copy whose name or kind does not match", func() {
+	It("refuses a proposed copy whose name does not match", func() {
 		h = startHarness(Options{}, fixtures()...)
 		res := h.call("diff_definition_impact", map[string]any{
 			"name":       "worker",
 			"definition": proposedWebservice(labeledWebserviceTemplate),
 		}, nil)
 		Expect(errorText(res)).To(ContainSubstring("named"))
+	})
+
+	It("refuses a proposed copy whose kind does not match the type", func() {
+		h = startHarness(Options{}, fixtures()...)
+		res := h.call("diff_definition_impact", map[string]any{
+			"name":       "webservice",
+			"type":       "trait",
+			"definition": proposedWebservice(labeledWebserviceTemplate),
+		}, nil)
+		Expect(errorText(res)).To(ContainSubstring("expected a TraitDefinition"))
 	})
 
 	It("scans only the allowed namespaces under a restriction", func() {

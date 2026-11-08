@@ -97,7 +97,7 @@ type ResourceDiagnosis struct {
 type DiagnoseApplicationOutput struct {
 	Application string `json:"application"`
 	Namespace   string `json:"namespace"`
-	Healthy     bool   `json:"healthy" jsonschema:"True when the controller reports the Application healthy and every diagnosed resource is ready."`
+	Healthy     bool   `json:"healthy" jsonschema:"True only when the controller reports the Application healthy, the managed-resource inventory was read completely, and every diagnosed resource is ready."`
 	Phase       string `json:"phase" jsonschema:"Application phase the controller recorded."`
 	// Resources carries one diagnosis per managed resource.
 	Resources []ResourceDiagnosis `json:"resources" jsonschema:"One verdict per managed resource, from its live conditions interpreted by its provisioner's conventions."`
@@ -133,7 +133,9 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 
 	reads := 0
 	clusters := map[string]bool{}
-	allReady := true
+	// An inventory that failed, withheld resources or left trees unread can
+	// prove unhealth but never health.
+	allReady := err == nil && info.withheld == 0 && len(info.notes) == 0
 	for i := range applied {
 		res := applied[i]
 		clusters[res.Cluster] = true
@@ -222,7 +224,7 @@ func diagnoseFromTree(diag *ResourceDiagnosis, res querytypes.AppliedResource, u
 		diag.Ready, diag.State = true, stateReady
 	case string(querytypes.HealthStatusProgressing):
 		diag.State = stateNotReady
-	case "Unknown":
+	case string(querytypes.HealthStatusUnKnown), "Unknown":
 		diag.State = stateUnknown
 	default:
 		diag.State = stateNotReady
@@ -279,7 +281,11 @@ func diagnoseACK(diag *ResourceDiagnosis, obj *unstructured.Unstructured, out *D
 	case synced == nil:
 		if refs := conditionOf(diag.Conditions, "ACK.ReferencesResolved"); refs != nil && refs.Status != string(corev1.ConditionTrue) {
 			diag.State = stateNotReady
-			diag.Summary = "ACK.ReferencesResolved is " + refs.Status + ": the controller is waiting on a referenced resource before it reconciles this one; the condition message names it"
+			if refs.Status == string(corev1.ConditionFalse) {
+				diag.Summary = "ACK.ReferencesResolved is False: reference resolution failed and the controller will not reconcile this resource until it succeeds; the condition message names the blocker"
+			} else {
+				diag.Summary = "ACK.ReferencesResolved is " + refs.Status + ": reference resolution has not completed; the condition message says what it is waiting on"
+			}
 			break
 		}
 		diag.State = stateUnknown
@@ -327,9 +333,16 @@ func diagnoseCrossplane(diag *ResourceDiagnosis) {
 	ready := conditionOf(diag.Conditions, "Ready")
 	synced := conditionOf(diag.Conditions, "Synced")
 	switch {
-	case ready == nil && synced == nil:
+	case ready == nil || synced == nil:
+		missing := "Ready or Synced condition"
+		switch {
+		case ready != nil:
+			missing = "Synced condition"
+		case synced != nil:
+			missing = "Ready condition"
+		}
 		diag.State = stateUnknown
-		diag.Summary = "no Ready or Synced condition yet: the provider has not reconciled this resource; check that its Crossplane provider is installed and healthy"
+		diag.Summary = "no " + missing + " yet: the provider has not fully reconciled this resource; check that its Crossplane provider is installed and healthy"
 	case synced != nil && synced.Status != string(corev1.ConditionTrue):
 		diag.State = stateNotReady
 		diag.Summary = "Synced is " + synced.Status + ": the provider could not apply the spec to the external system"

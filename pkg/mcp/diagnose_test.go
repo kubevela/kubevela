@@ -17,6 +17,8 @@ limitations under the License.
 package mcp
 
 import (
+	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -25,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -178,7 +181,17 @@ var _ = Describe("diagnose_application", func() {
 		res := h.call("diagnose_application", args, &out)
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
 		Expect(out.Resources[0].State).To(Equal(stateNotReady))
-		Expect(out.Resources[0].Summary).To(ContainSubstring("waiting on a referenced resource"))
+		Expect(out.Resources[0].Summary).To(ContainSubstring("reference resolution failed"))
+
+		pending := cloudResource("rds.services.k8s.aws/v1alpha1", "DBInstance", "orders-db", 1,
+			[]map[string]any{{"type": "ACK.ReferencesResolved", "status": "Unknown",
+				"message": "the referenced resource is not synced yet. resource:DBCluster"}}, nil)
+		h2 := startHarness(Options{}, diagnoseApp(pending)...)
+		defer h2.close()
+		res = h2.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources[0].State).To(Equal(stateNotReady))
+		Expect(out.Resources[0].Summary).To(ContainSubstring("has not completed"))
 	})
 
 	It("requires both Ready and Synced from a Crossplane resource", func() {
@@ -196,15 +209,47 @@ var _ = Describe("diagnose_application", func() {
 		Expect(out.Resources[0].Summary).To(ContainSubstring("Ready is False"))
 	})
 
+	It("does not call a Crossplane resource ready on a lone positive condition", func() {
+		table := cloudResource("dynamodb.aws.upbound.io/v1beta1", "Table", "orders-db", 1,
+			[]map[string]any{{"type": "Ready", "status": "True"}}, nil)
+		h = startHarness(Options{}, diagnoseApp(table)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources[0].Ready).To(BeFalse())
+		Expect(out.Resources[0].State).To(Equal(stateUnknown))
+		Expect(out.Resources[0].Summary).To(ContainSubstring("no Synced condition yet"))
+	})
+
 	It("settles plain Kubernetes resources from the tree without live reads", func() {
 		h = startHarness(Options{}, managedFixtures()...)
 		var out DiagnoseApplicationOutput
 		res := h.call("diagnose_application", map[string]any{"name": "web", "namespace": "team-a"}, &out)
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
-		for _, r := range out.Resources {
-			Expect(r.Provider).To(Equal(providerKubernetes))
-			Expect(r.Kind).NotTo(Equal("Secret"), "a Secret has no conditions and is never diagnosed")
-		}
+		// the fixture manages a Deployment and a Secret: the Secret is never
+		// diagnosed, so exactly the Deployment remains
+		Expect(out.Resources).To(HaveLen(1))
+		Expect(out.Resources[0].Kind).To(Equal("Deployment"))
+		Expect(out.Resources[0].Provider).To(Equal(providerKubernetes))
+		Expect(out.Resources[0].Ready).To(BeTrue())
+		// a live read leaves a "<Kind> ns/name ... resourceVersion" evidence
+		// line; the tree path must not
+		Expect(toJSON(out.Evidence)).NotTo(ContainSubstring("Deployment team-a/web"))
+	})
+
+	It("never reports healthy when the inventory could not be read", func() {
+		funcs := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if _, ok := list.(*v1beta1.ResourceTrackerList); ok {
+				return fmt.Errorf("resourcetrackers is unavailable")
+			}
+			return c.List(ctx, list, opts...)
+		}}
+		h = startHarnessIntercepted(Options{}, nil, funcs, managedFixtures()...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", map[string]any{"name": "web", "namespace": "team-a"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Healthy).To(BeFalse(), "an unread inventory can never prove health")
+		Expect(toJSON(out.Unknowns)).To(ContainSubstring("managed resources"))
 	})
 
 	It("bounds live reads and says what it did not read", func() {
