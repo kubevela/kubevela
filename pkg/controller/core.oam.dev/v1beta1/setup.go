@@ -26,10 +26,12 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core/workflow/workflowstepdefinition"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
 )
 
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager, args controller.Args) error {
+	core.LiveReader = mgr.GetAPIReader()
 	for _, setup := range []func(ctrl.Manager, controller.Args) error{
 		application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
 	} {
