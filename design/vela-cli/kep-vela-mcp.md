@@ -205,7 +205,11 @@ with a bounded TTL cache, the same pattern as the diff token; handles resolve in
 the same validation and size budgets as inline content, count toward the diff token's
 local-definitions record identically, and expire to a clear error naming the tool to
 call again. Handles also work on transports with no shared filesystem, which the
-VelaUX phase needs; reading definition files from disk stays deliberately absent.
+VelaUX phase needs; reading definition files from disk stays deliberately absent. The
+stage cache lives in one server process and the stdio transport serves one caller, so a
+handle is not an authorization boundary and must not become one by accident: the HTTP
+transport binds staged entries and their lookups to the caller's principal and project
+before it exposes this tool, and a handle never transfers across callers.
 
 `diff_definition_impact` exists because a definition edit is the one change whose blast
 radius the author cannot see from the document in front of them: the Applications it
@@ -674,7 +678,7 @@ and bounded.
 | Phase | Scope | Exit criteria |
 |---|---|---|
 | P0, KubeVela 1.12 | `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp config`, with per-client steps in `kubevela/skills`; developer, SRE, platform-engineer and defkit-author skills; the documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
-| P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, `diagnose_application`, `diff_definition_impact`, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; the degraded-cloud-resource fixture (a provisioner that halted or cannot converge) is root-caused by `diagnose_application` with zero manual lookups; one adopter runs the trigger recipe |
+| P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, `diagnose_application`, `diff_definition_impact`, `stage_definition` with handle support in every plan tool, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; the degraded-cloud-resource fixture (a provisioner that halted or cannot converge) is root-caused by `diagnose_application` with zero manual lookups; one adopter runs the trigger recipe |
 | P2, after VelaUX catch-up | VelaUX backend plugin over streamable HTTP; per-caller tool filtering; read-only assistant panel | Hosted client logs in through VelaUX and gets the same allow or deny as the CLI |
 | P3, after the Cluster Infrastructure KEP | Cluster-fleet tools from the Future scope section; cluster-plane handles; `kubevela-cluster-operator` skill | Fleet scenarios pass on three model families; a rollout started through an agent pauses at every approval the KEP defines |
 

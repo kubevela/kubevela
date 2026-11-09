@@ -57,6 +57,16 @@ var _ = Describe("stage_definition and definitions by handle", func() {
 		Expect(byHandle.Evidence).To(ContainElement(ContainSubstring("1 local definitions took priority")))
 	})
 
+	It("diffs an application with a staged handle", func() {
+		h = startHarness(Options{}, platformFixtures()...)
+		staged := stage(bucketCUE)
+		var out DiffOutput
+		res := h.call("diff_application", map[string]any{"application": bucketDoc("acme-logs"), "definitions": []string{staged.Handle}}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.ChangeSet.Resources).NotTo(BeEmpty())
+		Expect(out.Token).NotTo(BeEmpty())
+	})
+
 	It("stages the same content to the same handle", func() {
 		h = startHarness(Options{}, platformFixtures()...)
 		Expect(stage(bucketCUE).Handle).To(Equal(stage(bucketCUE).Handle))

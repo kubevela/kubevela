@@ -105,7 +105,7 @@ func (d *deps) diffDefinitionImpact(ctx context.Context, _ *sdk.CallToolRequest,
 
 	var proposed *unstructured.Unstructured
 	if strings.TrimSpace(in.Definition) != "" {
-		obj, isHandle, err := d.resolveStagedDefinition(in.Definition)
+		obj, _, isHandle, err := d.resolveStagedDefinition(in.Definition)
 		if isHandle && err != nil {
 			return nil, out, err
 		}

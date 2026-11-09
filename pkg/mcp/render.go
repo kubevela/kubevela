@@ -251,27 +251,27 @@ func (d *deps) parsePlanInput(in PlanInput) (*v1beta1.Application, []*unstructur
 		return nil, nil, fmt.Errorf("%d local definitions supplied, at most %d are accepted", len(in.Definitions), maxLocalDefinitions)
 	}
 	total := 0
+	defs := make([]*unstructured.Unstructured, 0, len(in.Definitions))
 	for i, doc := range in.Definitions {
-		if strings.HasPrefix(doc, defHandlePrefix) {
-			// Staged content passed its byte caps when it was staged.
+		if obj, size, isHandle, err := d.resolveStagedDefinition(doc); isHandle {
+			if err != nil {
+				return nil, nil, fmt.Errorf("definitions[%d]: %w", i, err)
+			}
+			// A handle's staged content counts toward the same aggregate
+			// budget as inline content; its per-entry cap held at stage time.
+			total += size
+			if total > maxDefinitionsBytes {
+				return nil, nil, fmt.Errorf("local definitions total %d bytes; at most %d are accepted", total, maxDefinitionsBytes)
+			}
+			defs = append(defs, obj)
 			continue
 		}
 		if len(doc) > maxDefinitionBytes {
 			return nil, nil, fmt.Errorf("definitions[%d] is %d bytes; at most %d are accepted", i, len(doc), maxDefinitionBytes)
 		}
 		total += len(doc)
-	}
-	if total > maxDefinitionsBytes {
-		return nil, nil, fmt.Errorf("local definitions total %d bytes; at most %d are accepted", total, maxDefinitionsBytes)
-	}
-	defs := make([]*unstructured.Unstructured, 0, len(in.Definitions))
-	for i, doc := range in.Definitions {
-		if obj, isHandle, err := d.resolveStagedDefinition(doc); isHandle {
-			if err != nil {
-				return nil, nil, fmt.Errorf("definitions[%d]: %w", i, err)
-			}
-			defs = append(defs, obj)
-			continue
+		if total > maxDefinitionsBytes {
+			return nil, nil, fmt.Errorf("local definitions total %d bytes; at most %d are accepted", total, maxDefinitionsBytes)
 		}
 		obj, err := parseDefinition(doc)
 		if err != nil {

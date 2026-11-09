@@ -42,7 +42,10 @@ var (
 
 // stagedDefinition is one parsed definition held for reuse by handle.
 type stagedDefinition struct {
-	obj       *unstructured.Unstructured
+	obj *unstructured.Unstructured
+	// size is the staged content's byte length, so handle entries count
+	// toward the same aggregate budget as inline ones.
+	size      int
 	createdAt time.Time
 }
 
@@ -51,7 +54,7 @@ type stageCache struct {
 	entries map[string]stagedDefinition
 }
 
-func (c *stageCache) put(handle string, obj *unstructured.Unstructured) {
+func (c *stageCache) put(handle string, obj *unstructured.Unstructured, size int) {
 	if c.entries == nil {
 		c.entries = map[string]stagedDefinition{}
 	}
@@ -70,16 +73,17 @@ func (c *stageCache) put(handle string, obj *unstructured.Unstructured) {
 		}
 		delete(c.entries, oldest)
 	}
-	c.entries[handle] = stagedDefinition{obj: obj, createdAt: now}
+	c.entries[handle] = stagedDefinition{obj: obj, size: size, createdAt: now}
 }
 
-// get returns a copy of the staged definition for a live handle, or false.
-func (c *stageCache) get(handle string) (*unstructured.Unstructured, bool) {
+// get returns a copy of the staged definition and its content size for a
+// live handle, or false.
+func (c *stageCache) get(handle string) (*unstructured.Unstructured, int, bool) {
 	e, ok := c.entries[handle]
 	if !ok || time.Since(e.createdAt) > stageTTL {
-		return nil, false
+		return nil, 0, false
 	}
-	return e.obj.DeepCopy(), true
+	return e.obj.DeepCopy(), e.size, true
 }
 
 // StageDefinitionInput carries the definition to stage.
@@ -121,7 +125,7 @@ func (d *deps) stageDefinition(ctx context.Context, _ *sdk.CallToolRequest, in S
 	out.Handle = defHandlePrefix + hex.EncodeToString(sum[:])
 	out.Kind, out.Name, out.APIVersion = obj.GetKind(), obj.GetName(), obj.GetAPIVersion()
 	d.mu.Lock()
-	d.stages.put(out.Handle, obj)
+	d.stages.put(out.Handle, obj, len(in.Definition))
 	d.mu.Unlock()
 	out.ExpiresAt = time.Now().Add(stageTTL).UTC()
 	out.Evidence = append(out.Evidence, fmt.Sprintf("parsed and staged %s %q from %d bytes; nothing was sent to the cluster", out.Kind, out.Name, len(in.Definition)))
@@ -133,15 +137,15 @@ func (d *deps) stageDefinition(ctx context.Context, _ *sdk.CallToolRequest, in S
 // resolveStagedDefinition returns the staged object when entry is a handle.
 // The second result says whether entry was a handle at all, so callers fall
 // back to inline parsing when it was not.
-func (d *deps) resolveStagedDefinition(entry string) (*unstructured.Unstructured, bool, error) {
+func (d *deps) resolveStagedDefinition(entry string) (*unstructured.Unstructured, int, bool, error) {
 	if !strings.HasPrefix(entry, defHandlePrefix) {
-		return nil, false, nil
+		return nil, 0, false, nil
 	}
 	d.mu.Lock()
-	obj, ok := d.stages.get(entry)
+	obj, size, ok := d.stages.get(entry)
 	d.mu.Unlock()
 	if !ok {
-		return nil, true, fmt.Errorf("handle %s is not staged or has expired; stage the definition again with stage_definition", entry)
+		return nil, 0, true, fmt.Errorf("handle %s is not staged or has expired; stage the definition again with stage_definition", entry)
 	}
-	return obj, true, nil
+	return obj, size, true, nil
 }
