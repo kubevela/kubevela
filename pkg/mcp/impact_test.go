@@ -244,15 +244,21 @@ var _ = Describe("diff_definition_impact", func() {
 		Expect(out.Consumers.NamespacesScanned).To(Equal([]string{"team-b"}))
 	})
 
-	It("stays a live result when no consumer was rendered", func() {
-		h = startHarness(Options{Namespaces: []string{"team-b"}}, fixtures()...)
+	It("stays a live result when consumers exist but none was rendered", func() {
+		old := maxImpactApps
+		maxImpactApps = 0
+		DeferCleanup(func() { maxImpactApps = old })
+		h = startHarness(Options{}, fixtures()...)
 		var out DefinitionImpactOutput
 		res := h.call("diff_definition_impact", map[string]any{
 			"name":       "webservice",
 			"definition": proposedWebservice(labeledWebserviceTemplate),
 		}, &out)
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Consumers.Count).To(Equal(2), "the consumers exist; only the render budget is zero")
 		Expect(out.Impacts).To(BeEmpty())
+		Expect(out.Meta.Truncated).To(BeTrue())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("impact is unknown")))
 		Expect(out.Meta.Source).To(Equal(SourceLive), "mixed means a render contributed; none did")
 	})
 })
