@@ -176,6 +176,7 @@ classifier needs structured changes. Handlers never shell out and never call a m
 | `diagnose_application` | read | Root-cause walk of an unhealthy Application: provisioner-owned resources read live, a bounded number per call, their conditions interpreted by the owning family's conventions (ACK `ResourceSynced` and `Terminal`, Config Connector `Ready` with reason `UpToDate`, Crossplane `Ready` and `Synced`); plain Kubernetes resources keep the tree's pod-corrected health and Secrets are never diagnosed; plus correlated events and findings that each cite the object they came from | P1 |
 | `diff_definition_impact` | plan | Blast radius of a definition change before it is applied: finds consumers the way `find_definition_consumers` does, renders a bounded number of them against the cluster's current definition and against a proposed copy supplied the way `dryrun_application` accepts local definitions, and returns a per-Application result. Changed consumers carry a change set and risk class, unchanged consumers are marked unchanged, base render failures carry a base render error, and proposed render failures carry their render error with no change set or risk class — a missing risk class for a render failure is a blocked consumer, never a safe one | P1 |
 | `vet_definition` | plan | `vela def vet` | P1 |
+| `stage_definition` | plan | Parses and validates a local definition (CUE as `vela def gen-module` writes it, or YAML) exactly as the plan tools do inline, caches it server-side, and returns a content-hash handle with the definition's kind and name. Every plan tool accepts handles wherever it accepts inline definitions, so a 30 KiB generated definition crosses the agent's context once per edit instead of once per call | P1 |
 | `suspend_workflow`, `terminate_workflow` | write | `vela workflow` | P1, flag |
 | `resume_workflow` | write | `vela workflow resume`; separate flag; denies the recorded initiator | P1, flag |
 
@@ -195,6 +196,16 @@ resource exists, the signature of a field the endpoint computes differently), a 
 Connector resource whose `Ready` reason is not `UpToDate`, a Crossplane resource
 missing `Ready` or `Synced`. Every finding stays a cited observation; the conventions
 decide only which conditions are worth citing and what their combination means.
+
+Local definitions travel by reference, not only by value. An authoring loop renders the
+same generated definition many times — dry-run, impact, diff, repeat after each edit —
+and inlining it in every call spends the agent's context on boilerplate it never needs
+to read. `stage_definition` stages the parsed definition under a content-hash handle
+with a bounded TTL cache, the same pattern as the diff token; handles resolve inside
+the same validation and size budgets as inline content, count toward the diff token's
+local-definitions record identically, and expire to a clear error naming the tool to
+call again. Handles also work on transports with no shared filesystem, which the
+VelaUX phase needs; reading definition files from disk stays deliberately absent.
 
 `diff_definition_impact` exists because a definition edit is the one change whose blast
 radius the author cannot see from the document in front of them: the Applications it
