@@ -57,6 +57,9 @@ var serviceName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 // then Crossplane, matching the platform default definitions build on.
 type provisionerFamily struct {
 	name string
+	// display is the family's proper name for prose messages; name stays the
+	// canonical lower-case value the provisioner field reports.
+	display string
 	// suffixes are the group suffixes after "<service>.", most current first.
 	suffixes []string
 	install  string
@@ -68,12 +71,14 @@ var providerFamilies = map[string][]provisionerFamily{
 	ProviderAWS: {
 		{
 			name:     ProvisionerACK,
+			display:  "ACK",
 			suffixes: []string{".services.k8s.aws"},
 			install:  "the ACK %[1]s controller, chart oci://public.ecr.aws/aws-controllers-k8s/%[1]s-chart",
 			health:   "condition ACK.ResourceSynced is True; status.ackResourceMetadata.arn identifies the AWS resource",
 		},
 		{
-			name: ProvisionerCrossplane,
+			name:    ProvisionerCrossplane,
+			display: "Crossplane",
 			// Namespaced Crossplane v2 resources, then cluster-scoped, then the
 			// older community provider.
 			suffixes: []string{".aws.m.upbound.io", ".aws.upbound.io", ".aws.crossplane.io"},
@@ -84,12 +89,14 @@ var providerFamilies = map[string][]provisionerFamily{
 	ProviderGCP: {
 		{
 			name:     ProvisionerConfigConnector,
+			display:  "Config Connector",
 			suffixes: []string{".cnrm.cloud.google.com"},
 			install:  "Config Connector, which serves every GCP service once installed: the ConfigConnector add-on on GKE, or the operator bundle gs://configconnector-operator/latest/release-bundle.tar.gz elsewhere",
 			health:   "condition Ready is True with reason UpToDate; the resource's status holds what GCP reported",
 		},
 		{
 			name:     ProvisionerCrossplane,
+			display:  "Crossplane",
 			suffixes: []string{".gcp.m.upbound.io", ".gcp.upbound.io", ".gcp.crossplane.io"},
 			install:  "a Crossplane GCP provider for %[1]s, provider-gcp-%[1]s from crossplane-contrib/provider-upjet-gcp",
 			health:   "conditions Ready and Synced are True; status.atProvider holds what GCP reported",
@@ -98,12 +105,14 @@ var providerFamilies = map[string][]provisionerFamily{
 	ProviderAzure: {
 		{
 			name:     ProvisionerASO,
+			display:  "Azure Service Operator",
 			suffixes: []string{".azure.com"},
 			install:  "Azure Service Operator with the %[1]s CRDs: chart azure-service-operator from https://raw.githubusercontent.com/Azure/azure-service-operator/main/v2/charts with --set crdPattern='%[1]s.azure.com/*'",
 			health:   "condition Ready is True, meaning the resource reached its goal state; a Ready that is not True carries a severity and a message",
 		},
 		{
 			name:     ProvisionerCrossplane,
+			display:  "Crossplane",
 			suffixes: []string{".azure.m.upbound.io", ".azure.upbound.io", ".azure.crossplane.io"},
 			install:  "a Crossplane Azure provider for %[1]s, provider-azure-%[1]s from crossplane-contrib/provider-upjet-azure",
 			health:   "conditions Ready and Synced are True; status.atProvider holds what Azure reported",
@@ -322,10 +331,10 @@ func serviceProvisioner(ctx context.Context, cli client.Client, names []string, 
 	if incomplete {
 		// A CRD that was not read may be the one asked for.
 		out.Message = fmt.Sprintf("%s serves %s on this cluster, but not every %s CRD could be read, so whether it has a %s kind is unknown; the kinds read are %s",
-			chosen.name, service, chosen.name, kind, strings.Join(kinds, ", "))
+			chosen.display, service, chosen.display, kind, strings.Join(kinds, ", "))
 		return out, warnings, nil
 	}
-	out.Message = fmt.Sprintf("%s serves %s on this cluster, but has no %s kind; the installed kinds are %s", chosen.name, service, kind, strings.Join(kinds, ", "))
+	out.Message = fmt.Sprintf("%s serves %s on this cluster, but has no %s kind; the installed kinds are %s", chosen.display, service, kind, strings.Join(kinds, ", "))
 	return out, warnings, nil
 }
 
@@ -337,8 +346,8 @@ func noProvisionerMessage(provider, service string) string {
 		for _, suf := range fam.suffixes {
 			gs = append(gs, service+suf)
 		}
-		names = append(names, fam.name)
-		groups = append(groups, fmt.Sprintf("%s (%s)", fam.name, strings.Join(gs, ", ")))
+		names = append(names, fam.display)
+		groups = append(groups, fmt.Sprintf("%s (%s)", fam.display, strings.Join(gs, ", ")))
 		installs = append(installs, formatInstall(fam.install, service))
 	}
 	return fmt.Sprintf("Neither %s provides %s on this cluster: no CRDs were found in the groups of %s. "+

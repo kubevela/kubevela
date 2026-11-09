@@ -152,7 +152,7 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		h = startHarness(Options{}, objs()...)
 		p := platform(map[string]any{"provider": "gcp", "service": "sql"}).Provisioner
 		Expect(p.Provisioner).To(BeEmpty())
-		Expect(p.Message).To(ContainSubstring("Neither config-connector nor crossplane provides sql"))
+		Expect(p.Message).To(ContainSubstring("Neither Config Connector nor Crossplane provides sql"))
 		Expect(p.Message).To(ContainSubstring("sql.cnrm.cloud.google.com"))
 		Expect(p.Message).To(ContainSubstring("gs://configconnector-operator"))
 		Expect(p.Message).To(ContainSubstring("provider-gcp-sql"))
@@ -196,7 +196,7 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		p := platform(map[string]any{"service": "dynamodb"}).Provisioner
 		Expect(p.Provisioner).To(BeEmpty())
 		Expect(p.Kinds).To(BeEmpty())
-		Expect(p.Message).To(ContainSubstring("Neither ack nor crossplane provides dynamodb on this cluster"))
+		Expect(p.Message).To(ContainSubstring("Neither ACK nor Crossplane provides dynamodb on this cluster"))
 		Expect(p.Message).To(ContainSubstring("dynamodb.services.k8s.aws"))
 		Expect(p.Message).To(ContainSubstring("dynamodb.aws.m.upbound.io"))
 		Expect(p.Message).To(ContainSubstring("oci://public.ecr.aws/aws-controllers-k8s/dynamodb-chart"))
