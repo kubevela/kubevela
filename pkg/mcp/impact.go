@@ -50,7 +50,7 @@ type DefinitionImpactInput struct {
 	Type string `json:"type,omitempty" jsonschema:"Definition type: component, trait, policy or workflow-step. Empty means component."`
 	// Definition is the proposed copy, accepted exactly as dryrun_application
 	// accepts local definitions.
-	Definition string `json:"definition,omitempty" jsonschema:"Optional proposed definition, as CUE the way vela def gen-module writes it or as a definition object in YAML. Its kind and name must match type and name. When set, every consumer is rendered against the cluster's current copy and against this one, and the diffs are returned. When empty, consumers are listed without rendering."`
+	Definition string `json:"definition,omitempty" jsonschema:"Optional proposed definition, as CUE the way vela def gen-module writes it, as a definition object in YAML, or as a handle from stage_definition. Its kind and name must match type and name. When set, every consumer is rendered against the cluster's current copy and against this one, and the diffs are returned. When empty, consumers are listed without rendering."`
 }
 
 // ApplicationImpact is what the proposed definition does to one consumer.
@@ -105,12 +105,17 @@ func (d *deps) diffDefinitionImpact(ctx context.Context, _ *sdk.CallToolRequest,
 
 	var proposed *unstructured.Unstructured
 	if strings.TrimSpace(in.Definition) != "" {
-		if len(in.Definition) > maxDefinitionBytes {
-			return nil, out, fmt.Errorf("definition is %d bytes; at most %d are accepted", len(in.Definition), maxDefinitionBytes)
+		obj, isHandle, err := d.resolveStagedDefinition(in.Definition)
+		if isHandle && err != nil {
+			return nil, out, err
 		}
-		obj, err := parseDefinition(in.Definition)
-		if err != nil {
-			return nil, out, fmt.Errorf("definition does not parse: %w", err)
+		if !isHandle {
+			if len(in.Definition) > maxDefinitionBytes {
+				return nil, out, fmt.Errorf("definition is %d bytes; at most %d are accepted", len(in.Definition), maxDefinitionBytes)
+			}
+			if obj, err = parseDefinition(in.Definition); err != nil {
+				return nil, out, fmt.Errorf("definition does not parse: %w", err)
+			}
 		}
 		if obj.GetKind() != wantKind {
 			return nil, out, fmt.Errorf("definition is a %s, expected a %s for type %s", obj.GetKind(), wantKind, defType)

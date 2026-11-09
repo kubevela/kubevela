@@ -59,7 +59,7 @@ type PlanInput struct {
 	// Definitions lets an author render against definitions that are not
 	// on the cluster yet. They take priority over cluster definitions of
 	// the same name, as vela dry-run -d does.
-	Definitions []string `json:"definitions,omitempty" jsonschema:"Optional local definitions, one per entry, used instead of the cluster's copy of the same name. Each is a CUE definition as vela def gen-module writes it for a defkit module, or a definition object as YAML."`
+	Definitions []string `json:"definitions,omitempty" jsonschema:"Optional local definitions, one per entry, used instead of the cluster's copy of the same name. Each is a CUE definition as vela def gen-module writes it for a defkit module, a definition object as YAML, or a handle from stage_definition."`
 }
 
 // DryRunInput adds the server check, which only dryrun_application offers.
@@ -252,6 +252,10 @@ func (d *deps) parsePlanInput(in PlanInput) (*v1beta1.Application, []*unstructur
 	}
 	total := 0
 	for i, doc := range in.Definitions {
+		if strings.HasPrefix(doc, defHandlePrefix) {
+			// Staged content passed its byte caps when it was staged.
+			continue
+		}
 		if len(doc) > maxDefinitionBytes {
 			return nil, nil, fmt.Errorf("definitions[%d] is %d bytes; at most %d are accepted", i, len(doc), maxDefinitionBytes)
 		}
@@ -262,6 +266,13 @@ func (d *deps) parsePlanInput(in PlanInput) (*v1beta1.Application, []*unstructur
 	}
 	defs := make([]*unstructured.Unstructured, 0, len(in.Definitions))
 	for i, doc := range in.Definitions {
+		if obj, isHandle, err := d.resolveStagedDefinition(doc); isHandle {
+			if err != nil {
+				return nil, nil, fmt.Errorf("definitions[%d]: %w", i, err)
+			}
+			defs = append(defs, obj)
+			continue
+		}
 		obj, err := parseDefinition(doc)
 		if err != nil {
 			return nil, nil, fmt.Errorf("definitions[%d] does not parse: %w", i, err)
