@@ -3,7 +3,7 @@
 **Authors**: Anoop Gopalakrishnan
 **Status**: Draft
 **Created**: 2026-09-29
-**Last Updated**: 2026-09-29
+**Last Updated**: 2026-11-09
 
 > **Status**: Design proposal. Tool names, schemas and flag names may change during
 > implementation and community review. Nothing here is committed behaviour.
