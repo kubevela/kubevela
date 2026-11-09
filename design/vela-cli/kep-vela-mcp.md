@@ -90,7 +90,7 @@ flowchart TB
         STD["stdio: vela mcp (P0)<br/>kubeconfig of the user"]
         HTTP["HTTP: VelaUX backend plugin (P2)<br/>Dex, JWT, project RBAC"]
     end
-    TL["pkg/mcp tool layer<br/>registry, mode policy, diff cache, redaction, risk classifier"]
+    TL["pkg/mcp tool layer<br/>registry, mode policy, diff and staging caches, redaction, risk classifier"]
     subgraph existing ["Existing code, no new concepts"]
         D["definition schema<br/>show, def vet"]
         R["render and diff<br/>dry-run, live-diff"]
