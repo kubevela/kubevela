@@ -92,8 +92,10 @@ type controllerInfo struct {
 // GetPlatformInfoInput optionally names the namespace the user is working in.
 type GetPlatformInfoInput struct {
 	Namespace string `json:"namespace,omitempty" jsonschema:"Namespace the user is about to work in. When set, the result reports how that namespace delivers workloads today."`
-	// Service selects one AWS service to resolve a provisioner for.
-	Service string `json:"service,omitempty" jsonschema:"AWS service to find a provisioner for, as AWS names it in lower case, such as dynamodb, s3 or rds. ACK is chosen first, then Crossplane."`
+	// Provider is the cloud Service belongs to.
+	Provider string `json:"provider,omitempty" jsonschema:"Cloud of the service: aws, gcp or azure. Defaults to aws."`
+	// Service selects one cloud service to resolve a provisioner for.
+	Service string `json:"service,omitempty" jsonschema:"Cloud service to find a provisioner for, in the cloud's own lower-case naming: dynamodb, s3 or rds on AWS, sql or storage on GCP, sql or dbforpostgresql on Azure. The cloud's own controller is chosen first, then Crossplane."`
 	// Kind selects one resource kind of that service to return the schema of.
 	Kind string `json:"kind,omitempty" jsonschema:"Resource kind of that service, such as Table or Bucket. When set, the result includes the installed CRD's spec schema."`
 }
@@ -103,8 +105,8 @@ type GetPlatformInfoOutput struct {
 	platformInfo
 	// Addons are the enabled addons, read on every call.
 	Addons []AddonSummary `json:"addons" jsonschema:"Enabled addons with their versions and health, as list_addons reports them."`
-	// CloudProvisioners lists the AWS services ACK and Crossplane serve here.
-	CloudProvisioners *CloudProvisioners `json:"cloudProvisioners,omitempty" jsonschema:"AWS services that ACK and Crossplane can create on this cluster, from the installed CRDs."`
+	// CloudProvisioners lists the cloud services each family serves here.
+	CloudProvisioners *CloudProvisioners `json:"cloudProvisioners,omitempty" jsonschema:"Cloud services that the installed provisioners can create on this cluster, per cloud and family, from the installed CRDs."`
 	// Provisioner answers for the service in the request.
 	Provisioner *ServiceProvisioner `json:"provisioner,omitempty" jsonschema:"For the service in the request: the provisioner to build on, its kinds, and the schema of the kind asked for; or why the service cannot be provisioned."`
 	// ServedData says where tool descriptions and risk rules come from.
@@ -135,8 +137,14 @@ func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in G
 	if in.Kind != "" && in.Service == "" {
 		return nil, out, fmt.Errorf("kind needs a service, such as service dynamodb with kind Table")
 	}
+	if in.Provider == "" {
+		in.Provider = ProviderAWS
+	}
+	if _, ok := providerFamilies[in.Provider]; !ok {
+		return nil, out, fmt.Errorf("provider %q is not one of aws, gcp or azure", in.Provider)
+	}
 	if in.Service != "" && !serviceName.MatchString(in.Service) {
-		return nil, out, fmt.Errorf("service %q is not an AWS service name; use the lower-case name AWS uses, such as dynamodb or s3", in.Service)
+		return nil, out, fmt.Errorf("service %q is not a service name %s uses; use the lower-case name from its API groups, such as %s", in.Service, in.Provider, serviceExamples(in.Provider))
 	}
 	if cli := d.f.Client(); cli != nil {
 		d.addProvisioners(ctx, cli, in, &out)
@@ -394,15 +402,26 @@ func versionSkew(cli, core string) string {
 	return ""
 }
 
+// serviceExamples names example services per cloud for error messages.
+func serviceExamples(provider string) string {
+	switch provider {
+	case ProviderGCP:
+		return "sql or storage"
+	case ProviderAzure:
+		return "sql or dbforpostgresql"
+	}
+	return "dynamodb or s3"
+}
+
 // addProvisioners fills the cloud provisioner fields. A failed CRD list is
 // reported, and never read as "nothing installed".
 func (d *deps) addProvisioners(ctx context.Context, cli client.Client, in GetPlatformInfoInput, out *GetPlatformInfoOutput) {
 	summary, names, err := cloudProvisioners(ctx, cli)
 	if err != nil {
-		msg := "installed CustomResourceDefinitions could not be listed, so whether ACK or Crossplane is installed is unknown: " + redactLine(err.Error())
+		msg := "installed CustomResourceDefinitions could not be listed, so whether a provisioner is installed is unknown: " + redactLine(err.Error())
 		out.Meta.Warnings = append(out.Meta.Warnings, msg)
 		if in.Service != "" {
-			out.Provisioner = &ServiceProvisioner{Service: in.Service, Kinds: []ProvisionedKind{}, Message: msg + ". Ask a platform engineer which provisioner serves " + in.Service + "."}
+			out.Provisioner = &ServiceProvisioner{Service: in.Service, Provider: in.Provider, Kinds: []ProvisionedKind{}, Message: msg + ". Ask a platform engineer which provisioner serves " + in.Service + "."}
 		}
 		return
 	}
@@ -410,7 +429,7 @@ func (d *deps) addProvisioners(ctx context.Context, cli client.Client, in GetPla
 	if in.Service == "" {
 		return
 	}
-	sp, warnings, err := serviceProvisioner(ctx, cli, names, in.Service, in.Kind)
+	sp, warnings, err := serviceProvisioner(ctx, cli, names, in.Provider, in.Service, in.Kind)
 	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
 	if err != nil {
 		out.Meta.Warnings = append(out.Meta.Warnings, "provisioner for "+in.Service+": "+redactLine(err.Error()))
