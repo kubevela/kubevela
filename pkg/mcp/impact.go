@@ -130,6 +130,12 @@ func (d *deps) diffDefinitionImpact(ctx context.Context, _ *sdk.CallToolRequest,
 	warnings := out.Meta.Warnings
 	out.Meta = d.meta(ctx)
 	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
+	if consumers.Error != "" {
+		// The scan stopped early or failed; the count does not cover
+		// everything, with or without renders.
+		out.Meta.Truncated = true
+		out.Meta.Warnings = append(out.Meta.Warnings, "consumer scan incomplete: "+consumers.Error)
+	}
 
 	if proposed == nil {
 		out.Evidence = append(out.Evidence, "no proposed definition was supplied, so consumers are listed without rendering")
@@ -139,7 +145,7 @@ func (d *deps) diffDefinitionImpact(ctx context.Context, _ *sdk.CallToolRequest,
 		out.Impacts = append(out.Impacts, d.assessImpact(ctx, &apps[i], proposed))
 	}
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%d consumers rendered twice each: with the cluster's current definitions and with the proposed %s", len(apps), wantKind))
-	out.Meta.Source = SourceRendered
+	out.Meta.Source = SourceMixed
 	if consumers.Count > len(apps) {
 		out.Meta.Truncated = true
 		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("%d consumers exist but only the first %d were rendered; the count covers them all", consumers.Count, len(apps)))

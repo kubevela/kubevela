@@ -159,7 +159,7 @@ var _ = Describe("diff_definition_impact", func() {
 			Expect(toJSON(impact.ChangeSet.Resources[0].Fields)).To(ContainSubstring("metadata.labels.tier"))
 			Expect(impact.Risk).NotTo(BeNil())
 		}
-		Expect(out.Meta.Source).To(Equal(SourceRendered))
+		Expect(out.Meta.Source).To(Equal(SourceMixed))
 	})
 
 	It("reports a consumer the proposed copy no longer renders as that application's error", func() {
@@ -174,6 +174,7 @@ var _ = Describe("diff_definition_impact", func() {
 		for _, impact := range out.Impacts {
 			Expect(impact.RenderError).NotTo(BeEmpty(), impact.Name)
 			Expect(impact.ChangeSet).To(BeNil())
+			Expect(impact.Risk).To(BeNil(), "a broken consumer carries no risk class; its absence is blocking, not safe")
 		}
 	})
 

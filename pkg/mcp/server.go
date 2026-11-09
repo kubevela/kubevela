@@ -274,7 +274,8 @@ func registerTools(s *Server, d *deps) {
 			"Applications using the definition, renders the first consumers found — a bounded number per call, with " +
 			"the result marked truncated when more exist — against the cluster's current copy and against a " +
 			"proposed copy supplied the way dryrun_application accepts local definitions, and returns a " +
-			"per-Application change set and risk class. The consumer scan is bounded too and its count says when " +
+			"per-Application result: a change set and risk class when both renders succeed, an unchanged marker, or " +
+			"a render error. The consumer scan is bounded too and its count says when " +
 			"it stopped early. A consumer the proposed definition no longer renders is reported as that " +
 			"Application's render error and carries no risk class; that absence is blocking, not safe. With no " +
 			"proposed copy it lists the consumers without rendering. Nothing is applied.",

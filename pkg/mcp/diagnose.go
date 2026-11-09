@@ -271,6 +271,7 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 func diagnoseACK(diag *ResourceDiagnosis, obj *unstructured.Unstructured, out *DiagnoseApplicationOutput) {
 	synced := conditionOf(diag.Conditions, "ACK.ResourceSynced")
 	terminal := conditionOf(diag.Conditions, "ACK.Terminal")
+	refs := conditionOf(diag.Conditions, "ACK.ReferencesResolved")
 	arn, _, _ := unstructured.NestedString(obj.Object, "status", "ackResourceMetadata", "arn")
 	service := strings.TrimSuffix(groupOf(diag.APIVersion), ".services.k8s.aws")
 	switch {
@@ -278,16 +279,19 @@ func diagnoseACK(diag *ResourceDiagnosis, obj *unstructured.Unstructured, out *D
 		diag.State = stateHalted
 		diag.Summary = "ACK.Terminal is True: the controller stopped reconciling this resource and will not retry without a spec change"
 		out.NextChecks = append(out.NextChecks, fmt.Sprintf("fix the cause in the %s's spec; the Terminal message names it", diag.Kind))
-	case synced == nil:
-		if refs := conditionOf(diag.Conditions, "ACK.ReferencesResolved"); refs != nil && refs.Status != string(corev1.ConditionTrue) {
-			diag.State = stateNotReady
-			if refs.Status == string(corev1.ConditionFalse) {
-				diag.Summary = "ACK.ReferencesResolved is False: reference resolution failed and the controller will not reconcile this resource until it succeeds; the condition message names the blocker"
-			} else {
-				diag.Summary = "ACK.ReferencesResolved is " + refs.Status + ": reference resolution has not completed; the condition message says what it is waiting on"
-			}
-			break
+	case refs != nil && refs.Status != string(corev1.ConditionTrue):
+		// An unresolved reference halts reconciliation, and ResourceSynced
+		// keeps whatever value it had before, so it is checked first.
+		diag.State = stateNotReady
+		if refs.Status == string(corev1.ConditionFalse) {
+			diag.Summary = "ACK.ReferencesResolved is False: reference resolution failed and the controller will not reconcile this resource until it succeeds; the condition message names the blocker"
+		} else {
+			diag.Summary = "ACK.ReferencesResolved is " + refs.Status + ": reference resolution has not completed; the condition message says what it is waiting on"
 		}
+		if synced != nil && synced.Status == string(corev1.ConditionTrue) {
+			diag.Notes = append(diag.Notes, "ACK.ResourceSynced still reads True from before the reference became unresolved; it is stale while reconciliation waits on the reference")
+		}
+	case synced == nil:
 		diag.State = stateUnknown
 		diag.Summary = "no ACK.ResourceSynced condition yet: the controller has not reconciled this resource; check that the ACK " + service + " controller is running"
 	case synced.Status == string(corev1.ConditionTrue):
@@ -300,7 +304,7 @@ func diagnoseACK(diag *ResourceDiagnosis, obj *unstructured.Unstructured, out *D
 		diag.State = stateNotReady
 		diag.Summary = "ACK.ResourceSynced is " + synced.Status
 		if arn != "" && synced.LastTransition != nil && time.Since(*synced.LastTransition) > driftWindow {
-			diag.Summary += fmt.Sprintf("; the provider reports the resource exists (%s) but the controller has not converged for %s — the signature of a spec field the service computes differently, which keeps the update loop running", arn, time.Since(*synced.LastTransition).Round(time.Second))
+			diag.Summary += fmt.Sprintf("; the provider reports the resource exists (%s) but the controller has not converged for %s — often a spec field the service computes differently keeping the update loop running, though a persistent access or validation error looks the same; the condition message and the controller's logs name the actual error", arn, time.Since(*synced.LastTransition).Round(time.Second))
 			out.NextChecks = append(out.NextChecks, fmt.Sprintf("the ACK %s controller's logs record the desired-vs-latest diff for %s %s/%s on every reconcile; the drifting field is named there", service, diag.Kind, diag.Namespace, diag.Name))
 		}
 	}

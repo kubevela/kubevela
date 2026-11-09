@@ -202,8 +202,11 @@ them". A consumer the proposed definition no longer renders is reported as that
 Application's render error, not as a tool failure, and such an entry carries no risk
 class on purpose: the change blocks that consumer, and an agent must never read the
 absence of a risk class as safety. The result mixes a live consumer scan with rendered
-diffs; the envelope's source says rendered whenever renders ran, and the evidence lines
-say which parts came from the live scan.
+diffs; the envelope's source says mixed when both contributed, and the evidence lines
+say which parts came from the live scan and which from renders. Only a bounded number
+of consumers are rendered per call: the result is marked truncated when consumers were
+found but not rendered, the count says how many, and an unrendered consumer's impact is
+unknown, never assumed unchanged.
 
 `explain_application`, `get_application` and `get_logs` return **correlation handles**:
 cluster, namespace, pod names, the label set KubeVela stamps on rendered resources,

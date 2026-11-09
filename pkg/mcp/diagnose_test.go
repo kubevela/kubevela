@@ -192,6 +192,19 @@ var _ = Describe("diagnose_application", func() {
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
 		Expect(out.Resources[0].State).To(Equal(stateNotReady))
 		Expect(out.Resources[0].Summary).To(ContainSubstring("has not completed"))
+
+		stale := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 2,
+			[]map[string]any{
+				{"type": "ACK.ResourceSynced", "status": "True"},
+				{"type": "ACK.ReferencesResolved", "status": "False", "message": "the referenced resource has 'ACK.Terminal' condition 'True'"},
+			}, nil)
+		h3 := startHarness(Options{}, diagnoseApp(stale)...)
+		defer h3.close()
+		res = h3.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources[0].Ready).To(BeFalse(), "a stale Synced=True must not outrank a broken reference")
+		Expect(out.Resources[0].State).To(Equal(stateNotReady))
+		Expect(out.Resources[0].Notes).To(ContainElement(ContainSubstring("stale")))
 	})
 
 	It("requires both Ready and Synced from a Crossplane resource", func() {
