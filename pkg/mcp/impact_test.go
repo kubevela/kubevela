@@ -243,4 +243,16 @@ var _ = Describe("diff_definition_impact", func() {
 		Expect(out.Consumers.Count).To(BeZero())
 		Expect(out.Consumers.NamespacesScanned).To(Equal([]string{"team-b"}))
 	})
+
+	It("stays a live result when no consumer was rendered", func() {
+		h = startHarness(Options{Namespaces: []string{"team-b"}}, fixtures()...)
+		var out DefinitionImpactOutput
+		res := h.call("diff_definition_impact", map[string]any{
+			"name":       "webservice",
+			"definition": proposedWebservice(labeledWebserviceTemplate),
+		}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Impacts).To(BeEmpty())
+		Expect(out.Meta.Source).To(Equal(SourceLive), "mixed means a render contributed; none did")
+	})
 })

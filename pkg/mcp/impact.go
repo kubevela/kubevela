@@ -144,11 +144,15 @@ func (d *deps) diffDefinitionImpact(ctx context.Context, _ *sdk.CallToolRequest,
 	for i := range apps {
 		out.Impacts = append(out.Impacts, d.assessImpact(ctx, &apps[i], proposed))
 	}
-	out.Evidence = append(out.Evidence, fmt.Sprintf("%d consumers rendered twice each: with the cluster's current definitions and with the proposed %s", len(apps), wantKind))
-	out.Meta.Source = SourceMixed
+	if len(apps) > 0 {
+		out.Evidence = append(out.Evidence, fmt.Sprintf("%d consumers rendered twice each: with the cluster's current definitions and with the proposed %s", len(apps), wantKind))
+		out.Meta.Source = SourceMixed
+	} else {
+		out.Evidence = append(out.Evidence, "no consumers were retained to render, so nothing was rendered")
+	}
 	if consumers.Count > len(apps) {
 		out.Meta.Truncated = true
-		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("%d consumers exist but only the first %d were rendered; the count covers them all", consumers.Count, len(apps)))
+		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("%d consumers were found but only the first %d were rendered; an unrendered consumer's impact is unknown", consumers.Count, len(apps)))
 	}
 	return nil, out, nil
 }
