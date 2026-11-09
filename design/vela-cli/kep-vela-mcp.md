@@ -12,7 +12,8 @@
 
 `vela mcp` exposes KubeVela to AI agents over the Model Context Protocol from inside the
 `vela` binary. It wraps code that already ships (definition schemas, dry-run, live-diff,
-status tree, VelaQL views, workflow suspend and resume) as fifteen deterministic tools,
+status tree, VelaQL views, workflow suspend and resume) as deterministic tools — fifteen
+at P0, growing through the phased table below —
 with read-only as the default and every write rendered, diffed and gated through the
 Application's own workflow. Every response states the versions it ran against, when the
 data was observed, and which objects each explanation was derived from. A companion repository holds skills, client setup templates
@@ -172,7 +173,7 @@ classifier needs structured changes. Handlers never shell out and never call a m
 | `apply_application` | write | `vela up` under mode policy | P0, flag |
 | `find_definition_consumers` | read | Applications by component and trait type | P1 |
 | `compare_definition_revisions` | read | Parameter and rendered-output diff between two DefinitionRevisions | P1 |
-| `diagnose_application` | read | Root-cause walk of an unhealthy Application: live conditions of every managed resource interpreted by its provisioner's conventions (ACK `ResourceSynced` and `Terminal`, Config Connector `Ready` with reason `UpToDate`, Crossplane `Ready` and `Synced`), correlated events, and findings that each cite the object they came from | P1 |
+| `diagnose_application` | read | Root-cause walk of an unhealthy Application: provisioner-owned resources read live, a bounded number per call, their conditions interpreted by the owning family's conventions (ACK `ResourceSynced` and `Terminal`, Config Connector `Ready` with reason `UpToDate`, Crossplane `Ready` and `Synced`); plain Kubernetes resources keep the tree's pod-corrected health and Secrets are never diagnosed; plus correlated events and findings that each cite the object they came from | P1 |
 | `diff_definition_impact` | plan | Blast radius of a definition change before it is applied: finds consumers the way `find_definition_consumers` does, renders a bounded number of them against the cluster's current definition and against a proposed copy supplied the way `dryrun_application` accepts local definitions, and returns a per-Application result. Changed consumers carry a change set and risk class, unchanged consumers are marked unchanged, base render failures carry a base render error, and proposed render failures carry their render error with no change set or risk class — a missing risk class for a render failure is a blocked consumer, never a safe one | P1 |
 | `vet_definition` | plan | `vela def vet` | P1 |
 | `suspend_workflow`, `terminate_workflow` | write | `vela workflow` | P1, flag |
@@ -185,7 +186,9 @@ only Secret read a tool returns.
 `diagnose_application` interprets where `explain_application` reports: the resource tree
 has no health rule for most custom resources and defaults them to Healthy, so a cloud
 resource a provisioner has stopped reconciling reads as fine in a plain tree. The
-diagnosis reads each managed resource live and applies the conventions of the family
+diagnosis reads provisioner-owned resources live, a bounded number per call with anything
+unread named, while plain Kubernetes resources keep the tree's pod-corrected health and
+Secrets are never diagnosed; each live read is interpreted by the conventions of the family
 that owns its API group — a halted ACK resource (`ACK.Terminal`) or one the controller
 cannot converge (`ACK.ResourceSynced` persistently false while the provider reports the
 resource exists, the signature of a field the endpoint computes differently), a Config
@@ -236,9 +239,10 @@ incident. Four rules make that trust checkable rather than assumed.
 `featureGates` repeats only the gates set away from their defaults; `get_platform_info`
 lists every gate set on the controller.
 
-`source` is `live` for a direct API server read, `rendered` for dry-run output, and
-`cached` only for definition schemas, which carry their DefinitionRevision so staleness is
-visible. It always describes the data in the response. Where tool descriptions, read tools
+`source` is `live` for a direct API server read, `rendered` for dry-run output, `mixed`
+when a live read and a render both contributed — the evidence lines say which parts are
+which — and `cached` only for definition schemas, which carry their DefinitionRevision so
+staleness is visible. It always describes the data in the response. Where tool descriptions, read tools
 or risk hints came from is reported separately in `servedData` (`builtin`, `addon` or
 `addon-cached`, with the addon version and the cache age), so a stale addon cache never
 makes live data look cached. Status tools never serve from an informer cache. `truncated` is set whenever a
@@ -621,10 +625,12 @@ Unknowns: none
 Running: vela-core v1.11.0, prod-us-west Kubernetes v1.30.8, AuthenticateApplication=false
 ```
 
-The algorithm: read status and workflow steps, take the VelaQL resource tree, build the
-component graph from `dependsOn` and `inputs`, topologically sort, report the first
-unhealthy component with no unhealthy predecessor, attach provider conditions and events,
-state whether traffic changed. Deterministic, one round trip per cluster.
+The algorithm: `explain_application` reads status and workflow steps, takes the VelaQL
+resource tree, builds the component graph from `dependsOn` and `inputs`, topologically
+sorts, and reports the first unhealthy component with no unhealthy predecessor;
+`diagnose_application` supplies the provider-condition interpretation on that component's
+resources, as the division above defines — explain reports, diagnose interprets. Events
+and traffic state come along. Deterministic, one round trip per cluster per tool.
 
 ## Alternatives considered
 
