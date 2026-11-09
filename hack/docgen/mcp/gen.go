@@ -185,7 +185,7 @@ func cell(s string) string {
 
 var classText = map[mcp.ToolClass]string{
 	mcp.ToolClassRead:  "Read. Always registered.",
-	mcp.ToolClassPlan:  "Plan. Always registered; renders and compares without writing.",
+	mcp.ToolClassPlan:  "Plan. Always registered; prepares a change without writing: renders, compares, or stages an input for later calls.",
 	mcp.ToolClassWrite: "Write. Registered only when the server starts with `--allow-write`.",
 }
 

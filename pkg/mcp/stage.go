@@ -134,9 +134,9 @@ func (d *deps) stageDefinition(ctx context.Context, _ *sdk.CallToolRequest, in S
 	return nil, out, nil
 }
 
-// resolveStagedDefinition returns the staged object when entry is a handle.
-// The second result says whether entry was a handle at all, so callers fall
-// back to inline parsing when it was not.
+// resolveStagedDefinition returns the staged object and its content size
+// when entry is a handle. The third result says whether entry was a handle at
+// all, so callers fall back to inline parsing when it was not.
 func (d *deps) resolveStagedDefinition(entry string) (*unstructured.Unstructured, int, bool, error) {
 	if !strings.HasPrefix(entry, defHandlePrefix) {
 		return nil, 0, false, nil
