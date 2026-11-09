@@ -201,7 +201,7 @@ what it gets back. To set the server up, see [AI agents with vela mcp](../tutori
 Tools come in three classes:
 
 - **Read** tools are always registered and never change the cluster.
-- **Plan** tools render or compare an Application without saving it.
+- **Plan** tools prepare a change without writing: they render or compare an Application, or stage an input for later calls.
 - **Write** tools exist only when the server is started with a flag that enables them.
 
 `
