@@ -59,7 +59,7 @@ type PlanInput struct {
 	// Definitions lets an author render against definitions that are not
 	// on the cluster yet. They take priority over cluster definitions of
 	// the same name, as vela dry-run -d does.
-	Definitions []string `json:"definitions,omitempty" jsonschema:"Optional local definitions, one per entry, used instead of the cluster's copy of the same name. Each is a CUE definition as vela def gen-module writes it for a defkit module, or a definition object as YAML."`
+	Definitions []string `json:"definitions,omitempty" jsonschema:"Optional local definitions, one per entry, used instead of the cluster's copy of the same name. Each is a CUE definition as vela def gen-module writes it for a defkit module, a definition object as YAML, or a handle from stage_definition."`
 }
 
 // DryRunInput adds the server check, which only dryrun_application offers.
@@ -251,17 +251,28 @@ func (d *deps) parsePlanInput(in PlanInput) (*v1beta1.Application, []*unstructur
 		return nil, nil, fmt.Errorf("%d local definitions supplied, at most %d are accepted", len(in.Definitions), maxLocalDefinitions)
 	}
 	total := 0
+	defs := make([]*unstructured.Unstructured, 0, len(in.Definitions))
 	for i, doc := range in.Definitions {
+		if obj, size, isHandle, err := d.resolveStagedDefinition(doc); isHandle {
+			if err != nil {
+				return nil, nil, fmt.Errorf("definitions[%d]: %w", i, err)
+			}
+			// A handle's staged content counts toward the same aggregate
+			// budget as inline content; its per-entry cap held at stage time.
+			total += size
+			if total > maxDefinitionsBytes {
+				return nil, nil, fmt.Errorf("local definitions total %d bytes; at most %d are accepted", total, maxDefinitionsBytes)
+			}
+			defs = append(defs, obj)
+			continue
+		}
 		if len(doc) > maxDefinitionBytes {
 			return nil, nil, fmt.Errorf("definitions[%d] is %d bytes; at most %d are accepted", i, len(doc), maxDefinitionBytes)
 		}
 		total += len(doc)
-	}
-	if total > maxDefinitionsBytes {
-		return nil, nil, fmt.Errorf("local definitions total %d bytes; at most %d are accepted", total, maxDefinitionsBytes)
-	}
-	defs := make([]*unstructured.Unstructured, 0, len(in.Definitions))
-	for i, doc := range in.Definitions {
+		if total > maxDefinitionsBytes {
+			return nil, nil, fmt.Errorf("local definitions total %d bytes; at most %d are accepted", total, maxDefinitionsBytes)
+		}
 		obj, err := parseDefinition(doc)
 		if err != nil {
 			return nil, nil, fmt.Errorf("definitions[%d] does not parse: %w", i, err)

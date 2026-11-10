@@ -84,6 +84,8 @@ type deps struct {
 	cs         kubernetes.Interface
 	// diffs holds tokens issued by diff_application for apply_application.
 	diffs diffCache
+	// stages holds definitions staged by stage_definition for the plan tools.
+	stages stageCache
 }
 
 // newDeps completes the per-handler defaults that need the deps themselves,

@@ -57,12 +57,12 @@ var _ = Describe("vela mcp server", func() {
 			}
 			for _, name := range []string{"get_platform_info", "list_definitions", "describe_definition", "explain_definition",
 				"list_applications", "get_application", "explain_application", "diagnose_application", "get_workflow",
-				"get_managed_resource", "get_logs", "list_clusters", "list_addons", "dryrun_application",
-				"diff_application", "diff_definition_impact"} {
+				"get_managed_resource", "get_logs", "list_clusters", "list_addons", "stage_definition",
+				"dryrun_application", "diff_application", "diff_definition_impact"} {
 				Expect(names).To(HaveKey(name))
 				Expect(names[name].Annotations.ReadOnlyHint).To(BeTrue(), name)
 			}
-			Expect(names).To(HaveLen(16))
+			Expect(names).To(HaveLen(17))
 			Expect(names).NotTo(HaveKey("apply_application"))
 			Expect(names).NotTo(HaveKey("resume_workflow"))
 		})
