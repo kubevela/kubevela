@@ -625,12 +625,16 @@ Unknowns: none
 Running: vela-core v1.11.0, prod-us-west Kubernetes v1.30.8, AuthenticateApplication=false
 ```
 
-The algorithm: `explain_application` reads status and workflow steps, takes the VelaQL
-resource tree, builds the component graph from `dependsOn` and `inputs`, topologically
-sorts, and reports the first unhealthy component with no unhealthy predecessor;
-`diagnose_application` supplies the provider-condition interpretation on that component's
-resources, as the division above defines — explain reports, diagnose interprets. Events
-and traffic state come along. Deterministic, one round trip per cluster per tool.
+The division of labor: `explain_application` reads the recorded status, workflow
+steps, the VelaQL resource tree, component definitions and recent events, and returns
+every component with its declared `dependsOn` and `inputs` edges, live resource health,
+and findings ordered by severity. `diagnose_application` interprets: it walks the
+managed-resource inventory, reuses tree health for plain Kubernetes resources, and
+live-reads a bounded set of provider resources to classify their conditions — explain
+reports, diagnose interprets. Neither tool elects a single root-cause component or
+reports traffic state; the agent draws those conclusions from the dependency edges and
+workflow phase in the response, as the transcript above shows. Reads are deterministic
+and bounded.
 
 ## Alternatives considered
 
