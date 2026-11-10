@@ -1,0 +1,7 @@
+# No annotation. The v1 field says runtime.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placement-store-v1-line
+data:
+  role: v1-line

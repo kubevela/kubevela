@@ -1,0 +1,48 @@
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: tenant-identity
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Who an Application belongs to, read from the labels the platform puts on its namespace."
+spec:
+  global: true
+  scope: Application
+  priority: 10
+  schematic:
+    cue:
+      template: |
+        import (
+        	"strings"
+        	"vela/kube"
+        )
+
+        // What this policy puts in context.custom. Admission reads this block,
+        // never the rest of the template, so it must stand on its own: the CUE
+        // standard library is fine, provider calls and references are not.
+        // close() makes it the whole contract: the policy supplies nothing else.
+        schema: ctx: close({
+        	team:        =~"^[a-z][a-z0-9-]*$"
+        	costCentre:  strings.MinRunes(3)
+        	// Only tenants opted into the mesh have one.
+        	meshDomain?: string
+        })
+
+        parameter: {}
+
+        _ns: kube.#Get & {
+        	$params: resource: {
+        		apiVersion: "v1"
+        		kind:       "Namespace"
+        		metadata: name: context.namespace
+        	}
+        }
+        _labels: _ns.$returns.metadata.labels
+
+        output: ctx: {
+        	team:       _labels["platform.io/team"]
+        	costCentre: _labels["platform.io/cost-centre"]
+        	if _labels["platform.io/mesh-domain"] != _|_ {
+        		meshDomain: _labels["platform.io/mesh-domain"]
+        	}
+        }

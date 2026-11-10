@@ -3,7 +3,7 @@
 **Authors**: Anoop Gopalakrishnan
 **Status**: Draft
 **Created**: 2026-09-29
-**Last Updated**: 2026-09-29
+**Last Updated**: 2026-11-09
 
 > **Status**: Design proposal. Tool names, schemas and flag names may change during
 > implementation and community review. Nothing here is committed behaviour.
@@ -12,7 +12,8 @@
 
 `vela mcp` exposes KubeVela to AI agents over the Model Context Protocol from inside the
 `vela` binary. It wraps code that already ships (definition schemas, dry-run, live-diff,
-status tree, VelaQL views, workflow suspend and resume) as fifteen deterministic tools,
+status tree, VelaQL views, workflow suspend and resume) as deterministic tools — fifteen
+at P0, growing through the phased table below —
 with read-only as the default and every write rendered, diffed and gated through the
 Application's own workflow. Every response states the versions it ran against, when the
 data was observed, and which objects each explanation was derived from. A companion repository holds skills, client setup templates
@@ -89,7 +90,7 @@ flowchart TB
         STD["stdio: vela mcp (P0)<br/>kubeconfig of the user"]
         HTTP["HTTP: VelaUX backend plugin (P2)<br/>Dex, JWT, project RBAC"]
     end
-    TL["pkg/mcp tool layer<br/>registry, mode policy, diff cache, redaction, risk classifier"]
+    TL["pkg/mcp tool layer<br/>registry, mode policy, diff and staging caches, redaction, risk classifier"]
     subgraph existing ["Existing code, no new concepts"]
         D["definition schema<br/>show, def vet"]
         R["render and diff<br/>dry-run, live-diff"]
@@ -117,9 +118,13 @@ flowchart TB
     I --> K
 ```
 
-Every tool maps to a code path the CLI already has. Where that logic lives only inside a
-cobra `RunE`, it is lifted into a plain package first (`pkg/velaops`), which also makes
-those commands unit-testable. Handlers never shell out and never call a model.
+Every tool maps to a code path the CLI already has. Handlers call the packages those
+commands use, such as the query collector for resource trees and the dry-run package for
+renders. Like live-diff, `diff_application` compares the document with the stored
+ApplicationRevision, rendering that base with the definitions the revision recorded, so a
+definition updated since then shows up in the change set and is named as its source. It
+compares objects field by field, because live-diff returns text for a terminal and the risk
+classifier needs structured changes. Handlers never shell out and never call a model.
 
 ### Principles
 
@@ -142,34 +147,84 @@ those commands unit-testable. Handlers never shell out and never call a model.
    Kubernetes version of every cluster it touches and the feature gates that change
    behaviour, and it includes them in responses so the model explains the system that is
    actually running, not the one in its training data.
+8. **Follow existing practice, never steer.** Workloads keep their current form, new work
+   follows the repository and namespace, and KubeVela is suggested unprompted only on a
+   blank start where it is installed. Migration happens only on request. Choices with
+   cost or ownership consequences are the user's unless the platform has decided them.
 
 ### Tools
 
 | Tool | Class | Wraps | Phase |
 |---|---|---|---|
-| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health | P0 |
-| `list_definitions` | read | `vela def list`, `vela components`, `vela traits` | P0 |
+| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health; for a given namespace, the delivery practice in use and whether the caller may create plain workloads; for a given cloud service, the installed provisioner — the cloud's own controller first (ACK on AWS, Config Connector on GCP, Azure Service Operator on Azure), then Crossplane — with a kind's CRD spec schema when the kind is given, or what to install | P0 |
+| `list_definitions` | read | `vela def list`, `vela components`, `vela traits`; filtered by what a definition provides, with the platform's default for the namespace marked | P0 |
 | `describe_definition` | read | `vela show`; CUE parameters as JSON Schema, required, defaults, examples, current revision | P0 |
-| `explain_definition` | read | `vela def get` + a render with defaults: what kinds it produces, which parameters drive which fields, health and status rules, restrictions, revision history, consumer count | P0 |
+| `explain_definition` | read | `vela def get` + static inspection of the template, which works even when required parameters have no default: what kinds it produces, which parameters drive which fields, health and status rules, restrictions, revision history, consumer count | P0 |
 | `list_applications` | read | `vela ls` | P0 |
 | `get_application` | read | Live Application + status; endpoints from VelaQL `endpoints` view | P0 |
 | `explain_application` | read | `status --tree --detail`, VelaQL `resource-tree`, events; dependency walk; every claim cites an object | P0 |
-| `get_managed_resource` | read | ResourceTracker-scoped live GET of any managed object in its cluster; refuses unmanaged objects; refuses Secret kinds before the GET and returns only metadata for them | P0 |
+| `get_managed_resource` | read | ResourceTracker-scoped live GET of any managed object in its cluster; refuses unmanaged objects; reads a Secret through the metadata API and returns only its metadata, never its data | P0 |
 | `get_workflow` | read | `vela workflow` status | P0 |
 | `get_logs` | read | VelaQL `component-pod` + bounded, redacted tail | P0 |
 | `list_clusters` | read | `vela cluster list`; never credentials | P0 |
 | `list_addons` | read | `vela addon list` | P0 |
-| `dryrun_application` | plan | `vela dry-run`, including `-d` local definitions | P0 |
+| `dryrun_application` | plan | `vela dry-run`, including local definitions such as the CUE `vela def gen-module` writes for a defkit module; optionally sends each rendered object to the API server as a strict dry run, storing nothing, to check it against the installed CRDs | P0 |
 | `diff_application` | plan | `vela live-diff` + risk classifier; returns token | P0 |
 | `apply_application` | write | `vela up` under mode policy | P0, flag |
 | `find_definition_consumers` | read | Applications by component and trait type | P1 |
 | `compare_definition_revisions` | read | Parameter and rendered-output diff between two DefinitionRevisions | P1 |
+| `diagnose_application` | read | Root-cause walk of an unhealthy Application: provisioner-owned resources read live, a bounded number per call, their conditions interpreted by the owning family's conventions (ACK `ResourceSynced` and `Terminal`, Config Connector `Ready` with reason `UpToDate`, Crossplane `Ready` and `Synced`); plain Kubernetes resources keep the tree's pod-corrected health and Secrets are never diagnosed; plus correlated events and findings that each cite the object they came from | P1 |
+| `diff_definition_impact` | plan | Blast radius of a definition change before it is applied: finds consumers the way `find_definition_consumers` does, renders a bounded number of them against the cluster's current definition and against a proposed copy supplied the way `dryrun_application` accepts local definitions, and returns a per-Application result. Changed consumers carry a change set and risk class, unchanged consumers are marked unchanged, base render failures carry a base render error, and proposed render failures carry their render error with no change set or risk class — a missing risk class for a render failure is a blocked consumer, never a safe one | P1 |
 | `vet_definition` | plan | `vela def vet` | P1 |
+| `stage_definition` | plan | Parses and validates a local definition (CUE as `vela def gen-module` writes it, or YAML) exactly as the plan tools do inline, caches it server-side, and returns a content-hash handle with the definition's kind and name. Every plan tool accepts handles wherever it accepts inline definitions, so a 30 KiB generated definition crosses the agent's context once per edit instead of once per call | P1 |
 | `suspend_workflow`, `terminate_workflow` | write | `vela workflow` | P1, flag |
 | `resume_workflow` | write | `vela workflow resume`; separate flag; denies the recorded initiator | P1, flag |
 
 Deliberately absent: raw Kubernetes get and patch, exec, port-forward, addon enable,
-cluster join, definition apply, Secret reads.
+cluster join, definition apply, and reading Secret data; a managed Secret's metadata is the
+only Secret read a tool returns.
+
+`diagnose_application` interprets where `explain_application` reports: the resource tree
+has no health rule for most custom resources and defaults them to Healthy, so a cloud
+resource a provisioner has stopped reconciling reads as fine in a plain tree. The
+diagnosis reads provisioner-owned resources live, a bounded number per call with anything
+unread named, while plain Kubernetes resources keep the tree's pod-corrected health and
+Secrets are never diagnosed; each live read is interpreted by the conventions of the family
+that owns its API group — a halted ACK resource (`ACK.Terminal`) or one the controller
+cannot converge (`ACK.ResourceSynced` persistently false while the provider reports the
+resource exists, the signature of a field the endpoint computes differently), a Config
+Connector resource whose `Ready` reason is not `UpToDate`, a Crossplane resource
+missing `Ready` or `Synced`. Every finding stays a cited observation; the conventions
+decide only which conditions are worth citing and what their combination means.
+
+Local definitions travel by reference, not only by value. An authoring loop renders the
+same generated definition many times — dry-run, impact, diff, repeat after each edit —
+and inlining it in every call spends the agent's context on boilerplate it never needs
+to read. `stage_definition` stages the parsed definition under a content-hash handle
+with a bounded TTL cache, the same pattern as the diff token; handles resolve inside
+the same validation and size budgets as inline content, count toward the diff token's
+local-definitions record identically, and expire to a clear error naming the tool to
+call again. Handles also work on transports with no shared filesystem, which the
+VelaUX phase needs; reading definition files from disk stays deliberately absent. The
+stage cache lives in one server process and the stdio transport serves one caller, so a
+handle is not an authorization boundary and must not become one by accident: the HTTP
+transport binds staged entries and their lookups to the caller's principal and project
+before it exposes this tool, and a handle never transfers across callers.
+
+`diff_definition_impact` exists because a definition edit is the one change whose blast
+radius the author cannot see from the document in front of them: the Applications it
+breaks are other people's. It composes two capabilities this KEP already has — consumer
+discovery and local-definition rendering — into the question a platform engineer
+actually asks before `vela def apply`: "who uses this, and what changes for each of
+them". A consumer the proposed definition no longer renders is reported as that
+Application's render error, not as a tool failure, and such an entry carries no risk
+class on purpose: the change blocks that consumer, and an agent must never read the
+absence of a risk class as safety. The result mixes a live consumer scan with rendered
+diffs; the envelope's source says mixed when both contributed, and the evidence lines
+say which parts came from the live scan and which from renders. Only a bounded number
+of consumers are rendered per call: the result is marked truncated when consumers were
+found but not rendered, the count says how many, and an unrendered consumer's impact is
+unknown, never assumed unchanged.
 
 `explain_application`, `get_application` and `get_logs` return **correlation handles**:
 cluster, namespace, pod names, the label set KubeVela stamps on rendered resources,
@@ -187,17 +242,22 @@ incident. Four rules make that trust checkable rather than assumed.
 "meta": {
   "velaCore": "v1.11.0",
   "velaCLI": "v1.11.0",
-  "clusters": {"local": {"kubernetes": "v1.31.4"}, "prod-us-west": {"kubernetes": "v1.30.8"}},
-  "featureGates": {"AuthenticateApplication": false, "RestrictDefinitionNamespaces": true},
+  "kubernetes": {"local": "v1.31.4", "prod-us-west": "v1.30.8"},
+  "featureGates": {"ZstdApplicationRevision": true},
   "observedAt": "2026-10-13T09:42:17Z",
   "source": "live",
-  "truncated": false
+  "truncated": false,
+  "warnings": []
 }
 ```
 
-`source` is `live` for a direct API server read, `rendered` for dry-run output, and
-`cached` only for definition schemas, which carry their DefinitionRevision so staleness is
-visible. It always describes the data in the response. Where tool descriptions, read tools
+`featureGates` repeats only the gates set away from their defaults; `get_platform_info`
+lists every gate set on the controller.
+
+`source` is `live` for a direct API server read, `rendered` for dry-run output, `mixed`
+when a live read and a render both contributed — the evidence lines say which parts are
+which — and `cached` only for definition schemas, which carry their DefinitionRevision so
+staleness is visible. It always describes the data in the response. Where tool descriptions, read tools
 or risk hints came from is reported separately in `servedData` (`builtin`, `addon` or
 `addon-cached`, with the addon version and the cache age), so a stale addon cache never
 makes live data look cached. Status tools never serve from an informer cache. `truncated` is set whenever a
@@ -206,7 +266,10 @@ line budget or size cap cut the data, so the model knows it did not see everythi
 **Every explanation cites its evidence.** `explain_application` and `explain_definition`
 return an `evidence` list alongside the narrative data: for each claim, the object
 reference, the field or condition it was read from, and the timestamp on that object.
-A claim without evidence is not emitted. Where the server could not determine something,
+A claim without evidence is not emitted. When an object's own health check disagrees with
+its pods, as for a Deployment that reports Healthy while every pod crash-loops, the server
+reports the pods' state, marks the status as derived and keeps both facts. Where the server
+could not determine something,
 for example a provider condition that was not surfaced, it lists it under `unknowns`
 instead of leaving a gap the model might fill.
 
@@ -235,6 +298,33 @@ The evaluation suite scores these rules directly: a fixture set of degraded Appl
 with known causes where every emitted claim must resolve to a real object, a run against
 two different vela-core versions where version-gated explanations must differ correctly,
 and a check that no status response ever reports `source: cached`.
+
+### Choosing an approach and a definition
+
+The server supplies facts; the agent follows principle 8:
+
+| Situation | The agent |
+|---|---|
+| The user names an approach | Does that, without comment |
+| Changing something that exists | Keeps its current form |
+| New work next to existing practice | Follows the repository and namespace |
+| Blank start, KubeVela installed | Asks once, suggesting KubeVela; a platform-declared default replaces the question |
+| Asked to migrate, either direction | Shows the conversion as a diff first |
+
+`get_platform_info` with a namespace reports the practice there (`kubevela`, `kubernetes`,
+`mixed`, `empty`, or `unknown` when a count failed, so the agent asks), the default a platform team declared with the namespace label
+`app.oam.dev/delivery-default`, and whether the caller may create plain Deployments, so the
+agent never offers an approach that would fail. The server's own instructions stay neutral.
+Neither server writes plain Kubernetes objects: for that work the agent hands back the
+manifests for the repository or the user's own pipeline, as gitops mode does for Applications.
+
+Platform teams label definitions with `definition.oam.dev/provides` (for example
+`postgres`) and mark defaults with the `definition.oam.dev/default-for` annotation.
+`list_definitions` filters by `provides` and marks the default for the namespace. With a
+default the agent uses it and names the alternatives; with several and no default, it asks
+in chat, keeping confirmation prompts for writes. Unlabelled definitions, which today
+includes the built-in ones, are returned by the same filter when their name or description
+mentions the capability, marked so the agent confirms them.
 
 ### Write modes
 
@@ -273,7 +363,10 @@ cannot misdescribe the change, and an agent that chains `diff_application` and
 the prompt. Accept applies; decline writes nothing and returns "declined by user". A
 client that does not support elicitation cannot use `direct`. That request is refused
 rather than downgraded, because a downgrade to `gated` would still write the Application:
-nothing is applied, and the response names the modes this client can use instead. The
+nothing is applied, and the response names the modes this client can use instead. Direct is
+refused the same way when the diff used local definitions the token does not bind, when the
+render writes outside `--namespace`, or when a restricted server would run workflow steps
+whose writes the diff cannot see. The
 HIGH-risk downgrade above is different: it is policy, the response states the mode that was
 used, and the hold still stops the change. Some harnesses accept prompts automatically in unattended modes. That is
 the user's choice, equivalent to `--yes` on the CLI; unattended automation belongs in
@@ -295,10 +388,12 @@ metadata:
     app.oam.dev/hold: sha256:...
 ```
 
-The hold does not predict a generation. The write is an update preconditioned on the
-resourceVersion of the object the diff was computed against, or a create for a new
-Application, so if anything changed since the diff the write fails and the agent diffs
-again; the token is never applied to a spec it was not computed for. The annotation only
+The hold does not predict a generation. An existing Application is updated only while its
+UID, spec generation, labels and annotations still match the diff; the update carries the
+current resourceVersion, and a conflict caused by a controller status write is retried
+after the same checks pass against a fresh read. A new Application is created only if it
+is still absent. Anything else fails and the agent diffs again, so the token is never
+applied to a spec it was not computed for. The annotation only
 requests the hold. When the controller first sees it, it writes the hold into the
 Application's status, which only the controller writes, and it does this before starting
 any workflow step for that generation: if the status write fails, the reconcile is
@@ -349,7 +444,8 @@ as enforcement.
 The **risk class** is the maximum over rules on the live-diff output, with every fired
 rule listed: image tag only is LOW; scaling is LOW; a new Application with no existing
 managed resources is LOW; config and env are MEDIUM; additions to an existing Application
-are MEDIUM; any deletion, replace, placement change, security-surface change, stateful
+are MEDIUM; policy, workflow and sources changes, image digest changes and component
+changes that render the same objects are MEDIUM; any deletion, replace, placement change, security-surface change, stateful
 change or removed gate is HIGH, including in a new Application. The classifier is a pure
 function with golden tests.
 
@@ -369,8 +465,8 @@ No transport introduces a privileged service identity for agents.
 ### Reference stack
 
 MCP servers do not call each other; the client loads several and the model chooses. So
-the pairing is a tested combination that `vela mcp setup` configures in one step, with
-boundaries written into tool descriptions and skills.
+the pairing is a tested combination, with boundaries written into tool descriptions and
+skills.
 
 | Question | Goes to |
 |---|---|
@@ -381,17 +477,21 @@ boundaries written into tool descriptions and skills.
 | Change anything an Application manages | Vela MCP, diffed and gated |
 | Change anything else | Neither, in any documented configuration |
 
+`vela` writes no client configuration, so it never tracks client formats or versions.
+`vela mcp config` prints the server entry, either as the `mcpServers` JSON block most
+clients accept or as the server command and arguments that go after a client's own `mcp add`,
+POSIX shell-quoted so `eval` rebuilds exactly those arguments; a test round-trips hostile
+values through a real shell:
+
 ```text
-$ vela mcp setup --client claude-code
-Detected: Claude Code, kubeconfig context prod-hub, Grafana addon in vela-system
-Writing servers: kubevela (read + plan), kubernetes-mcp-server@<pinned> --config kubernetes-mcp.toml (read_only = true, Secret and RBAC kinds denied), mcp-grafana@<pinned> --disable-write
-Installing skills: kubevela-developer, kubevela-sre (grafana appendix)
+$ eval "claude mcp add --scope user kubevela -- $(vela mcp config --format command --namespace team-a)"
 ```
 
-Setup writes the exact third-party versions from a table embedded in the vela binary at
-release time, after the evaluation suite has passed against them (`<pinned>` above stands
-for those exact versions). It never stores a
-third-party credential, and has no option to make the Kubernetes MCP writable.
+Per-client steps, skills installation and the companion servers, with the exact
+third-party versions the evaluation suite last passed against, live in the
+`kubevela/skills` repository, which moves at the clients' pace without a `vela` release.
+Those instructions never store a third-party credential and never make the Kubernetes
+MCP writable.
 
 Honest boundary: the developer and platform-engineer loops are complete with Vela MCP
 alone. The incident loop is only as good as the trio. Our target is the team that already
@@ -404,11 +504,11 @@ runs an observability stack and does not want a second one.
 | `kubevela-developer` | Discover before drafting, dry-run until clean, diff before apply, stop at the risk summary, never resume |
 | `kubevela-sre` | Explain first and take the handles; metrics, traces, logs through the observability MCP; managed objects through vela; rollback as a diffed change |
 | `kubevela-platform-engineer` | Consumers before changing a definition, render a sample of consumers, inventory conventions |
-| `kubevela-defkit-author` | Search the catalog first, defkit builders, `go test`, `def vet`, dry-run with local definitions, deliver by PR |
+| `kubevela-defkit-author` | defkit Go by default, CUE only on request; search the catalog first; real provider CRD shapes, using the provisioner the cluster already has, and the cloud's own controller (ACK, Config Connector, Azure Service Operator) only when there is none and the user names none; `go test`, `validate-module`, `gen-module`, dry-run with the server check; deliver by PR |
 
 Skills follow the agentskills.io layout so Claude Code, Codex, Cursor and Copilot load them
-unchanged. Third-party tool names live in a per-server appendix that setup keeps aligned
-with the pinned versions.
+unchanged. Third-party tool names live in a per-server appendix that `kubevela/skills`
+keeps aligned with the pinned versions.
 
 ### Event-driven agents
 
@@ -443,11 +543,11 @@ that would have to be rebuilt to accommodate it.
 
 | Lives in | Contents | Why |
 |---|---|---|
-| `kubevela/kubevela` | `references/cli/mcp.go`, `pkg/mcp`, `pkg/velaops`, `pkg/mcp/setup` | Handlers are the CLI; zero-install `vela mcp`; one release train; separate repos in this org have gone stale |
+| `kubevela/kubevela` | `references/cli/mcp.go`, `pkg/mcp`, `hack/docgen/mcp` | Handlers are the CLI; zero-install `vela mcp`; one release train; separate repos in this org have gone stale |
 | new `kubevela/skills` | Skill files, server appendices, client setup templates, version pins, stub observability MCP, evaluation harness | Moves at MCP-ecosystem speed; no Go build; needs model API keys for nightly evaluation |
 | `kubevela/velaux` (P2) | `plugins/vela-mcp` backend plugin | Reuses Dex, JWT and project RBAC that already exist |
 
-A CODEOWNERS entry for `pkg/mcp` and `pkg/velaops` gives the work its own review lane
+A CODEOWNERS entry for `pkg/mcp` and `references/cli/mcp.go` gives the work its own review lane
 without its own repository. Precedent: `vela def gen-api` lives in core, the generated SDK
 lives in kubevela-contrib.
 
@@ -540,10 +640,16 @@ Unknowns: none
 Running: vela-core v1.11.0, prod-us-west Kubernetes v1.30.8, AuthenticateApplication=false
 ```
 
-The algorithm: read status and workflow steps, take the VelaQL resource tree, build the
-component graph from `dependsOn` and `inputs`, topologically sort, report the first
-unhealthy component with no unhealthy predecessor, attach provider conditions and events,
-state whether traffic changed. Deterministic, one round trip per cluster.
+The division of labor: `explain_application` reads the recorded status, workflow
+steps, the VelaQL resource tree, component definitions and recent events, and returns
+every component with its declared `dependsOn` and `inputs` edges, live resource health,
+and findings ordered by severity. `diagnose_application` interprets: it walks the
+managed-resource inventory, reuses tree health for plain Kubernetes resources, and
+live-reads a bounded set of provider resources to classify their conditions — explain
+reports, diagnose interprets. Neither tool elects a single root-cause component or
+reports traffic state; the agent draws those conclusions from the dependency edges and
+workflow phase in the response, as the transcript above shows. Reads are deterministic
+and bounded.
 
 ## Alternatives considered
 
@@ -571,8 +677,8 @@ state whether traffic changed. Deterministic, one round trip per cluster.
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
-| P0, KubeVela 1.12 | Lift status tree and live-diff into `pkg/velaops`; `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp setup` for Claude Code, Cursor, Gemini CLI; developer and SRE skills; six documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
-| P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; defkit-author and platform-engineer skills; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; one adopter runs the trigger recipe |
+| P0, KubeVela 1.12 | `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp config`, with per-client steps in `kubevela/skills`; developer, SRE, platform-engineer and defkit-author skills; the documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
+| P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, `diagnose_application`, `diff_definition_impact`, `stage_definition` with handle support in every plan tool, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; the degraded-cloud-resource fixture (a provisioner that halted or cannot converge) is root-caused by `diagnose_application` with zero manual lookups; one adopter runs the trigger recipe |
 | P2, after VelaUX catch-up | VelaUX backend plugin over streamable HTTP; per-caller tool filtering; read-only assistant panel | Hosted client logs in through VelaUX and gets the same allow or deny as the CLI |
 | P3, after the Cluster Infrastructure KEP | Cluster-fleet tools from the Future scope section; cluster-plane handles; `kubevela-cluster-operator` skill | Fleet scenarios pass on three model families; a rollout started through an agent pauses at every approval the KEP defines |
 
@@ -601,16 +707,18 @@ exists.
 ## Unresolved questions
 
 1. Confirm agents cannot resume workflows by default and self-resume is a sandbox-only flag.
-2. `kubevela/skills` as a new repository, or a `skills/` directory in core.
-3. Whether to pursue prism as a second HTTP host, or document VelaUX only.
-4. Opt-in telemetry, or measure through the scenario suite and adopter registry only.
-5. Which third-party servers setup pins in P0: containers/kubernetes-mcp-server,
+2. Whether to pursue prism as a second HTTP host, or document VelaUX only.
+3. Opt-in telemetry, or measure through the scenario suite and adopter registry only.
+4. Which third-party servers `kubevela/skills` pins in P0: containers/kubernetes-mcp-server,
    grafana/mcp-grafana, Datadog MCP, with Prometheus at P1.
-6. Owner and scope of the VelaUX catch-up release that P2 depends on.
-7. Names of the per-Application mode marker, the hold and change-set annotations, and
+5. Owner and scope of the VelaUX catch-up release that P2 depends on.
+6. Names of the per-Application mode marker, the hold and change-set annotations, and
    whether the hold belongs in the workflow library rather than the Application controller.
-8. Whether patch releases for `references/cli` and `pkg/mcp` follow the regular patch
+7. Whether patch releases for `references/cli` and `pkg/mcp` follow the regular patch
    train or a separate one.
+8. Names of the `provides` label, the `default-for` annotation and the namespace
+   `delivery-default` label, and whether KubeVela's built-in definitions ship with
+   `provides` labels in the same release.
 
 ## References
 

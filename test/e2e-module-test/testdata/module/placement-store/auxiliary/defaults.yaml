@@ -1,0 +1,7 @@
+# No annotation. The module field says runtime, so this follows the installer.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placement-store-defaults
+data:
+  role: defaults

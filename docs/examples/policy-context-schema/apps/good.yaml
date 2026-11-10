@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: payments-api
+  namespace: payments
+spec:
+  components:
+    - name: api
+      type: tagged-service
+      properties:
+        image: nginx:1.27

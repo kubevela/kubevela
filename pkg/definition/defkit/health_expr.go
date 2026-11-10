@@ -125,12 +125,34 @@ func (c *ConditionExpr) ReasonIs(reason string) HealthExpression {
 	return c
 }
 
+// sanitizeCondIdent keeps letters, digits and underscores and hex-escapes
+// everything else, so condition types that are already legal identifier
+// fragments (including ones with underscores) are unchanged.
+func sanitizeCondIdent(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+			b.WriteByte(c)
+			continue
+		}
+		fmt.Fprintf(&b, "_%02x", c)
+	}
+	return b.String()
+}
+
 // varName is the preamble helper name, with the root folded in so distinct scopes do not collide.
 func (c *ConditionExpr) varName() string {
+	// Condition types are not always identifiers: ACK controllers use dotted
+	// names like "ACK.ResourceSynced". Sanitize before embedding in the
+	// variable name. Letters, digits and underscores pass through unchanged,
+	// so any condition type that already lowers to a legal identifier keeps
+	// its existing helper name byte-for-byte.
+	ident := sanitizeCondIdent(strings.ToLower(c.condType))
 	if c.root == "" || c.root == defaultHealthRoot {
-		return "_" + strings.ToLower(c.condType) + "Cond"
+		return "_" + ident + "Cond"
 	}
-	return "_" + sanitizeRoot(c.root) + upperFirst(strings.ToLower(c.condType)) + "Cond"
+	return "_" + sanitizeRoot(c.root) + upperFirst(ident) + "Cond"
 }
 
 func (c *ConditionExpr) Preamble() string {

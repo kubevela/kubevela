@@ -13,6 +13,13 @@ package addon
 		// Namespace of the Application that installs the addon; the addon's
 		// modules install their definitions into it.
 		namespace: *"" | string
+		// Where the installer wants the addon. Absent means the addon places
+		// itself, if at all.
+		placement?: {
+			clusters?: [...string]
+			clusterLabelSelector?: [string]: string
+			allowEmpty?: bool
+		}
 	}
 	$returns?: {
 		resolvedVersion: string

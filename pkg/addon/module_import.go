@@ -27,6 +27,11 @@ import (
 	"k8s.io/klog/v2"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/policy"
+	"github.com/oam-dev/kubevela/pkg/policy/placement"
 )
 
 // ModuleImport is one modules/_imports.cue entry: an external module the
@@ -45,6 +50,19 @@ type ModuleImport struct {
 	// latest. addon:build/addon:publish already reject a semver range here,
 	// so this value is trusted as an exact pin by the time it reaches render time.
 	Version string
+	// Placement is where the module's runtime objects go. Nil means the entry
+	// sets no placement, so the component carries none, as before.
+	Placement *ImportPlacement
+}
+
+// ImportPlacement is an import's placement field. Either FromPolicy names one
+// of the addon Application's own topology policies, resolved when the
+// component is rendered, or the literal fields are copied as they are.
+type ImportPlacement struct {
+	Clusters             []string
+	ClusterLabelSelector map[string]string
+	AllowEmpty           bool
+	FromPolicy           string
 }
 
 // rawModuleImports is the modules/_imports.cue file shape.
@@ -54,9 +72,19 @@ type rawModuleImports struct {
 
 // rawModuleImport is one raw imports[] entry before validation/flattening.
 type rawModuleImport struct {
-	Module  string            `json:"module"`
-	Enabled *bool             `json:"enabled"`
-	Sources []rawModuleSource `json:"sources"`
+	Module    string            `json:"module"`
+	Enabled   *bool             `json:"enabled"`
+	Sources   []rawModuleSource `json:"sources"`
+	Placement *rawPlacement     `json:"placement"`
+}
+
+// rawPlacement is one raw placement field. AllowEmpty is a pointer so a
+// fromPolicy entry that also sets it can be told apart from one that does not.
+type rawPlacement struct {
+	Clusters             []string          `json:"clusters"`
+	ClusterLabelSelector map[string]string `json:"clusterLabelSelector"`
+	AllowEmpty           *bool             `json:"allowEmpty"`
+	FromPolicy           string            `json:"fromPolicy"`
 }
 
 // rawModuleSource is one raw sources[] entry. Only registry/version/versions
@@ -101,14 +129,49 @@ func parseModuleImports(data string) ([]ModuleImport, error) {
 				"modules/_imports.cue: module %q source declares versions %v, but the API-line filter is not enforced yet; every enabled line in the fetched module will install",
 				imp.Module, src.Versions)
 		}
+		place, err := importPlacement(imp.Module, imp.Placement)
+		if err != nil {
+			return nil, err
+		}
 		imports = append(imports, ModuleImport{
-			Module:   imp.Module,
-			Enabled:  enabled,
-			Registry: src.Registry,
-			Version:  src.Version,
+			Module:    imp.Module,
+			Enabled:   enabled,
+			Registry:  src.Registry,
+			Version:   src.Version,
+			Placement: place,
 		})
 	}
 	return imports, nil
+}
+
+// importPlacement checks one entry's placement field. fromPolicy cannot be
+// mixed with a literal field, and a literal placement must pass the same check
+// the module provider applies to the component property, so a bad entry fails
+// the addon load instead of the later module render.
+func importPlacement(module string, raw *rawPlacement) (*ImportPlacement, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	if raw.FromPolicy != "" {
+		if raw.Clusters != nil || raw.ClusterLabelSelector != nil || raw.AllowEmpty != nil {
+			return nil, fmt.Errorf("modules/_imports.cue: module %q: placement.fromPolicy cannot be combined with clusters, clusterLabelSelector or allowEmpty", module)
+		}
+		return &ImportPlacement{FromPolicy: raw.FromPolicy}, nil
+	}
+	place := &ImportPlacement{Clusters: raw.Clusters, ClusterLabelSelector: raw.ClusterLabelSelector}
+	if raw.AllowEmpty != nil {
+		place.AllowEmpty = *raw.AllowEmpty
+	}
+	if err := placement.Validate(place.policyPlacement()); err != nil {
+		return nil, fmt.Errorf("modules/_imports.cue: module %q: %w", module, err)
+	}
+	return place, nil
+}
+
+// policyPlacement is p's literal fields as the placement type the module
+// provider checks.
+func (p *ImportPlacement) policyPlacement() *v1alpha1.Placement {
+	return &v1alpha1.Placement{Clusters: p.Clusters, ClusterLabelSelector: p.ClusterLabelSelector, AllowEmpty: p.AllowEmpty}
 }
 
 // readModuleImportsFile reads modules/_imports.cue (when present) and parses
@@ -144,8 +207,10 @@ func uniqueImportedComponentName(base string, used map[string]bool) string {
 // an inline modules/<name>/ -- fails the whole render; see
 // checkModuleNameCollisions. Each emitted component depends on every name in
 // resourceComponentNames, so the module's resources never apply
-// before the addon's own operators and CRDs are healthy.
-func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string) ([]common2.ApplicationComponent, error) {
+// before the addon's own operators and CRDs are healthy. policies are the
+// rendered addon Application's own policies, which an import's
+// placement.fromPolicy names.
+func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string, policies []v1beta1.AppPolicy) ([]common2.ApplicationComponent, error) {
 	declaredBy := moduleDeclaredBy(existingComponents, addon.Imports, addon.InlineModules)
 	if err := checkModuleNameCollisions(declaredBy); err != nil {
 		return nil, err
@@ -168,6 +233,13 @@ func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.
 		if imp.Version != "" {
 			properties["version"] = imp.Version
 		}
+		if imp.Placement != nil {
+			place, err := resolvePlacement(imp.Module, imp.Placement, policies)
+			if err != nil {
+				return nil, err
+			}
+			properties["placement"] = placement.TopologyProperties(*place)
+		}
 		raw, err := json.Marshal(properties)
 		if err != nil {
 			return nil, fmt.Errorf("render module component %q for addon %q: %w", imp.Module, addon.Name, err)
@@ -182,4 +254,40 @@ func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.
 		usedNames[componentName] = true
 	}
 	return comps, nil
+}
+
+// resolvePlacement returns an import's placement. A literal placement is used
+// as it is. fromPolicy copies the named topology policy's clusters,
+// clusterLabelSelector and allowEmpty, never its namespace: the namespace of a
+// module's objects follows the installing Application, not the addon's policy.
+func resolvePlacement(module string, place *ImportPlacement, policies []v1beta1.AppPolicy) (*v1alpha1.Placement, error) {
+	if place.FromPolicy == "" {
+		return place.policyPlacement(), nil
+	}
+	idx := slices.IndexFunc(policies, func(p v1beta1.AppPolicy) bool { return p.Name == place.FromPolicy })
+	if idx < 0 {
+		return nil, fmt.Errorf("modules/_imports.cue: module %q: placement.fromPolicy %q: no such policy", module, place.FromPolicy)
+	}
+	pol := policies[idx]
+	if pol.Type != v1alpha1.TopologyPolicyType {
+		return nil, fmt.Errorf("modules/_imports.cue: module %q: placement.fromPolicy %q is a %s policy, not topology", module, place.FromPolicy, pol.Type)
+	}
+	var spec v1alpha1.TopologyPolicySpec
+	if pol.Properties != nil && len(pol.Properties.Raw) > 0 {
+		if err := json.Unmarshal(pol.Properties.Raw, &spec); err != nil {
+			return nil, fmt.Errorf("modules/_imports.cue: module %q: placement.fromPolicy %q: %w", module, place.FromPolicy, err)
+		}
+	}
+	// Read the selector the way the topology policy itself does, so the module
+	// goes where the addon goes: the deprecated clusterSelector spelling counts
+	// only while the DeprecatedPolicySpec feature gate is on.
+	selector := policy.GetClusterLabelSelectorInTopology(&spec)
+	if spec.Clusters == nil && selector == nil && spec.DeprecatedClusterSelector != nil {
+		return nil, fmt.Errorf("modules/_imports.cue: module %q: placement.fromPolicy %q: the policy sets the deprecated clusterSelector, which is ignored unless the %s feature gate is on; use clusterLabelSelector", module, place.FromPolicy, features.DeprecatedPolicySpec)
+	}
+	resolved := &v1alpha1.Placement{Clusters: spec.Clusters, ClusterLabelSelector: selector, AllowEmpty: spec.AllowEmpty}
+	if err := placement.Validate(resolved); err != nil {
+		return nil, fmt.Errorf("modules/_imports.cue: module %q: placement.fromPolicy %q: %w", module, place.FromPolicy, err)
+	}
+	return resolved, nil
 }
