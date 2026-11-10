@@ -12,7 +12,8 @@
 
 `vela mcp` exposes KubeVela to AI agents over the Model Context Protocol from inside the
 `vela` binary. It wraps code that already ships (definition schemas, dry-run, live-diff,
-status tree, VelaQL views, workflow suspend and resume) as fifteen deterministic tools,
+status tree, VelaQL views, workflow suspend and resume) as deterministic tools — fifteen
+at P0, growing through the phased table below —
 with read-only as the default and every write rendered, diffed and gated through the
 Application's own workflow. Every response states the versions it ran against, when the
 data was observed, and which objects each explanation was derived from. A companion repository holds skills, client setup templates
@@ -172,6 +173,8 @@ classifier needs structured changes. Handlers never shell out and never call a m
 | `apply_application` | write | `vela up` under mode policy | P0, flag |
 | `find_definition_consumers` | read | Applications by component and trait type | P1 |
 | `compare_definition_revisions` | read | Parameter and rendered-output diff between two DefinitionRevisions | P1 |
+| `diagnose_application` | read | Root-cause walk of an unhealthy Application: provisioner-owned resources read live, a bounded number per call, their conditions interpreted by the owning family's conventions (ACK `ResourceSynced` and `Terminal`, Config Connector `Ready` with reason `UpToDate`, Crossplane `Ready` and `Synced`); plain Kubernetes resources keep the tree's pod-corrected health and Secrets are never diagnosed; plus correlated events and findings that each cite the object they came from | P1 |
+| `diff_definition_impact` | plan | Blast radius of a definition change before it is applied: finds consumers the way `find_definition_consumers` does, renders a bounded number of them against the cluster's current definition and against a proposed copy supplied the way `dryrun_application` accepts local definitions, and returns a per-Application result. Changed consumers carry a change set and risk class, unchanged consumers are marked unchanged, base render failures carry a base render error, and proposed render failures carry their render error with no change set or risk class — a missing risk class for a render failure is a blocked consumer, never a safe one | P1 |
 | `vet_definition` | plan | `vela def vet` | P1 |
 | `suspend_workflow`, `terminate_workflow` | write | `vela workflow` | P1, flag |
 | `resume_workflow` | write | `vela workflow resume`; separate flag; denies the recorded initiator | P1, flag |
@@ -179,6 +182,34 @@ classifier needs structured changes. Handlers never shell out and never call a m
 Deliberately absent: raw Kubernetes get and patch, exec, port-forward, addon enable,
 cluster join, definition apply, and reading Secret data; a managed Secret's metadata is the
 only Secret read a tool returns.
+
+`diagnose_application` interprets where `explain_application` reports: the resource tree
+has no health rule for most custom resources and defaults them to Healthy, so a cloud
+resource a provisioner has stopped reconciling reads as fine in a plain tree. The
+diagnosis reads provisioner-owned resources live, a bounded number per call with anything
+unread named, while plain Kubernetes resources keep the tree's pod-corrected health and
+Secrets are never diagnosed; each live read is interpreted by the conventions of the family
+that owns its API group — a halted ACK resource (`ACK.Terminal`) or one the controller
+cannot converge (`ACK.ResourceSynced` persistently false while the provider reports the
+resource exists, the signature of a field the endpoint computes differently), a Config
+Connector resource whose `Ready` reason is not `UpToDate`, a Crossplane resource
+missing `Ready` or `Synced`. Every finding stays a cited observation; the conventions
+decide only which conditions are worth citing and what their combination means.
+
+`diff_definition_impact` exists because a definition edit is the one change whose blast
+radius the author cannot see from the document in front of them: the Applications it
+breaks are other people's. It composes two capabilities this KEP already has — consumer
+discovery and local-definition rendering — into the question a platform engineer
+actually asks before `vela def apply`: "who uses this, and what changes for each of
+them". A consumer the proposed definition no longer renders is reported as that
+Application's render error, not as a tool failure, and such an entry carries no risk
+class on purpose: the change blocks that consumer, and an agent must never read the
+absence of a risk class as safety. The result mixes a live consumer scan with rendered
+diffs; the envelope's source says mixed when both contributed, and the evidence lines
+say which parts came from the live scan and which from renders. Only a bounded number
+of consumers are rendered per call: the result is marked truncated when consumers were
+found but not rendered, the count says how many, and an unrendered consumer's impact is
+unknown, never assumed unchanged.
 
 `explain_application`, `get_application` and `get_logs` return **correlation handles**:
 cluster, namespace, pod names, the label set KubeVela stamps on rendered resources,
@@ -208,9 +239,10 @@ incident. Four rules make that trust checkable rather than assumed.
 `featureGates` repeats only the gates set away from their defaults; `get_platform_info`
 lists every gate set on the controller.
 
-`source` is `live` for a direct API server read, `rendered` for dry-run output, and
-`cached` only for definition schemas, which carry their DefinitionRevision so staleness is
-visible. It always describes the data in the response. Where tool descriptions, read tools
+`source` is `live` for a direct API server read, `rendered` for dry-run output, `mixed`
+when a live read and a render both contributed — the evidence lines say which parts are
+which — and `cached` only for definition schemas, which carry their DefinitionRevision so
+staleness is visible. It always describes the data in the response. Where tool descriptions, read tools
 or risk hints came from is reported separately in `servedData` (`builtin`, `addon` or
 `addon-cached`, with the addon version and the cache age), so a stale addon cache never
 makes live data look cached. Status tools never serve from an informer cache. `truncated` is set whenever a
@@ -593,10 +625,16 @@ Unknowns: none
 Running: vela-core v1.11.0, prod-us-west Kubernetes v1.30.8, AuthenticateApplication=false
 ```
 
-The algorithm: read status and workflow steps, take the VelaQL resource tree, build the
-component graph from `dependsOn` and `inputs`, topologically sort, report the first
-unhealthy component with no unhealthy predecessor, attach provider conditions and events,
-state whether traffic changed. Deterministic, one round trip per cluster.
+The division of labor: `explain_application` reads the recorded status, workflow
+steps, the VelaQL resource tree, component definitions and recent events, and returns
+every component with its declared `dependsOn` and `inputs` edges, live resource health,
+and findings ordered by severity. `diagnose_application` interprets: it walks the
+managed-resource inventory, reuses tree health for plain Kubernetes resources, and
+live-reads a bounded set of provider resources to classify their conditions — explain
+reports, diagnose interprets. Neither tool elects a single root-cause component or
+reports traffic state; the agent draws those conclusions from the dependency edges and
+workflow phase in the response, as the transcript above shows. Reads are deterministic
+and bounded.
 
 ## Alternatives considered
 
@@ -625,7 +663,7 @@ state whether traffic changed. Deterministic, one round trip per cluster.
 | Phase | Scope | Exit criteria |
 |---|---|---|
 | P0, KubeVela 1.12 | `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp config`, with per-client steps in `kubevela/skills`; developer, SRE, platform-engineer and defkit-author skills; the documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
-| P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; one adopter runs the trigger recipe |
+| P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, `diagnose_application`, `diff_definition_impact`, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; the degraded-cloud-resource fixture (a provisioner that halted or cannot converge) is root-caused by `diagnose_application` with zero manual lookups; one adopter runs the trigger recipe |
 | P2, after VelaUX catch-up | VelaUX backend plugin over streamable HTTP; per-caller tool filtering; read-only assistant panel | Hosted client logs in through VelaUX and gets the same allow or deny as the CLI |
 | P3, after the Cluster Infrastructure KEP | Cluster-fleet tools from the Future scope section; cluster-plane handles; `kubevela-cluster-operator` skill | Fleet scenarios pass on three model families; a rollout started through an agent pauses at every approval the KEP defines |
 
