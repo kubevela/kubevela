@@ -54,7 +54,22 @@ var _ = Describe("Webservice component with scaler trait (Sawchain)", Ordered, L
 
 	When("the Application has a webservice component and no traits", func() {
 		BeforeAll(func() {
-			sc.CreateAndWait(ctx, "testdata/webservice/application.tpl.yaml")
+			sc.CreateAndWait(ctx, `
+				apiVersion: core.oam.dev/v1beta1
+				kind: Application
+				metadata:
+				  name: webservice-sawchain
+				  namespace: ($namespace)
+				spec:
+				  components:
+				    - name: frontend
+				      type: webservice
+				      properties:
+				        image: oamdev/testapp:v1
+				        ports:
+				          - port: 8080
+				            expose: true
+			`)
 		})
 
 		It("renders the Deployment", func() {

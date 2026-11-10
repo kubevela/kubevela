@@ -39,6 +39,25 @@ type traitCase struct {
 	fixtures string
 }
 
+// Chainsaw template for creating an Application with a webservice component and optional traits.
+const appWebserviceTraitsTemplate = `
+	apiVersion: core.oam.dev/v1beta1
+	kind: Application
+	metadata:
+	  name: ($name)
+	  namespace: ($namespace)
+	spec:
+	  components:
+	    - name: ($name)
+	      type: webservice
+	      properties:
+	        image: oamdev/testapp:v1
+	        ports:
+	          - port: 8080
+	      traits: (parse_yaml($traits))
+`
+
+// Chainsaw template for asserting an Application is running and healthy.
 const appHealthy = `
 	apiVersion: core.oam.dev/v1beta1
 	kind: Application
@@ -62,8 +81,37 @@ func dedent(s string) string {
 	return strings.Join(lines, "\n")
 }
 
-var traitCases = []traitCase{
-	{
+var _ = DescribeTableSubtree("Webservice component traits (Sawchain)", Label("core-application"),
+	func(c traitCase) {
+		var (
+			ctx       context.Context
+			sc        *sawchain.Sawchain
+			namespace string
+		)
+
+		BeforeEach(func() {
+			ctx = context.Background()
+			namespace = randomNamespaceName("webservice-traits")
+			Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).To(Succeed())
+			sc = sawchain.New(GinkgoTB(), k8sClient, sawchainTimeout, sawchainInterval, map[string]any{"namespace": namespace})
+		})
+
+		AfterEach(func() {
+			Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).To(Succeed())
+		})
+
+		It("applies the "+c.name+" trait", func() {
+			bindings := map[string]any{"name": c.name, "traits": dedent(c.traits)}
+			if c.fixtures != "" {
+				sc.CreateAndWait(ctx, c.fixtures, bindings)
+			}
+			sc.CreateAndWait(ctx, appWebserviceTraitsTemplate, bindings)
+
+			Eventually(sc.CheckFunc(ctx, appHealthy, bindings), sawchainTimeout, sawchainInterval).Should(Succeed())
+			Eventually(sc.CheckFunc(ctx, c.expected, bindings), sawchainTimeout, sawchainInterval).Should(Succeed())
+		})
+	},
+	Entry("scaler", traitCase{
 		name: "scaler",
 		traits: `
 			- type: scaler
@@ -79,8 +127,8 @@ var traitCases = []traitCase{
 			spec:
 			  replicas: 2
 		`,
-	},
-	{
+	}),
+	Entry("labels", traitCase{
 		name: "labels",
 		traits: `
 			- type: labels
@@ -101,8 +149,8 @@ var traitCases = []traitCase{
 			      labels:
 			        tier: web
 		`,
-	},
-	{
+	}),
+	Entry("annotations", traitCase{
 		name: "annotations",
 		traits: `
 			- type: annotations
@@ -123,8 +171,8 @@ var traitCases = []traitCase{
 			      annotations:
 			        team: platform
 		`,
-	},
-	{
+	}),
+	Entry("env", traitCase{
 		name: "env",
 		traits: `
 			- type: env
@@ -147,8 +195,8 @@ var traitCases = []traitCase{
 			        - name: FOO
 			          value: bar
 		`,
-	},
-	{
+	}),
+	Entry("resource", traitCase{
 		name: "resource",
 		traits: `
 			- type: resource
@@ -175,8 +223,8 @@ var traitCases = []traitCase{
 			            cpu: 100m
 			            memory: 64Mi
 		`,
-	},
-	{
+	}),
+	Entry("sidecar", traitCase{
 		name: "sidecar",
 		traits: `
 			- type: sidecar
@@ -200,8 +248,8 @@ var traitCases = []traitCase{
 			        image: busybox:1.34
 			        command: ["sleep", "86400"]
 		`,
-	},
-	{
+	}),
+	Entry("lifecycle", traitCase{
 		name: "lifecycle",
 		traits: `
 			- type: lifecycle
@@ -226,8 +274,8 @@ var traitCases = []traitCase{
 			            exec:
 			              command: ["sleep", "1"]
 		`,
-	},
-	{
+	}),
+	Entry("container-ports", traitCase{
 		name: "container-ports",
 		traits: `
 			- type: container-ports
@@ -251,8 +299,8 @@ var traitCases = []traitCase{
 			        - containerPort: 9090
 			          protocol: TCP
 		`,
-	},
-	{
+	}),
+	Entry("hostalias", traitCase{
 		name: "hostalias",
 		traits: `
 			- type: hostalias
@@ -274,8 +322,8 @@ var traitCases = []traitCase{
 			      - ip: 10.1.2.3
 			        hostnames: [a.example.com]
 		`,
-	},
-	{
+	}),
+	Entry("k8s-update-strategy", traitCase{
 		name: "k8s-update-strategy",
 		traits: `
 			- type: k8s-update-strategy
@@ -293,8 +341,8 @@ var traitCases = []traitCase{
 			  strategy:
 			    type: Recreate
 		`,
-	},
-	{
+	}),
+	Entry("json-patch", traitCase{
 		// The labels trait runs first so json-patch has a label to remove. The kept label proves the trait applied, so the removed label existed.
 		name: "json-patch",
 		traits: `
@@ -340,8 +388,8 @@ var traitCases = []traitCase{
 			      - name: helper
 			        image: busybox:1.34
 		`,
-	},
-	{
+	}),
+	Entry("json-merge-patch", traitCase{
 		name: "json-merge-patch",
 		traits: `
 			- type: labels
@@ -376,8 +424,8 @@ var traitCases = []traitCase{
 			        keep: "yes"
 			        ("to-delete" == null): true
 		`,
-	},
-	{
+	}),
+	Entry("expose", traitCase{
 		// Auxiliary resource: full Service spec, as in Sawchain's gateway example.
 		name: "expose",
 		traits: `
@@ -402,8 +450,8 @@ var traitCases = []traitCase{
 			    targetPort: 8080
 			    protocol: TCP
 		`,
-	},
-	{
+	}),
+	Entry("command", traitCase{
 		name: "command",
 		traits: `
 			- type: sidecar
@@ -432,8 +480,8 @@ var traitCases = []traitCase{
 			        command: ["sleep"]
 			        args: ["86400"]
 		`,
-	},
-	{
+	}),
+	Entry("startup-probe", traitCase{
 		name: "startup-probe",
 		traits: `
 			- type: startup-probe
@@ -460,8 +508,8 @@ var traitCases = []traitCase{
 			          failureThreshold: 10
 			          periodSeconds: 5
 		`,
-	},
-	{
+	}),
+	Entry("securitycontext", traitCase{
 		name: "securitycontext",
 		traits: `
 			- type: securitycontext
@@ -487,8 +535,8 @@ var traitCases = []traitCase{
 			          capabilities:
 			            drop: [NET_RAW]
 		`,
-	},
-	{
+	}),
+	Entry("podsecuritycontext", traitCase{
 		name: "podsecuritycontext",
 		traits: `
 			- type: podsecuritycontext
@@ -509,8 +557,8 @@ var traitCases = []traitCase{
 			        runAsNonRoot: false
 			        fsGroup: 1000
 		`,
-	},
-	{
+	}),
+	Entry("topologyspreadconstraints", traitCase{
 		// ScheduleAnyway so the pod schedules on a single-node test cluster.
 		name: "topologyspreadconstraints",
 		traits: `
@@ -541,8 +589,8 @@ var traitCases = []traitCase{
 			          matchLabels:
 			            app.oam.dev/component: topologyspreadconstraints
 		`,
-	},
-	{
+	}),
+	Entry("container-image", traitCase{
 		// Same image as the base so the pod stays healthy. Always differs from the IfNotPresent default of a tagged image, so the override is observable. The image field is not discriminating.
 		name: "container-image",
 		traits: `
@@ -565,8 +613,8 @@ var traitCases = []traitCase{
 			        image: oamdev/testapp:v1
 			        imagePullPolicy: Always
 		`,
-	},
-	{
+	}),
+	Entry("init-container", traitCase{
 		name: "init-container",
 		traits: `
 			- type: init-container
@@ -602,8 +650,8 @@ var traitCases = []traitCase{
 			      - name: workdir
 			        emptyDir: {}
 		`,
-	},
-	{
+	}),
+	Entry("affinity", traitCase{
 		// Tolerations only: a nodeSelector or required affinity could leave the pod unschedulable.
 		name: "affinity",
 		traits: `
@@ -628,8 +676,8 @@ var traitCases = []traitCase{
 			        operator: Exists
 			        effect: NoSchedule
 		`,
-	},
-	{
+	}),
+	Entry("service-account", traitCase{
 		// create=false: the ServiceAccount must already exist, so a fixture provides it.
 		name: "service-account",
 		traits: `
@@ -655,8 +703,8 @@ var traitCases = []traitCase{
 			    spec:
 			      serviceAccountName: custom-sa
 		`,
-	},
-	{
+	}),
+	Entry("service-account-create", traitCase{
 		// Namespace-scoped privileges only; cluster scope would leak ClusterRoles past namespace cleanup.
 		name: "service-account-create",
 		traits: `
@@ -709,8 +757,8 @@ var traitCases = []traitCase{
 			- kind: ServiceAccount
 			  name: created-sa
 		`,
-	},
-	{
+	}),
+	Entry("storage", traitCase{
 		// The trait creates the ConfigMap itself (mountOnly defaults to false).
 		name: "storage",
 		traits: `
@@ -756,8 +804,8 @@ var traitCases = []traitCase{
 			data:
 			  key: value
 		`,
-	},
-	{
+	}),
+	Entry("gateway", traitCase{
 		// The Ingress needs no controller to be created. The trait also creates a same-named Service.
 		name: "gateway",
 		traits: `
@@ -803,9 +851,8 @@ var traitCases = []traitCase{
 			            port:
 			              number: 8080
 		`,
-	},
-	{
-		// The HPA object is created without metrics-server; only scaling needs it.
+	}),
+	Entry("hpa", traitCase{
 		name: "hpa",
 		traits: `
 			- type: hpa
@@ -837,8 +884,8 @@ var traitCases = []traitCase{
 			        type: Utilization
 			        averageUtilization: 60
 		`,
-	},
-	{
+	}),
+	Entry("cpuscaler", traitCase{
 		name: "cpuscaler",
 		traits: `
 			- type: cpuscaler
@@ -862,37 +909,5 @@ var traitCases = []traitCase{
 			  maxReplicas: 3
 			  targetCPUUtilizationPercentage: 70
 		`,
-	},
-}
-
-var _ = Describe("Webservice component traits (Sawchain)", Label("core-application"), func() {
-	var (
-		ctx       context.Context
-		sc        *sawchain.Sawchain
-		namespace string
-	)
-
-	BeforeEach(func() {
-		ctx = context.Background()
-		namespace = randomNamespaceName("webservice-traits")
-		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).To(Succeed())
-		sc = sawchain.New(GinkgoTB(), k8sClient, sawchainTimeout, sawchainInterval, map[string]any{"namespace": namespace})
-	})
-
-	AfterEach(func() {
-		Expect(k8sClient.Delete(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})).To(Succeed())
-	})
-
-	for _, c := range traitCases {
-		It("applies the "+c.name+" trait", func() {
-			bindings := map[string]any{"name": c.name, "traits": dedent(c.traits)}
-			if c.fixtures != "" {
-				sc.CreateAndWait(ctx, c.fixtures, bindings)
-			}
-			sc.CreateAndWait(ctx, "testdata/webservice/traits.tpl.yaml", bindings)
-
-			Eventually(sc.CheckFunc(ctx, appHealthy, bindings), sawchainTimeout, sawchainInterval).Should(Succeed())
-			Eventually(sc.CheckFunc(ctx, c.expected, bindings), sawchainTimeout, sawchainInterval).Should(Succeed())
-		})
-	}
-})
+	}),
+)
