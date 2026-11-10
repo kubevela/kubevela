@@ -23,11 +23,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -199,6 +201,120 @@ func TestAttributesAreInheritedOnlyWhereTheChildIsSilent(t *testing.T) {
 			fetcherOver(map[string]*v1beta1.ComponentDefinition{"webservice": parent})))
 
 		require.Equal(t, "spec.jobTemplate.spec.template.spec", child.Spec.PodSpecPath)
+	})
+}
+
+// The webhook stamps autodetect on a child that declares no workload, which is
+// still silence; a child that replaces the parent's output renders its own.
+func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
+	withInheritance(t)
+
+	deployment := common.WorkloadTypeDescriptor{
+		Type:       "deployments.apps",
+		Definition: common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"},
+	}
+	autodetect := common.WorkloadTypeDescriptor{Type: types.AutoDetectWorkloadDefinition}
+	base := compDef("base", "", "output: {}")
+	base.Spec.Workload = deployment
+	base.Spec.PodSpecPath = "spec.template.spec"
+	base.Spec.RevisionLabel = "app.oam.dev/revision"
+	base.Spec.ChildResourceKinds = []common.ChildResourceKind{{APIVersion: "apps/v1", Kind: "ReplicaSet"}}
+
+	resolve := func(t *testing.T, child *v1beta1.ComponentDefinition, defs map[string]*v1beta1.ComponentDefinition) *Template {
+		t.Helper()
+		tmpl := &Template{}
+		require.NoError(t, resolveComponentChain(context.Background(), tmpl, child, fetcherOver(defs)))
+		return tmpl
+	}
+
+	t.Run("autodetect child inherits", func(t *testing.T) {
+		child := compDef("child", "base", "")
+		child.Spec.Workload = autodetect
+		tmpl := resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
+		require.Equal(t, deployment, child.Spec.Workload)
+		require.Equal(t, deployment, tmpl.Reference)
+	})
+
+	for name, template := range map[string]string{
+		"$inherit: false":         "$inherit: false\noutput: {}",
+		"$inherit: output: false": "$inherit: output: false\noutput: {}",
+	} {
+		t.Run(name+" keeps its own", func(t *testing.T) {
+			child := compDef("child", "base", template)
+			child.Spec.Workload = autodetect
+			resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
+			require.Equal(t, autodetect, child.Spec.Workload)
+			require.Empty(t, child.Spec.PodSpecPath)
+			require.Empty(t, child.Spec.RevisionLabel)
+			require.Empty(t, child.Spec.ChildResourceKinds)
+		})
+	}
+
+	t.Run("a silent middle passes the grandparent's on", func(t *testing.T) {
+		middle := compDef("middle", "base", "")
+		middle.Spec.Workload = autodetect
+		child := compDef("child", "middle", "")
+		child.Spec.Workload = autodetect
+		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base, "middle": middle})
+		require.Equal(t, deployment, child.Spec.Workload)
+	})
+
+	t.Run("a partial GVK is the child's own", func(t *testing.T) {
+		own := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "batch/v1"}}
+		child := compDef("child", "base", "")
+		child.Spec.Workload = own
+		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
+		require.Equal(t, own, child.Spec.Workload)
+	})
+
+	t.Run("a child without a CUE schematic inherits", func(t *testing.T) {
+		child := compDef("child", "base", "")
+		child.Spec.Schematic = nil
+		child.Spec.Workload = autodetect
+		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
+		require.Equal(t, deployment, child.Spec.Workload)
+	})
+
+	t.Run("a template from spec.extension is read for $inherit", func(t *testing.T) {
+		child := compDef("child", "base", "")
+		child.Spec.Schematic = nil
+		child.Spec.Workload = autodetect
+		child.Spec.Extension = &runtime.RawExtension{Raw: []byte(`{"template":"$inherit: output: false\noutput: {}"}`)}
+		_, err := newTemplateOfCompDefinition(context.Background(), child,
+			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
+		require.NoError(t, err)
+		require.Equal(t, autodetect, child.Spec.Workload)
+		require.Empty(t, child.Spec.PodSpecPath)
+	})
+
+	t.Run("a malformed $inherit is reported", func(t *testing.T) {
+		child := compDef("child", "base", "$inherit: output: \"no\"\noutput: {}")
+		err := resolveComponentChain(context.Background(), &Template{}, child,
+			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
+		require.ErrorContains(t, err, "expected true or false")
+	})
+
+	t.Run("a middle that replaces output stops the chain", func(t *testing.T) {
+		middle := compDef("middle", "base", "$inherit: output: false\noutput: {}")
+		middle.Spec.Workload = autodetect
+		child := compDef("child", "middle", "")
+		child.Spec.Workload = autodetect
+		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base, "middle": middle})
+		require.Equal(t, autodetect, child.Spec.Workload)
+		require.Empty(t, child.Spec.PodSpecPath)
+	})
+
+	t.Run("a middle that replaces output still passes its own on", func(t *testing.T) {
+		job := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "batch/v1", Kind: "Job"}}
+		middle := compDef("middle", "base", "$inherit: output: false\noutput: {}")
+		middle.Spec.Workload = job
+		middle.Spec.PodSpecPath = "spec.template.spec"
+		child := compDef("child", "middle", "")
+		child.Spec.Workload = autodetect
+		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base, "middle": middle})
+		require.Equal(t, job, child.Spec.Workload)
+		require.Equal(t, "spec.template.spec", child.Spec.PodSpecPath)
+		require.Empty(t, child.Spec.ChildResourceKinds)
 	})
 }
 
