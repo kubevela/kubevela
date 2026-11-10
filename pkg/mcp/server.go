@@ -254,6 +254,16 @@ func registerTools(s *Server, d *deps) {
 	}, d.listAddons)
 
 	addTool(s, ToolClassPlan, &sdk.Tool{
+		Name: "stage_definition",
+		Description: "Parse and stage a local definition — CUE as vela def gen-module writes it for a defkit module, or " +
+			"a definition object as YAML — and get back a content-hash handle that dryrun_application, " +
+			"diff_application and diff_definition_impact accept wherever they accept inline definitions. Stage once " +
+			"per edit and pass the handle on every later call, so the definition's text does not travel with each " +
+			"request; restage after any edit, since the handle names the exact content. Handles expire and the " +
+			"result says when. Nothing is sent to the cluster.",
+	}, d.stageDefinition)
+
+	addTool(s, ToolClassPlan, &sdk.Tool{
 		Name: "dryrun_application",
 		Description: "Render an Application document the way vela dry-run does, without saving it: every Kubernetes " +
 			"object each component and trait would produce, plus policy objects. Pass local definitions to render " +

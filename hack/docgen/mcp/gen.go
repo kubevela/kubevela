@@ -185,7 +185,7 @@ func cell(s string) string {
 
 var classText = map[mcp.ToolClass]string{
 	mcp.ToolClassRead:  "Read. Always registered.",
-	mcp.ToolClassPlan:  "Plan. Always registered; renders and compares without writing.",
+	mcp.ToolClassPlan:  "Plan. Always registered; prepares a change without writing: renders, compares, or stages an input for later calls.",
 	mcp.ToolClassWrite: "Write. Registered only when the server starts with `--allow-write`.",
 }
 
@@ -201,7 +201,7 @@ what it gets back. To set the server up, see [AI agents with vela mcp](../tutori
 Tools come in three classes:
 
 - **Read** tools are always registered and never change the cluster.
-- **Plan** tools render or compare an Application without saving it.
+- **Plan** tools prepare a change without writing: they render or compare an Application, or stage an input for later calls.
 - **Write** tools exist only when the server is started with a flag that enables them.
 
 `
