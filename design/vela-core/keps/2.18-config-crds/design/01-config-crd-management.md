@@ -1,4 +1,6 @@
-# CRD-based Config Management (`config.oam.dev/v1alpha1`)
+# Design 01: CRD-based Config Management (`config.oam.dev/v1alpha1`)
+
+Companion design note to [KEP-2.18](../README.md). See the [design index](./README.md).
 
 - Owner: Anish Bista (@anishbista60)
 - Date: 2026-08-12
