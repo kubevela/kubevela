@@ -227,6 +227,20 @@ func registerTools(s *Server, d *deps) {
 	}, d.explainApplication)
 
 	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "diagnose_application",
+		Description: "Root-cause an unhealthy Application: reads provisioner-owned resources live, a bounded number " +
+			"per call, and interprets their conditions by the conventions of the family that owns their API group " +
+			"— ACK (ResourceSynced and Terminal, including the convergence-loop signature of a field the cloud " +
+			"service computes differently), Config Connector (Ready with reason UpToDate), Crossplane (Ready and " +
+			"Synced). Plain Kubernetes resources keep the resource tree's pod-corrected health without a live read; " +
+			"Secrets are never diagnosed and, as with every tool here, their content is never returned. Adds " +
+			"recent events and findings that each cite the object " +
+			"they came from; anything unread is named in unknowns. The resource tree defaults unknown kinds to " +
+			"Healthy, so use this, not explain_application alone, when a cloud resource looks fine but the " +
+			"application is not.",
+	}, d.diagnoseApplication)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
 		Name:        "list_clusters",
 		Description: "List the clusters KubeVela can deploy to, with alias, credential type, endpoint and labels. Credentials are never returned.",
 	}, d.listClusters)
@@ -253,6 +267,19 @@ func registerTools(s *Server, d *deps) {
 			"changes, and classifies risk LOW, MEDIUM or HIGH with every rule that fired. Returns a token that " +
 			"apply_application requires, so show this result to the user before any apply.",
 	}, d.diffApplication)
+
+	addTool(s, ToolClassPlan, &sdk.Tool{
+		Name: "diff_definition_impact",
+		Description: "Blast radius of a definition change before vela def apply: scans the allowed namespaces for " +
+			"Applications using the definition, renders the first consumers found — a bounded number per call, with " +
+			"the result marked truncated when more exist — against the cluster's current copy and against a " +
+			"proposed copy supplied the way dryrun_application accepts local definitions, and returns a " +
+			"per-Application result: a change set and risk class when both renders succeed, an unchanged marker, or " +
+			"a render error. The consumer scan is bounded too and its count says when " +
+			"it stopped early. A consumer the proposed definition no longer renders is reported as that " +
+			"Application's render error and carries no risk class; that absence is blocking, not safe. With no " +
+			"proposed copy it lists the consumers without rendering. Nothing is applied.",
+	}, d.diffDefinitionImpact)
 
 	if s.opts.AllowWrite {
 		addTool(s, ToolClassWrite, &sdk.Tool{

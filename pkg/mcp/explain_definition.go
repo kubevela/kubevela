@@ -391,35 +391,7 @@ func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *defi
 // the definition. A list failure is reported in the summary, not as a tool
 // error, because the rest of the explanation does not depend on it.
 func (d *deps) countConsumers(ctx context.Context, cli client.Client, defType, name string) ConsumerSummary {
-	sum := ConsumerSummary{Applications: []string{}, NamespacesScanned: []string{"all"}}
-	namespaces := []string{""}
-	if len(d.opts.Namespaces) > 0 {
-		namespaces = append([]string{}, d.opts.Namespaces...)
-		sum.NamespacesScanned = namespaces
-	}
-	for _, ns := range namespaces {
-		var list v1beta1.ApplicationList
-		opts := []client.ListOption{client.Limit(int64(maxConsumerScan))}
-		if ns != "" {
-			opts = append(opts, client.InNamespace(ns))
-		}
-		if err := cli.List(ctx, &list, opts...); err != nil {
-			sum.Error = redactLine(fmt.Sprintf("list applications in %s: %v", nsLabel(ns), err))
-			return sum
-		}
-		if list.Continue != "" {
-			sum.Error = fmt.Sprintf("more than %d applications in %s; the count covers the first %d only", maxConsumerScan, nsLabel(ns), maxConsumerScan)
-		}
-		for i := range list.Items {
-			app := &list.Items[i]
-			if usesDefinition(app, defType, name) {
-				sum.Count++
-				if len(sum.Applications) < maxConsumersListed {
-					sum.Applications = append(sum.Applications, app.Namespace+"/"+app.Name)
-				}
-			}
-		}
-	}
+	sum, _ := d.findConsumerApps(ctx, cli, defType, name, 0)
 	return sum
 }
 
