@@ -156,10 +156,12 @@ func registerTools(s *Server, d *deps) {
 			"vela-core version and health, Kubernetes server version, enabled feature gates, and any version skew. " +
 			"Call once per session before other tools so explanations match the running system. Pass the namespace " +
 			"the user is working in to learn how it delivers workloads today, so new work follows that practice. " +
-			"Before writing a definition for an AWS service, pass the service, and the kind you will emit: the result names the " +
-			"installed provisioner to build on with its CRD's spec schema, or says that neither ACK nor Crossplane is installed " +
-			"and what to install. When both serve that service it names ACK and lists Crossplane as an alternative under also; then ask the user which " +
-			"one the platform builds on, or follow the one the user named.",
+			"Before writing a definition for a cloud service, pass the provider (aws, gcp or azure; aws is the " +
+			"default), the service, and the kind you will emit: the result names the installed provisioner to " +
+			"build on with its CRD's spec schema, or says that nothing serves the service and what to install. " +
+			"The cloud's own controller is chosen first — ACK on AWS, Config Connector on GCP, Azure Service " +
+			"Operator on Azure — and when Crossplane also serves the service it is listed under also; then ask " +
+			"the user which one the platform builds on, or follow the one the user named.",
 	}, d.getPlatformInfo)
 
 	addTool(s, ToolClassRead, &sdk.Tool{
