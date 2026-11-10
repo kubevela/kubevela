@@ -156,7 +156,7 @@ classifier needs structured changes. Handlers never shell out and never call a m
 
 | Tool | Class | Wraps | Phase |
 |---|---|---|---|
-| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health; for a given namespace, the delivery practice in use and whether the caller may create plain workloads; for a given AWS service, the installed provisioner (ACK, then Crossplane), with a kind's CRD spec schema when the kind is given, or what to install | P0 |
+| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health; for a given namespace, the delivery practice in use and whether the caller may create plain workloads; for a given cloud service, the installed provisioner — the cloud's own controller first (ACK on AWS, Config Connector on GCP, Azure Service Operator on Azure), then Crossplane — with a kind's CRD spec schema when the kind is given, or what to install | P0 |
 | `list_definitions` | read | `vela def list`, `vela components`, `vela traits`; filtered by what a definition provides, with the platform's default for the namespace marked | P0 |
 | `describe_definition` | read | `vela show`; CUE parameters as JSON Schema, required, defaults, examples, current revision | P0 |
 | `explain_definition` | read | `vela def get` + static inspection of the template, which works even when required parameters have no default: what kinds it produces, which parameters drive which fields, health and status rules, restrictions, revision history, consumer count | P0 |
@@ -489,7 +489,7 @@ runs an observability stack and does not want a second one.
 | `kubevela-developer` | Discover before drafting, dry-run until clean, diff before apply, stop at the risk summary, never resume |
 | `kubevela-sre` | Explain first and take the handles; metrics, traces, logs through the observability MCP; managed objects through vela; rollback as a diffed change |
 | `kubevela-platform-engineer` | Consumers before changing a definition, render a sample of consumers, inventory conventions |
-| `kubevela-defkit-author` | defkit Go by default, CUE only on request; search the catalog first; real provider CRD shapes, using the provisioner the cluster already has and ACK for AWS only when there is none and the user names none; `go test`, `validate-module`, `gen-module`, dry-run with the server check; deliver by PR |
+| `kubevela-defkit-author` | defkit Go by default, CUE only on request; search the catalog first; real provider CRD shapes, using the provisioner the cluster already has, and the cloud's own controller (ACK, Config Connector, Azure Service Operator) only when there is none and the user names none; `go test`, `validate-module`, `gen-module`, dry-run with the server check; deliver by PR |
 
 Skills follow the agentskills.io layout so Claude Code, Codex, Cursor and Copilot load them
 unchanged. Third-party tool names live in a per-server appendix that `kubevela/skills`

@@ -95,18 +95,73 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		return append(platformFixtures(), extra...)
 	}
 
-	It("lists the AWS services each provisioner serves", func() {
+	It("lists the services each provisioner serves, per cloud", func() {
 		h = startHarness(Options{}, objs(
 			ackTableCRD(),
 			testCRD("s3.services.k8s.aws", "buckets", "Bucket", crdv1.NamespaceScoped, crdv1.JSONSchemaProps{Type: "object"}),
 			crossplaneTableCRD("sqs.aws.m.upbound.io", crdv1.NamespaceScoped),
+			testCRD("sql.cnrm.cloud.google.com", "sqlinstances", "SQLInstance", crdv1.NamespaceScoped, crdv1.JSONSchemaProps{Type: "object"}),
+			testCRD("pubsub.gcp.m.upbound.io", "topics", "Topic", crdv1.NamespaceScoped, crdv1.JSONSchemaProps{Type: "object"}),
+			testCRD("sql.azure.com", "servers", "Server", crdv1.NamespaceScoped, crdv1.JSONSchemaProps{Type: "object"}),
 			testCRD("postgresql.cnpg.io", "clusters", "Cluster", crdv1.NamespaceScoped, crdv1.JSONSchemaProps{Type: "object"}),
 		)...)
 		out := platform(nil)
 		Expect(out.CloudProvisioners).NotTo(BeNil())
-		Expect(out.CloudProvisioners.ACK).To(Equal([]string{"dynamodb", "s3"}))
-		Expect(out.CloudProvisioners.Crossplane).To(Equal([]string{"sqs"}))
+		Expect(out.CloudProvisioners.AWS.ACK).To(Equal([]string{"dynamodb", "s3"}))
+		Expect(out.CloudProvisioners.AWS.Crossplane).To(Equal([]string{"sqs"}))
+		Expect(out.CloudProvisioners.GCP.ConfigConnector).To(Equal([]string{"sql"}))
+		Expect(out.CloudProvisioners.GCP.Crossplane).To(Equal([]string{"pubsub"}))
+		Expect(out.CloudProvisioners.Azure.AzureServiceOperator).To(Equal([]string{"sql"}))
 		Expect(out.Provisioner).To(BeNil(), "no service was asked about")
+	})
+
+	It("resolves a GCP service to Config Connector first, with its readiness convention", func() {
+		h = startHarness(Options{}, objs(
+			testCRD("sql.cnrm.cloud.google.com", "sqlinstances", "SQLInstance", crdv1.NamespaceScoped, crdv1.JSONSchemaProps{
+				Type: "object", Required: []string{"settings"},
+				Properties: map[string]crdv1.JSONSchemaProps{"settings": {Type: "object"}, "databaseVersion": {Type: "string"}},
+			}),
+			crossplaneTableCRD("sql.gcp.m.upbound.io", crdv1.NamespaceScoped),
+		)...)
+		p := platform(map[string]any{"provider": "gcp", "service": "sql", "kind": "SQLInstance"}).Provisioner
+		Expect(p).NotTo(BeNil())
+		Expect(p.Provider).To(Equal(ProviderGCP))
+		Expect(p.Provisioner).To(Equal(ProvisionerConfigConnector))
+		Expect(p.Also).To(Equal([]string{ProvisionerCrossplane}))
+		Expect(p.Resource).NotTo(BeNil())
+		Expect(p.Resource.APIVersion).To(Equal("sql.cnrm.cloud.google.com/v1alpha1"))
+		Expect(p.Resource.Required).To(Equal([]string{"settings"}))
+		Expect(p.Resource.Health).To(ContainSubstring("UpToDate"))
+	})
+
+	It("resolves an Azure service to the Azure Service Operator", func() {
+		h = startHarness(Options{}, objs(
+			testCRD("sql.azure.com", "servers", "Server", crdv1.NamespaceScoped, crdv1.JSONSchemaProps{
+				Type: "object", Properties: map[string]crdv1.JSONSchemaProps{"location": {Type: "string"}},
+			}),
+		)...)
+		p := platform(map[string]any{"provider": "azure", "service": "sql", "kind": "Server"}).Provisioner
+		Expect(p.Provisioner).To(Equal(ProvisionerASO))
+		Expect(p.Also).To(BeEmpty())
+		Expect(p.Resource).NotTo(BeNil())
+		Expect(p.Resource.APIVersion).To(Equal("sql.azure.com/v1alpha1"))
+		Expect(p.Resource.Health).To(ContainSubstring("goal state"))
+	})
+
+	It("names the GCP families and installs when nothing serves the service", func() {
+		h = startHarness(Options{}, objs()...)
+		p := platform(map[string]any{"provider": "gcp", "service": "sql"}).Provisioner
+		Expect(p.Provisioner).To(BeEmpty())
+		Expect(p.Message).To(ContainSubstring("Neither Config Connector nor Crossplane provides sql"))
+		Expect(p.Message).To(ContainSubstring("sql.cnrm.cloud.google.com"))
+		Expect(p.Message).To(ContainSubstring("gs://configconnector-operator"))
+		Expect(p.Message).To(ContainSubstring("provider-gcp-sql"))
+	})
+
+	It("rejects a provider it does not know", func() {
+		h = startHarness(Options{}, objs()...)
+		res := h.call("get_platform_info", map[string]any{"provider": "oci", "service": "sql"}, nil)
+		Expect(errorText(res)).To(ContainSubstring("not one of aws, gcp or azure"))
 	})
 
 	It("chooses ACK when both ACK and Crossplane serve the service, and returns the kind's schema", func() {
@@ -166,7 +221,7 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		h = startHarnessIntercepted(Options{}, nil, forbid, objs(ackTableCRD())...)
 		out := platform(map[string]any{"service": "dynamodb"})
 		Expect(out.CloudProvisioners).To(BeNil())
-		Expect(out.Provisioner.Message).To(ContainSubstring("whether ACK or Crossplane is installed is unknown"))
+		Expect(out.Provisioner.Message).To(ContainSubstring("whether a provisioner is installed is unknown"))
 		Expect(out.Provisioner.Message).NotTo(ContainSubstring("Neither"))
 		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("could not be listed")))
 	})
@@ -221,6 +276,6 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		Expect(errorText(res)).To(ContainSubstring("kind needs a service"))
 		res = h.call("get_platform_info", map[string]any{"service": "DynamoDB Tables"}, nil)
 		Expect(res.IsError).To(BeTrue())
-		Expect(errorText(res)).To(ContainSubstring("not an AWS service name"))
+		Expect(errorText(res)).To(ContainSubstring("not a service name aws uses"))
 	})
 })
