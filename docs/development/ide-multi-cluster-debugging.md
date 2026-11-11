@@ -2,7 +2,7 @@
 
 Debugging against a single cluster from your IDE is covered in
 [`ide-debugging.md`](./ide-debugging.md). This one's for the multi-cluster
-case: a "master" cluster running [Cluster Gateway](https://github.com/kubevela/cluster-gateway)
+case: a "master" cluster running [Cluster Gateway](https://github.com/oam-dev/cluster-gateway)
 in-cluster while the controller itself runs from your IDE, plus a "slave"
 cluster joined to it. That's enough to set breakpoints in multi-cluster
 scheduling and dispatch code (the `topology` policy, for instance) without
@@ -399,5 +399,5 @@ k3d cluster delete master slave
 
 ## References
 
-- [Cluster Gateway](https://github.com/kubevela/cluster-gateway)
+- [Cluster Gateway](https://github.com/oam-dev/cluster-gateway)
 - [KubeVela multi-cluster docs](https://kubevela.io/docs/case-studies/multi-cluster)

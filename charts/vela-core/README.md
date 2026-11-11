@@ -6,7 +6,7 @@
   </p>
 </div>
 
-![Build status](https://github.com/kubevela/kubevela/workflows/E2E/badge.svg)
+![Build status](https://github.com/kubevela/kubevela/actions/workflows/e2e-test.yml/badge.svg)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kubevela/kubevela)](https://goreportcard.com/report/github.com/kubevela/kubevela)
 ![Docker Pulls](https://img.shields.io/docker/pulls/oamdev/vela-core)
 [![codecov](https://codecov.io/gh/kubevela/kubevela/branch/master/graph/badge.svg)](https://codecov.io/gh/kubevela/kubevela)
