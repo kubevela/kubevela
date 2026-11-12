@@ -207,6 +207,7 @@ func TestRegisterByVelaSecret(t *testing.T) {
 		cfg       *KubeClusterConfig
 		cli       client.Client
 		expectErr bool
+		wantErr   error
 		verify    func(t *testing.T, cli client.Client, cfg *KubeClusterConfig)
 	}{
 		{
@@ -313,12 +314,38 @@ func TestRegisterByVelaSecret(t *testing.T) {
 			}(),
 			expectErr: true,
 		},
+		{
+			name: "Overwrite declined",
+			cfg: func() *KubeClusterConfig {
+				cfg := makeBaseClusterConfig("c-declined")
+				cfg.AuthInfo.Token = "new-tok"
+				cfg.ClusterAlreadyExistCallback = func(string) bool { return false }
+				return cfg
+			}(),
+			cli: fake.NewClientBuilder().WithScheme(scheme).WithObjects(&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "c-declined",
+					Namespace: ClusterGatewaySecretNamespace,
+					Labels:    map[string]string{clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeServiceAccountToken)},
+				},
+				Data: map[string][]byte{"endpoint": []byte("https://old:6443"), "token": []byte("old-tok")},
+			}).Build(),
+			wantErr: ErrClusterOverwriteCancelled,
+			verify: func(t *testing.T, cli client.Client, cfg *KubeClusterConfig) {
+				var sec corev1.Secret
+				require.NoError(t, cli.Get(ctx, client.ObjectKey{Name: cfg.ClusterName, Namespace: ClusterGatewaySecretNamespace}, &sec))
+				require.Equal(t, []byte("old-tok"), sec.Data["token"])
+				require.Equal(t, []byte("https://old:6443"), sec.Data["endpoint"])
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.cfg.RegisterByVelaSecret(ctx, tc.cli)
-			if tc.expectErr {
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+			} else if tc.expectErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
