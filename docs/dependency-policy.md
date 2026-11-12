@@ -29,8 +29,9 @@ dependencies in this repository.
 
 - Vulnerabilities can be reported privately following the process in
   [SECURITY.md](../SECURITY.md).
-- Automated detection runs continuously: Trivy scans the vela-core image on
-  pull requests and uploads results to the GitHub Security tab, CodeQL
+- Automated detection runs alongside development: Trivy scans the vela-core
+  image on code pull requests targeting master (documentation-only changes
+  are skipped) and uploads results to the GitHub Security tab, CodeQL
   analyzes pushes to master and release branches, and OpenSSF Scorecard runs
   weekly.
 - Fixes land on master first. Supported release branches receive fixes
@@ -38,6 +39,7 @@ dependencies in this repository.
 
 ## Supply chain hygiene
 
-- GitHub Actions used in CI workflows are pinned to commit SHAs.
+- Most GitHub Actions used in CI workflows are pinned to full commit SHAs;
+  new workflow changes are expected to follow the same practice.
 - Release artifacts ship with SPDX SBOMs generated with syft during the
   GoReleaser release process.
