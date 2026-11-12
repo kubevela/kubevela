@@ -1,0 +1,123 @@
+header:
+  schema-version: 2.0.0
+  last-updated: '2026-11-12'
+  last-reviewed: '2026-11-12'
+  url: https://github.com/kubevela/kubevela/blob/master/security-insights.yml
+  comment: |
+    Security Insights manifest for the KubeVela project, following the OpenSSF
+    Security Insights specification (https://security-insights.openssf.org/).
+
+project:
+  name: KubeVela
+  homepage: https://kubevela.io
+  administrators:
+    - name: Anoop Gopalakrishnan
+      affiliation: Guidewire
+      primary: true
+    - name: Fog Dong
+      affiliation: BentoML
+      primary: false
+    - name: Lei Zhang
+      affiliation: JD.com
+      primary: false
+    - name: Jerome Guionnet
+      affiliation: Guidewire
+      primary: false
+    - name: Brian Kane
+      affiliation: Guidewire
+      primary: false
+  # Actively maintained repositories under project governance that ship code
+  # users run, published libraries, project documentation or canonical
+  # governance information. Forks, archived and experimental repositories in
+  # the kubevela and oam-dev organizations are intentionally not listed.
+  repositories:
+    - name: kubevela
+      url: https://github.com/kubevela/kubevela
+      comment: Core controllers and the vela CLI; the main codebase of the project.
+    - name: workflow
+      url: https://github.com/kubevela/workflow
+      comment: Workflow engine, usable inside KubeVela applications or standalone.
+    - name: velaux
+      url: https://github.com/kubevela/velaux
+      comment: Web UI and API server for KubeVela.
+    - name: catalog
+      url: https://github.com/kubevela/catalog
+      comment: Addon catalog extending the KubeVela control plane.
+    - name: terraform-controller
+      url: https://github.com/kubevela/terraform-controller
+      comment: Kubernetes controller reconciling cloud resources through Terraform.
+    - name: kube-trigger
+      url: https://github.com/kubevela/kube-trigger
+      comment: Event listener and action trigger used with KubeVela.
+    - name: velad
+      url: https://github.com/kubevela/velad
+      comment: Lightweight installer that runs KubeVela on a single machine.
+    - name: prism
+      url: https://github.com/kubevela/prism
+      comment: API extension layer for KubeVela built on Kubernetes aggregation.
+    - name: kubevela-core-api
+      url: https://github.com/kubevela/kubevela-core-api
+      comment: Exported Go API types for building against KubeVela core.
+    - name: pkg
+      url: https://github.com/kubevela/pkg
+      comment: Shared Go libraries used across KubeVela components.
+    - name: charts
+      url: https://github.com/kubevela/charts
+      comment: Helm chart repository for installing KubeVela components.
+    - name: community
+      url: https://github.com/kubevela/community
+      comment: Project governance, owners, adopters and community processes.
+    - name: kubevela.github.io
+      url: https://github.com/kubevela/kubevela.github.io
+      comment: Source of the documentation website at https://kubevela.io.
+    - name: spec
+      url: https://github.com/oam-dev/spec
+      comment: Open Application Model specification that KubeVela implements.
+    - name: cluster-gateway
+      url: https://github.com/oam-dev/cluster-gateway
+      comment: Multi-cluster gateway KubeVela uses to reach managed clusters.
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    security-policy: https://github.com/kubevela/kubevela/blob/master/SECURITY.md
+    comment: |
+      Report vulnerabilities privately by email to security@mail.kubevela.io.
+      Reports are read by a restricted group of maintainers and acknowledged
+      with a non-automated response within three working days.
+
+repository:
+  url: https://github.com/kubevela/kubevela
+  status: active
+  accepts-change-request: true
+  accepts-automated-change-request: true
+  core-team:
+    - name: Anoop Gopalakrishnan
+      affiliation: Guidewire
+      primary: true
+    - name: Fog Dong
+      affiliation: BentoML
+      primary: false
+    - name: Lei Zhang
+      affiliation: JD.com
+      primary: false
+    - name: Jerome Guionnet
+      affiliation: Guidewire
+      primary: false
+    - name: Brian Kane
+      affiliation: Guidewire
+      primary: false
+  license:
+    url: https://github.com/kubevela/kubevela/blob/master/LICENSE
+    expression: Apache-2.0
+  security:
+    assessments:
+      self:
+        comment: |
+          No standalone security self-assessment document has been published
+          yet. Security posture is maintained through the private disclosure
+          process described in SECURITY.md and continuous automated analysis:
+          CodeQL on pushes to master and release branches, Trivy scanning of
+          the vela-core image on pull requests, weekly OpenSSF Scorecard runs,
+          and dependency license checks enforced in CI.
+  documentation:
+    dependency-management-policy: https://github.com/kubevela/kubevela/blob/master/docs/dependency-policy.md
