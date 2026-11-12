@@ -351,9 +351,11 @@ var _ = Describe("Test application of the specified definition version", Label("
 		By("Verify the workload(deployment) is created successfully")
 		webServiceV1Deploy := &appsv1.Deployment{}
 		deployName = comp1Name
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, webServiceV1Deploy)
-		}, 30*time.Second, 3*time.Second).Should(Succeed())
+		// the deployment already exists from the first revision, so wait for the v2 labels to land
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, webServiceV1Deploy)).Should(Succeed())
+			g.Expect(webServiceV1Deploy.GetLabels()).Should(HaveKeyWithValue("hello", "kubevela"))
+		}, 30*time.Second, time.Second).Should(Succeed())
 
 		By("Verify the workload(job) is created successfully")
 		workerJob := &batchv1.Job{}
