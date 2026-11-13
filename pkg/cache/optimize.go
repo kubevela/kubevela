@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/kubevela/pkg/controller/sharding"
@@ -28,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -149,8 +151,8 @@ func indexDefinitionUsage() bool {
 	return OptimizeListOp && utilfeature.DefaultMutableFeatureGate.Enabled(features.RestrictDefinitionNamespaces)
 }
 
-// DefinitionUsageOf lists the distinct definitions an Application uses, as kind
-// prefixed keys. It backs DefinitionUsageIndex.
+// DefinitionUsageOf lists the distinct definitions an Application uses, inline or through its
+// override policies, as kind prefixed keys. It backs DefinitionUsageIndex.
 func DefinitionUsageOf(app *v1beta1.Application) []string {
 	seen := map[string]struct{}{}
 	keys := make([]string, 0, len(app.Spec.Components))
@@ -167,6 +169,12 @@ func DefinitionUsageOf(app *v1beta1.Application) []string {
 		for _, tr := range comp.Traits {
 			add(UsageTrait, tr.Type)
 		}
+	}
+	for _, t := range OverrideComponentTypes(app) {
+		add(UsageComponent, t)
+	}
+	for _, t := range OverrideTraitTypes(app) {
+		add(UsageTrait, t)
 	}
 	return keys
 }
@@ -214,6 +222,49 @@ func DefinitionPinsOf(app *v1beta1.Application) []string {
 		add(common.SourceType, src.Type)
 	}
 	return keys
+}
+
+// overrideComponents is each component patch of the Application's override policies. A policy
+// whose properties do not parse is left out; its own validation reports it.
+func overrideComponents(app *v1beta1.Application) []v1alpha1.EnvComponentPatch {
+	var comps []v1alpha1.EnvComponentPatch
+	for _, policy := range app.Spec.Policies {
+		if policy.Type != v1alpha1.OverridePolicyType || policy.Properties == nil {
+			continue
+		}
+		spec := &v1alpha1.OverridePolicySpec{}
+		if err := json.Unmarshal(policy.Properties.Raw, spec); err != nil {
+			continue
+		}
+		comps = append(comps, spec.Components...)
+	}
+	return comps
+}
+
+// OverrideComponentTypes lists, once per occurrence, the component types the Application's
+// override policies set.
+func OverrideComponentTypes(app *v1beta1.Application) []string {
+	var types []string
+	for _, comp := range overrideComponents(app) {
+		if comp.Type != "" {
+			types = append(types, comp.Type)
+		}
+	}
+	return types
+}
+
+// OverrideTraitTypes lists, once per occurrence, the trait types the Application's override
+// policies set.
+func OverrideTraitTypes(app *v1beta1.Application) []string {
+	var types []string
+	for _, comp := range overrideComponents(app) {
+		for _, tr := range comp.Traits {
+			if tr.Type != "" {
+				types = append(types, tr.Type)
+			}
+		}
+	}
+	return types
 }
 
 // BaseTypeName strips a version pin: webservice@v1 names the definition webservice.

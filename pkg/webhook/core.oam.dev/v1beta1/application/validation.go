@@ -657,6 +657,12 @@ func (h *ValidatingHandler) ValidateTraitConflicts(ctx context.Context, app *v1b
 				continue
 			}
 			if def != nil {
+				def, err = withInheritedConflicts(def, getTraitDefinition)
+				if err != nil {
+					errs = append(errs, field.InternalError(
+						field.NewPath("spec", "components").Index(compIdx).Child("traits").Index(i).Child("type"), err))
+					continue
+				}
 				attached = append(attached, attachedTrait{traitIdx: i, def: def})
 			}
 		}
@@ -676,6 +682,33 @@ func (h *ValidatingHandler) ValidateTraitConflicts(ctx context.Context, app *v1b
 	}
 
 	return errs
+}
+
+// withInheritedConflicts returns def with the conflictsWith it inherits: a trait that declares
+// none takes its nearest ancestor's, as rendering does.
+func withInheritedConflicts(def *v1beta1.TraitDefinition, get func(string) (*v1beta1.TraitDefinition, error)) (*v1beta1.TraitDefinition, error) {
+	if len(def.Spec.ConflictsWith) > 0 || def.Spec.Extends == "" {
+		return def, nil
+	}
+	seen := map[string]bool{def.Name: true}
+	for current := def; current.Spec.Extends != ""; {
+		parentName := baseDefinitionName(current.Spec.Extends)
+		if seen[parentName] {
+			return def, nil // a cycle, refused where definitions are validated
+		}
+		seen[parentName] = true
+		parent, err := get(parentName)
+		if err != nil || parent == nil {
+			return def, err
+		}
+		if len(parent.Spec.ConflictsWith) > 0 {
+			inherited := def.DeepCopy()
+			inherited.Spec.ConflictsWith = parent.Spec.ConflictsWith
+			return inherited, nil
+		}
+		current = parent
+	}
+	return def, nil
 }
 
 // traitConflictsWith reports whether def's conflictsWith rules match target.

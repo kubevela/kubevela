@@ -18,8 +18,10 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	wfv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apitypes "k8s.io/apimachinery/pkg/types"
@@ -29,7 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -47,6 +52,18 @@ import (
 //
 // Costs a Get per definition type, and a namespace List per type a quota governs.
 func (h *ValidatingHandler) ValidateDefinitionRestrictions(ctx context.Context, app, oldApp *v1beta1.Application) (field.ErrorList, []string) {
+	return h.checkDefinitionRestrictions(ctx, app, oldApp, true)
+}
+
+// RestrictionViolations lists the definitions app uses, however it reaches them, that are
+// restricted to other namespaces. The controller reports them on an Application admission let
+// through; quotas, a budget for new uses, are left out.
+func RestrictionViolations(ctx context.Context, cli client.Client, app *v1beta1.Application) field.ErrorList {
+	errs, _ := (&ValidatingHandler{Client: cli}).checkDefinitionRestrictions(ctx, app, nil, false)
+	return errs
+}
+
+func (h *ValidatingHandler) checkDefinitionRestrictions(ctx context.Context, app, oldApp *v1beta1.Application, quotas bool) (field.ErrorList, []string) {
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.RestrictDefinitionNamespaces) {
 		return nil, nil
 	}
@@ -57,11 +74,12 @@ func (h *ValidatingHandler) ValidateDefinitionRestrictions(ctx context.Context, 
 		defCtx: oamutil.SetNamespaceInCtx(ctx, app.Namespace),
 		app:    app,
 		oldApp: oldApp,
+		quotas: quotas,
 	}
 	usage := collectDefinitionUsage(app)
 
-	c.checkComponents(usage.componentTypes)
-	c.checkTraits(usage.traitTypes)
+	components := c.checkComponents(usage.componentTypes)
+	traits := c.checkTraits(usage.traitTypes)
 	for defType, indices := range usage.policyTypes {
 		c.checkDefinition(defType, func() client.Object { return &v1beta1.PolicyDefinition{} },
 			policyTypePaths(indices))
@@ -78,8 +96,90 @@ func (h *ValidatingHandler) ValidateDefinitionRestrictions(ctx context.Context, 
 		c.checkDefinition(defType, func() client.Object { return &v1beta1.SourceDefinition{} },
 			sourceTypePaths(indices))
 	}
+	for _, use := range c.indirectUses() {
+		def := c.checkDefinition(use.defType, use.newDef, []*field.Path{use.path})
+		switch use.usage {
+		case velacache.UsageComponent:
+			components.add(def, baseDefinitionName(use.defType), []*field.Path{use.path})
+		case velacache.UsageTrait:
+			traits.add(def, baseDefinitionName(use.defType), []*field.Path{use.path})
+		}
+	}
+	if c.quotas {
+		components.each(func(def client.Object, name string, paths []*field.Path) {
+			c.checkQuota(def, velacache.UsageComponent, name, paths)
+		})
+		traits.each(func(def client.Object, name string, paths []*field.Path) {
+			c.checkQuota(def, velacache.UsageTrait, name, paths)
+		})
+	}
 
 	return c.errs, c.warnings
+}
+
+// indirectUse is a definition an Application reaches other than by naming it inline.
+type indirectUse struct {
+	defType string
+	newDef  func() client.Object
+	path    *field.Path
+	// usage is the quota a use counts against: velacache.UsageComponent or UsageTrait, or
+	// empty for a kind quotas do not cover.
+	usage string
+}
+
+// indirectUses lists the definitions the renderer will use that the spec does not name inline:
+// component types and traits an override policy sets, and the steps of the Workflow
+// spec.workflow.ref names. Each is reported at the field that brings it in.
+func (c *restrictionCheck) indirectUses() []indirectUse {
+	component := func() client.Object { return &v1beta1.ComponentDefinition{} }
+	trait := func() client.Object { return &v1beta1.TraitDefinition{} }
+	workflowStep := func() client.Object { return &v1beta1.WorkflowStepDefinition{} }
+	var uses []indirectUse
+	for i, policy := range c.app.Spec.Policies {
+		if policy.Type != v1alpha1.OverridePolicyType || policy.Properties == nil {
+			continue
+		}
+		spec := &v1alpha1.OverridePolicySpec{}
+		if err := json.Unmarshal(policy.Properties.Raw, spec); err != nil {
+			continue // the policy's own validation reports it
+		}
+		components := field.NewPath("spec", "policies").Index(i).Child("properties", "components")
+		for j, comp := range spec.Components {
+			if comp.Type != "" {
+				uses = append(uses, indirectUse{comp.Type, component, components.Index(j).Child("type"), velacache.UsageComponent})
+			}
+			for k, tr := range comp.Traits {
+				uses = append(uses, indirectUse{tr.Type, trait, components.Index(j).Child("traits").Index(k).Child("type"), velacache.UsageTrait})
+			}
+		}
+	}
+	if wf := c.app.Spec.Workflow; wf != nil && wf.Ref != "" {
+		ref := field.NewPath("spec", "workflow", "ref")
+		refWorkflow, err := step.GetRefWorkflow(c.ctx, c.h.Client, c.app.Namespace, wf.Ref)
+		switch {
+		case errors.IsNotFound(err):
+			// the render reports a Workflow that is not there
+		case err != nil:
+			c.unevaluable([]*field.Path{ref}, fmt.Errorf("cannot read Workflow %q to check its steps' restrictions: %w", wf.Ref, err))
+		default:
+			for _, s := range refWorkflow.Steps {
+				for _, t := range append([]string{s.Type}, subStepTypes(s)...) {
+					if !step.IsBuiltinWorkflowStepType(t) {
+						uses = append(uses, indirectUse{t, workflowStep, ref, ""})
+					}
+				}
+			}
+		}
+	}
+	return uses
+}
+
+func subStepTypes(s wfv1alpha1.WorkflowStep) []string {
+	var types []string
+	for _, sub := range s.SubSteps {
+		types = append(types, sub.Type)
+	}
+	return types
 }
 
 // restrictionCheck holds what one request's checks share: the namespace labels,
@@ -91,6 +191,8 @@ type restrictionCheck struct {
 	app    *v1beta1.Application
 	// oldApp is what this Application looked like before, or nil on create.
 	oldApp *v1beta1.Application
+	// quotas says whether quotas are checked as well as restrictions.
+	quotas bool
 
 	errs     field.ErrorList
 	warnings []string
@@ -101,31 +203,28 @@ type restrictionCheck struct {
 	nsLoaded      bool
 }
 
-// checkComponents enforces the restriction on each component type, then the quota.
-func (c *restrictionCheck) checkComponents(componentTypes map[string][]int) {
+// checkComponents enforces the restriction on each component type, and groups the uses
+// by definition for the quota.
+func (c *restrictionCheck) checkComponents(componentTypes map[string][]int) *usageGroup {
 	byName := newUsageGroup()
 	for defType, indices := range componentTypes {
 		used := componentTypePaths(indices)
 		def := c.checkDefinition(defType, func() client.Object { return &v1beta1.ComponentDefinition{} }, used)
 		byName.add(def, baseDefinitionName(defType), used)
 	}
-	byName.each(func(def client.Object, name string, paths []*field.Path) {
-		c.checkQuota(def, velacache.UsageComponent, name, paths)
-	})
+	return byName
 }
 
 // checkTraits does the same for traits, which carry their own budget: a component
 // type and a trait type may share a name without sharing a quota.
-func (c *restrictionCheck) checkTraits(traitTypes map[string][][2]int) {
+func (c *restrictionCheck) checkTraits(traitTypes map[string][][2]int) *usageGroup {
 	byName := newUsageGroup()
 	for defType, locations := range traitTypes {
 		used := traitTypePaths(locations)
 		def := c.checkDefinition(defType, func() client.Object { return &v1beta1.TraitDefinition{} }, used)
 		byName.add(def, baseDefinitionName(defType), used)
 	}
-	byName.each(func(def client.Object, name string, paths []*field.Path) {
-		c.checkQuota(def, velacache.UsageTrait, name, paths)
-	})
+	return byName
 }
 
 // usageGroup gathers the places one definition was used. webservice and
@@ -172,7 +271,16 @@ func (c *restrictionCheck) checkDefinition(defType string, newDef func() client.
 	// uncached read would cost an API call per type on every admission.
 	name := baseDefinitionName(defType)
 	def := newDef()
-	if err := oamutil.GetDefinition(c.defCtx, c.h.Client, def, name); err != nil {
+	err := oamutil.GetDefinition(c.defCtx, c.h.Client, def, name)
+	if errors.IsNotFound(err) {
+		// A module's definition is installed under a name derived from module, version and
+		// name, which the type may give in full or by its bare name.
+		if resolved, rerr := appfile.ResolveModuleType(c.defCtx, c.h.Client, name, capTypeOf(def)); rerr == nil && resolved != name {
+			def = newDef()
+			err = oamutil.GetDefinition(c.defCtx, c.h.Client, def, resolved)
+		}
+	}
+	if err != nil {
 		if errors.IsNotFound(err) {
 			// ValidateComponents reports a missing definition, and better.
 			return nil
@@ -412,4 +520,18 @@ func (h *ValidatingHandler) namespaceReader() client.Reader {
 		return h.APIReader
 	}
 	return h.Client
+}
+
+// capTypeOf is the capability type ResolveModuleType resolves a definition kind as.
+func capTypeOf(def client.Object) types.CapType {
+	switch def.(type) {
+	case *v1beta1.TraitDefinition:
+		return types.TypeTrait
+	case *v1beta1.PolicyDefinition:
+		return types.TypePolicy
+	case *v1beta1.WorkflowStepDefinition:
+		return types.TypeWorkflowStep
+	default:
+		return types.TypeComponentDefinition
+	}
 }
