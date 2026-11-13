@@ -23,6 +23,7 @@ import (
 	"maps"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
@@ -99,7 +100,13 @@ type Reconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder event.Recorder
+	// APIReader reads Applications from the API server, past the cache. Without it a reconcile
+	// trusts the cache, and a status write that conflicts is not retried.
+	APIReader client.Reader
 	options
+	// ownWrites holds, per existing Application, the resourceVersion of the last copy a reconcile
+	// finished with, its own status write included. Nil turns the read-your-writes check off.
+	ownWrites *sync.Map
 }
 
 type options struct {
@@ -131,9 +138,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.
 	}, app); err != nil {
 		if !kerrors.IsNotFound(err) {
 			logCtx.Error(err, "get application")
+		} else if r.ownWrites != nil {
+			r.ownWrites.Delete(req.NamespacedName)
 		}
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
+	fresh, err := r.readOwnWrites(ctx, app)
+	if err != nil {
+		if !kerrors.IsNotFound(err) {
+			logCtx.Error(err, "get application")
+		}
+		return r.result(client.IgnoreNotFound(err)).ret()
+	}
+	app = fresh
+	defer r.recordOwnWrite(app)
 	defer func() {
 		logCtx.Info("Reconciled application", "phase", app.Status.Phase,
 			"requeueAfter", res.RequeueAfter.String(), "duration", time.Since(start).String(), "failed", retErr != nil)
@@ -951,14 +969,86 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 		// Should never happen
 		panic("unknown method")
 	}
-	if err := f(); err != nil {
-		executor.StepStatusCache.Put(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1, time.Minute*5)
-		return err
+	// The status records the workflow steps that ran, some with side effects, so a write that
+	// conflicts with another writer is reapplied to the live Application rather than dropped.
+	// Only onto the same Application, and only while the live status is the one this reconcile last
+	// wrote or read: a status another writer set (a workflow resume, suspend or terminate) is kept,
+	// and the conflict requeues.
+	baseline, _ := ctx.Value(statusBaselineKey{}).(*statusBaseline)
+	for attempt := 1; ; attempt++ {
+		err := f()
+		if err == nil {
+			break
+		}
+		if !kerrors.IsConflict(err) || r.APIReader == nil || baseline == nil || attempt == maxStatusWriteAttempts {
+			resetStepGuard(app, baseline)
+			return err
+		}
+		live := &v1beta1.Application{}
+		if getErr := r.APIReader.Get(ctx, client.ObjectKeyFromObject(app), live); getErr != nil {
+			resetStepGuard(app, baseline)
+			return err
+		}
+		if live.UID != app.UID || !equality.Semantic.DeepEqual(live.Status, baseline.status) {
+			resetStepGuard(app, baseline)
+			return err
+		}
+		live.Status = app.Status
+		*app = *live
 	}
+	statusWritten(ctx, app)
 	if feature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationStatusMetrics) {
 		r.updateMetricsAndLog(ctx, app)
 	}
 	return nil
+}
+
+// resetStepGuard sets the workflow step guard back to the steps the stored status records, after a
+// status write that did not land: the engine set it to the steps it holds in memory, and the next
+// reconcile starts from the stored status. A write with no baseline (outside a reconcile) leaves
+// the guard as it is.
+func resetStepGuard(app *v1beta1.Application, baseline *statusBaseline) {
+	if executor.StepStatusCache == nil || baseline == nil {
+		return
+	}
+	steps := 0
+	if baseline.status.Workflow != nil {
+		steps = len(baseline.status.Workflow.Steps)
+	}
+	executor.StepStatusCache.Put(fmt.Sprintf("%s-%s", app.Name, app.Namespace), steps, time.Minute*5)
+}
+
+// maxStatusWriteAttempts bounds how often a reconcile writes its status against concurrent writers.
+const maxStatusWriteAttempts = 3
+
+// recordOwnWrite remembers the copy of app a reconcile finished with. Patch and Update refresh
+// app's resourceVersion in place, so after a status write it is the write's.
+func (r *Reconciler) recordOwnWrite(app *v1beta1.Application) {
+	if r.ownWrites != nil && app.ResourceVersion != "" {
+		r.ownWrites.Store(client.ObjectKeyFromObject(app), app.ResourceVersion)
+	}
+}
+
+// readOwnWrites returns app, or the live Application when the cache has not yet caught up with
+// the copy the last reconcile finished with. A reconcile from an older copy would miss the
+// workflow steps that reconcile recorded, and run them again.
+func (r *Reconciler) readOwnWrites(ctx context.Context, app *v1beta1.Application) (*v1beta1.Application, error) {
+	if r.APIReader == nil || r.ownWrites == nil {
+		return app, nil
+	}
+	key := client.ObjectKeyFromObject(app)
+	last, ok := r.ownWrites.Load(key)
+	if !ok || last == app.ResourceVersion {
+		return app, nil
+	}
+	live := &v1beta1.Application{}
+	if err := r.APIReader.Get(ctx, key, live); err != nil {
+		if kerrors.IsNotFound(err) {
+			r.ownWrites.Delete(key)
+		}
+		return nil, err
+	}
+	return live, nil
 }
 
 func keepConditionTransitionTimes(status *condition.ConditionedStatus, stored condition.ConditionedStatus) {
@@ -1193,10 +1283,12 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 	}
 
 	reconciler := Reconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		options:  parseOptions(args),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
+		APIReader: mgr.GetAPIReader(),
+		options:   parseOptions(args),
+		ownWrites: &sync.Map{},
 	}
 	return reconciler.SetupWithManager(mgr)
 }
@@ -1360,7 +1452,24 @@ const (
 )
 
 func withOriginalApp(ctx context.Context, app *v1beta1.Application) context.Context {
+	ctx = context.WithValue(ctx, statusBaselineKey{}, &statusBaseline{status: *app.Status.DeepCopy()})
 	return context.WithValue(ctx, OriginalAppKey, app.DeepCopy())
+}
+
+type statusBaselineKey struct{}
+
+// statusWritten records app's status as the one this reconcile last wrote. Every status write
+// of the reconcile calls it, so a later write's conflict is judged against the stored status.
+func statusWritten(ctx context.Context, app *v1beta1.Application) {
+	if baseline, ok := ctx.Value(statusBaselineKey{}).(*statusBaseline); ok {
+		baseline.status = *app.Status.DeepCopy()
+	}
+}
+
+// statusBaseline is the status a reconcile last read or wrote: what the stored status is, unless
+// another writer has changed it since.
+type statusBaseline struct {
+	status common.AppStatus
 }
 
 func originalAppFrom(ctx context.Context) (*v1beta1.Application, bool) {
