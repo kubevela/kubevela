@@ -60,8 +60,8 @@ template: {
 		method: *"GET" | "POST" | "PUT" | "DELETE"
 		body?: {...}
 		header?: [string]: string
-		// +usage=The timeout of this request (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted. Invalid values fail when the step runs.
-		timeout?: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
+		// +usage=The timeout of this request (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted; must be greater than 0 and at most the controller's maximum, 60s by default. Invalid values fail when the step runs.
+		timeout?: string & =~"^(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+$"
 		// +usage=Headers whose values are sourced from Kubernetes Secrets
 		headersFromSecret?: [...{
 			// +usage=The HTTP header name to set

@@ -17,6 +17,7 @@ limitations under the License.
 package task
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,13 +30,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
 
-// Process processing the http task
-func Process(val cue.Value) (cue.Value, error) {
+// Process runs the HTTP task in processing with ctx, the context of the render it belongs to.
+func Process(ctx context.Context, val cue.Value) (cue.Value, error) {
 	taskVal := val.LookupPath(value.FieldPath("processing", "http"))
 	if !taskVal.Exists() {
 		return val, errors.New("there is no http in processing")
 	}
-	resp, err := exec(taskVal)
+	resp, err := exec(ctx, taskVal)
 	if err != nil {
 		return val, fmt.Errorf("fail to exec http task, %w", err)
 	}
@@ -43,8 +44,8 @@ func Process(val cue.Value) (cue.Value, error) {
 	return val.FillPath(value.FieldPath("processing", "output"), resp), nil
 }
 
-func exec(v cue.Value) (map[string]interface{}, error) {
-	got, err := builtin.RunTaskByKey("http", cue.Value{}, &registry.Meta{Obj: v})
+func exec(ctx context.Context, v cue.Value) (map[string]interface{}, error) {
+	got, err := builtin.RunTaskByKey("http", cue.Value{}, &registry.Meta{Context: ctx, Obj: v})
 	if err != nil {
 		return nil, err
 	}

@@ -21,13 +21,16 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"cuelang.org/go/cue"
 	"github.com/kubevela/pkg/cue/cuex"
 	kvhttp "github.com/kubevela/pkg/cue/cuex/providers/http"
 	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -48,6 +51,34 @@ var _ = Describe("guarded vela/http", func() {
 	It("keeps the upstream vela/http template", func() {
 		Expect(Package.GetName()).To(Equal(kvhttp.Package.GetName()))
 		Expect(Package.GetTemplates()).To(Equal(kvhttp.Package.GetTemplates()))
+	})
+
+	It("gives up on an endpoint that does not answer within the maximum timeout", func() {
+		previous := httpguard.MaxRequestTimeout
+		httpguard.MaxRequestTimeout = 200 * time.Millisecond
+		DeferCleanup(func() { httpguard.MaxRequestTimeout = previous })
+		release := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+		}))
+		DeferCleanup(server.Close)
+		DeferCleanup(func() { close(release) })
+
+		start := time.Now()
+		Expect(get(server.URL)).To(MatchError(ContainSubstring("Timeout")))
+		Expect(time.Since(start)).To(BeNumerically("<", 5*time.Second))
+	})
+
+	It("refuses a response body over the limit", func() {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(strings.Repeat("x", int(httpguard.MaxResponseBytes)+1)))
+		}))
+		DeferCleanup(server.Close)
+
+		Expect(get(server.URL)).To(MatchError(ContainSubstring("exceeds")))
 	})
 
 	It("blocks the cloud metadata address", func() {

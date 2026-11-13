@@ -430,7 +430,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 
 	processing := val.LookupPath(value.FieldPath("processing"))
 	if processing.Exists() {
-		if val, err = task.Process(val); err != nil {
+		if val, err = task.Process(ctx.GetCtx(), val); err != nil {
 			return errors.WithMessagef(err, "invalid process of trait %s", td.name)
 		}
 	}

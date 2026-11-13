@@ -104,3 +104,13 @@ _noResponse: {
 		calls: "vela/http"?: _|_
 	}
 }
+
+"a zero timeout is rejected": test.#WorkflowStepExec & _ok & {
+	definition: "request"
+	parameter: {url: "https://api.example.com/version", timeout: "0"}
+	expect: {
+		phase:  "failed"
+		reason: "Execute"
+		calls: "vela/http"?: _|_
+	}
+}

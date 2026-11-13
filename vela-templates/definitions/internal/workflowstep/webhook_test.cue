@@ -81,3 +81,16 @@ _app: {
 		calls: "vela/http"?: _|_
 	}
 }
+
+"a zero timeout is rejected": test.#WorkflowStepExec & _accepted & {
+	definition: "webhook"
+	parameter: {
+		url: value: "https://hooks.example.com/deploy"
+		data: {app: "shop"}
+		timeout: "0"
+	}
+	expect: {
+		phase: "failed"
+		calls: "vela/http"?: _|_
+	}
+}
