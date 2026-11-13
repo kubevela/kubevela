@@ -218,17 +218,17 @@ template: {
 		}
 	}
 
-	// Set default release configuration
+	// The release name and namespace default independently.
 	_release: {
+		name:      *context.name | string
+		namespace: *context.namespace | string
 		if parameter.release != _|_ {
-			parameter.release
-		}
-		if parameter.release != _|_ && parameter.release.name != _|_ && parameter.release.namespace == _|_ {
-			namespace: context.namespace
-		}
-		if parameter.release == _|_ {
-			name:      context.name
-			namespace: context.namespace
+			if parameter.release.name != _|_ {
+				name: parameter.release.name
+			}
+			if parameter.release.namespace != _|_ {
+				namespace: parameter.release.namespace
+			}
 		}
 	}
 

@@ -61,8 +61,18 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 		}
 	}
 
+	// A release is named after its component and lives where the component is rendered,
+	// unless set explicitly.
 	releaseName := "release"
 	releaseNamespace := appNamespace
+	if renderParams.Context != nil {
+		if renderParams.Context.Name != "" {
+			releaseName = renderParams.Context.Name
+		}
+		if renderParams.Context.Namespace != "" {
+			releaseNamespace = renderParams.Context.Namespace
+		}
+	}
 	if renderParams.Release != nil {
 		if renderParams.Release.Name != "" {
 			releaseName = renderParams.Release.Name
