@@ -52,6 +52,16 @@ _ok: mocks: "vela/http": "#HTTPDo": $returns: {statusCode: 200, body: "{\"versio
 	}}]
 }
 
+"a 400 fails the step": test.#WorkflowStepExec & {
+	definition: "request"
+	parameter: url: "https://api.example.com/version"
+	mocks: "vela/http": "#HTTPDo": $returns: {statusCode: 400, body: "{}"}
+	expect: {
+		phase:   "failed"
+		message: "request of https://api.example.com/version is fail: 400"
+	}
+}
+
 "a status above 400 fails the step": test.#WorkflowStepExec & {
 	definition: "request"
 	parameter: url: "https://api.example.com/version"
@@ -76,14 +86,18 @@ _noResponse: {
 	expect: message: "Waiting for response from https://api.example.com/version"
 }
 
-"a response body that is not JSON fails the step": test.#WorkflowStepExec & {
+"a response body that is not JSON succeeds": test.#WorkflowStepExec & {
 	definition: "request"
 	parameter: url: "https://api.example.com/version"
 	mocks: "vela/http": "#HTTPDo": $returns: {statusCode: 200, body: "OK"}
-	expect: {
-		phase:   "failed"
-		message: =~"json: invalid JSON"
-	}
+	expect: phase: "succeeded"
+}
+
+"an empty response body succeeds": test.#WorkflowStepExec & {
+	definition: "request"
+	parameter: {url: "https://api.example.com/releases", method: "POST"}
+	mocks: "vela/http": "#HTTPDo": $returns: {statusCode: 204, body: ""}
+	expect: phase: "succeeded"
 }
 
 "a timeout that is not a duration is rejected": test.#WorkflowStepExec & _ok & {
