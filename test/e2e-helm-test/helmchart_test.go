@@ -621,12 +621,13 @@ var _ = Describe("Helmchart Destructive & Chaos", Label("core-helm"), func() {
 				for _, step := range appB.Status.Workflow.Steps {
 					messages = append(messages, step.Message)
 				}
-				g.Expect(strings.Join(messages, "\n")).Should(ContainSubstring("managed by other application"))
+				g.Expect(strings.Join(messages, "\n")).Should(ContainSubstring("belongs to Application " + h.AppNamespace + "/" + h.App.Name))
 			}).WithTimeout(90 * time.Second).Should(Succeed())
 
-			By("Verifying the first application remains healthy and unaffected")
+			By("Verifying the first application remains healthy and its release was never upgraded")
 			h.WaitForAppRunning()
 			h.WaitForDeploymentReady()
+			Expect(h.GetHelmSecrets().Items).Should(HaveLen(1))
 		})
 	})
 })

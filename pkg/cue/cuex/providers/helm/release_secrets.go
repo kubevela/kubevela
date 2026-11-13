@@ -122,9 +122,9 @@ func (p *Provider) listReleaseSecretNames(ctx context.Context, namespace, releas
 	return names
 }
 
-// labelReleaseSecrets adds KubeVela ownership labels to all existing Helm
-// release secrets that don't already have them. Called during adoption of
-// external releases so that listReleaseSecretNames picks them up for GC tracking.
+// labelReleaseSecrets labels every Secret of a release as owned by this component, replacing
+// a departed owner's labels. Called during adoption so that listReleaseSecretNames picks them
+// up for GC tracking and the resource keeper accepts them.
 func (p *Provider) labelReleaseSecrets(ctx context.Context, namespace, releaseName string, velaCtx *ContextParams) {
 	if velaCtx == nil {
 		return
@@ -143,8 +143,15 @@ func (p *Provider) labelReleaseSecrets(ctx context.Context, namespace, releaseNa
 	}
 
 	for _, s := range secretList.Items {
-		if s.Labels["app.oam.dev/name"] != "" {
-			continue // already labeled
+		if s.Labels["app.oam.dev/name"] == velaCtx.AppName &&
+			s.Labels["app.oam.dev/namespace"] == velaCtx.AppNamespace &&
+			s.Labels["app.oam.dev/component"] == velaCtx.Name {
+			continue
+		}
+		// Only a release with no owner, or one whose Application is gone, is taken over.
+		if err := p.checkOwnerLabels(ctx, s.Labels, namespace, releaseName, velaCtx); err != nil {
+			klog.Warningf("Helm provider [%s]: Not labelling release secret %s/%s: %v", velaContextStr(velaCtx), namespace, s.Name, err)
+			continue
 		}
 		patch := fmt.Sprintf(`{"metadata":{"labels":{"app.oam.dev/name":%q,"app.oam.dev/namespace":%q,"app.oam.dev/component":%q}}}`,
 			velaCtx.AppName, velaCtx.AppNamespace, velaCtx.Name)
@@ -175,6 +182,14 @@ func (p *Provider) deleteReleaseSecretsDirect(ctx context.Context, namespace, re
 	})
 	if err != nil {
 		return errors.Wrapf(err, "failed to list helm secrets for release %s", releaseName)
+	}
+
+	// A release Helm cannot read still names its owner on its Secrets, and one another Application
+	// owns is not this component's to clear.
+	for _, secret := range secretList.Items {
+		if err := p.checkOwnerLabels(ctx, secret.Labels, namespace, releaseName, velaCtx); err != nil {
+			return err
+		}
 	}
 
 	for _, secret := range secretList.Items {
