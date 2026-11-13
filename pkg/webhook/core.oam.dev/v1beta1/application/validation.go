@@ -29,6 +29,7 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -571,7 +572,7 @@ func getWorkflowStepFieldPath(loc workflowStepLocation) *field.Path {
 }
 
 // ValidateAnnotations validates whether the application has both autoupdate and publish version annotations
-func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
+func (h *ValidatingHandler) ValidateAnnotations(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
 	var annotationsErrs field.ErrorList
 
 	// Only adding the opt-out is refused, and only while global policies apply at all. An app
@@ -617,12 +618,50 @@ func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app, oldApp *
 		oldVal, hadOld = oldApp.Annotations[oam.AnnotationModuleInstallNamespace]
 	}
 	unchanged := hasNew == hadOld && oldVal == newVal
-	if !unchanged && (h.controllerUsername == "" || req.UserInfo.Username != h.controllerUsername) {
-		annotationsErrs = append(annotationsErrs, field.Forbidden(
-			field.NewPath("metadata", "annotations").Key(oam.AnnotationModuleInstallNamespace),
-			"only the addon renderer may set or remove this annotation"))
+	if !unchanged {
+		// The controller writes for every tenant, so being the controller only proves the write
+		// came through dispatch. The renderer records the installing Application's namespace, so a
+		// write is the renderer's when the modules would install where the Application that
+		// dispatched it lives: the annotation's value, or without it the Application's own namespace.
+		// An addon's owned Application lives in vela-system and passes its admitted value on to the
+		// module Applications it dispatches, so a dispatcher carrying the same value also vouches.
+		installsInto := app.Namespace
+		if hasNew {
+			installsInto = newVal
+		}
+		dispatcher := dispatchingNamespace(app)
+		renderer := h.fromController(req) && dispatcher != "" &&
+			(installsInto == dispatcher || newVal != "" && h.dispatcherInstallsInto(ctx, app) == newVal)
+		if !renderer {
+			annotationsErrs = append(annotationsErrs, field.Forbidden(
+				field.NewPath("metadata", "annotations").Key(oam.AnnotationModuleInstallNamespace),
+				"only the addon renderer may set or remove this annotation, for the namespace of the Application that installs the addon"))
+		}
 	}
 	return annotationsErrs
+}
+
+// dispatcherInstallsInto is the install-namespace annotation of the Application that dispatched
+// obj, or "" when it has none or cannot be read. It reads live where it can, as a dispatcher
+// created moments before may not be in the cache yet.
+func (h *ValidatingHandler) dispatcherInstallsInto(ctx context.Context, obj metav1.Object) string {
+	labels := obj.GetLabels()
+	name, namespace := labels[oam.LabelAppName], labels[oam.LabelAppNamespace]
+	if name == "" || namespace == "" {
+		return ""
+	}
+	var reader client.Reader = h.Client
+	if h.APIReader != nil {
+		reader = h.APIReader
+	}
+	if reader == nil {
+		return ""
+	}
+	dispatcher := &v1beta1.Application{}
+	if err := reader.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, dispatcher); err != nil {
+		return ""
+	}
+	return dispatcher.Annotations[oam.AnnotationModuleInstallNamespace]
 }
 
 // ValidateTraitConflicts validates TraitDefinition.spec.conflictsWith for traits

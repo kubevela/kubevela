@@ -63,6 +63,9 @@ func TestReferencedObjectsAreCheckedWhenWritten(t *testing.T) {
 		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(
 			&v1beta1.WorkflowStepDefinition{ObjectMeta: metav1.ObjectMeta{Name: "priv-step", Namespace: sys}},
 			&v1beta1.WorkflowStepDefinition{ObjectMeta: metav1.ObjectMeta{Name: "notify", Namespace: sys}},
+			&v1beta1.WorkflowStepDefinition{ObjectMeta: metav1.ObjectMeta{Name: "deploy", Namespace: sys}},
+			&v1alpha1.Policy{ObjectMeta: metav1.ObjectMeta{Name: "tenant-override", Namespace: "team-a"}, Type: v1alpha1.OverridePolicyType,
+				Properties: rawProps(t, v1alpha1.OverridePolicySpec{Components: []v1alpha1.EnvComponentPatch{{Name: "c", Type: "priv-comp"}}})},
 			&v1beta1.PolicyDefinition{ObjectMeta: metav1.ObjectMeta{Name: "priv-policy", Namespace: sys}},
 			&v1beta1.PolicyDefinition{ObjectMeta: metav1.ObjectMeta{Name: "override", Namespace: sys}},
 			&v1beta1.ComponentDefinition{ObjectMeta: metav1.ObjectMeta{Name: "priv-comp", Namespace: sys}},
@@ -96,6 +99,19 @@ func TestReferencedObjectsAreCheckedWhenWritten(t *testing.T) {
 	require.Contains(t, resp.Result.Message, "steps[0].type")
 	require.True(t, write("tenant", workflow("notify"), "Workflow").Allowed)
 
+	withSubStep := workflow("step-group")
+	withSubStep.Steps[0].SubSteps = []wfTypesv1alpha1.WorkflowStepBase{{Name: "sub", Type: "priv-step"}}
+	resp = write("tenant", withSubStep, "Workflow")
+	require.False(t, resp.Allowed, "a sub-step's type")
+	require.Contains(t, resp.Result.Message, "steps[0].subSteps[0].type")
+
+	// A deploy step loads Policy objects by name; what they set is used as if the Workflow named it.
+	deploying := workflow("deploy")
+	deploying.Steps[0].Properties = rawProps(t, map[string]interface{}{"policies": []string{"tenant-override"}})
+	resp = write("tenant", deploying, "Workflow")
+	require.False(t, resp.Allowed, "a component type an external override sets")
+	require.Contains(t, resp.Result.Message, "steps[0].properties.policies[0]")
+
 	resp = write("tenant", &v1alpha1.Policy{ObjectMeta: metav1.ObjectMeta{Name: "po", Namespace: "team-a"}, Type: "priv-policy"}, "Policy")
 	require.False(t, resp.Allowed)
 	require.Contains(t, resp.Result.Message, "priv-policy")
@@ -108,6 +124,30 @@ func TestReferencedObjectsAreCheckedWhenWritten(t *testing.T) {
 	require.False(t, resp.Allowed, "a definition restricted to other namespaces")
 	require.Contains(t, resp.Result.Message, "platform-trait")
 
-	require.True(t, write("system:serviceaccount:vela-system:kubevela", workflow("priv-step"), "Workflow").Allowed,
-		"the controller's own writes come from Applications already checked")
+	// The controller writes for every tenant: what it writes is checked for the Application that
+	// dispatched it, recorded in the labels it stamps.
+	controller := "system:serviceaccount:vela-system:kubevela"
+	dispatchedBy := func(obj client.Object, namespace string) client.Object {
+		obj.SetLabels(map[string]string{oam.LabelAppName: "installer", oam.LabelAppNamespace: namespace})
+		return obj
+	}
+	restrictedOverride := override(v1alpha1.EnvComponentPatch{Name: "c", Traits: []v1alpha1.EnvTraitPatch{{Type: "platform-trait"}}})
+	resp = write(controller, dispatchedBy(restrictedOverride, "team-a"), "Policy")
+	require.False(t, resp.Allowed, "a restriction applies to the dispatching Application's namespace")
+	require.Contains(t, resp.Result.Message, "platform-trait")
+	require.True(t, write(controller, dispatchedBy(restrictedOverride.DeepCopy(), "platform"), "Policy").Allowed)
+
+	require.True(t, write(controller, workflow("priv-step"), "Workflow").Allowed,
+		"without a trustworthy record of who wrote the dispatching Application, permissions cannot be checked")
+
+	t.Run("with the dispatching Application's author recorded and trusted", func(t *testing.T) {
+		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.AuthenticateApplication, true)
+		installer := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "installer", Namespace: "team-a",
+			Annotations: map[string]string{oam.AnnotationApplicationUsername: "tenant"}}}
+		require.NoError(t, cli.Client.Create(context.Background(), installer))
+		resp := write(controller, dispatchedBy(workflow("priv-step"), "team-a"), "Workflow")
+		require.False(t, resp.Allowed, "checked as the Application's author")
+		require.Contains(t, resp.Result.Message, `"tenant"`)
+		require.True(t, write(controller, dispatchedBy(workflow("notify"), "team-a"), "Workflow").Allowed)
+	})
 }
