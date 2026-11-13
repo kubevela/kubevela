@@ -22,6 +22,8 @@ import (
 	"sort"
 	"time"
 
+	k8stypes "k8s.io/apimachinery/pkg/types"
+
 	"github.com/gosuri/uitable"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -90,10 +92,11 @@ func sortTemplateRows(rows []templateRow) {
 // must show as shadowed.
 func listTemplateRows(ctx context.Context, cli client.Client, ns, mode string) ([]templateRow, error) {
 	var rows []templateRow
-	// crUIDs holds every CR, generated ones included, so a legacy ConfigMap adopted
-	// by a CR that is hidden from the rows still counts as migrated; shadowing is
-	// decided on the rows that show.
-	crUIDs := map[config.NamespacedName]string{}
+	// crs holds every CR's UID and controller, generated ones included, so a legacy
+	// ConfigMap a hidden CR stands for still counts as migrated; shadowing is decided
+	// on the rows that show.
+	type crIdentity struct{ uid, controller k8stypes.UID }
+	crs := map[config.NamespacedName]crIdentity{}
 	shown := map[config.NamespacedName]bool{}
 	if mode != configModeLegacy {
 		all, err := listAllConfigTemplateCRDs(ctx, cli, ns)
@@ -101,7 +104,7 @@ func listTemplateRows(ctx context.Context, cli client.Client, ns, mode string) (
 			return nil, err
 		}
 		for _, t := range all {
-			crUIDs[config.NamespacedName{Namespace: t.Namespace, Name: t.Name}] = string(t.UID)
+			crs[config.NamespacedName{Namespace: t.Namespace, Name: t.Name}] = crIdentity{uid: t.UID, controller: config.ControllerUID(&t)}
 		}
 		for _, t := range userManagedConfigTemplates(all) {
 			shown[config.NamespacedName{Namespace: t.Namespace, Name: t.Name}] = true
@@ -125,11 +128,11 @@ func listTemplateRows(ctx context.Context, cli client.Client, ns, mode string) (
 			if mode == configModeLegacy {
 				// no CR list in this mode: one GET per annotated ConfigMap
 				var err error
-				if migrated, err = legacyTemplateMigrated(ctx, cli, t.Namespace, t.Name, t.MigratedTo); err != nil {
+				if migrated, err = legacyTemplateMigrated(ctx, cli, t.Namespace, t.Name, t.MigratedTo, t.ControllerUID); err != nil {
 					return nil, err
 				}
-			} else if t.MigratedTo != "" {
-				migrated = crUIDs[key] == t.MigratedTo
+			} else if cr, ok := crs[key]; ok {
+				migrated = config.TemplateStandsFor(cr.uid, cr.controller, k8stypes.UID(t.MigratedTo), k8stypes.UID(t.ControllerUID))
 			}
 			switch {
 			case migrated && mode != configModeLegacy:

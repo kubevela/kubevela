@@ -153,10 +153,13 @@ type Template struct {
 
 	// MigratedTo is the UID of the ConfigTemplate CR that adopted this legacy
 	// ConfigMap, read from its config.oam.dev/migrated-to annotation. Empty for a
-	// template that is a CR and for a ConfigMap migration never touched. It is
-	// the one piece of the stored object the list code needs; the object itself
-	// is not carried, so a Template read back is safe to write again.
+	// template that is a CR and for a ConfigMap migration never touched. It and
+	// ControllerUID are the pieces of the stored object the list code needs; the
+	// object itself is not carried, so a Template read back is safe to write again.
 	MigratedTo string `json:"-"`
+	// ControllerUID is the UID of the legacy ConfigMap's controller, an addon's Application
+	// for an addon template; empty otherwise. TemplateStandsFor reads it with MigratedTo.
+	ControllerUID string `json:"-"`
 
 	// ConfigMap is the legacy object ParseTemplate builds for the writer; a
 	// Template read from the cluster does not carry one.
@@ -445,6 +448,7 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 		Template:    script.CUE(cm.Data[SaveTemplateKey]),
 		MigratedTo:  cm.Annotations[types.AnnotationConfigMigratedTo],
 	}
+	it.ControllerUID = string(ControllerUID(&cm))
 	if cm.Data[SaveSchemaKey] != "" {
 		var schema openapi3.Schema
 		err := yaml.Unmarshal([]byte(cm.Data[SaveSchemaKey]), &schema)

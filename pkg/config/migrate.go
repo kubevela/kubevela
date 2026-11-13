@@ -502,7 +502,7 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 	existing := &configv1alpha1.ConfigTemplate{}
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: cm.Namespace, Name: name}, existing); {
 	case err == nil:
-		if !CreatedByMigration(existing) {
+		if !CreatedByMigration(existing) && !TemplateStandsFor(existing.UID, ControllerUID(existing), k8stypes.UID(cm.Annotations[types.AnnotationConfigMigratedTo]), ControllerUID(cm)) {
 			finish(MigrationConflict, fmt.Sprintf("ConfigTemplate %s exists and was not created by migration", name))
 			return
 		}
@@ -942,10 +942,26 @@ func (t templateLookup) block(ns, name string) *templateBlock {
 	return nil
 }
 
-// adoptedInto reports whether the legacy ConfigMap records the CR as the one that
-// adopted it.
+// adoptedInto reports whether the CR stands for the legacy ConfigMap.
 func (t templateLookup) adoptedInto() bool {
-	return t.cr != nil && t.legacy != nil && t.legacy.Annotations[types.AnnotationConfigMigratedTo] == string(t.cr.UID)
+	return t.cr != nil && t.legacy != nil &&
+		TemplateStandsFor(t.cr.UID, ControllerUID(t.cr), k8stypes.UID(t.legacy.Annotations[types.AnnotationConfigMigratedTo]), ControllerUID(t.legacy))
+}
+
+// TemplateStandsFor reports whether a ConfigTemplate stands for the legacy template ConfigMap of
+// its name: migration adopted the ConfigMap into it (migratedTo, the ConfigMap's annotation, is
+// the CR's UID), or one Application controls both, as an addon that installs the CR where it
+// once installed the ConfigMap does.
+func TemplateStandsFor(crUID, crController, migratedTo, cmController k8stypes.UID) bool {
+	return (migratedTo != "" && migratedTo == crUID) || (cmController != "" && cmController == crController)
+}
+
+// ControllerUID is the UID of obj's controller, or empty.
+func ControllerUID(obj metav1.Object) k8stypes.UID {
+	if ref := metav1.GetControllerOf(obj); ref != nil {
+		return ref.UID
+	}
+	return ""
 }
 
 // sensitive is the template's own flag, the CR's when there is one.
