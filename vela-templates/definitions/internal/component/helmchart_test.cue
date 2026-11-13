@@ -74,6 +74,14 @@ _chart: {
 	}
 }
 
+"a release namespace alone keeps the component's name": test.#ComponentRender & _chart & {
+	parameter: release: namespace: "cache-ns"
+	expect: {
+		output: metadata: name: "redis-helm-release"
+		calls: "vela/helm": "#Render": [{$params: release: {name: "redis", namespace: "cache-ns"}}]
+	}
+}
+
 "values and a cache key pass through": test.#ComponentRender & _chart & {
 	parameter: {
 		values: replicas: 3
