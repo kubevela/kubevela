@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 	"text/template"
@@ -185,28 +186,62 @@ func GetUserInfoFromConfig(cfg *rest.Config) *authv1.UserInfo {
 	return nil
 }
 
-// CreateOrUpdate create or update a kubernetes object
+// CreateOrUpdate creates obj, or replaces the live object's content with it. The live object is
+// reset before obj is written over it, so lists come out exactly as given instead of merged into
+// the elements already there. Metadata is kept as an update would keep it: what the API server
+// owns, labels and annotations merged with obj's, and finalizers and owner references unless obj
+// sets its own; an empty, non-nil list clears them.
 func CreateOrUpdate(ctx context.Context, cli client.Client, obj client.Object) (controllerutil.OperationResult, error) {
+	keepFinalizers := obj.GetFinalizers() == nil
+	keepOwners := obj.GetOwnerReferences() == nil
 	bs, err := json.Marshal(obj)
 	if err != nil {
 		return controllerutil.OperationResultNone, err
 	}
 	return controllerutil.CreateOrUpdate(ctx, cli, obj, func() error {
-		createTimestamp := obj.GetCreationTimestamp()
-		resourceVersion := obj.GetResourceVersion()
-		deletionTimestamp := obj.GetDeletionTimestamp()
-		generation := obj.GetGeneration()
-		managedFields := obj.GetManagedFields()
-		if e := json.Unmarshal(bs, obj); err != nil {
-			return e
+		liveMeta := metav1.ObjectMeta{
+			UID: obj.GetUID(), CreationTimestamp: obj.GetCreationTimestamp(), ResourceVersion: obj.GetResourceVersion(),
+			DeletionTimestamp: obj.GetDeletionTimestamp(), DeletionGracePeriodSeconds: obj.GetDeletionGracePeriodSeconds(),
+			Generation: obj.GetGeneration(), ManagedFields: obj.GetManagedFields(),
+			Labels: obj.GetLabels(), Annotations: obj.GetAnnotations(), Finalizers: obj.GetFinalizers(), OwnerReferences: obj.GetOwnerReferences(),
 		}
-		obj.SetCreationTimestamp(createTimestamp)
-		obj.SetResourceVersion(resourceVersion)
-		obj.SetDeletionTimestamp(deletionTimestamp)
-		obj.SetGeneration(generation)
-		obj.SetManagedFields(managedFields)
+		live := reflect.ValueOf(obj).Elem()
+		live.Set(reflect.Zero(live.Type()))
+		if err := json.Unmarshal(bs, obj); err != nil {
+			return err
+		}
+		obj.SetUID(liveMeta.UID)
+		obj.SetCreationTimestamp(liveMeta.CreationTimestamp)
+		obj.SetResourceVersion(liveMeta.ResourceVersion)
+		obj.SetDeletionTimestamp(liveMeta.DeletionTimestamp)
+		obj.SetDeletionGracePeriodSeconds(liveMeta.DeletionGracePeriodSeconds)
+		obj.SetGeneration(liveMeta.Generation)
+		obj.SetManagedFields(liveMeta.ManagedFields)
+		obj.SetLabels(mergeStringMaps(liveMeta.Labels, obj.GetLabels()))
+		obj.SetAnnotations(mergeStringMaps(liveMeta.Annotations, obj.GetAnnotations()))
+		if keepFinalizers {
+			obj.SetFinalizers(liveMeta.Finalizers)
+		}
+		if keepOwners {
+			obj.SetOwnerReferences(liveMeta.OwnerReferences)
+		}
 		return nil
 	})
+}
+
+// mergeStringMaps returns base with over's entries on top, nil when both are empty.
+func mergeStringMaps(base, over map[string]string) map[string]string {
+	if len(base) == 0 && len(over) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(base)+len(over))
+	for k, v := range base {
+		out[k] = v
+	}
+	for k, v := range over {
+		out[k] = v
+	}
+	return out
 }
 
 // EscapeResourceNameToLabelValue parse characters in resource name to label valid name
