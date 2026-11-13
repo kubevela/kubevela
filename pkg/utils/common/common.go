@@ -144,6 +144,15 @@ func secureHTTPTransport(base *http.Transport) *http.Transport {
 	return httpguard.SecureTransport(base, outboundHTTPPolicy())
 }
 
+// GuardedHTTPClient is an HTTP client held to the outbound policy: every address it dials, and
+// every host a redirect names, is checked against it.
+func GuardedHTTPClient() *http.Client {
+	return &http.Client{
+		Transport:     secureHTTPTransport(http.DefaultTransport.(*http.Transport).Clone()),
+		CheckRedirect: guardedRedirect(outboundHTTPPolicy(), nil),
+	}
+}
+
 // HTTPGetResponse use HTTP option and default client to send request and get raw response
 func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.Response, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
@@ -158,10 +167,7 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	if err := policy.BlockedHost(req.URL.Host); err != nil {
 		return nil, err
 	}
-	httpClient := &http.Client{
-		Transport:     secureHTTPTransport(http.DefaultTransport.(*http.Transport).Clone()),
-		CheckRedirect: guardedRedirect(policy, nil),
-	}
+	httpClient := GuardedHTTPClient()
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
 	}
