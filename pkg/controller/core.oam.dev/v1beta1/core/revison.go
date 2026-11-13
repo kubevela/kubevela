@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Masterminds/semver"
@@ -28,6 +29,7 @@ import (
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -46,7 +48,9 @@ import (
 )
 
 // GenerateDefinitionRevision will generate a definition revision the generated revision
-// will be compare with the last revision to see if there's any difference.
+// will be compare with the last revision to see if there's any difference. It reports true
+// when the definition's status must point at the returned revision, which is created where it
+// does not exist yet.
 func GenerateDefinitionRevision(ctx context.Context, cli client.Client, def runtime.Object) (*v1beta1.DefinitionRevision, bool, error) {
 	isSpecVersion, defRevNamespacedName, err := isSpecVersionRevision(def)
 	if err != nil {
@@ -73,8 +77,38 @@ func GenerateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 		return defRev, isNewRev, err
 	}
 	if isNewRev {
-		defRevName, revNum := getDefNextRevision(defRev, lastRevision)
-		defRev.Name = defRevName
+		accessor, err := meta.Accessor(def)
+		if err != nil {
+			return defRev, false, err
+		}
+		history, err := readRevisionHistory(ctx, cli, accessor.GetNamespace(), defRev.Spec.DefinitionType, accessor.GetName())
+		if err != nil {
+			return defRev, false, err
+		}
+		revNum := history.next(lastRevision)
+		reuse := func(rev *v1beta1.DefinitionRevision) (*v1beta1.DefinitionRevision, bool, error) {
+			defRev.Name = rev.Name
+			defRev.Spec.Revision = rev.Spec.Revision
+			defRev.ResourceVersion = rev.ResourceVersion
+			return defRev, true, nil
+		}
+		if lastRevision == nil {
+			// A definition with no revision of its own yet: new, created again after a delete,
+			// or read before its status recorded the revision it just made. It takes back the
+			// number of content the name had, existing or recorded, so pins on it keep working.
+			if rev := history.holding(defRev); rev != nil {
+				return reuse(rev)
+			}
+			if n := history.hashedNumber(defRev.Spec.RevisionHash); n > 0 {
+				defRev.Name = ConstructDefinitionRevisionName(accessor.GetName(), strconv.FormatInt(n, 10))
+				defRev.Spec.Revision = n
+				return defRev, true, nil
+			}
+		} else if newest := history.newest(); newest != nil && newest.Spec.Revision == revNum-1 && DeepEqualDefRevision(newest, defRev) {
+			// Read before its status recorded the revision it just made.
+			return reuse(newest)
+		}
+		defRev.Name = ConstructDefinitionRevisionName(accessor.GetName(), strconv.FormatInt(revNum, 10))
 		defRev.Spec.Revision = revNum
 	}
 	return defRev, isNewRev, nil
@@ -367,9 +401,20 @@ func ConstructDefinitionRevisionName(definitionName, revision string) string {
 	return strings.Join([]string{definitionName, fmt.Sprintf("v%s", revision)}, "-")
 }
 
-// LiveReader reads Applications from the API server for the revision garbage collector when the
-// controller is sharded, since a sharded cache holds only this shard's Applications. Set at setup.
+// LiveReader reads from the API server, set at setup. The revision garbage collector reads
+// Applications through it when the controller is sharded, since a sharded cache holds only this
+// shard's Applications; revision numbering reads through it always (liveReader).
 var LiveReader client.Reader
+
+// liveReader is LiveReader, or cli where none is set (tests). Revision numbering must see the
+// revision a reconcile just made, which the cache may not hold yet, and reading ConfigMaps
+// through the cache would start a cluster-wide informer for them.
+func liveReader(cli client.Client) client.Reader {
+	if LiveReader != nil {
+		return LiveReader
+	}
+	return cli
+}
 
 // CleanUpDefinitionRevision deletes a definition's oldest revisions beyond revisionLimit. The
 // revision in use and any revision an Application pins (type@vN) are kept and not counted.
@@ -556,6 +601,13 @@ func ReconcileDefinitionRevision(ctx context.Context,
 		}
 		klog.InfoS("Successfully updated the status.latestRevision of the definition", "Definition", klog.KRef(definition.GetNamespace(), definition.GetName()),
 			"Name", defRev.Name, "Revision", defRev.Spec.Revision, "RevisionHash", defRev.Spec.RevisionHash)
+	}
+
+	// Recorded on every reconcile, after any create, so a definition that never changes is
+	// recorded too, and a reconcile running in between sees the revision before its number.
+	if err := recordRevisionNumber(ctx, cli, definition.GetNamespace(), defRev.Spec.DefinitionType, definition.GetName(), defRev.Spec.Revision, defRev.Spec.RevisionHash); err != nil {
+		klog.InfoS("Failed to record the definition's revision number", "definition", klog.KObj(definition), "err", err)
+		record.Event(definition, event.Warning("failed to record the DefinitionRevision number", err))
 	}
 
 	if err = CleanUpDefinitionRevision(ctx, cli, definition, revisionLimit); err != nil {
