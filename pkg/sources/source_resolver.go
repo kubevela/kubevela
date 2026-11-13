@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
+
 	"cuelang.org/go/cue"
 	cueerrors "cuelang.org/go/cue/errors"
 	upstreamcuex "github.com/kubevela/pkg/cue/cuex"
@@ -328,6 +330,14 @@ func newSourceResolver(goCtx context.Context, ctxValues map[string]interface{}, 
 	compiler := in.Compiler
 	if compiler == nil {
 		compiler = velacuex.SourceCompiler.Get()
+	}
+	// Providers that read on the Application's behalf keep to its namespace by this. The
+	// controller records the Application's own; context.namespace, which for a placed component is
+	// where it is placed, stands in only when nothing is recorded, as on the CLI.
+	if _, recorded := velaconfig.ConsumerNamespaceFrom(goCtx); !recorded {
+		if ns, _ := ctxValues[velaprocess.ContextNamespace].(string); ns != "" {
+			goCtx = velaconfig.WithConsumerNamespace(goCtx, ns)
+		}
 	}
 	return &sourceResolver{
 		surface:         surface,

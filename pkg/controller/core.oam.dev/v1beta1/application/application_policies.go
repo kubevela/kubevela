@@ -646,16 +646,23 @@ func newPolicyProcessContext(goCtx context.Context, app *v1beta1.Application, ap
 	return pCtx
 }
 
-// renderPolicyCUETemplate renders a policy template with the app's context (name, namespace,
-// components, policy version metadata) and parameters, through the CueX compiler, so templates
-// can call providers such as kube.#Get.
-func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1beta1.Application, params map[string]interface{}, policyDef *v1beta1.PolicyDefinition, policyName, policyType string, versionMetadata *v1beta1.PolicyVersionMetadata) (cue.Value, error) {
-	runtimeCtx := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
+// policyRuntimeParams is what a policy template's providers run with. It names the Application,
+// as a workflow step's do, so a config the template reads is kept to the Application's namespace.
+func (h *AppHandler) policyRuntimeParams(app *v1beta1.Application) oamprovidertypes.RuntimeParams {
+	return oamprovidertypes.RuntimeParams{
 		KubeClient: h.Client,
 		ConfigFactory: config.NewConfigFactoryWithDispatcher(h.Client, func(goCtx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
 			return nil // policies don't dispatch resources directly
 		}),
-	})
+		AppLabels: map[string]string{oam.LabelAppName: app.Name, oam.LabelAppNamespace: app.Namespace},
+	}
+}
+
+// renderPolicyCUETemplate renders a policy template with the app's context (name, namespace,
+// components, policy version metadata) and parameters, through the CueX compiler, so templates
+// can call providers such as kube.#Get.
+func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1beta1.Application, params map[string]interface{}, policyDef *v1beta1.PolicyDefinition, policyName, policyType string, versionMetadata *v1beta1.PolicyVersionMetadata) (cue.Value, error) {
+	runtimeCtx := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), h.policyRuntimeParams(app))
 
 	var appRevisionName string
 	if h.currentAppRev != nil {

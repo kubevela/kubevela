@@ -67,6 +67,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -163,6 +164,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	logCtx.AddTag("resource_version", app.ResourceVersion).AddTag("generation", app.Generation)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	// Providers that read on the Application's behalf, vela/velaconfig among them, keep to its
+	// namespace by this, whichever definition calls them.
+	ctx = velaconfig.WithConsumerNamespace(ctx, app.Namespace)
+	// Under authentication the user it runs as, which a cross-namespace config read is reviewed for.
+	if feature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
+		ctx = velaconfig.WithConsumerUser(ctx, auth.GetUserInfoInAnnotation(&app.ObjectMeta))
+	}
 	logCtx.SetContext(ctx)
 	setVelaVersion(app)
 	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])

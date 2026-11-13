@@ -48,6 +48,7 @@ import (
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -145,6 +146,12 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 		return nil
 	}
 	var componentErrs field.ErrorList
+	// The render runs the Application's definitions, so what they read keeps to its namespace.
+	ctx = velaconfig.WithConsumerNamespace(ctx, app.Namespace)
+	// Under authentication the user it runs as, which a cross-namespace config read is reviewed for.
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
+		ctx = velaconfig.WithConsumerUser(ctx, auth.GetUserInfoInAnnotation(&app.ObjectMeta))
+	}
 	// try to generate an app file
 	cli := &appRevBypassCacheClient{Client: h.Client}
 	appParser := appfile.NewApplicationParser(cli)

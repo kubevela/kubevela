@@ -20,6 +20,9 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apiserver/pkg/authentication/user"
+
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 	"github.com/oam-dev/kubevela/pkg/definition/cachekey"
 )
 
@@ -184,5 +187,33 @@ func TestCacheIdentityTruncatesThePrefixNotTheHash(t *testing.T) {
 	}
 	if got == other {
 		t.Fatal("trimming must not collapse distinct inputs")
+	}
+}
+
+// Under authentication the user an Application runs as is part of a source's cache identity, so
+// a value one user was allowed to read is not served to another user in the same namespace. The
+// key comes from the resolver, which reads the user the controller recorded.
+func TestCacheIdentitySeparatesUsers(t *testing.T) {
+	key := func(u user.Info) string {
+		pCtx := policyCtx(t, "team-a")
+		if u != nil {
+			pCtx.SetCtx(velaconfig.WithConsumerUser(pCtx.GetCtx(), u))
+		}
+		r := newSourceResolver(pCtx.GetCtx(), contextValuesFor(pCtx), SurfaceComponent, sourceInputsFromContext(pCtx))
+		policy, _, err := r.keyedCachePolicy("a", "pol", policyTemplate, map[string]interface{}{"name": "alpha"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return policy.Key
+	}
+	alice, bob := key(&user.DefaultInfo{Name: "alice"}), key(&user.DefaultInfo{Name: "bob"})
+	if alice == bob {
+		t.Fatalf("alice and bob share the cache entry %s", alice)
+	}
+	if again := key(&user.DefaultInfo{Name: "alice"}); again != alice {
+		t.Fatalf("the same user gets another entry: %s, then %s", alice, again)
+	}
+	if noUser := key(nil); noUser == alice {
+		t.Fatalf("an Application without a user shares alice's entry %s", alice)
 	}
 }
