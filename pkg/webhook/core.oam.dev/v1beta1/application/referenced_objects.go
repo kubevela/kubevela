@@ -65,6 +65,11 @@ func (h *ReferencedObjectHandler) Handle(ctx context.Context, req admission.Requ
 		}
 		obj = wf
 		steps := field.NewPath("steps")
+		// The controller compiles these steps' conditions and data passing for every Application
+		// that references the Workflow.
+		if errs := StepsCUEDepth(steps, wf.Steps); len(errs) > 0 {
+			return admission.Denied(errs.ToAggregate().Error())
+		}
 		for i, s := range wf.Steps {
 			if !step.IsBuiltinWorkflowStepType(s.Type) {
 				uses = append(uses, indirectUse{s.Type, newWorkflowStepDefinition, steps.Index(i).Child("type"), ""})

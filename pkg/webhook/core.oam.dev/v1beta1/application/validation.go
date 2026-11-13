@@ -843,6 +843,10 @@ func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool
 // fixed - the usual compiler trade, fewer and more precise errors per round, and
 // the reason the phases are named in the errors they produce.
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
+	// First, before anything reads or compiles the Application's CUE.
+	if errs := ValidateCUEDepth(app); len(errs) > 0 {
+		return errs, nil
+	}
 	if errs := h.ValidateEarlierTrackers(ctx, app); len(errs) > 0 {
 		return errs, nil
 	}
@@ -903,6 +907,11 @@ func (h *ValidatingHandler) validateRendering(ctx context.Context, app *v1beta1.
 // problem is returned as a warning. The checks on who is asking, and any spec change, are
 // enforced in full.
 func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
+	// First, and with no allowance for an unchanged spec: the controller compiles this CUE on
+	// every reconcile, so it is never let through.
+	if errs := ValidateCUEDepth(newApp); len(errs) > 0 {
+		return errs, nil
+	}
 	// A definition removed since is no rule that changed: the Application can no longer render,
 	// so its update is validated in full.
 	specUnchanged := apiequality.Semantic.DeepEqual(newApp.Spec, oldApp.Spec) && !h.usesMissingDefinition(ctx, newApp)

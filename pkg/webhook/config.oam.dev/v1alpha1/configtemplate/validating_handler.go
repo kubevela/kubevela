@@ -23,6 +23,8 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/oam-dev/kubevela/pkg/cue/nesting"
+
 	"cuelang.org/go/cue"
 	admissionv1 "k8s.io/api/admission/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -55,6 +57,13 @@ type ValidatingHandler struct {
 var _ admission.Handler = &ValidatingHandler{}
 
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	// CUE's parser recurses once per level of nesting, and a deep enough template overflows the
+	// stack, which no recover catches: refuse one before anything parses it.
+	if req.Object.Raw != nil {
+		if err := nesting.CheckJSONStrings(req.Object.Raw, nesting.MaxDepth); err != nil {
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+	}
 	if req.Resource.String() != configTemplateGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", configTemplateGVR))
 	}
