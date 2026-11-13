@@ -324,6 +324,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
 	app.Status.Workflow.Dependencies = workflow.WithStepReads(app.Status.Workflow.Dependencies, handler.stepReads)
+	app.Status.Workflow.Ref = resolvedWorkflowRef(appFile)
 	logDebug(logCtx, fmt.Sprintf("Workflow return state=%s", workflowState))
 	postDispatchApplied := false
 	applyPostDispatchTraits := func() error {

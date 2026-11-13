@@ -51,7 +51,8 @@ type gatekeeper struct {
 
 func (g *gatekeeper) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 	if sar, ok := obj.(*authv1.SubjectAccessReview); ok {
-		sar.Status.Allowed = !g.denied[sar.Spec.ResourceAttributes.Resource+"/"+sar.Spec.ResourceAttributes.Name]
+		ra := sar.Spec.ResourceAttributes
+		sar.Status.Allowed = !g.denied[ra.Resource+"/"+ra.Name] && !g.denied[ra.Namespace+"/"+ra.Resource+"/"+ra.Name]
 		return nil
 	}
 	return g.Client.Create(ctx, obj, opts...)
@@ -86,6 +87,8 @@ func TestDefinitionPermissionsReachIndirectUses(t *testing.T) {
 		&v1beta1.WorkflowStepDefinition{ObjectMeta: metav1.ObjectMeta{Name: "step-group", Namespace: sys}},
 		&wfTypesv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "tenant-wf", Namespace: "team-a"},
 			Steps: []wfTypesv1alpha1.WorkflowStep{{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: "s", Type: "priv-step"}}}},
+		&wfTypesv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "shared-wf", Namespace: sys},
+			Steps: []wfTypesv1alpha1.WorkflowStep{{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: "s", Type: "deploy"}}}},
 		&v1alpha1.Policy{ObjectMeta: metav1.ObjectMeta{Name: "tenant-po", Namespace: "team-a"}, Type: "priv-policy"},
 		&v1alpha1.Policy{ObjectMeta: metav1.ObjectMeta{Name: "tenant-override", Namespace: "team-a"}, Type: v1alpha1.OverridePolicyType,
 			Properties: rawProps(t, v1alpha1.OverridePolicySpec{Components: []v1alpha1.EnvComponentPatch{{Name: "c", Type: "priv-comp"}}})},
@@ -168,6 +171,11 @@ func TestDefinitionPermissionsReachIndirectUses(t *testing.T) {
 	t.Run("a referenced Workflow the user may not read", func(t *testing.T) {
 		errs := check(handler("workflows/tenant-wf"), app(func(a *v1beta1.Application) { a.Spec.Workflow = &v1beta1.Workflow{Ref: "tenant-wf"} }))
 		refuses(t, errs, "spec.workflow.ref", "tenant-wf")
+	})
+	t.Run("a shared Workflow in the system namespace, read as the requester", func(t *testing.T) {
+		shared := app(func(a *v1beta1.Application) { a.Spec.Workflow = &v1beta1.Workflow{Ref: "shared-wf"} })
+		refuses(t, check(handler(sys+"/workflows/shared-wf"), shared), "spec.workflow.ref", "shared-wf")
+		require.Empty(t, check(handler(), shared), "a requester who may get it may use it")
 	})
 	t.Run("nothing denied, nothing refused", func(t *testing.T) {
 		h := handler()

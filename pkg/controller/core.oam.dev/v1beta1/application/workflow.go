@@ -21,6 +21,9 @@ import (
 	"strings"
 	"time"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
+
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
@@ -29,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -265,5 +269,20 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 	app.Status.Conditions = reservedConditions
 	app.Status.Workflow = &common.WorkflowStatus{
 		AppRevision: desiredRev,
+	}
+}
+
+// resolvedWorkflowRef names the Workflow the Application's spec.workflow.ref resolved to, or nil
+// when it has none. The version it was read at is left out, so the status does not change with it.
+func resolvedWorkflowRef(af *appfile.Appfile) *corev1.ObjectReference {
+	wf := af.ExternalWorkflow
+	if wf == nil {
+		return nil
+	}
+	return &corev1.ObjectReference{
+		APIVersion: wfTypesv1alpha1.SchemeGroupVersion.String(),
+		Kind:       "Workflow",
+		Namespace:  wf.Namespace,
+		Name:       wf.Name,
 	}
 }
