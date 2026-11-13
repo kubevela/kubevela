@@ -249,3 +249,18 @@ func dropIndexSegments(path string) string {
 	}
 	return strings.Join(kept, ".")
 }
+
+// sensitiveMasks is the set of fields marked sensitive in the named source's type.
+func (r *sourceResolver) sensitiveMasks(source string) map[string]struct{} {
+	paths := r.sensitivePaths[r.sourceTypes[source]]
+	if len(paths) == 0 {
+		return nil
+	}
+	masks := make(map[string]struct{}, len(paths))
+	for _, p := range paths {
+		if p != "" {
+			masks[p] = struct{}{}
+		}
+	}
+	return masks
+}

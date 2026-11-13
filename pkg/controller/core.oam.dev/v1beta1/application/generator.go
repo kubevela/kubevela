@@ -118,7 +118,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 			// Cluster and namespace are empty: a workflow step is not placed the way
 			// a component is, so its reads are not per-placement.
 			h.recordSourceResolution(sourceKindWorkflowStep, name, stepType, "", "", resolved)
-		}),
+		}, secretPins{client: h.Client, reader: h.apiReader, app: app}),
 		Compiler:       providers.DefaultCompiler.Get(),
 		ProcessCtx:     pCtx,
 		TemplateLoader: template.NewWorkflowStepTemplateRevisionLoader(appRev, h.Client.RESTMapper()),
@@ -168,13 +168,13 @@ func copyWorkflowStatusToInstance(app *v1beta1.Application, mode *wfTypesv1alpha
 // Application that opts in. The workflow resolves them when each step runs, and
 // KubeVela answers context and source as that step's render would.
 func workflowStepExpressions(af *appfile.Appfile,
-	record func(step, stepType string, resolved map[string]sources.SourceResolutionStatus)) *wfTypes.ExpressionOptions {
+	record func(step, stepType string, resolved map[string]sources.SourceResolutionStatus), vault sources.SensitivePins) *wfTypes.ExpressionOptions {
 	if !sources.ExpressionsEnabledFor(af.AppAnnotations) {
 		return nil
 	}
 	opts := sources.StepExpressions(func(step, _ string) process.Context {
 		return velaprocess.NewContext(appfile.GenerateContextDataFromAppFile(af, step))
-	}, record)
+	}, record, vault)
 	return &opts
 }
 

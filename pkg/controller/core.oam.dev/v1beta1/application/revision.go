@@ -53,6 +53,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 type contextKey int
@@ -655,7 +656,7 @@ func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev
 		if err := h.Client.Get(ctx, ktypes.NamespacedName{Namespace: wfStatus.ContextBackend.Namespace, Name: wfStatus.ContextBackend.Name}, &cm); err != nil {
 			klog.Error(err, "[UpdateApplicationRevisionStatus] failed to load the context values", "ApplicationRevision", appRev.Name)
 		}
-		appRev.Status.WorkflowContext = cm.Data
+		appRev.Status.WorkflowContext = withoutPinnedSources(cm.Data)
 	}
 
 	if err := h.Client.Status().Update(ctx, appRev); err != nil {
@@ -694,4 +695,19 @@ func GetSortedAppRevisions(ctx context.Context, cli client.Client, appName strin
 		return ir < ij
 	})
 	return revs, nil
+}
+
+// withoutPinnedSources is a workflow context without the sources its run pinned, which hold
+// for that run only and may hold values read from Secrets.
+func withoutPinnedSources(data map[string]string) map[string]string {
+	if _, ok := data[sources.PinnedSourcesKey]; !ok {
+		return data
+	}
+	out := make(map[string]string, len(data))
+	for k, v := range data {
+		if k != sources.PinnedSourcesKey {
+			out[k] = v
+		}
+	}
+	return out
 }
