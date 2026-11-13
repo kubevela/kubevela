@@ -169,23 +169,25 @@ _chart: {
 	}}]
 }
 
+// Credentials and values sources are read from the Application's namespace, wherever the release
+// is installed.
 "chart credentials, a release namespace and values sources pass through": test.#ComponentRender & _chart & {
 	parameter: {
-		chart: auth: secretRef: {name: "charts-login", namespace: "cache"}
+		chart: auth: secretRef: {name: "charts-login", namespace: "team-a"}
 		release: {name: "cache", namespace: "cache"}
 		valuesFrom: [
 			{kind: "ConfigMap", name: "redis-defaults"},
-			{kind: "Secret", name: "redis-auth", namespace: "cache", key: "values.yaml", optional: true},
+			{kind: "Secret", name: "redis-auth", namespace: "team-a", key: "values.yaml", optional: true},
 		]
 	}
 	expect: {
 		output: metadata: {name: "cache-helm-release", namespace: "cache"}
 		calls: "vela/helm": "#Render": [{$params: {
-			chart: auth: secretRef: {name: "charts-login", namespace: "cache"}
+			chart: auth: secretRef: {name: "charts-login", namespace: "team-a"}
 			release: {name: "cache", namespace: "cache"}
 			valuesFrom: [
 				{kind: "ConfigMap", name: "redis-defaults", optional?: _|_},
-				{kind: "Secret", name: "redis-auth", namespace: "cache", key: "values.yaml", optional: true},
+				{kind: "Secret", name: "redis-auth", namespace: "team-a", key: "values.yaml", optional: true},
 			]
 		}}]
 	}

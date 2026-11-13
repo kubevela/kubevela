@@ -735,7 +735,7 @@ entries:
 			scheme := runtime.NewScheme()
 			Expect(corev1.AddToScheme(scheme)).To(Succeed())
 			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+				ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "app-ns"},
 				Type:       corev1.SecretTypeOpaque,
 				Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
 			}
@@ -766,7 +766,7 @@ entries:
 			scheme := runtime.NewScheme()
 			Expect(corev1.AddToScheme(scheme)).To(Succeed())
 			secret := &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "hit-creds", Namespace: "rel-ns"},
+				ObjectMeta: metav1.ObjectMeta{Name: "hit-creds", Namespace: "app-ns"},
 				Type:       corev1.SecretTypeOpaque,
 				Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
 			}
@@ -998,7 +998,7 @@ var _ = Describe("fetchURLChart with auth", func() {
 		defer server.Close()
 
 		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "app-ns"},
 			Type:       corev1.SecretTypeBasicAuth,
 			Data:       map[string][]byte{corev1.BasicAuthUsernameKey: []byte("alice"), corev1.BasicAuthPasswordKey: []byte("wonderland")},
 		}
@@ -1057,7 +1057,7 @@ entries:
 		defer server.Close()
 
 		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "app-ns"},
 			Type:       corev1.SecretTypeBasicAuth,
 			Data:       map[string][]byte{corev1.BasicAuthUsernameKey: []byte("u"), corev1.BasicAuthPasswordKey: []byte("p")},
 		}
@@ -1097,7 +1097,7 @@ var _ = Describe("fetchOCIChart with auth", func() {
 
 	It("rejects a user-supplied bearer token on an OCI source", func() {
 		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "app-ns"},
 			Data:       map[string][]byte{"token": []byte("abc.def.ghi")},
 		}
 		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build())
