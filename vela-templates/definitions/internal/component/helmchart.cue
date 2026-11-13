@@ -261,7 +261,7 @@ template: {
 	// (self-reference) instead of KubeVela's runtime context object.
 	_velaContext: {
 		appName:      context.appName
-		appNamespace: context.namespace
+		appNamespace: context.appNamespace
 		name:         context.name
 		namespace:    context.namespace
 		if context.cluster != _|_ {

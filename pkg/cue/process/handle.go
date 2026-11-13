@@ -32,7 +32,9 @@ import (
 
 // ContextData is the core data of process context
 type ContextData struct {
-	Namespace       string
+	Namespace string
+	// AppNamespace is the Application's namespace; empty means Namespace.
+	AppNamespace    string
 	Cluster         string
 	AppName         string
 	CompName        string
@@ -153,6 +155,11 @@ func NewContext(data ContextData) process.Context {
 		CustomData:     customData,
 	})
 	ctx.PushData(ContextAppName, data.AppName)
+	appNamespace := data.AppNamespace
+	if appNamespace == "" {
+		appNamespace = data.Namespace
+	}
+	ctx.PushData(ContextAppNamespace, appNamespace)
 	ctx.PushData(ContextAppRevision, data.AppRevisionName)
 	ctx.PushData(ContextCompRevisionName, data.CompRevision)
 	ctx.PushData(ContextComponents, data.Components)

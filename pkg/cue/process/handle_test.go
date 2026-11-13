@@ -256,3 +256,17 @@ func TestNewContextNilLabelsAndAnnotations(t *testing.T) {
 	assert.True(t, annotations.Exists(), "context.appAnnotations should exist")
 	assert.NoError(t, annotations.Err(), "context.appAnnotations should not be an error value")
 }
+
+func TestNewContextAppNamespace(t *testing.T) {
+	read := func(data ContextData) string {
+		c, err := NewContext(data).BaseContextFile()
+		assert.NoError(t, err)
+		v := cuecontext.New().CompileString(c)
+		s, err := v.LookupPath(value.FieldPath("context", ContextAppNamespace)).String()
+		assert.NoError(t, err)
+		return s
+	}
+	// A topology policy moves the component; context.namespace follows it, appNamespace does not.
+	assert.Equal(t, "team-a", read(ContextData{AppName: "shop", CompName: "redis", Namespace: "team-a-prod", AppNamespace: "team-a"}))
+	assert.Equal(t, "team-a", read(ContextData{AppName: "shop", CompName: "redis", Namespace: "team-a"}))
+}
