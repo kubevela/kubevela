@@ -33,7 +33,6 @@ import (
 	"github.com/kubevela/pkg/meta"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/profiling"
-	workflowfeatures "github.com/kubevela/workflow/pkg/features"
 	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -212,12 +211,7 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 	}
 
 	controllerNamespace := resolveControllerNamespace(coreOptions.Server.LeaderElectionNamespace)
-	httpguard.SetEnhancer(func(p httpguard.Policy) httpguard.Policy {
-		if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {
-			p.BlockPrivate = true
-		}
-		return p
-	})
+	httpguard.SetEnhancer(controllerHTTPPolicy)
 	// Use APIReader: GetClient() is cache-backed and is not ready before mgr.Start.
 	if err := httpguard.LoadConfigMaps(ctx, manager.GetAPIReader(), coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
 		klog.ErrorS(err, "Failed to initialize workflow HTTP deny ConfigMaps",
