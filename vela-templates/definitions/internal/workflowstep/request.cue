@@ -46,14 +46,21 @@ template: {
 	}
 
 	fail: op.#Steps & {
-		if req.$returns.statusCode > 400 {
+		if req.$returns.statusCode >= 400 {
 			requestFail: op.#Fail & {
 				message: "request of \(parameter.url) is fail: \(req.$returns.statusCode)"
 			}
 		}
 	}
 
-	response: json.Unmarshal(req.$returns.body)
+	// The body is kept as sent; response holds it parsed, only when it is JSON, so an empty
+	// or text reply succeeds rather than failing the step after the request has been made.
+	if req.$returns != _|_ {
+		responseBody: req.$returns.body
+		if json.Valid(req.$returns.body) {
+			response: json.Unmarshal(req.$returns.body)
+		}
+	}
 
 	parameter: {
 		url:    string
