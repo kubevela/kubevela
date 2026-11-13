@@ -39,6 +39,7 @@ import (
 	"github.com/kubevela/pkg/controller/sharding"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
@@ -855,5 +856,33 @@ func TestQuotaWarningText(t *testing.T) {
 		got := quotaDrainWarning("component", "webservice", "tenant-a", 6, 2)
 		assert.Equal(t, `component type "webservice" in namespace "tenant-a" is over its quota: used 6, limit 2; edit allowed, adds no uses`, got)
 		assert.LessOrEqual(t, len(got), 120, "Kubernetes asks for warnings of 120 characters or less")
+	})
+}
+
+// A quota binds a definition however an Application reaches it, so a use through an override
+// policy counts, both in the Application asking and in those already in the namespace.
+func TestQuotaCountsUsesThroughOverridePolicies(t *testing.T) {
+	def := quotaTraitDef("gateway", common.NamespaceQuota{Limit: i32(1)})
+	throughOverride := func(name string) *v1beta1.Application {
+		app := appWithTraits("tenant-a", name, "webservice")
+		app.Spec.Policies = []v1beta1.AppPolicy{overridePolicy(t, v1alpha1.OverridePolicySpec{
+			Components: []v1alpha1.EnvComponentPatch{{Name: "web", Traits: []v1alpha1.EnvTraitPatch{{Type: "gateway"}}}},
+		})}
+		return app
+	}
+
+	t.Run("the Application's own override use is checked", func(t *testing.T) {
+		h := nsRestrictHandler(t, quotaTraitDef("gateway", common.NamespaceQuota{Limit: i32(0)}))
+		errs, _ := h.ValidateDefinitionRestrictions(context.Background(), throughOverride("app-1"), nil)
+		require.Len(t, errs, 1)
+		assert.Equal(t, "spec.policies[0].properties.components[0].traits[0].type", errs[0].Field)
+		assert.Contains(t, errs[0].Detail, `quota for trait type "gateway"`)
+	})
+
+	t.Run("another Application's override use counts against the budget", func(t *testing.T) {
+		h := nsRestrictHandler(t, def, throughOverride("app-1"))
+		errs, _ := h.ValidateDefinitionRestrictions(context.Background(), appWithTraits("tenant-a", "app-2", "webservice", "gateway"), nil)
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Detail, `quota for trait type "gateway"`)
 	})
 }

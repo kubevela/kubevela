@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	appvalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application"
+
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/pkg/errors"
@@ -35,6 +37,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -224,6 +227,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	appFile.SourceCacheStore = newConfigAPISourceCacheStore(r.Client, sourceTemplateRefsByType(logCtx, r.Client, appFile))
 	app.Status.SetConditions(condition.ReadyCondition("Parsed"))
+	r.recordRestrictionViolations(app, appvalidation.RestrictionViolations(logCtx, r.Client, app))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
 
 	if err := handler.PrepareCurrentAppRevision(logCtx, appFile); err != nil {
@@ -1044,6 +1048,38 @@ func (r *Reconciler) readOwnWrites(ctx context.Context, app *v1beta1.Application
 		return nil, err
 	}
 	return live, nil
+}
+
+// restrictionViolationCondition reports restricted definitions an Application uses.
+const restrictionViolationCondition condition.ConditionType = "RestrictionViolation"
+
+// recordRestrictionViolations reports the restricted definitions app uses, as a condition and,
+// when they change, a Warning event. Admission refuses new uses; these are ones it let through,
+// such as an Application admitted before the restriction, and the Application keeps rendering.
+func (r *Reconciler) recordRestrictionViolations(app *v1beta1.Application, violations field.ErrorList) {
+	previous := app.Status.GetCondition(restrictionViolationCondition)
+	if len(violations) == 0 {
+		if previous.Status == corev1.ConditionTrue {
+			app.Status.SetConditions(condition.Condition{
+				Type: restrictionViolationCondition, Status: corev1.ConditionFalse,
+				Reason: "NoRestrictedDefinitions", LastTransitionTime: metav1.Now(),
+			})
+		}
+		return
+	}
+	var lines []string
+	for _, v := range violations {
+		lines = append(lines, fmt.Sprintf("%s: %s", v.Field, v.Detail))
+	}
+	message := strings.Join(lines, "; ")
+	if previous.Status == corev1.ConditionTrue && previous.Message == message {
+		return
+	}
+	app.Status.SetConditions(condition.Condition{
+		Type: restrictionViolationCondition, Status: corev1.ConditionTrue,
+		Reason: "RestrictedDefinitionUsed", Message: message, LastTransitionTime: metav1.Now(),
+	})
+	r.Recorder.Event(app, event.Warning("RestrictedDefinitionUsed", errors.New(message)))
 }
 
 func (r *Reconciler) emitPolicyEvents(app *v1beta1.Application) {
