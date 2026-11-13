@@ -1,0 +1,49 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: agent
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: daemon
+    name: agent
+    namespace: default
+  spec:
+    selector:
+      matchLabels:
+        app.oam.dev/component: agent
+    template:
+      metadata:
+        labels:
+          app.oam.dev/component: agent
+          app.oam.dev/name: shop
+      spec:
+        containers:
+        - image: log-agent:1.0
+          livenessProbe:
+            exec:
+              command:
+              - cat
+              - /alive
+            failureThreshold: 6
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            successThreshold: 1
+            timeoutSeconds: 2
+          name: agent
+          readinessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 15
+            successThreshold: 2
+            timeoutSeconds: 4
+outputs: {}
+traits: {}

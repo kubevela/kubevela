@@ -18,6 +18,7 @@ package cuetest
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -27,6 +28,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/stretchr/testify/require"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -258,4 +260,117 @@ func coveredElsewhere(suites []*Suite, def, p string) bool {
 		return set[p]
 	}
 	return false
+}
+
+// shippedGolden holds what each shipped definition's render cases produce, so a change to what
+// a definition renders shows in review, and in the release notes, rather than on the first
+// edit of an Application after an upgrade.
+const shippedGolden = "testdata/golden"
+
+// updateGoldenEnv rewrites the golden files from the current renders.
+const updateGoldenEnv = "UPDATE_GOLDEN"
+
+// goldenDefinitionsEnv and goldenReportEnv compare another release's definitions with the
+// golden renders, writing the differences to a report.
+const (
+	goldenDefinitionsEnv = "GOLDEN_DEFINITIONS_DIR"
+	goldenReportEnv      = "GOLDEN_REPORT"
+	// goldenRendersEnv, with goldenReportEnv, keeps each differing render in that directory,
+	// laid out like the golden files.
+	goldenRendersEnv = "GOLDEN_RENDERS_DIR"
+)
+
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(s, "\n")
+	return line
+}
+
+// The shipped definitions' successful render cases produce what their golden files hold. A
+// case that expects an error has none: error text changes without the render changing.
+//
+// With goldenReportEnv set it compares another release's definitions instead, laid beside these
+// test files in goldenDefinitionsEnv by hack/definition-render-diff.sh, and writes what renders
+// differently to the report rather than failing.
+func TestShippedDefinitionsMatchTheirGoldenRenders(t *testing.T) {
+	requireShippedDefinitionTests(t)
+	definitions := shippedDefinitions
+	if dir := os.Getenv(goldenDefinitionsEnv); dir != "" {
+		definitions = dir
+	}
+	report := os.Getenv(goldenReportEnv)
+	var differs []string
+	if report != "" {
+		defer func() {
+			sort.Strings(differs)
+			require.NoError(t, os.WriteFile(report, []byte(strings.Join(differs, "\n")+"\n"), 0o600))
+		}()
+	}
+	suites, err := Load(definitions)
+	require.NoError(t, err)
+	update := os.Getenv(updateGoldenEnv) != ""
+	for _, s := range suites {
+		rel, _ := filepath.Rel(definitions, s.File)
+		dir := filepath.Join(shippedGolden, strings.TrimSuffix(rel, utils.CUETestFileSuffix))
+		var cases []*Case
+		for _, c := range s.Cases {
+			if !c.Pending && tests[c.Test].mode != "exec" && !c.Expect.LookupPath(cue.ParsePath("error")).Exists() {
+				cases = append(cases, c)
+			}
+		}
+		if len(cases) == 0 {
+			continue
+		}
+		t.Run(rel, func(t *testing.T) {
+			require.NoError(t, s.RunBefore())
+			defer func() { require.NoError(t, s.RunAfter()) }()
+			for _, c := range cases {
+				result, err := c.result()
+				if report != "" && err != nil {
+					differs = append(differs, fmt.Sprintf("- %s: %q does not render: %v", strings.TrimSuffix(rel, utils.CUETestFileSuffix), c.Name, firstLine(err.Error())))
+					continue
+				}
+				require.NoError(t, err, c.Name)
+				// What reaches the cluster: the context a template reads is an input, and
+				// listing it would rewrite every file whenever a context field is added.
+				delete(result, "context")
+				got, err := yaml.Marshal(result)
+				require.NoError(t, err, c.Name)
+				file := filepath.Join(dir, goldenName(c.Name)+".yaml")
+				if update {
+					require.NoError(t, os.MkdirAll(dir, 0o755))
+					require.NoError(t, os.WriteFile(file, got, 0o600))
+					continue
+				}
+				want, err := os.ReadFile(file)
+				require.NoError(t, err, "%s: no golden render; run with %s=1 to write it", c.Name, updateGoldenEnv)
+				if report != "" {
+					if string(want) != string(got) {
+						differs = append(differs, fmt.Sprintf("- %s: %q renders differently", strings.TrimSuffix(rel, utils.CUETestFileSuffix), c.Name))
+						if out := os.Getenv(goldenRendersEnv); out != "" {
+							keep := filepath.Join(out, strings.TrimSuffix(rel, utils.CUETestFileSuffix))
+							require.NoError(t, os.MkdirAll(keep, 0o755))
+							require.NoError(t, os.WriteFile(filepath.Join(keep, goldenName(c.Name)+".yaml"), got, 0o600))
+						}
+					}
+					continue
+				}
+				require.Equal(t, string(want), string(got),
+					"%s renders differently from %s: if intended, rewrite it with %s=1 and note the change for the release", c.Name, file, updateGoldenEnv)
+			}
+		})
+	}
+}
+
+// goldenName turns a case name into a file name.
+func goldenName(name string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(name) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }

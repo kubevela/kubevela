@@ -1,0 +1,39 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: web
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cuetest-workload
+    name: web
+    namespace: default
+  spec:
+    template:
+      spec:
+        containers:
+        - image: shop:1.0
+          name: web
+          volumeMounts:
+          - mountPath: /srv/data
+            name: workdir
+        - image: envoy:1.30
+          name: proxy
+        initContainers:
+        - image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          name: fetch
+          volumeMounts:
+          - mountPath: /work
+            name: workdir
+          - mountPath: /etc/fetch
+            name: config
+        volumes:
+        - emptyDir: {}
+          name: workdir
+outputs: {}
