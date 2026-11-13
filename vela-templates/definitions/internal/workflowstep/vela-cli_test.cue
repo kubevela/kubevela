@@ -3,8 +3,14 @@ import (
 	"vela/test"
 )
 
-// The step's Job goes to vela-system by default, which the test cluster lacks.
+// A platform Application runs the step in vela-system, which the test cluster lacks.
 velaSystem: kube.#Apply & {$params: value: {apiVersion: "v1", kind: "Namespace", metadata: name: "vela-system"}} @before()
+
+// The accounts the cases run as. kubevela-vela-core exists only in vela-system, as in a cluster.
+velaCLINamespace: kube.#Apply & {$params: value: {apiVersion: "v1", kind: "Namespace", metadata: name: "vela-cli"}} @before()
+defaultAccount: kube.#Apply & {$params: value: {apiVersion: "v1", kind: "ServiceAccount", metadata: {name: "default", namespace: "vela-cli"}}} @before()
+deployerAccount: kube.#Apply & {$params: value: {apiVersion: "v1", kind: "ServiceAccount", metadata: {name: "deployer", namespace: "vela-cli"}}} @before()
+controllerAccount: kube.#Apply & {$params: value: {apiVersion: "v1", kind: "ServiceAccount", metadata: {name: "kubevela-vela-core", namespace: "vela-system"}}} @before()
 
 // Each case names its own Application, and so its own Job: the API server
 // orphans a deleted batch/v1 Job behind a finalizer only the garbage
@@ -12,16 +18,17 @@ velaSystem: kube.#Apply & {$params: value: {apiVersion: "v1", kind: "Namespace",
 _cli: {
 	_app:       string
 	definition: "vela-cli"
-	context: {namespace: "vela-cli", appName: _app}
+	context: {namespace: *"vela-cli" | string, appName: _app}
 	parameter: command: ["vela", "addon", "enable", "fluxcd"]
 }
 
-// _job is the Job the step applies with the default parameters.
+// _job is the Job the step applies with the default parameters: in the Application's
+// namespace, as its default service account.
 _job: {
 	_app:       string
 	apiVersion: "batch/v1"
 	kind:       "Job"
-	metadata: {name: "\(_app)-test-step-test-step-id", namespace: "vela-system"}
+	metadata: {name: "\(_app)-test-step-test-step-id", namespace: "vela-cli"}
 	spec: {
 		backoffLimit: 3
 		template: {
@@ -34,9 +41,9 @@ _job: {
 					// The API server drops the step's empty lists.
 					volumeMounts?: _|_
 				}]
-				restartPolicy:  "Never"
-				serviceAccount: "kubevela-vela-core"
-				volumes?:       _|_
+				restartPolicy:      "Never"
+				serviceAccountName: "default"
+				volumes?:           _|_
 			}
 		}
 	}
@@ -47,7 +54,7 @@ _job: {
 	expect: {
 		phase: "running"
 		calls: {
-			"vela/kube": "#Apply": [{$params: value: metadata: {name: "enable-test-step-test-step-id", namespace: "vela-system"}}]
+			"vela/kube": "#Apply": [{$params: value: metadata: {name: "enable-test-step-test-step-id", namespace: "vela-cli"}}]
 			"vela/util": "#Log": [{$params: source: resources: [{labelSelector: "workflow.oam.dev/step-name": "enable-test-step"}]}]
 		}
 		resources: [_job & {_app: "enable"}]
@@ -80,7 +87,7 @@ _job: {
 	expect: resources: [{
 		apiVersion: "batch/v1"
 		kind:       "Job"
-		metadata: {name: "secrets-test-step-test-step-id", namespace: "vela-system"}
+		metadata: {name: "secrets-test-step-test-step-id", namespace: "vela-cli"}
 		spec: template: spec: {
 			containers: [{volumeMounts: [
 				{name: "secret-kubeconfig", mountPath: "/root/.kube"},
@@ -100,7 +107,7 @@ _job: {
 	expect: resources: [{
 		apiVersion: "batch/v1"
 		kind:       "Job"
-		metadata: {name: "host-test-step-test-step-id", namespace: "vela-system"}
+		metadata: {name: "host-test-step-test-step-id", namespace: "vela-cli"}
 		spec: template: spec: {
 			containers: [{volumeMounts: [{name: "hostpath-docker", mountPath: "/var/run/docker.sock"}]}]
 			volumes: [{name: "hostpath-docker", hostPath: {path: "/var/run/docker.sock", type: "Socket"}}]
@@ -159,7 +166,41 @@ _job: {
 	expect: resources: [{
 		apiVersion: "batch/v1"
 		kind:       "Job"
-		metadata: {name: "hostdir-test-step-test-step-id", namespace: "vela-system"}
+		metadata: {name: "hostdir-test-step-test-step-id", namespace: "vela-cli"}
 		spec: template: spec: volumes: [{name: "hostpath-cache", hostPath: {path: "/var/cache/vela", type: "Directory"}}]
+	}]
+}
+
+// Naming the controller's service account does not reach the system namespace: the Job would run
+// where the Application is, and an account of that name is not there, so the step fails.
+"stays in the Application's namespace whatever service account is named": test.#WorkflowStepExec & _cli & {
+	_app: "controller-sa"
+	parameter: serviceAccountName: "kubevela-vela-core"
+	expect: {
+		phase:   "failed"
+		message: "service account kubevela-vela-core not found in namespace vela-cli: the vela-cli Job runs as it"
+	}
+}
+
+// A Job as a missing account would create no pod and never finish, so the step fails at once.
+"fails when the service account is not in the Application's namespace": test.#WorkflowStepExec & _cli & {
+	_app: "no-sa"
+	parameter: serviceAccountName: "missing"
+	expect: {
+		phase:   "failed"
+		message: "service account missing not found in namespace vela-cli: the vela-cli Job runs as it"
+	}
+}
+
+// A platform Application in vela-system can still run the step as the controller's account.
+"a platform Application runs it in vela-system": test.#WorkflowStepExec & _cli & {
+	_app: "platform"
+	context: namespace:            "vela-system"
+	parameter: serviceAccountName: "kubevela-vela-core"
+	expect: resources: [{
+		apiVersion: "batch/v1"
+		kind:       "Job"
+		metadata: {name: "platform-test-step-test-step-id", namespace: "vela-system"}
+		spec: template: spec: serviceAccountName: "kubevela-vela-core"
 	}]
 }

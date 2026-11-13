@@ -287,15 +287,19 @@ featureGates:
 ##           # it, set the limit once you know.
 ##           - warn: 5
 ##
-## `addon` is restricted to vela-system by default: an addon component installs the addon,
-## its Application in vela-system and its cluster-scoped resources, with the controller's
-## identity, which is the platform's to decide. Override `addon` to change it.
+## `addon` and `vela-cli` are restricted to vela-system by default: an addon component installs
+## the addon, its Application in vela-system and its cluster-scoped resources, with the
+## controller's identity, and a vela-cli step's Job takes any image, command, service account
+## and host path, both the platform's to grant. Override either to change it.
 ##
 ## @extra definitionRestrictions Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default)
 ## @param definitionRestrictions.overrides.addon.namespaces Namespaces whose Applications may use the `addon` component type
+## @param definitionRestrictions.overrides.vela-cli.namespaces Namespaces whose Applications may use the `vela-cli` workflow step
 definitionRestrictions:
   overrides:
     addon:
+      namespaces: ["vela-system"]
+    vela-cli:
       namespaces: ["vela-system"]
 
 ## @section Builtin definitions parameters
