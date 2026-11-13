@@ -23,13 +23,19 @@ import (
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	admissionv1 "k8s.io/api/admission/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
@@ -46,22 +52,23 @@ type ReferencedObjectHandler struct {
 
 var _ admission.Handler = &ReferencedObjectHandler{}
 
-// Handle checks a created or updated Workflow or Policy. The controller's own writes, made for
-// Applications that were checked themselves, are let through.
+// Handle checks a created or updated Workflow or Policy. One the controller writes is checked for
+// the Application that dispatched it: restrictions against that Application's namespace, and
+// permissions as its author where that identity can be trusted.
 func (h *ReferencedObjectHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if req.Operation != admissionv1.Create && req.Operation != admissionv1.Update {
 		return admission.Allowed("")
 	}
-	if h.app.controllerUsername != "" && req.UserInfo.Username == h.app.controllerUsername {
-		return admission.Allowed("")
-	}
+	var obj metav1.Object
 	var uses []indirectUse
+	var wf *wfTypesv1alpha1.Workflow
 	switch req.Kind.Kind {
 	case "Workflow":
-		wf := &wfTypesv1alpha1.Workflow{}
+		wf = &wfTypesv1alpha1.Workflow{}
 		if err := h.Decoder.Decode(req, wf); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
+		obj = wf
 		steps := field.NewPath("steps")
 		for i, s := range wf.Steps {
 			if !step.IsBuiltinWorkflowStepType(s.Type) {
@@ -78,6 +85,7 @@ func (h *ReferencedObjectHandler) Handle(ctx context.Context, req admission.Requ
 		if err := h.Decoder.Decode(req, po); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
+		obj = po
 		uses = append(uses, indirectUse{po.Type, newPolicyDefinition, field.NewPath("type"), ""})
 		if po.Type == v1alpha1.OverridePolicyType {
 			var r reach
@@ -88,20 +96,45 @@ func (h *ReferencedObjectHandler) Handle(ctx context.Context, req admission.Requ
 		return admission.Allowed("")
 	}
 
+	asker, namespace, checkPermissions := req, req.Namespace, true
+	if h.app.fromController(req) {
+		if dispatcher := dispatchingNamespace(obj); dispatcher != "" {
+			namespace = dispatcher
+		}
+		author, trusted, err := h.dispatcherAuthor(ctx, obj)
+		if err != nil {
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+		asker.UserInfo, checkPermissions = author, trusted
+	}
+
 	var errs field.ErrorList
-	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateDefinitionPermissions) {
+	if wf != nil {
+		// A deploy step loads Policy objects by name from the namespace it runs in; what they set is
+		// used as if the Workflow named it.
+		var r reach
+		steps := field.NewPath("steps")
+		for i, s := range wf.Steps {
+			r.addDeployPolicies(ctx, h.app.Client, namespace, nil, s, stepPolicyPath(steps.Index(i)))
+		}
+		uses = append(uses, r.uses...)
+		for _, u := range r.unreadable {
+			errs = append(errs, field.InternalError(u.path, u.err))
+		}
+	}
+	if checkPermissions && utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateDefinitionPermissions) {
 		for _, use := range uses {
-			errs = append(errs, h.app.permitDefinition(ctx, req, req.Namespace, reflect.TypeOf(use.newDef()).Elem(), use.defType, []*field.Path{use.path})...)
+			errs = append(errs, h.app.permitDefinition(ctx, asker, namespace, reflect.TypeOf(use.newDef()).Elem(), use.defType, []*field.Path{use.path})...)
 		}
 	}
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.RestrictDefinitionNamespaces) {
 		c := &restrictionCheck{
 			h:      h.app,
 			ctx:    ctx,
-			defCtx: oamutil.SetNamespaceInCtx(ctx, req.Namespace),
+			defCtx: oamutil.SetNamespaceInCtx(ctx, namespace),
 			app:    &v1beta1.Application{},
 		}
-		c.app.Name, c.app.Namespace = req.Name, req.Namespace
+		c.app.Name, c.app.Namespace = req.Name, namespace
 		for _, use := range uses {
 			c.checkDefinition(use.defType, use.newDef, []*field.Path{use.path})
 		}
@@ -111,4 +144,27 @@ func (h *ReferencedObjectHandler) Handle(ctx context.Context, req admission.Requ
 		return admission.Denied(errs.ToAggregate().Error())
 	}
 	return admission.Allowed("")
+}
+
+// dispatcherAuthor is who wrote the Application that dispatched obj, as the identity recorded on
+// it. It is trusted only when the mutating webhook stamps that identity from the request, that is
+// with AuthenticateApplication on and the username stamped (--authentication-with-user); otherwise
+// the recorded username is the Application author's own claim, and false says permissions cannot
+// be checked for it.
+func (h *ReferencedObjectHandler) dispatcherAuthor(ctx context.Context, obj metav1.Object) (authenticationv1.UserInfo, bool, error) {
+	labels := obj.GetLabels()
+	name, namespace := labels[oam.LabelAppName], labels[oam.LabelAppNamespace]
+	if name == "" || namespace == "" ||
+		!utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) || !auth.AuthenticationWithUser {
+		return authenticationv1.UserInfo{}, false, nil
+	}
+	app := &v1beta1.Application{}
+	if err := h.app.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, app); err != nil {
+		if errors.IsNotFound(err) {
+			return authenticationv1.UserInfo{}, false, nil
+		}
+		return authenticationv1.UserInfo{}, false, err
+	}
+	author := auth.GetUserInfoInAnnotation(&app.ObjectMeta)
+	return authenticationv1.UserInfo{Username: author.GetName(), Groups: author.GetGroups()}, author.GetName() != "", nil
 }

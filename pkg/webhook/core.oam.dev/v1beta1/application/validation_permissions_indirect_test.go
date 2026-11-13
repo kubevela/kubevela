@@ -83,6 +83,7 @@ func TestDefinitionPermissionsReachIndirectUses(t *testing.T) {
 		&v1beta1.PolicyDefinition{ObjectMeta: metav1.ObjectMeta{Name: "override", Namespace: sys}},
 		&v1beta1.WorkflowStepDefinition{ObjectMeta: metav1.ObjectMeta{Name: "priv-step", Namespace: sys}},
 		&v1beta1.WorkflowStepDefinition{ObjectMeta: metav1.ObjectMeta{Name: "deploy", Namespace: sys}},
+		&v1beta1.WorkflowStepDefinition{ObjectMeta: metav1.ObjectMeta{Name: "step-group", Namespace: sys}},
 		&wfTypesv1alpha1.Workflow{ObjectMeta: metav1.ObjectMeta{Name: "tenant-wf", Namespace: "team-a"},
 			Steps: []wfTypesv1alpha1.WorkflowStep{{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: "s", Type: "priv-step"}}}},
 		&v1alpha1.Policy{ObjectMeta: metav1.ObjectMeta{Name: "tenant-po", Namespace: "team-a"}, Type: "priv-policy"},
@@ -142,6 +143,17 @@ func TestDefinitionPermissionsReachIndirectUses(t *testing.T) {
 	})
 	t.Run("the type of a Policy object a deploy step loads", func(t *testing.T) {
 		refuses(t, check(handler(), app(deploying("tenant-po"))), "spec.workflow.steps[0].properties.policies[0]", "priv-policy")
+	})
+	t.Run("a deploy sub-step's Policy object, reported at the sub-step", func(t *testing.T) {
+		errs := check(handler(), app(func(a *v1beta1.Application) {
+			a.Spec.Workflow = &v1beta1.Workflow{Steps: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: "g", Type: "step-group"},
+				SubSteps: []wfTypesv1alpha1.WorkflowStepBase{{Name: "d", Type: "deploy",
+					Properties: rawProps(t, map[string]interface{}{"policies": []string{"tenant-po"}})}},
+			}}}
+		}))
+		refuses(t, errs, "spec.workflow.steps[0].subSteps[0].properties.policies[0]", "priv-policy")
+		require.Len(t, errs, 1, "only the sub-step's Policy object")
 	})
 	t.Run("a component type an external override Policy sets", func(t *testing.T) {
 		refuses(t, check(handler(), app(deploying("tenant-override"))), "spec.workflow.steps[0].properties.policies[0]", "priv-comp")

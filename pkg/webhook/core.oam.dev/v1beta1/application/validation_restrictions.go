@@ -170,9 +170,7 @@ func indirectReach(ctx context.Context, cli client.Client, app *v1beta1.Applicat
 	if wf := app.Spec.Workflow; wf != nil {
 		steps := field.NewPath("spec", "workflow", "steps")
 		for i, s := range wf.Steps {
-			r.addDeployPolicies(ctx, cli, app.Namespace, inline, s, func(j int) *field.Path {
-				return steps.Index(i).Child("properties", "policies").Index(j)
-			})
+			r.addDeployPolicies(ctx, cli, app.Namespace, inline, s, stepPolicyPath(steps.Index(i)))
 		}
 		if wf.Ref != "" {
 			ref := field.NewPath("spec", "workflow", "ref")
@@ -190,7 +188,7 @@ func indirectReach(ctx context.Context, cli client.Client, app *v1beta1.Applicat
 							r.uses = append(r.uses, indirectUse{t, newWorkflowStepDefinition, ref, ""})
 						}
 					}
-					r.addDeployPolicies(ctx, cli, app.Namespace, inline, s, func(int) *field.Path { return ref })
+					r.addDeployPolicies(ctx, cli, app.Namespace, inline, s, func(int, int) *field.Path { return ref })
 				}
 			}
 		}
@@ -219,11 +217,11 @@ func (r *reach) addOverride(properties *runtime.RawExtension, components *field.
 
 // addDeployPolicies adds the Policy objects a deploy step, or its sub-steps, loads by name: the
 // names not declared inline, read from the Application's namespace as the controller reads them.
-// pathOf gives the field a name at index j is reported at.
+// pathOf gives the field the name at index j of sub-step sub (-1 for the step itself) is reported at.
 func (r *reach) addDeployPolicies(ctx context.Context, cli client.Client, namespace string, inline map[string]bool,
-	s wfv1alpha1.WorkflowStep, pathOf func(j int) *field.Path) {
+	s wfv1alpha1.WorkflowStep, pathOf func(sub, j int) *field.Path) {
 	steps := append([]wfv1alpha1.WorkflowStepBase{s.WorkflowStepBase}, s.SubSteps...)
-	for _, st := range steps {
+	for k, st := range steps {
 		if st.Type != step.DeployWorkflowStep || st.Properties == nil {
 			continue
 		}
@@ -238,7 +236,7 @@ func (r *reach) addDeployPolicies(ctx context.Context, cli client.Client, namesp
 			if !ok || inline[name] || strings.Contains(name, "$(") {
 				continue // an expression is resolved at render
 			}
-			path := pathOf(j)
+			path := pathOf(k-1, j)
 			po := &v1alpha1.Policy{}
 			switch err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, po); {
 			case errors.IsNotFound(err):
@@ -258,6 +256,17 @@ func (r *reach) addDeployPolicies(ctx context.Context, cli client.Client, namesp
 				}
 			}
 		}
+	}
+}
+
+// stepPolicyPath reports a deploy policy at the step, or sub-step, that names it.
+func stepPolicyPath(step *field.Path) func(sub, j int) *field.Path {
+	return func(sub, j int) *field.Path {
+		at := step
+		if sub >= 0 {
+			at = at.Child("subSteps").Index(sub)
+		}
+		return at.Child("properties", "policies").Index(j)
 	}
 }
 
