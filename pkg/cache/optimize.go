@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -41,6 +42,12 @@ const AppIndex = "app"
 // Application appears under each key it uses, pin stripped, so webservice@v1 counts
 // against webservice.
 const DefinitionUsageIndex = "definitionUsage"
+
+// DefinitionPinIndex indexes Applications by the definition revisions they pin, as
+// PinKey(kind, "webservice@v1"), so the revision garbage collector can keep a pinned
+// revision without walking every Application. An Application with no pins indexes
+// under nothing, so the index costs only what pins there are.
+const DefinitionPinIndex = "definitionPin"
 
 // The kinds a quota can count. Only these two: a policy, workflow step or source is
 // not a thing a namespace accumulates.
@@ -63,6 +70,9 @@ var (
 	// Querying an index that was not fails the request, so callers read this rather
 	// than work the condition out again.
 	DefinitionUsageIndexed = false
+
+	// DefinitionPinIndexed reports whether DefinitionPinIndex was registered.
+	DefinitionPinIndexed = false
 )
 
 // BuildCache if optimize-list-op enabled, ResourceTracker and ApplicationRevision will be cached by
@@ -92,6 +102,7 @@ func registerIndexes(ctx context.Context, idx client.FieldIndexer) error {
 	// Cleared first, so a run that skips the index cannot leave the flag set from
 	// an earlier one and send a MatchingFields list at an index that is not there.
 	DefinitionUsageIndexed = false
+	DefinitionPinIndexed = false
 	if !OptimizeListOp {
 		return nil
 	}
@@ -105,6 +116,16 @@ func registerIndexes(ctx context.Context, idx client.FieldIndexer) error {
 	}); err != nil {
 		return err
 	}
+	if err := idx.IndexField(ctx, &v1beta1.Application{}, DefinitionPinIndex, func(obj client.Object) []string {
+		app, ok := obj.(*v1beta1.Application)
+		if !ok {
+			return nil
+		}
+		return DefinitionPinsOf(app)
+	}); err != nil {
+		return err
+	}
+	DefinitionPinIndexed = true
 	if !indexDefinitionUsage() {
 		return nil
 	}
@@ -146,6 +167,51 @@ func DefinitionUsageOf(app *v1beta1.Application) []string {
 		for _, tr := range comp.Traits {
 			add(UsageTrait, tr.Type)
 		}
+	}
+	return keys
+}
+
+// PinKey is the DefinitionPinIndex value for one pinned type, such as webservice@v1, of
+// one kind of definition.
+func PinKey(kind common.DefinitionType, pinnedType string) string {
+	return string(kind) + "/" + pinnedType
+}
+
+// DefinitionPinsOf lists the distinct definition revisions an Application pins, as
+// PinKey values. It backs DefinitionPinIndex.
+func DefinitionPinsOf(app *v1beta1.Application) []string {
+	seen := map[string]struct{}{}
+	var keys []string
+	add := func(kind common.DefinitionType, definitionType string) {
+		if !strings.Contains(definitionType, "@") {
+			return
+		}
+		k := PinKey(kind, definitionType)
+		if _, dup := seen[k]; dup {
+			return
+		}
+		seen[k] = struct{}{}
+		keys = append(keys, k)
+	}
+	for _, comp := range app.Spec.Components {
+		add(common.ComponentType, comp.Type)
+		for _, tr := range comp.Traits {
+			add(common.TraitType, tr.Type)
+		}
+	}
+	for _, p := range app.Spec.Policies {
+		add(common.PolicyType, p.Type)
+	}
+	if app.Spec.Workflow != nil {
+		for _, step := range app.Spec.Workflow.Steps {
+			add(common.WorkflowStepType, step.Type)
+			for _, sub := range step.SubSteps {
+				add(common.WorkflowStepType, sub.Type)
+			}
+		}
+	}
+	for _, src := range app.Spec.Sources {
+		add(common.SourceType, src.Type)
 	}
 	return keys
 }
