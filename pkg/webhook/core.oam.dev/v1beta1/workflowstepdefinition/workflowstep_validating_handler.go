@@ -24,6 +24,8 @@ import (
 	"net/http"
 	"time"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
+
 	admissionv1 "k8s.io/api/admission/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -105,8 +107,28 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		"hasSchematic", obj.Spec.Schematic != nil,
 		"version", obj.Spec.Version)
 
-	// Validate CUE template and output resources
+	// An update that leaves the spec as it is cannot be refused for a problem the stored
+	// definition already has, or a rule added since it was admitted would refuse every later
+	// label or annotation change. Every check below except the revision annotation reads only
+	// the spec, so with the spec unchanged a failure is the stored definition's and is returned
+	// as a warning instead.
 	var warnings []string
+	specUnchanged := false
+	if req.Operation == admissionv1.Update {
+		stored := &v1beta1.WorkflowStepDefinition{}
+		if err := h.Decoder.DecodeRaw(req.OldObject, stored); err == nil {
+			specUnchanged = apiequality.Semantic.DeepEqual(obj.Spec, stored.Spec)
+		}
+	}
+	refuse := func(msg string) (admission.Response, bool) {
+		if specUnchanged {
+			warnings = append(warnings, msg+" (the stored definition already has this problem; fix it before changing the spec)")
+			return admission.Response{}, false
+		}
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", msg, req.UID)), true
+	}
+
+	// Validate CUE template and output resources
 	if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
 		logger.WithStep("validate-cue").Info("Validating CUE template for WorkflowStepDefinition schematic")
 
@@ -124,13 +146,17 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		// fix doesn't get rejected here as though it were unfixable.
 		if err := webhookutils.ValidateWorkflowStepCuexTemplate(ctx, cueTemplate); err != nil {
 			logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
-			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+			if resp, denied := refuse(err.Error()); denied {
+				return resp
+			}
 		}
 		logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - template is syntactically correct")
 
 		if err := webhookutils.ValidateOutputResourcesExist(cueTemplate, h.Client.RESTMapper(), obj); err != nil {
 			logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
-			return admission.Denied(fmt.Sprintf("output resource validation failed: %s (requestUID=%s)", err.Error(), req.UID))
+			if resp, denied := refuse("output resource validation failed: " + err.Error()); denied {
+				return resp
+			}
 		}
 		logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - all referenced resources exist in cluster")
 	}
@@ -139,7 +165,9 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	if obj.Spec.Version != "" {
 		if err := webhookutils.ValidateSemanticVersion(obj.Spec.Version); err != nil {
 			logger.WithStep("validate-version").WithError(err).Error(err, "WorkflowStepDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
-			return admission.Denied(fmt.Sprintf("semantic version validation failed: %s (requestUID=%s)", err.Error(), req.UID))
+			if resp, denied := refuse("semantic version validation failed: " + err.Error()); denied {
+				return resp
+			}
 		}
 		logger.WithStep("validate-version").Info("WorkflowStepDefinition version follows semantic versioning format", "version", obj.Spec.Version)
 	}
@@ -153,7 +181,9 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	// silently at render time, far from where it was written.
 	if err := nsrestrict.ValidateObject(obj); err != nil {
 		logger.WithStep("validate-namespace-restrictions").WithError(err).Error(err, "WorkflowStepDefinition namespace restriction is not a valid list of namespace names or globs")
-		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		if resp, denied := refuse(err.Error()); denied {
+			return resp
+		}
 	}
 
 	// Validate version conflicts
