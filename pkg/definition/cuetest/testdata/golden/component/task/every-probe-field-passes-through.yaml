@@ -1,0 +1,49 @@
+calls: {}
+output:
+  apiVersion: batch/v1
+  kind: Job
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: migrate
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: task
+    name: shop-migrate
+    namespace: default
+  spec:
+    completions: 1
+    parallelism: 1
+    template:
+      metadata:
+        labels:
+          app.oam.dev/component: migrate
+          app.oam.dev/name: shop
+      spec:
+        containers:
+        - image: shop-migrate:1.0
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            successThreshold: 1
+            timeoutSeconds: 2
+          name: migrate
+          readinessProbe:
+            exec:
+              command:
+              - cat
+              - /alive
+            failureThreshold: 5
+            initialDelaySeconds: 3
+            periodSeconds: 15
+            successThreshold: 2
+            timeoutSeconds: 4
+        restartPolicy: Never
+outputs: {}
+traits: {}

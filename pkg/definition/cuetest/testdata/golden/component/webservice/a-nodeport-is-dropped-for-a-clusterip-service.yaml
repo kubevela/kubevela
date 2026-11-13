@@ -1,0 +1,58 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: web
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: webservice
+    name: web
+    namespace: default
+  spec:
+    selector:
+      matchLabels:
+        app.oam.dev/component: web
+    template:
+      metadata:
+        labels:
+          app.oam.dev/component: web
+          app.oam.dev/name: shop
+      spec:
+        containers:
+        - image: shop:1.0
+          name: web
+          ports:
+          - containerPort: 80
+            name: port-80
+            protocol: TCP
+outputs:
+  webserviceExpose:
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations: {}
+      labels:
+        app.oam.dev/appRevision: shop-v1
+        app.oam.dev/component: web
+        app.oam.dev/name: shop
+        app.oam.dev/namespace: default
+        app.oam.dev/resourceType: TRAIT
+        trait.oam.dev/resource: webserviceExpose
+        trait.oam.dev/type: AuxiliaryWorkload
+      name: web
+      namespace: default
+    spec:
+      ports:
+      - name: port-80
+        port: 80
+        protocol: TCP
+        targetPort: 80
+      selector:
+        app.oam.dev/component: web
+      type: ClusterIP
+traits: {}

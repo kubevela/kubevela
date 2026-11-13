@@ -1,0 +1,49 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: db
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: statefulset
+    name: db
+    namespace: default
+  spec:
+    selector:
+      matchLabels:
+        app.oam.dev/component: db
+    template:
+      metadata:
+        labels:
+          app.oam.dev/component: db
+          app.oam.dev/name: shop
+      spec:
+        containers:
+        - image: postgres:16
+          livenessProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /alive
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            successThreshold: 1
+            timeoutSeconds: 2
+          name: db
+          readinessProbe:
+            exec:
+              command:
+              - cat
+              - /ready
+            failureThreshold: 5
+            initialDelaySeconds: 3
+            periodSeconds: 15
+            successThreshold: 2
+            timeoutSeconds: 4
+outputs: {}
+traits: {}

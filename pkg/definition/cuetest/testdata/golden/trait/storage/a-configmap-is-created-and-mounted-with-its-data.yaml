@@ -1,0 +1,54 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: test-app-v1
+      app.oam.dev/component: web
+      app.oam.dev/name: test-app
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cuetest-workload
+    name: web
+    namespace: default
+  spec:
+    template:
+      metadata:
+        annotations:
+          app.oam.dev/trait-restart-hash-storage: 3013b941decf0174
+      spec:
+        containers:
+        - env: []
+          image: shop:1.0
+          name: web
+          volumeDevices: []
+          volumeMounts:
+          - mountPath: /etc/shop
+            name: configmap-shop-config
+        - image: fluentbit:3
+          name: log
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: shop-config
+          name: configmap-shop-config
+outputs:
+  configmap-shop-config:
+    apiVersion: v1
+    data:
+      shop.yaml: 'mode: prod'
+    kind: ConfigMap
+    metadata:
+      annotations: {}
+      labels:
+        app.oam.dev/appRevision: test-app-v1
+        app.oam.dev/component: web
+        app.oam.dev/name: test-app
+        app.oam.dev/namespace: default
+        app.oam.dev/resourceType: TRAIT
+        trait.oam.dev/resource: configmap-shop-config
+        trait.oam.dev/type: storage
+      name: shop-config
+      namespace: default

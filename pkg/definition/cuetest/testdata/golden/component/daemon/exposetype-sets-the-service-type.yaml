@@ -1,0 +1,57 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: agent
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: daemon
+    name: agent
+    namespace: default
+  spec:
+    selector:
+      matchLabels:
+        app.oam.dev/component: agent
+    template:
+      metadata:
+        labels:
+          app.oam.dev/component: agent
+          app.oam.dev/name: shop
+      spec:
+        containers:
+        - image: log-agent:1.0
+          name: agent
+          ports:
+          - containerPort: 24224
+            name: port-24224
+            protocol: TCP
+outputs:
+  webserviceExpose:
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations: {}
+      labels:
+        app.oam.dev/appRevision: shop-v1
+        app.oam.dev/component: agent
+        app.oam.dev/name: shop
+        app.oam.dev/namespace: default
+        app.oam.dev/resourceType: TRAIT
+        trait.oam.dev/resource: webserviceExpose
+        trait.oam.dev/type: AuxiliaryWorkload
+      name: agent
+      namespace: default
+    spec:
+      ports:
+      - name: port-24224
+        port: 24224
+        targetPort: 24224
+      selector:
+        app.oam.dev/component: agent
+      type: NodePort
+traits: {}

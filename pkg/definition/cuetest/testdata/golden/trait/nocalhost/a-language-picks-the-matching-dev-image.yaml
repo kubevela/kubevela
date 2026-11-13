@@ -1,0 +1,50 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      dev.nocalhost: '{"name":"web","serviceType":"deployment","containers":[{"name":"web","dev":{"image":"nocalhost-docker.pkg.coding.net/nocalhost/dev-images/python:latest","command":{"run":["sh","run.sh"],"debug":["sh","debug.sh"]},"shell":"bash","workDir":"/home/nocalhost-dev","resources":{"limits":{"memory":"2Gi","cpu":"2"},"requests":{"memory":"512Mi","cpu":"0.5"}},"hotReload":true,"sync":{"type":"send","filePattern":["./"],"ignoreFilePattern":[".git",".vscode",".idea",".gradle","build"]},"portForward":["8080:8080"]}}]}'
+      dev.nocalhost/application-name: shop
+      dev.nocalhost/application-namespace: dev
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: web
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: dev
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cuetest-workload
+    name: web
+    namespace: dev
+  spec:
+    template:
+      metadata:
+        annotations:
+          app.oam.dev/trait-restart-hash-nocalhost: d04789055406d7e6
+      spec:
+        containers:
+        - image: shop:1.0
+          name: web
+outputs:
+  nocalhostService:
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations: {}
+      labels:
+        app.oam.dev/appRevision: shop-v1
+        app.oam.dev/component: web
+        app.oam.dev/name: shop
+        app.oam.dev/namespace: dev
+        app.oam.dev/resourceType: TRAIT
+        trait.oam.dev/resource: nocalhostService
+        trait.oam.dev/type: nocalhost
+      name: web
+      namespace: dev
+    spec:
+      ports:
+      - port: 8080
+        targetPort: 8080
+      selector:
+        app.oam.dev/component: web
+      type: ClusterIP

@@ -1,0 +1,4 @@
+details: {}
+healthy: true
+message: 'ClusterIP: 10.96.0.12'
+traits: {}
