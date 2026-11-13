@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -34,6 +35,7 @@ import (
 func TestGenerateDefinitionRevisionKeepsARevisionHashedByAnEarlierRelease(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, v1beta1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
 	spec := v1beta1.ComponentDefinitionSpec{Workload: common.WorkloadTypeDescriptor{Type: "deployments.apps"}}
 	stored := &v1beta1.DefinitionRevision{
 		ObjectMeta: metav1.ObjectMeta{Name: "webservice-v1", Namespace: "vela-system"},
