@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -382,6 +383,54 @@ entries:
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(second.Metadata.Name).To(Equal("chart-from-b"))
 			Expect(second.Metadata.Name).ToNot(Equal(first.Metadata.Name))
+		})
+	})
+
+	Describe("a chart fetch shared by several renders", func() {
+		It("keeps fetching for the others when the render that started it is cancelled", func() {
+			chartArchive := createMinimalChartArchive("shared-chart", "1.0.0")
+			release := make(chan struct{})
+			released := false
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				<-release
+				w.Header().Set("Content-Type", "application/gzip")
+				_, _ = w.Write(chartArchive)
+			}))
+			defer server.Close()
+			// Runs before the server closes, so a failed assertion cannot leave the handler blocked.
+			defer func() {
+				if !released {
+					close(release)
+				}
+			}()
+			p := NewProviderWithConfig(nil)
+			params := &ChartSourceParams{Source: server.URL + "/shared-chart-1.0.0.tgz", Version: "1.0.0"}
+
+			first, cancel := context.WithCancel(context.Background())
+			firstErr := make(chan error, 1)
+			go func() {
+				_, err := p.fetchChart(first, params, nil, "team-a", "team-a")
+				firstErr <- err
+			}()
+			time.Sleep(100 * time.Millisecond)
+			secondDone := make(chan error, 1)
+			go func() {
+				ch, err := p.fetchChart(context.Background(), params, nil, "team-a", "team-a")
+				if err == nil && ch.Metadata.Name != "shared-chart" {
+					err = fmt.Errorf("unexpected chart %s", ch.Metadata.Name)
+				}
+				secondDone <- err
+			}()
+			time.Sleep(100 * time.Millisecond)
+
+			cancel()
+			Eventually(firstErr, 2*time.Second).Should(Receive(MatchError(context.Canceled)), "the cancelled render stops waiting")
+			released = true
+			close(release)
+			Eventually(secondDone, 5*time.Second).Should(Receive(BeNil()), "the other render still gets the chart")
+			Expect(requests.Load()).To(BeEquivalentTo(1), "the second render joined the first fetch")
 		})
 	})
 
