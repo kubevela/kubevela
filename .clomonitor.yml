@@ -1,9 +1,9 @@
 # CLOMonitor metadata (https://clomonitor.io/docs/topics/checks/).
 #
-# License scanning results: dependency licenses are checked on every pull
-# request and push by the license workflow, which runs license_finder
-# against the decisions recorded in .license/dependency_decisions.yml and
-# fails the build when an unapproved license is introduced. See also
-# docs/dependency-policy.md.
+# License scanning results: dependency licenses are checked on pull requests
+# targeting master and release-* branches, and on pushes to those branches,
+# by the license workflow, which runs license_finder against the decisions
+# recorded in .license/dependency_decisions.yml and fails the build when an
+# unapproved license is introduced. See also docs/dependency-policy.md.
 licenseScanning:
   url: https://github.com/kubevela/kubevela/actions/workflows/license.yml
