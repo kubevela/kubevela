@@ -408,49 +408,8 @@ func (h *ValidatingHandler) validateDefinitions(
 ) field.ErrorList {
 	var errs field.ErrorList
 
-	// Get the definition info for the given type
-	defInfo, ok := v1beta1.DefinitionTypeMap[definitionType]
-	if !ok {
-		klog.Errorf("Unknown definition type: %v", definitionType)
-		return errs
-	}
-
-	// Set the app namespace so ResolveModuleType can search the right namespaces.
-	ctx = oamutil.SetNamespaceInCtx(ctx, appNamespace)
-	capType := capTypeFromDefinitionType(definitionType)
-
-	// resolveAndCheck resolves a Form 1/2/3 type string to its installed Kubernetes
-	// name, verifies it exists, then runs the permission check. Resolution and
-	// existence errors are reported as field validation errors so the user sees
-	// them at apply time rather than in the application status.
 	resolveAndCheck := func(defType string, fieldPaths []*field.Path) field.ErrorList {
-		toFieldErrs := func(msg string) field.ErrorList {
-			ferrs := make(field.ErrorList, len(fieldPaths))
-			for i, fp := range fieldPaths {
-				ferrs[i] = field.Invalid(fp, defType, msg)
-			}
-			return ferrs
-		}
-		resolved, err := appfile.ResolveModuleType(ctx, h.Client, defType, capType)
-		if err != nil {
-			return toFieldErrs(err.Error())
-		}
-		// Permission is checked before existence, deliberately. Resolution has to
-		// come first so the check runs against the installed name rather than the
-		// "s3/v1/bucket" spelling, but reporting existence to a caller who has no
-		// permission on the definition would hand them an existence oracle they
-		// did not have before type resolution was introduced.
-		allowed, permErr := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, resolved, appNamespace)
-		if permErrs := h.processDefinitionPermissionCheck(allowed, permErr, req, defInfo.Kind, resolved, appNamespace, fieldPaths); len(permErrs) > 0 {
-			return permErrs
-		}
-		// Permitted: now confirm the definition is actually installed. This is what
-		// catches a Form 3 reference, whose resolution is pure string math and never
-		// touches the cluster.
-		if err := appfile.DefinitionExists(ctx, h.Client, baseDefinitionName(resolved), capType); err != nil {
-			return toFieldErrs(err.Error())
-		}
-		return nil
+		return h.permitDefinition(ctx, req, appNamespace, definitionType, defType, fieldPaths)
 	}
 
 	switch typedMap := usageMap.(type) {
@@ -469,6 +428,48 @@ func (h *ValidatingHandler) validateDefinitions(
 	}
 
 	return errs
+}
+
+// permitDefinition resolves a type string to its installed name, checks the requester may use it,
+// then that it exists, reporting each problem at fieldPaths. Resolution and existence errors are
+// field errors so the user sees them at apply time rather than in the application status.
+func (h *ValidatingHandler) permitDefinition(ctx context.Context, req admission.Request, appNamespace string,
+	definitionType reflect.Type, defType string, fieldPaths []*field.Path) field.ErrorList {
+	defInfo, ok := v1beta1.DefinitionTypeMap[definitionType]
+	if !ok {
+		klog.Errorf("Unknown definition type: %v", definitionType)
+		return nil
+	}
+	// Set the app namespace so ResolveModuleType can search the right namespaces.
+	ctx = oamutil.SetNamespaceInCtx(ctx, appNamespace)
+	capType := capTypeFromDefinitionType(definitionType)
+	toFieldErrs := func(msg string) field.ErrorList {
+		ferrs := make(field.ErrorList, len(fieldPaths))
+		for i, fp := range fieldPaths {
+			ferrs[i] = field.Invalid(fp, defType, msg)
+		}
+		return ferrs
+	}
+	resolved, err := appfile.ResolveModuleType(ctx, h.Client, defType, capType)
+	if err != nil {
+		return toFieldErrs(err.Error())
+	}
+	// Permission is checked before existence, deliberately. Resolution has to
+	// come first so the check runs against the installed name rather than the
+	// "s3/v1/bucket" spelling, but reporting existence to a caller who has no
+	// permission on the definition would hand them an existence oracle they
+	// did not have before type resolution was introduced.
+	allowed, permErr := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, resolved, appNamespace)
+	if permErrs := h.processDefinitionPermissionCheck(allowed, permErr, req, defInfo.Kind, resolved, appNamespace, fieldPaths); len(permErrs) > 0 {
+		return permErrs
+	}
+	// Permitted: now confirm the definition is actually installed. This is what
+	// catches a Form 3 reference, whose resolution is pure string math and never
+	// touches the cluster.
+	if err := appfile.DefinitionExists(ctx, h.Client, baseDefinitionName(resolved), capType); err != nil {
+		return toFieldErrs(err.Error())
+	}
+	return nil
 }
 
 // capTypeFromDefinitionType maps a reflect.Type for a definition struct to the
@@ -531,6 +532,29 @@ func (h *ValidatingHandler) ValidateDefinitionPermissions(ctx context.Context, a
 		fieldPaths := sourceTypePaths(indices)
 		errs = append(errs, h.processDefinitionPermissionCheck(
 			allowed, err, req, "SourceDefinition", sourceType, app.Namespace, fieldPaths)...)
+	}
+
+	// What the Application reaches through references is checked as if it were named inline,
+	// and the requester must be able to read each object it reaches it through: the controller
+	// reads them with its own identity and runs what they name.
+	r := indirectReach(ctx, h.Client, app)
+	for _, u := range r.unreadable {
+		errs = append(errs, field.InternalError(u.path, u.err))
+	}
+	for _, obj := range r.objects {
+		allowed, err := auth.UserCan(ctx, h.Client, req.UserInfo, authv1.ResourceAttributes{
+			Verb: "get", Group: "core.oam.dev", Version: "v1alpha1", Resource: obj.resource, Namespace: obj.namespace, Name: obj.name,
+		})
+		switch {
+		case err != nil:
+			errs = append(errs, field.InternalError(obj.path, fmt.Errorf("cannot check access to %s %s/%s: %w", obj.kind, obj.namespace, obj.name, err)))
+		case !allowed:
+			errs = append(errs, field.Forbidden(obj.path, fmt.Sprintf("user %q cannot read %s %q in namespace %q, which this field references",
+				req.UserInfo.Username, obj.kind, obj.name, obj.namespace)))
+		}
+	}
+	for _, use := range r.uses {
+		errs = append(errs, h.permitDefinition(ctx, req, app.Namespace, reflect.TypeOf(use.newDef()).Elem(), use.defType, []*field.Path{use.path})...)
 	}
 
 	return errs

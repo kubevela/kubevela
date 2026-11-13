@@ -58,6 +58,52 @@ webhooks:
           - applications
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.core.oam.dev.v1alpha1.workflows") | nindent 6 }}
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validating-core-oam-dev-v1alpha1-workflows
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "validating.core.oam.dev.v1alpha1.workflows" "policy" .Values.admissionWebhooks.failurePolicy) | nindent 4 }}
+    name: validating.core.oam.dev.v1alpha1.workflows
+    admissionReviewVersions:
+      - v1beta1
+      - v1
+    sideEffects: None
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - workflows
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
+  - clientConfig:
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.core.oam.dev.v1alpha1.policies") | nindent 6 }}
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validating-core-oam-dev-v1alpha1-policies
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "validating.core.oam.dev.v1alpha1.policies" "policy" .Values.admissionWebhooks.failurePolicy) | nindent 4 }}
+    name: validating.core.oam.dev.v1alpha1.policies
+    admissionReviewVersions:
+      - v1beta1
+      - v1
+    sideEffects: None
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - policies
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
+  - clientConfig:
       {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.core.oam-dev.v1beta1.componentdefinitions") | nindent 6 }}
       service:
         name: {{ template "kubevela.name" . }}-webhook

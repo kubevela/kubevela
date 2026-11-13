@@ -326,6 +326,30 @@ webhooks:
   admissionReviewVersions: ["v1", "v1beta1"]
   sideEffects: None
   failurePolicy: Fail
+- name: workflows.core.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1alpha1-workflows
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["core.oam.dev"]
+    apiVersions: ["v1alpha1"]
+    resources: ["workflows"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+- name: policies.core.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1alpha1-policies
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["core.oam.dev"]
+    apiVersions: ["v1alpha1"]
+    resources: ["policies"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
 EOF
 
     kubectl apply -f /tmp/webhook-config.yaml
