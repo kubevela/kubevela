@@ -30,9 +30,9 @@ _config: $returns: {
 	expect: calls: "vela/velaconfig": "#Read": [{$params: namespace: "team-a"}]
 }
 
-"caches per Config for five minutes": test.#SourceExec & {
+"caches per Config and consuming namespace for five minutes": test.#SourceExec & {
 	definition: "vela-config"
 	parameter: name: "registry"
 	mocks: "vela/velaconfig": "#Read": _config
-	expect: storage: {ttl: "5m", onStaleFailure: "use-stale", keyInputs: []}
+	expect: storage: {ttl: "5m", onStaleFailure: "use-stale", keyInputs: ["namespace"]}
 }

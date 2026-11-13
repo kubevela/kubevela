@@ -18,8 +18,8 @@ spec:
 
         // Generated from the context this template reads - do not edit. Admission re-derives these and rejects a mismatch.
         $internal: {
-        	key: "vela-config"
-        	keyInputs: []
+        	key: "vela-config-\(context.namespace)"
+        	keyInputs: ["namespace"]
         }
         schema: {
         	// +sensitive
@@ -53,6 +53,10 @@ spec:
         	// +usage=Namespace it lives in. Defaults to vela-system.
         	namespace?: string
         }
+
+        // Which configs a source may read depends on the namespace of the Application it resolves
+        // for, so the resolved value is cached per namespace rather than shared across them.
+        _consumerNamespace: context.namespace
 
         _cfg: velaconfig.#Read & {
         	$params: {
