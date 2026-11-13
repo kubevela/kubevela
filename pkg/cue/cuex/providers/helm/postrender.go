@@ -145,6 +145,16 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 			annotations["meta.helm.sh/release-namespace"] = r.releaseNamespace
 		}
 		obj.SetAnnotations(annotations)
+		// Helm adopts an object only when it is labelled as managed by Helm, and refuses any other
+		// value, so a chart's own value is replaced.
+		if r.releaseName != "" {
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			labels[helmManagedByLabel] = "Helm"
+			obj.SetLabels(labels)
+		}
 
 		// Serialize back to YAML
 		data, err := yaml.Marshal(obj.Object)

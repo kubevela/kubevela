@@ -21,12 +21,17 @@ package helm
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // validateReleaseHealth checks that the Helm release secret exists and is
@@ -192,11 +197,23 @@ func (p *Provider) deleteReleaseSecretsDirect(ctx context.Context, namespace, re
 		}
 	}
 
+	// Helm's own Secrets are what block the retry, so a failed placeholder list does not stop them.
+	placeholders, err := p.listReleasePlaceholders(ctx, clientset, namespace, releaseName, velaCtx)
+	if err != nil {
+		klog.Warningf("Helm provider [%s]: Failed to list placeholder secrets for %s, deleting helm-owned secrets only: %v", velaContextStr(velaCtx), releaseName, err)
+	}
+	secretList.Items = append(secretList.Items, placeholders...)
+
+	// Any Secret left behind blocks the retry, so a failed delete fails the cleanup.
+	var errs []error
 	for _, secret := range secretList.Items {
 		klog.Infof("Helm provider [%s]: Directly deleting corrupted release secret %s/%s", velaContextStr(velaCtx), namespace, secret.Name)
-		if err := clientset.CoreV1().Secrets(namespace).Delete(context.Background(), secret.Name, metav1.DeleteOptions{}); err != nil {
-			klog.Warningf("Helm provider: Failed to delete secret %s/%s: %v", namespace, secret.Name, err)
+		if err := clientset.CoreV1().Secrets(namespace).Delete(context.Background(), secret.Name, metav1.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
+			errs = append(errs, errors.Wrapf(err, "failed to delete release secret %s/%s", namespace, secret.Name))
 		}
+	}
+	if len(errs) > 0 {
+		return utilerrors.NewAggregate(errs)
 	}
 
 	klog.Infof("Helm provider [%s]: Deleted %d orphaned release secrets for %s in namespace %s", velaContextStr(velaCtx), len(secretList.Items), releaseName, namespace)
@@ -214,4 +231,28 @@ func (p *Provider) InvalidateRelease(cluster, releaseName, releaseNamespace stri
 	delete(p.releaseManifests, cacheKey)
 	delete(p.releaseVersions, cacheKey)
 	klog.Infof("Helm provider: Invalidated cache for release %s/%s", releaseNamespace, releaseName)
+}
+
+// listReleasePlaceholders returns copies of a release's Secrets that KubeVela dispatched as
+// ordinary objects for this component. Helm does not see them (they lack its owner label) but
+// they hold the release's Secret names, so an install there fails until they are removed.
+func (p *Provider) listReleasePlaceholders(ctx context.Context, clientset kubernetes.Interface, namespace, releaseName string, velaCtx *ContextParams) ([]corev1.Secret, error) {
+	if velaCtx == nil {
+		return nil, nil
+	}
+	list, err := clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("app.oam.dev/name=%s,app.oam.dev/namespace=%s,app.oam.dev/component=%s,!owner",
+			velaCtx.AppName, velaCtx.AppNamespace, velaCtx.Name),
+	})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to list placeholder secrets for release %s", releaseName)
+	}
+	prefix := "sh.helm.release.v1." + releaseName + ".v"
+	var found []corev1.Secret
+	for _, s := range list.Items {
+		if s.Type == "helm.sh/release.v1" && strings.HasPrefix(s.Name, prefix) && s.Labels["owner"] == "" {
+			found = append(found, s)
+		}
+	}
+	return found, nil
 }

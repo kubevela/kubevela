@@ -18,6 +18,8 @@ package helm
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	. "github.com/onsi/ginkgo/v2"
@@ -27,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 // providerWithFakeClientset returns a fresh Provider whose kubeClientFactory
@@ -247,6 +250,80 @@ var _ = Describe("release_secrets", func() {
 			Expect(remaining.Items).To(BeEmpty())
 		})
 
+		It("refuses a release whose owner labels are incomplete", func() {
+			ns := "rel-ns"
+			partial := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name: "sh.helm.release.v1.r.v1", Namespace: ns,
+				Labels: map[string]string{"owner": "helm", "name": "r", "app.oam.dev/name": "app", "app.oam.dev/component": "comp"},
+			}}
+			p, cs := providerWithFakeClientset(partial)
+			p.ownerAppExists = func(context.Context, string, string) (bool, error) { return true, nil }
+			err := p.deleteReleaseSecretsDirect(context.Background(), ns, "r", &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"})
+			Expect(err).To(MatchError(ContainSubstring("incomplete ownership labels")))
+			_, err = cs.CoreV1().Secrets(ns).Get(GinkgoT().Context(), partial.Name, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred(), "left in place")
+		})
+
+		It("deletes this component's placeholder release Secrets, which carry no owner label", func() {
+			ns := "rel-ns"
+			placeholder := func(name, comp string) *corev1.Secret {
+				return &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: name, Namespace: ns,
+						Labels: map[string]string{"app.oam.dev/name": "app", "app.oam.dev/namespace": ns, "app.oam.dev/component": comp},
+					},
+					Type: "helm.sh/release.v1",
+				}
+			}
+			p, cs := providerWithFakeClientset(
+				placeholder("sh.helm.release.v1.r.v1", "comp"),
+				placeholder("sh.helm.release.v1.r.v2", "comp"),
+				placeholder("sh.helm.release.v1.r.v3", "other-comp"),
+				placeholder("sh.helm.release.v1.rr.v1", "comp"),
+			)
+			velaCtx := &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"}
+			Expect(p.deleteReleaseSecretsDirect(context.Background(), ns, "r", velaCtx)).To(Succeed())
+
+			remaining, err := cs.CoreV1().Secrets(ns).List(GinkgoT().Context(), metav1.ListOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			names := make([]string, 0, len(remaining.Items))
+			for _, s := range remaining.Items {
+				names = append(names, s.Name)
+			}
+			Expect(names).To(ConsistOf("sh.helm.release.v1.r.v3", "sh.helm.release.v1.rr.v1"))
+		})
+
+		It("fails when a placeholder Secret cannot be deleted, so the retry does not run on it", func() {
+			ns := "rel-ns"
+			p, cs := providerWithFakeClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name: "sh.helm.release.v1.r.v1", Namespace: ns,
+				Labels: map[string]string{"app.oam.dev/name": "app", "app.oam.dev/namespace": ns, "app.oam.dev/component": "comp"},
+			}, Type: "helm.sh/release.v1"})
+			cs.PrependReactor("delete", "secrets", func(k8stesting.Action) (bool, runtime.Object, error) {
+				return true, nil, fmt.Errorf("delete refused")
+			})
+			err := p.deleteReleaseSecretsDirect(context.Background(), ns, "r", &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"})
+			Expect(err).To(MatchError(ContainSubstring("delete refused")))
+		})
+
+		It("still deletes helm's own release Secrets when listing the placeholders fails", func() {
+			ns := "rel-ns"
+			p, cs := providerWithFakeClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name: "sh.helm.release.v1.r.v1", Namespace: ns, Labels: map[string]string{"owner": "helm", "name": "r"},
+			}})
+			cs.PrependReactor("list", "secrets", func(action k8stesting.Action) (bool, runtime.Object, error) {
+				if strings.Contains(action.(k8stesting.ListAction).GetListRestrictions().Labels.String(), "!owner") {
+					return true, nil, fmt.Errorf("list refused")
+				}
+				return false, nil, nil
+			})
+			velaCtx := &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"}
+			Expect(p.deleteReleaseSecretsDirect(context.Background(), ns, "r", velaCtx)).To(Succeed())
+
+			remaining, err := cs.CoreV1().Secrets(ns).List(GinkgoT().Context(), metav1.ListOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(remaining.Items).To(BeEmpty())
+		})
 	})
 
 })

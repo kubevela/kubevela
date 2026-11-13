@@ -94,6 +94,40 @@ metadata:
 			Expect(resourceCount).To(Equal(2))
 		})
 
+		It("marks every resource managed by Helm, replacing a chart's own value Helm would refuse", func() {
+			manifest := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plain
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: labelled
+  labels:
+    app.kubernetes.io/managed-by: Something
+`
+			renderer := &velaLabelPostRenderer{
+				context:          &ContextParams{AppName: "my-app", AppNamespace: "ns", Name: "comp"},
+				releaseName:      "my-release",
+				releaseNamespace: "ns",
+			}
+			result, err := renderer.Run(bytes.NewBufferString(manifest))
+			Expect(err).ShouldNot(HaveOccurred())
+			managedBy := map[string]string{}
+			decoder := kyaml.NewYAMLOrJSONDecoder(bytes.NewReader(result.Bytes()), 4096)
+			for {
+				obj := &unstructured.Unstructured{}
+				if err := decoder.Decode(obj); err != nil {
+					break
+				}
+				if len(obj.Object) > 0 {
+					managedBy[obj.GetName()] = obj.GetLabels()["app.kubernetes.io/managed-by"]
+				}
+			}
+			Expect(managedBy).To(Equal(map[string]string{"plain": "Helm", "labelled": "Helm"}))
+		})
+
 		It("should return original buffer when context is nil", func() {
 			manifest := `apiVersion: v1
 kind: Service
