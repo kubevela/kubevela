@@ -59,6 +59,8 @@ import (
 // AppHandler handles application reconcile
 type AppHandler struct {
 	client.Client
+	// apiReader reads past the cache: the Reconciler's, nil when it has none.
+	apiReader client.Reader
 
 	app            *v1beta1.Application
 	currentAppRev  *v1beta1.ApplicationRevision
@@ -149,6 +151,7 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application)
 	}
 	return &AppHandler{
 		Client:                      r.Client,
+		apiReader:                   r.APIReader,
 		app:                         app,
 		resourceKeeper:              resourceHandler,
 		applicationScopedPolicyDefs: make(map[string]*v1beta1.PolicyDefinition),
