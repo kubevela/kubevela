@@ -88,7 +88,10 @@ type ResourceDiagnosis struct {
 	Ready    bool   `json:"ready" jsonschema:"Whether the owning controller's conventions say the resource is ready."`
 	State    string `json:"state" jsonschema:"Ready, NotReady, Halted when the controller stopped reconciling, or Unknown when the resource could not be read."`
 	// Summary names the rule that produced the state.
-	Summary    string              `json:"summary" jsonschema:"The convention applied and what was observed, written by the server."`
+	Summary string `json:"summary" jsonschema:"The convention applied and what was observed, written by the server."`
+	// EndpointOverride is set when the owning controller is configured to
+	// call an endpoint other than the cloud API.
+	EndpointOverride string `json:"endpointOverride,omitempty" jsonschema:"Endpoint the owning controller is configured to call instead of the cloud API, read from its Deployment. The conditions here describe that endpoint's view, usually an emulator's, not the cloud's."`
 	Conditions []ResourceCondition `json:"conditions,omitempty" jsonschema:"Conditions read live from the resource."`
 	Notes      []string            `json:"notes,omitempty" jsonschema:"Caveats about this verdict, such as conditions that do not record the generation they describe."`
 }
@@ -252,6 +255,13 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 	}
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s", diag.Kind, diag.Namespace, diag.Name, diag.Cluster, obj.GetResourceVersion()))
 	diag.Conditions = objectConditions(obj)
+	if diag.Provider == providerACK {
+		service := strings.TrimSuffix(groupOf(diag.APIVersion), ".services.k8s.aws")
+		if ep := ackEndpointOverride(cctx, d.f.Client(), service); ep != "" {
+			diag.EndpointOverride = ep
+			out.Evidence = append(out.Evidence, fmt.Sprintf("ACK %s controller Deployment env AWS_ENDPOINT_URL=%s: this diagnosis describes that endpoint, not AWS", service, ep))
+		}
+	}
 	switch diag.Provider {
 	case providerACK:
 		diagnoseACK(diag, obj, out)

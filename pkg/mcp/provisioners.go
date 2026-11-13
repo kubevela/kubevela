@@ -17,6 +17,7 @@ limitations under the License.
 package mcp
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -187,6 +188,9 @@ type ServiceProvisioner struct {
 	// Also lists other provisioners found for the same service.
 	Also     []string             `json:"also,omitempty" jsonschema:"Other provisioners that also serve this service on the cluster."`
 	Resource *ProvisionedResource `json:"resource,omitempty" jsonschema:"Schema of the kind asked for."`
+	// EndpointOverride is the endpoint the resolved controller calls instead
+	// of the cloud API, when it is configured with one.
+	EndpointOverride string `json:"endpointOverride,omitempty" jsonschema:"Endpoint URL the resolved controller is configured to call instead of the cloud API, read from its Deployment. Set when the controller points at an emulator or a private endpoint; schemas and verifications taken here describe that endpoint, not the cloud. Empty when the controller talks to the cloud itself."`
 	// Message is set when no provisioner was found or a kind is missing.
 	Message string `json:"message,omitempty" jsonschema:"Why the service cannot be provisioned yet and what to install. Relay it to the user and do not write a definition for a provisioner that is not installed."`
 
@@ -275,6 +279,9 @@ func serviceProvisioner(ctx context.Context, cli client.Client, names []string, 
 		return out, warnings, nil
 	}
 	out.Provisioner = chosen.name
+	if chosen.name == ProvisionerACK {
+		out.EndpointOverride = ackEndpointOverride(ctx, cli, service)
+	}
 
 	// Prefer the most current group of the family, then read its CRDs.
 	fm := byFamily[chosen.name]
@@ -484,4 +491,27 @@ func crdNames(ctx context.Context, cli client.Client) ([]string, error) {
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// ackEndpointOverride reads the endpoint URL override of the installed ACK
+// controller for service from its Deployment's AWS_ENDPOINT_URL environment
+// variable. The Deployment is matched by the ACK chart's
+// app.kubernetes.io/name=<service>-chart label in any namespace. It returns
+// "" when the controller talks to AWS itself or when the Deployment cannot
+// be read: provenance is best-effort evidence and never fails the caller.
+func ackEndpointOverride(ctx context.Context, cli client.Client, service string) string {
+	var list appsv1.DeploymentList
+	if err := cli.List(ctx, &list, client.MatchingLabels{"app.kubernetes.io/name": service + "-chart"}); err != nil {
+		return ""
+	}
+	for i := range list.Items {
+		for _, c := range list.Items[i].Spec.Template.Spec.Containers {
+			for _, env := range c.Env {
+				if env.Name == "AWS_ENDPOINT_URL" && env.Value != "" {
+					return env.Value
+				}
+			}
+		}
+	}
+	return ""
 }

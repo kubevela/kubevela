@@ -178,6 +178,18 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		Expect(p.Resource.Health).To(ContainSubstring("ACK.ResourceSynced"))
 	})
 
+	It("names the resolved ACK controller's endpoint override, and stays silent without one", func() {
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", "http://aws-emulator.floci.svc.cluster.local:4566"))...)
+		p := platform(map[string]any{"service": "dynamodb"}).Provisioner
+		Expect(p).NotTo(BeNil())
+		Expect(p.EndpointOverride).To(Equal("http://aws-emulator.floci.svc.cluster.local:4566"))
+
+		h.close()
+		h = startHarness(Options{}, objs(ackTableCRD())...)
+		p = platform(map[string]any{"service": "dynamodb"}).Provisioner
+		Expect(p.EndpointOverride).To(BeEmpty(), "no Deployment with an override: the controller talks to the cloud")
+	})
+
 	It("falls back to Crossplane, preferring the namespaced v2 group", func() {
 		h = startHarness(Options{}, objs(
 			crossplaneTableCRD("dynamodb.aws.upbound.io", crdv1.ClusterScoped),

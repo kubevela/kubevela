@@ -196,3 +196,26 @@ func platformFixtures() []client.Object {
 		},
 	}
 }
+
+// ackControllerDeployment builds an ACK controller Deployment the way the
+// service's helm chart labels it, with the endpoint override env set.
+func ackControllerDeployment(service, endpoint string) *appsv1.Deployment {
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "ack-" + service + "-" + service + "-chart",
+			Namespace: "ack-system",
+			Labels:    map[string]string{"app.kubernetes.io/name": service + "-chart"},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"k8s-app": service + "-chart"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"k8s-app": service + "-chart"}},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{{
+					Name:  "controller",
+					Image: "controller:test",
+					Env:   []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: endpoint}},
+				}}},
+			},
+		},
+	}
+}
