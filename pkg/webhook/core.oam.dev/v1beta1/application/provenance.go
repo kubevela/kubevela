@@ -17,9 +17,18 @@ limitations under the License.
 package application
 
 import (
+	"context"
+
+	authenticationv1 "k8s.io/api/authentication/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -39,4 +48,27 @@ func dispatchingNamespace(obj metav1.Object) string {
 		return ""
 	}
 	return labels[oam.LabelAppNamespace]
+}
+
+// dispatcherAuthor is who wrote the Application that dispatched obj, as the identity recorded on
+// it. It is trusted only when the mutating webhook stamps that identity from the request, that is
+// with AuthenticateApplication on and the username stamped (--authentication-with-user); otherwise
+// the recorded username is the Application author's own claim, and false says permissions cannot
+// be checked for it.
+func (h *ValidatingHandler) dispatcherAuthor(ctx context.Context, obj metav1.Object) (authenticationv1.UserInfo, bool, error) {
+	labels := obj.GetLabels()
+	name, namespace := labels[oam.LabelAppName], labels[oam.LabelAppNamespace]
+	if name == "" || namespace == "" ||
+		!utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) || !auth.AuthenticationWithUser {
+		return authenticationv1.UserInfo{}, false, nil
+	}
+	app := &v1beta1.Application{}
+	if err := h.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, app); err != nil {
+		if errors.IsNotFound(err) {
+			return authenticationv1.UserInfo{}, false, nil
+		}
+		return authenticationv1.UserInfo{}, false, err
+	}
+	author := auth.GetUserInfoInAnnotation(&app.ObjectMeta)
+	return authenticationv1.UserInfo{Username: author.GetName(), Groups: author.GetGroups()}, author.GetName() != "", nil
 }

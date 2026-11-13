@@ -150,9 +150,10 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### Definition restriction parameters
 
-| Name                     | Description                                                                                                                                         | Value |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `definitionRestrictions` | Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default) | `{}`  |
+| Name                                                | Description                                                                                                                                         | Value             |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `definitionRestrictions`                            | Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default) |                   |
+| `definitionRestrictions.overrides.addon.namespaces` | Namespaces whose Applications may use the `addon` component type                                                                                    | `["vela-system"]` |
 
 ### Builtin definitions parameters
 
