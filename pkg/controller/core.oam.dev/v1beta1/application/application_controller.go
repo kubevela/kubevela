@@ -70,6 +70,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -1207,6 +1208,10 @@ func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta
 	if state == workflowv1alpha1.WorkflowStateSucceeded {
 		// The workflow applied the components with the current policy context.
 		r.recordPolicyContextHash(logCtx, handler)
+		if err := helm.SweepHubReleases(logCtx, app, handler.resourceKeeper); err != nil {
+			logCtx.Error(err, "Failed to remove hub releases left behind by helmchart components")
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
+		}
 		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 	}

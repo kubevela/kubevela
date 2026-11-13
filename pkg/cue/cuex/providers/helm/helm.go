@@ -62,36 +62,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 		}
 	}
 
-	// A release is named after its component and lives where the component is rendered,
-	// unless set explicitly.
-	releaseName := "release"
-	releaseNamespace := appNamespace
-	if renderParams.Context != nil {
-		if renderParams.Context.Name != "" {
-			releaseName = renderParams.Context.Name
-		}
-		if renderParams.Context.Namespace != "" {
-			releaseNamespace = renderParams.Context.Namespace
-		}
-	}
-	if renderParams.Release != nil {
-		if renderParams.Release.Name != "" {
-			releaseName = renderParams.Release.Name
-		}
-		if renderParams.Release.Namespace != "" {
-			releaseNamespace = renderParams.Release.Namespace
-		}
-	}
-	// Guarantee a non-empty release namespace. Under the normal KubeVela
-	// code path the controller always sets Context.AppNamespace before
-	// calling Render, but callers that invoke the provider directly (tests,
-	// CLI tooling) may leave both context and Release.Namespace empty.
-	// Falling back to "default" preserves the pre-refactor behavior and
-	// keeps Helm's namespace resolution from depending on the caller's
-	// kubeconfig default.
-	if releaseNamespace == "" {
-		releaseNamespace = "default"
-	}
+	releaseName, releaseNamespace := releaseTarget(renderParams, appNamespace)
 	if appNamespace == "" {
 		appNamespace = releaseNamespace
 	}
@@ -273,3 +244,31 @@ var Template = template
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
 	"render": cuexruntime.GenericProviderFn[providers.Params[RenderParams], providers.Returns[RenderReturns]](Render),
 }))
+
+// releaseTarget is the release's name and namespace: those set on the component, else its
+// component's name and the namespace it is rendered in. The namespace falls back to the
+// Application's, then to "default" for direct callers (tests, CLI tooling) that set neither,
+// so Helm never resolves it from the caller's kubeconfig.
+func releaseTarget(params RenderParams, appNamespace string) (string, string) {
+	name, namespace := "release", appNamespace
+	if params.Context != nil {
+		if params.Context.Name != "" {
+			name = params.Context.Name
+		}
+		if params.Context.Namespace != "" {
+			namespace = params.Context.Namespace
+		}
+	}
+	if params.Release != nil {
+		if params.Release.Name != "" {
+			name = params.Release.Name
+		}
+		if params.Release.Namespace != "" {
+			namespace = params.Release.Namespace
+		}
+	}
+	if namespace == "" {
+		namespace = "default"
+	}
+	return name, namespace
+}
