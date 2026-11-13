@@ -219,6 +219,31 @@ webhooks:
           - configs
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.config.oam.dev.v1alpha1.configsecrets") | nindent 6 }}
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validating-config-oam-dev-v1alpha1-configsecrets
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "validating.config.oam.dev.v1alpha1.configsecrets" "policy" "Fail") | nindent 4 }}
+    name: validating.config.oam.dev.v1alpha1.configsecrets
+    sideEffects: None
+    admissionReviewVersions:
+      - v1beta1
+      - v1
+    objectSelector:
+      matchLabels:
+        config.oam.dev/catalog: velacore-config
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+        resources:
+          - secrets
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
+  - clientConfig:
       {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.core.oam-dev.v1beta1.sourcedefinitions") | nindent 6 }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
