@@ -168,7 +168,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 		return componentErrs
 	}
 	af.PolicyContext = h.policyContextView(ctx, app, af)
-	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
+	if err := appParser.ValidateCUESchematicAppfile(ctx, af); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, conciseSchematicError(err)))
 	}
 	return componentErrs
