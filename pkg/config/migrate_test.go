@@ -37,7 +37,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -205,7 +207,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 	// here is removed again. The scenario namespaces are this file's own; in
 	// vela-system only this file's names are touched.
 	AfterEach(func() {
-		for _, ns := range []string{"mig-one", "mig-one-other", "mig-team-a", "mig-team-b", "mig-cfg", "mig-cfg-all", "mig-all", "mig-all-1", "mig-all-2", "mig-gitops", "mig-upsert"} {
+		for _, ns := range []string{"mig-one", "mig-one-other", "mig-team-a", "mig-team-b", "mig-cfg", "mig-cfg-all", "mig-all", "mig-all-1", "mig-all-2", "mig-gitops", "mig-upsert", "mig-addon"} {
 			for _, obj := range []client.Object{&configv1alpha1.Config{}, &configv1alpha1.ConfigTemplate{}, &v1beta1.Application{}, &corev1.Secret{}, &corev1.ConfigMap{}} {
 				Expect(client.IgnoreNotFound(k8sClient.DeleteAllOf(ctx, obj, client.InNamespace(ns)))).Should(Succeed())
 			}
@@ -219,6 +221,56 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: name}}))).Should(Succeed())
 			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: name + "-local"}}))).Should(Succeed())
 		}
+	})
+
+	Context("an addon that installs its template as a ConfigTemplate beside its old ConfigMap", func() {
+		const ns = "mig-addon"
+		BeforeEach(func() { ensureNamespace(ns) })
+
+		// addonOwned gives obj the controller reference an addon's installer gives
+		// everything it installs.
+		addonOwned := func(obj client.Object, uid string) {
+			obj.SetOwnerReferences([]metav1.OwnerReference{{
+				APIVersion: "core.oam.dev/v1beta1", Kind: "Application", Name: "addon-registry",
+				UID: k8stypes.UID(uid), Controller: ptr.To(true),
+			}})
+			Expect(k8sClient.Update(ctx, obj)).Should(Succeed())
+		}
+		installCR := func(uid string) *configv1alpha1.ConfigTemplate {
+			ct := &configv1alpha1.ConfigTemplate{
+				ObjectMeta: metav1.ObjectMeta{Name: "registry", Namespace: ns},
+				Spec:       configv1alpha1.ConfigTemplateSpec{Template: "parameter: value: string\n", Scope: configv1alpha1.ConfigTemplateScopeNamespace},
+			}
+			Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+			addonOwned(ct, uid)
+			return ct
+		}
+
+		It("takes the CR for the ConfigMap when one Application controls both", func() {
+			cm := writeLegacyTemplate(ns, "registry", legacyTemplateCUE("registry", "namespace", false, ""))
+			addonOwned(cm, "addon-app-uid")
+			writeLegacyConfig(ns, "registry", ns, "cfg-r")
+			installCR("addon-app-uid")
+
+			report, err := migrator.MigrateConfig(ctx, ns, "cfg-r", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(resultFor(report, "Secret", ns, "cfg-r").Outcome).Should(Equal(MigrationAdopted))
+
+			report, err = migrator.MigrateTemplate(ctx, ns, "registry", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(resultFor(report, "ConfigMap", ns, "registry").Outcome).ShouldNot(Equal(MigrationConflict))
+		})
+
+		It("still reports a conflict when another Application controls the CR", func() {
+			cm := writeLegacyTemplate(ns, "registry", legacyTemplateCUE("registry", "namespace", false, ""))
+			addonOwned(cm, "addon-app-uid")
+			writeLegacyConfig(ns, "registry", ns, "cfg-o")
+			installCR("other-app-uid")
+
+			report, err := migrator.MigrateConfig(ctx, ns, "cfg-o", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(resultFor(report, "Secret", ns, "cfg-o").Outcome).Should(Equal(MigrationConflict))
+		})
 	})
 
 	Context("writing a Config over a legacy config", func() {
@@ -549,6 +601,11 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			var cm corev1.ConfigMap
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: TemplateConfigMapNamePrefix + "relabel-t"}, &cm)).Should(Succeed())
 			Expect(cm.Annotations).Should(HaveKeyWithValue(types.AnnotationConfigMigratedTo, string(ct.UID)))
+
+			report, err = migrator.MigrateTemplate(ctx, ns, "relabel-t", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(report.Results).Should(HaveLen(1))
+			Expect(report.Results[0].Outcome).Should(Equal(MigrationSkipped), report.Results[0].Reason)
 
 			writeLegacyConfig(ns, "relabel-t", ns, "cfg-relabel")
 			for _, dry := range []bool{true, false} {
