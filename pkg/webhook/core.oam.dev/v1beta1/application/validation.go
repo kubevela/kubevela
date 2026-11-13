@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
@@ -842,6 +843,9 @@ func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool
 // fixed - the usual compiler trade, fewer and more precise errors per round, and
 // the reason the phases are named in the errors they produce.
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
+	if errs := h.ValidateEarlierTrackers(ctx, app); len(errs) > 0 {
+		return errs, nil
+	}
 	errs, warnings := h.validateSoundness(ctx, app, nil, req)
 	if len(errs) > 0 {
 		return errs, warnings
@@ -995,4 +999,58 @@ func withoutStoredProblems(errs field.ErrorList, specUnchanged bool, validateSto
 		refused = append(refused, e)
 	}
 	return refused, warnings
+}
+
+// storedApplicationUID is the uid of the Application stored under app's name, empty for none. It
+// reads live where it can: the cache may not yet hold an Application created moments before.
+func (h *ValidatingHandler) storedApplicationUID(ctx context.Context, app *v1beta1.Application) (string, error) {
+	var reader client.Reader = h.Client
+	if h.APIReader != nil {
+		reader = h.APIReader
+	}
+	stored := &v1beta1.Application{}
+	if err := reader.Get(ctx, client.ObjectKeyFromObject(app), stored); err != nil {
+		return "", client.IgnoreNotFound(err)
+	}
+	return string(stored.UID), nil
+}
+
+// ValidateEarlierTrackers refuses a new Application while ResourceTrackers of an earlier
+// Application of its name and namespace remain, as a restore that included them leaves: the
+// controller would refuse them on every reconcile. A tracker without the uid label is taken over
+// by the next Application of the name, which is the remedy the refusal gives for a restore.
+func (h *ValidatingHandler) ValidateEarlierTrackers(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+	rts := &v1beta1.ResourceTrackerList{}
+	if err := h.Client.List(ctx, rts, client.MatchingLabels{oam.LabelAppName: app.Name, oam.LabelAppNamespace: app.Namespace}); err != nil {
+		return field.ErrorList{field.InternalError(field.NewPath("metadata", "name"), fmt.Errorf("list ResourceTrackers: %w", err))}
+	}
+	var errs field.ErrorList
+	stored, looked := "", false
+	for _, rt := range rts.Items {
+		uid := rt.Labels[oam.LabelAppUID]
+		if uid == "" || uid == string(app.UID) {
+			continue
+		}
+		// A create gets its uid before admission and is refused as AlreadyExists only after it,
+		// so the trackers of an Application still stored under this name are not an earlier one's.
+		if !looked {
+			var err error
+			if stored, err = h.storedApplicationUID(ctx, app); err != nil {
+				return field.ErrorList{field.InternalError(field.NewPath("metadata", "name"), fmt.Errorf("get Application: %w", err))}
+			}
+			looked = true
+		}
+		if uid == stored {
+			continue
+		}
+		deleting := ""
+		if rt.DeletionTimestamp != nil {
+			deleting = " It is being deleted, but only the Application that made it finishes that, and that Application is gone."
+		}
+		errs = append(errs, field.Forbidden(field.NewPath("metadata", "name"), fmt.Sprintf(
+			"ResourceTracker %s of an earlier Application %s/%s (uid %s) still exists, as a restore that included ResourceTrackers leaves.%s %s. "+
+				"Then apply the Application again.",
+			rt.Name, app.Namespace, app.Name, uid, deleting, appkeeper.ForeignTrackerRemedy(rt.Name))))
+	}
+	return errs
 }
