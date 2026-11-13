@@ -61,9 +61,16 @@ func ExtractSensitiveOutputPaths(template string) []string {
 }
 
 // collectSensitivePaths walks a struct literal and records the dotted path of
-// every field carrying a `// +sensitive` marker, descending into nested structs.
+// every field carrying a `// +sensitive` marker, descending into nested structs
+// and into the fields a comprehension (`if` or `for`) adds to this one.
 func collectSensitivePaths(st *ast.StructLit, prefix []string, out *[]string) {
 	for _, elt := range st.Elts {
+		if comp, ok := elt.(*ast.Comprehension); ok {
+			for _, body := range structsUnder(comp.Value) {
+				collectSensitivePaths(body, prefix, out)
+			}
+			continue
+		}
 		field, ok := elt.(*ast.Field)
 		if !ok {
 			continue
@@ -89,11 +96,14 @@ func collectSensitivePaths(st *ast.StructLit, prefix []string, out *[]string) {
 }
 
 // structsUnder returns the struct literals a field's value descends into: the
-// value itself, or the elements of a list.
+// value itself, the elements of a list, or what a list comprehension makes for
+// each element.
 func structsUnder(v ast.Expr) []*ast.StructLit {
 	switch val := v.(type) {
 	case *ast.StructLit:
 		return []*ast.StructLit{val}
+	case *ast.Comprehension:
+		return structsUnder(val.Value)
 	case *ast.ListLit:
 		var out []*ast.StructLit
 		for _, elt := range val.Elts {
