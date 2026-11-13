@@ -54,7 +54,12 @@ var _ = Describe("Applications are judged by the context their policies declare"
 			Object:    runtime.RawExtension{Raw: raw},
 		}}
 		if op == admissionv1.Update {
-			req.OldObject = runtime.RawExtension{Raw: raw}
+			// The stored Application reads a declared key, so the update is what introduces the read.
+			old := ctxApp("ctx-reads-team", nil)
+			old.TypeMeta, old.Namespace = app.TypeMeta, app.Namespace
+			oldRaw, err := json.Marshal(old)
+			Expect(err).NotTo(HaveOccurred())
+			req.OldObject = runtime.RawExtension{Raw: oldRaw}
 		}
 		return req
 	}

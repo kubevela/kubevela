@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
+
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
@@ -51,6 +53,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/sources"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // ValidateWorkflow validates the Application workflow
@@ -740,9 +743,7 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 	if len(errs) > 0 {
 		return errs, warnings
 	}
-	errs = h.ValidateComponents(ctx, app)
-	errs = append(errs, h.ValidateAddonComponents(ctx, app)...)
-	return append(errs, h.ValidateModuleComponents(ctx, app)...), warnings
+	return h.validateRendering(ctx, app), warnings
 }
 
 // validateSoundness runs every check that can be made without rendering: whether
@@ -752,12 +753,21 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 // Nothing here evaluates a template or resolves a source, so it is cheap and has
 // no side effects.
 func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
-	var errs field.ErrorList
+	errs := h.validateRequester(ctx, app, oldApp, req)
+	contentErrs, warnings := h.validateContent(ctx, app, oldApp)
+	return append(errs, contentErrs...), warnings
+}
 
-	errs = append(errs, h.ValidateAnnotations(ctx, app, oldApp, req)...)
-	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
-	restrictionErrs, warnings := h.ValidateDefinitionRestrictions(ctx, app, oldApp)
-	errs = append(errs, restrictionErrs...)
+// validateRequester runs the soundness checks that turn on who is asking: whether they may set
+// the annotations they set, and use the definitions the Application names.
+func (h *ValidatingHandler) validateRequester(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
+	errs := h.ValidateAnnotations(ctx, app, oldApp, req)
+	return append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
+}
+
+// validateContent runs the soundness checks on what the Application says.
+func (h *ValidatingHandler) validateContent(ctx context.Context, app, oldApp *v1beta1.Application) (field.ErrorList, []string) {
+	errs, warnings := h.ValidateDefinitionRestrictions(ctx, app, oldApp)
 	errs = append(errs, h.ValidateSources(ctx, app)...)
 	errs = append(errs, h.ValidateAbstractTypes(ctx, app)...)
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
@@ -766,17 +776,118 @@ func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *
 	return errs, warnings
 }
 
+// validateRendering renders the Application's components.
+func (h *ValidatingHandler) validateRendering(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+	errs := h.ValidateComponents(ctx, app)
+	errs = append(errs, h.ValidateAddonComponents(ctx, app)...)
+	return append(errs, h.ValidateModuleComponents(ctx, app)...)
+}
+
 // ValidateUpdate validates the Application on update
 //
 // The immutable-field check is soundness, not rendering, so it gates the render
 // alongside the rest rather than being reported after it.
+//
+// An update that leaves the spec as it is cannot be refused for a problem the stored
+// Application already has: a rule added since it was admitted would otherwise refuse every
+// later label, annotation or publishVersion change, and only deletion would get past it. Such a
+// problem is returned as a warning. The checks on who is asking, and any spec change, are
+// enforced in full.
 func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
-	errs, warnings := h.validateSoundness(ctx, newApp, oldApp, req)
+	// A definition removed since is no rule that changed: the Application can no longer render,
+	// so its update is validated in full.
+	specUnchanged := apiequality.Semantic.DeepEqual(newApp.Spec, oldApp.Spec) && !h.usesMissingDefinition(ctx, newApp)
+	errs := h.validateRequester(ctx, newApp, oldApp, req)
 	errs = append(errs, h.ValidateImmutableFields(ctx, newApp, oldApp)...)
+	contentErrs, warnings := h.validateContent(ctx, newApp, oldApp)
+	contentErrs, stored := withoutStoredProblems(contentErrs, specUnchanged, func() field.ErrorList {
+		storedErrs, _ := h.validateContent(ctx, oldApp, oldApp)
+		return storedErrs
+	})
+	errs = append(errs, contentErrs...)
+	warnings = append(warnings, stored...)
 	if len(errs) > 0 {
 		return errs, warnings
 	}
-	errs = append(errs, h.ValidateComponents(ctx, newApp)...)
-	errs = append(errs, h.ValidateAddonComponents(ctx, newApp)...)
-	return append(errs, h.ValidateModuleComponents(ctx, newApp)...), warnings
+	renderErrs, stored := withoutStoredProblems(h.validateRendering(ctx, newApp), specUnchanged, func() field.ErrorList {
+		return h.validateRendering(ctx, oldApp)
+	})
+	return renderErrs, append(warnings, stored...)
+}
+
+// usesMissingDefinition reports a type in app whose definition does not exist: a component, trait,
+// policy, workflow step or source type, resolved as admission resolves it (Form 3 module references
+// included). Built-in policy and workflow step types have no definition and are left out; a type
+// that does not resolve at all is a different problem, reported by the rest of validation.
+func (h *ValidatingHandler) usesMissingDefinition(ctx context.Context, app *v1beta1.Application) bool {
+	defCtx := oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	missing := func(typ string, capType types.CapType, def client.Object) bool {
+		resolved, err := appfile.ResolveModuleType(defCtx, h.Client, typ, capType)
+		if err != nil {
+			return false
+		}
+		return errors.IsNotFound(oamutil.GetDefinition(defCtx, h.Client, def, baseDefinitionName(resolved)))
+	}
+	for _, comp := range app.Spec.Components {
+		if missing(comp.Type, types.TypeComponentDefinition, &v1beta1.ComponentDefinition{}) {
+			return true
+		}
+		for _, trait := range comp.Traits {
+			if missing(trait.Type, types.TypeTrait, &v1beta1.TraitDefinition{}) {
+				return true
+			}
+		}
+	}
+	for _, policy := range app.Spec.Policies {
+		if !appfile.IsBuiltinPolicyType(policy.Type) && missing(policy.Type, types.TypePolicy, &v1beta1.PolicyDefinition{}) {
+			return true
+		}
+	}
+	for _, src := range app.Spec.Sources {
+		if missing(src.Type, types.TypeSource, &v1beta1.SourceDefinition{}) {
+			return true
+		}
+	}
+	if app.Spec.Workflow != nil {
+		stepMissing := func(typ string) bool {
+			return !step.IsBuiltinWorkflowStepType(typ) && missing(typ, types.TypeWorkflowStep, &v1beta1.WorkflowStepDefinition{})
+		}
+		for _, s := range app.Spec.Workflow.Steps {
+			if stepMissing(s.Type) {
+				return true
+			}
+			for _, sub := range s.SubSteps {
+				if stepMissing(sub.Type) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// withoutStoredProblems returns errs less those the stored Application also has, and a warning
+// for each of those, when the spec is unchanged; otherwise errs as they are. The stored
+// Application is validated only when there is something to compare. Errors are compared by
+// path, type and detail: some carry the whole Application as their value, metadata included.
+func withoutStoredProblems(errs field.ErrorList, specUnchanged bool, validateStored func() field.ErrorList) (field.ErrorList, []string) {
+	if len(errs) == 0 || !specUnchanged {
+		return errs, nil
+	}
+	type problem struct{ path, kind, detail string }
+	key := func(e *field.Error) problem { return problem{e.Field, string(e.Type), e.Detail} }
+	had := map[problem]bool{}
+	for _, e := range validateStored() {
+		had[key(e)] = true
+	}
+	var refused field.ErrorList
+	var warnings []string
+	for _, e := range errs {
+		if had[key(e)] {
+			warnings = append(warnings, fmt.Sprintf("%s: %s (the stored Application already has this problem; fix it before changing the spec)", e.Field, e.Detail))
+			continue
+		}
+		refused = append(refused, e)
+	}
+	return refused, warnings
 }

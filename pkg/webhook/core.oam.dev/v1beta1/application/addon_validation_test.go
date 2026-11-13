@@ -127,7 +127,10 @@ func TestValidateAddonComponentsAggregatesErrorsForCreateAndUpdate(t *testing.T)
 	assert.Contains(t, createErrs, addonErr)
 	assert.Equal(t, 1, validator.calls)
 
-	updateErrs, _ := handler.ValidateUpdate(context.Background(), app, app.DeepCopy(), req)
+	// The stored Application has no components, so the update is what introduces the addon.
+	stored := app.DeepCopy()
+	stored.Spec.Components = nil
+	updateErrs, _ := handler.ValidateUpdate(context.Background(), app, stored, req)
 	assert.Contains(t, updateErrs, addonErr)
 	assert.Equal(t, 2, validator.calls)
 }
