@@ -33,6 +33,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -78,6 +79,11 @@ func TestAWorkflowRefIsReadAsTheAuthor(t *testing.T) {
 	}
 
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.AuthenticateApplication, true)
+	// The author's username is trusted only with authentication.withUser on; otherwise every
+	// Application runs as the default user.
+	withUser := auth.AuthenticationWithUser
+	auth.AuthenticationWithUser = true
+	t.Cleanup(func() { auth.AuthenticationWithUser = withUser })
 	_, err := parse("tenant")
 	require.ErrorContains(t, err, `cannot read Workflow "vela-system/release"`)
 	require.ErrorContains(t, err, `"tenant"`)
