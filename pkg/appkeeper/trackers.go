@@ -133,8 +133,8 @@ func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 	}
 	for _, _rt := range rts {
 		rt := _rt.DeepCopy()
-		if rt.GetLabels() != nil && rt.GetLabels()[oam.LabelAppUID] != "" && rt.GetLabels()[oam.LabelAppUID] != string(app.UID) {
-			return nil, nil, nil, nil, fmt.Errorf("resourcetracker %s exists but controlled by another application (uid: %s), this could probably be cased by some mistakes while garbage collecting outdated resource. Please check this resourcetrakcer and delete it manually", rt.Name, rt.GetLabels()[oam.LabelAppUID])
+		if uid := rt.GetLabels()[oam.LabelAppUID]; uid != "" && uid != string(app.UID) {
+			return nil, nil, nil, nil, foreignTrackerError(rt.Name, uid, app)
 		}
 		switch rt.Spec.Type {
 		case v1beta1.ResourceTrackerTypeRoot:
@@ -162,4 +162,25 @@ func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 		return nil, nil, nil, nil, fmt.Errorf("current publish version %s(gen-%d) is in-use and outdated, found newer gen-%d", getPublishVersion(app), currentRT.Spec.ApplicationGeneration, historyRTs[len(historyRTs)-1].Spec.ApplicationGeneration)
 	}
 	return rootRT, currentRT, historyRTs, crRT, nil
+}
+
+// foreignTrackerError is the refusal of a ResourceTracker recorded for another Application of
+// the same name. It is not adopted on its own: a tracker left by a deleted Application looks the
+// same as one restored for this one, and adopting it would garbage-collect resources this one does
+// not render. One without the uid label is adopted, so removing the label is the remedy for a
+// restore. The finalizer is only removed by its own Application, so a plain delete would hang.
+func foreignTrackerError(rtName, uid string, app *v1beta1.Application) error {
+	return fmt.Errorf("ResourceTracker %s belongs to an earlier Application %s/%s (uid %s), not this one (uid %s). "+
+		"This follows a restore that included ResourceTrackers, or an Application deleted and created again before its "+
+		"resources were cleaned up. %s",
+		rtName, app.Namespace, app.Name, uid, app.UID, ForeignTrackerRemedy(rtName))
+}
+
+// ForeignTrackerRemedy is what to do with an earlier Application's ResourceTracker rtName: the
+// controller and the Application webhook both name it, in these words.
+func ForeignTrackerRemedy(rtName string) string {
+	return fmt.Sprintf("For this Application to take it over with its resources (a restore): "+
+		"kubectl label resourcetracker %s app.oam.dev/uid-. Otherwise remove it, leaving its resources in place: "+
+		`kubectl patch resourcetracker %s --type merge -p '{"metadata":{"finalizers":null}}' && kubectl delete resourcetracker %s`,
+		rtName, rtName, rtName)
 }

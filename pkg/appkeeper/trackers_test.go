@@ -86,7 +86,14 @@ func TestCreateAndListResourceTrackers(t *testing.T) {
 	r.NoError(cli.Create(context.Background(), badRT))
 	_, _, _, _, err = ListApplicationResourceTrackers(context.Background(), cli, app)
 	r.Error(err)
-	r.Contains(err.Error(), "controlled by another application")
+	for _, says := range []string{
+		"ResourceTracker bad-rt belongs to an earlier Application " + app.Namespace + "/" + app.Name + " (uid bad-uid)",
+		"a restore that included ResourceTrackers",
+		"kubectl label resourcetracker bad-rt app.oam.dev/uid-",
+		`kubectl patch resourcetracker bad-rt --type merge -p '{"metadata":{"finalizers":null}}'`,
+	} {
+		r.Contains(err.Error(), says)
+	}
 }
 
 func TestPublishedVersion(t *testing.T) {
