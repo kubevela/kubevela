@@ -20,10 +20,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	wfv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -96,7 +98,11 @@ func (h *ValidatingHandler) checkDefinitionRestrictions(ctx context.Context, app
 		c.checkDefinition(defType, func() client.Object { return &v1beta1.SourceDefinition{} },
 			sourceTypePaths(indices))
 	}
-	for _, use := range c.indirectUses() {
+	r := indirectReach(ctx, h.Client, app)
+	for _, u := range r.unreadable {
+		c.unevaluable([]*field.Path{u.path}, u.err)
+	}
+	for _, use := range r.uses {
 		def := c.checkDefinition(use.defType, use.newDef, []*field.Path{use.path})
 		switch use.usage {
 		case velacache.UsageComponent:
@@ -127,52 +133,138 @@ type indirectUse struct {
 	usage string
 }
 
-// indirectUses lists the definitions the renderer will use that the spec does not name inline:
-// component types and traits an override policy sets, and the steps of the Workflow
-// spec.workflow.ref names. Each is reported at the field that brings it in.
-func (c *restrictionCheck) indirectUses() []indirectUse {
-	component := func() client.Object { return &v1beta1.ComponentDefinition{} }
-	trait := func() client.Object { return &v1beta1.TraitDefinition{} }
-	workflowStep := func() client.Object { return &v1beta1.WorkflowStepDefinition{} }
-	var uses []indirectUse
-	for i, policy := range c.app.Spec.Policies {
-		if policy.Type != v1alpha1.OverridePolicyType || policy.Properties == nil {
-			continue
-		}
-		spec := &v1alpha1.OverridePolicySpec{}
-		if err := json.Unmarshal(policy.Properties.Raw, spec); err != nil {
-			continue // the policy's own validation reports it
-		}
-		components := field.NewPath("spec", "policies").Index(i).Child("properties", "components")
-		for j, comp := range spec.Components {
-			if comp.Type != "" {
-				uses = append(uses, indirectUse{comp.Type, component, components.Index(j).Child("type"), velacache.UsageComponent})
-			}
-			for k, tr := range comp.Traits {
-				uses = append(uses, indirectUse{tr.Type, trait, components.Index(j).Child("traits").Index(k).Child("type"), velacache.UsageTrait})
-			}
+// referencedObject is a Workflow or Policy object an Application reads through a reference.
+type referencedObject struct {
+	kind, resource, namespace, name string
+	path                            *field.Path
+}
+
+// unreadableReference is a reference whose object could not be read, so what it brings in is
+// unknown.
+type unreadableReference struct {
+	path *field.Path
+	err  error
+}
+
+// reach is what an Application uses beyond what it names inline.
+type reach struct {
+	uses       []indirectUse
+	objects    []referencedObject
+	unreadable []unreadableReference
+}
+
+// indirectReach lists the definitions the renderer will use that the spec does not name inline,
+// each at the field that brings it in: component types and traits an override policy sets, the
+// steps of the Workflow spec.workflow.ref names, and the Policy objects a deploy step loads by
+// name, with what those set if they are overrides. It reads the referenced objects as the
+// controller does, and lists them, so a caller can check the requester may read them too.
+func indirectReach(ctx context.Context, cli client.Client, app *v1beta1.Application) reach {
+	var r reach
+	inline := map[string]bool{}
+	for i, policy := range app.Spec.Policies {
+		inline[policy.Name] = true
+		if policy.Type == v1alpha1.OverridePolicyType {
+			r.addOverride(policy.Properties, field.NewPath("spec", "policies").Index(i).Child("properties", "components"))
 		}
 	}
-	if wf := c.app.Spec.Workflow; wf != nil && wf.Ref != "" {
-		ref := field.NewPath("spec", "workflow", "ref")
-		refWorkflow, err := step.GetRefWorkflow(c.ctx, c.h.Client, c.app.Namespace, wf.Ref)
-		switch {
-		case errors.IsNotFound(err):
-			// the render reports a Workflow that is not there
-		case err != nil:
-			c.unevaluable([]*field.Path{ref}, fmt.Errorf("cannot read Workflow %q to check its steps' restrictions: %w", wf.Ref, err))
-		default:
-			for _, s := range refWorkflow.Steps {
-				for _, t := range append([]string{s.Type}, subStepTypes(s)...) {
-					if !step.IsBuiltinWorkflowStepType(t) {
-						uses = append(uses, indirectUse{t, workflowStep, ref, ""})
+	if wf := app.Spec.Workflow; wf != nil {
+		steps := field.NewPath("spec", "workflow", "steps")
+		for i, s := range wf.Steps {
+			r.addDeployPolicies(ctx, cli, app.Namespace, inline, s, func(j int) *field.Path {
+				return steps.Index(i).Child("properties", "policies").Index(j)
+			})
+		}
+		if wf.Ref != "" {
+			ref := field.NewPath("spec", "workflow", "ref")
+			refWorkflow, err := step.GetRefWorkflow(ctx, cli, app.Namespace, wf.Ref)
+			switch {
+			case errors.IsNotFound(err):
+				// the render reports a Workflow that is not there
+			case err != nil:
+				r.unreadable = append(r.unreadable, unreadableReference{ref, fmt.Errorf("cannot read Workflow %q to check the definitions its steps use: %w", wf.Ref, err)})
+			default:
+				r.objects = append(r.objects, referencedObject{"Workflow", "workflows", refWorkflow.Namespace, refWorkflow.Name, ref})
+				for _, s := range refWorkflow.Steps {
+					for _, t := range append([]string{s.Type}, subStepTypes(s)...) {
+						if !step.IsBuiltinWorkflowStepType(t) {
+							r.uses = append(r.uses, indirectUse{t, newWorkflowStepDefinition, ref, ""})
+						}
 					}
+					r.addDeployPolicies(ctx, cli, app.Namespace, inline, s, func(int) *field.Path { return ref })
 				}
 			}
 		}
 	}
-	return uses
+	return r
 }
+
+// addOverride adds the component types and traits an override policy's properties set.
+func (r *reach) addOverride(properties *runtime.RawExtension, components *field.Path) {
+	if properties == nil {
+		return
+	}
+	spec := &v1alpha1.OverridePolicySpec{}
+	if err := json.Unmarshal(properties.Raw, spec); err != nil {
+		return // the policy's own validation reports it
+	}
+	for j, comp := range spec.Components {
+		if comp.Type != "" {
+			r.uses = append(r.uses, indirectUse{comp.Type, newComponentDefinition, components.Index(j).Child("type"), velacache.UsageComponent})
+		}
+		for k, tr := range comp.Traits {
+			r.uses = append(r.uses, indirectUse{tr.Type, newTraitDefinition, components.Index(j).Child("traits").Index(k).Child("type"), velacache.UsageTrait})
+		}
+	}
+}
+
+// addDeployPolicies adds the Policy objects a deploy step, or its sub-steps, loads by name: the
+// names not declared inline, read from the Application's namespace as the controller reads them.
+// pathOf gives the field a name at index j is reported at.
+func (r *reach) addDeployPolicies(ctx context.Context, cli client.Client, namespace string, inline map[string]bool,
+	s wfv1alpha1.WorkflowStep, pathOf func(j int) *field.Path) {
+	steps := append([]wfv1alpha1.WorkflowStepBase{s.WorkflowStepBase}, s.SubSteps...)
+	for _, st := range steps {
+		if st.Type != step.DeployWorkflowStep || st.Properties == nil {
+			continue
+		}
+		props := struct {
+			Policies []interface{} `json:"policies"`
+		}{}
+		if err := json.Unmarshal(st.Properties.Raw, &props); err != nil {
+			continue // the step's own validation reports it
+		}
+		for j, entry := range props.Policies {
+			name, ok := entry.(string)
+			if !ok || inline[name] || strings.Contains(name, "$(") {
+				continue // an expression is resolved at render
+			}
+			path := pathOf(j)
+			po := &v1alpha1.Policy{}
+			switch err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, po); {
+			case errors.IsNotFound(err):
+				continue // the render reports a Policy that is not there
+			case err != nil:
+				r.unreadable = append(r.unreadable, unreadableReference{path, fmt.Errorf("cannot read Policy %q to check the definition it uses: %w", name, err)})
+				continue
+			}
+			r.objects = append(r.objects, referencedObject{"Policy", "policies", namespace, name, path})
+			r.uses = append(r.uses, indirectUse{po.Type, newPolicyDefinition, path, ""})
+			if po.Type == v1alpha1.OverridePolicyType {
+				before := len(r.uses)
+				r.addOverride(po.Properties, path)
+				// An external override's fields are reported at the reference that loads it.
+				for k := before; k < len(r.uses); k++ {
+					r.uses[k].path = path
+				}
+			}
+		}
+	}
+}
+
+func newComponentDefinition() client.Object    { return &v1beta1.ComponentDefinition{} }
+func newTraitDefinition() client.Object        { return &v1beta1.TraitDefinition{} }
+func newPolicyDefinition() client.Object       { return &v1beta1.PolicyDefinition{} }
+func newWorkflowStepDefinition() client.Object { return &v1beta1.WorkflowStepDefinition{} }
 
 func subStepTypes(s wfv1alpha1.WorkflowStep) []string {
 	var types []string
