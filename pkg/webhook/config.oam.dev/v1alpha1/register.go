@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/oam-dev/kubevela/pkg/webhook/config.oam.dev/v1alpha1/config"
+	"github.com/oam-dev/kubevela/pkg/webhook/config.oam.dev/v1alpha1/configsecret"
 	"github.com/oam-dev/kubevela/pkg/webhook/config.oam.dev/v1alpha1/configtemplate"
 )
 
@@ -27,4 +28,5 @@ import (
 func Register(mgr manager.Manager) {
 	configtemplate.RegisterValidatingHandler(mgr)
 	config.RegisterValidatingHandler(mgr)
+	configsecret.RegisterValidatingHandler(mgr)
 }

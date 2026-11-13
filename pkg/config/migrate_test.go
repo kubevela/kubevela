@@ -205,7 +205,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 	// here is removed again. The scenario namespaces are this file's own; in
 	// vela-system only this file's names are touched.
 	AfterEach(func() {
-		for _, ns := range []string{"mig-one", "mig-one-other", "mig-team-a", "mig-team-b", "mig-cfg", "mig-cfg-all", "mig-all", "mig-all-1", "mig-all-2", "mig-gitops"} {
+		for _, ns := range []string{"mig-one", "mig-one-other", "mig-team-a", "mig-team-b", "mig-cfg", "mig-cfg-all", "mig-all", "mig-all-1", "mig-all-2", "mig-gitops", "mig-upsert"} {
 			for _, obj := range []client.Object{&configv1alpha1.Config{}, &configv1alpha1.ConfigTemplate{}, &v1beta1.Application{}, &corev1.Secret{}, &corev1.ConfigMap{}} {
 				Expect(client.IgnoreNotFound(k8sClient.DeleteAllOf(ctx, obj, client.InNamespace(ns)))).Should(Succeed())
 			}
@@ -219,6 +219,98 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: name}}))).Should(Succeed())
 			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: name + "-local"}}))).Should(Succeed())
 		}
+	})
+
+	Context("writing a Config over a legacy config", func() {
+		const ns = "mig-upsert"
+		BeforeEach(func() { ensureNamespace(ns) })
+
+		upsert := func(name, value string) error {
+			cfg, properties, err := BuildConfigCR(ConfigCRSpec{
+				Name: name, Namespace: ns,
+				Template:   &NamespacedName{Namespace: ns, Name: "team"},
+				Properties: map[string]interface{}{"value": value},
+			})
+			Expect(err).Should(Succeed())
+			return UpsertConfigCR(ctx, k8sClient, cfg, properties)
+		}
+
+		It("adopts the legacy Secret first, so the Config takes it over with the new value", func() {
+			writeLegacyTemplate(ns, "team", legacyTemplateCUE("team", "namespace", false, ""))
+			secret := writeLegacyConfig(ns, "team", ns, "cfg-u")
+
+			Expect(upsert("cfg-u", "v2")).Should(Succeed())
+
+			cfg := getConfig(ns, "cfg-u")
+			Expect(CreatedByMigration(cfg)).Should(BeTrue(), "migration created the Config, so the Config controller may write the Secret")
+			Expect(string(cfg.Spec.Properties.Raw)).Should(MatchJSON(`{"value":"v2"}`))
+			after := getSecret(ns, "cfg-u")
+			Expect(after.UID).Should(Equal(secret.UID))
+			Expect(controllerOf(after)).ShouldNot(BeNil())
+			Expect(controllerOf(after).UID).Should(Equal(cfg.UID))
+		})
+
+		It("refuses, writing nothing, when a Config it did not create holds the name", func() {
+			writeLegacyTemplate(ns, "team", legacyTemplateCUE("team", "namespace", false, ""))
+			secret := writeLegacyConfig(ns, "team", ns, "cfg-h")
+			Expect(k8sClient.Create(ctx, &configv1alpha1.Config{
+				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "cfg-h"},
+				Spec:       configv1alpha1.ConfigSpec{Alias: "mine"},
+			})).Should(Succeed())
+
+			err := upsert("cfg-h", "v2")
+			Expect(err).Should(MatchError(ContainSubstring("Config cfg-h exists and was not created by migration")))
+			Expect(getConfig(ns, "cfg-h").Spec.Alias).Should(Equal("mine"))
+			Expect(getSecret(ns, "cfg-h").ResourceVersion).Should(Equal(secret.ResourceVersion))
+		})
+
+		It("refuses, writing nothing, when migration skips the legacy config", func() {
+			cm := writeLegacyTemplate(ns, "held", legacyTemplateCUE("held", "namespace", false, ""))
+			setAnnotation(cm, types.AnnotationConfigMigrate, "false")
+			Expect(k8sClient.Update(ctx, cm)).Should(Succeed())
+			secret := writeLegacyConfig(ns, "held", ns, "cfg-held")
+
+			err := upsert("cfg-held", "v2")
+			Expect(err).Should(MatchError(ContainSubstring("could not be adopted")))
+			Expect(apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "cfg-held"}, &configv1alpha1.Config{}))).Should(BeTrue())
+			Expect(getSecret(ns, "cfg-held").ResourceVersion).Should(Equal(secret.ResourceVersion))
+		})
+
+		It("adopts a legacy config whose migration mark names a Config that is gone", func() {
+			writeLegacyTemplate(ns, "team", legacyTemplateCUE("team", "namespace", false, ""))
+			secret := writeLegacyConfig(ns, "team", ns, "cfg-stale")
+			setAnnotation(secret, types.AnnotationConfigMigratedTo, "uid-of-a-deleted-config")
+			Expect(k8sClient.Update(ctx, secret)).Should(Succeed())
+
+			Expect(upsert("cfg-stale", "v2")).Should(Succeed())
+
+			cfg := getConfig(ns, "cfg-stale")
+			Expect(CreatedByMigration(cfg)).Should(BeTrue())
+			Expect(controllerOf(getSecret(ns, "cfg-stale"))).ShouldNot(BeNil())
+			Expect(controllerOf(getSecret(ns, "cfg-stale")).UID).Should(Equal(cfg.UID), "the Config holds the Secret, not beside it")
+		})
+
+		It("refuses, adopting nothing, when a Secret it did not write holds the companion's name", func() {
+			writeLegacyTemplate(ns, "team-s", legacyTemplateCUE("team-s", "namespace", true, ""))
+			secret := writeLegacyConfig(ns, "team-s", ns, "cfg-c")
+			Expect(k8sClient.Create(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: PropertiesSecretName("cfg-c")}})).Should(Succeed())
+			cfg, properties, err := BuildConfigCR(ConfigCRSpec{
+				Name: "cfg-c", Namespace: ns, Template: &NamespacedName{Namespace: ns, Name: "team-s"},
+				Sensitive: true, Properties: map[string]interface{}{"value": "v2"},
+			})
+			Expect(err).Should(Succeed())
+			Expect(properties).ShouldNot(BeNil())
+
+			Expect(UpsertConfigCR(ctx, k8sClient, cfg, properties)).Should(MatchError(ContainSubstring("is not the properties secret of config cfg-c")))
+			Expect(apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "cfg-c"}, &configv1alpha1.Config{}))).Should(BeTrue(), "no Config written")
+			Expect(getSecret(ns, "cfg-c").ResourceVersion).Should(Equal(secret.ResourceVersion), "the legacy Secret untouched")
+		})
+
+		It("writes a new config with no legacy Secret as before", func() {
+			writeLegacyTemplate(ns, "team", legacyTemplateCUE("team", "namespace", false, ""))
+			Expect(upsert("cfg-n", "v1")).Should(Succeed())
+			Expect(CreatedByMigration(getConfig(ns, "cfg-n"))).Should(BeFalse())
+		})
 	})
 
 	Context("one template with its configs", func() {
