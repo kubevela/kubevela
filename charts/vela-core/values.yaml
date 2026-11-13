@@ -287,8 +287,16 @@ featureGates:
 ##           # it, set the limit once you know.
 ##           - warn: 5
 ##
-## @param definitionRestrictions Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default)
-definitionRestrictions: {}
+## `addon` is restricted to vela-system by default: an addon component installs the addon,
+## its Application in vela-system and its cluster-scoped resources, with the controller's
+## identity, which is the platform's to decide. Override `addon` to change it.
+##
+## @extra definitionRestrictions Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default)
+## @param definitionRestrictions.overrides.addon.namespaces Namespaces whose Applications may use the `addon` component type
+definitionRestrictions:
+  overrides:
+    addon:
+      namespaces: ["vela-system"]
 
 ## @section Builtin definitions parameters
 

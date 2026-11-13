@@ -115,7 +115,8 @@ func TestValidateAddonComponentsAggregatesErrorsForCreateAndUpdate(t *testing.T)
 	scheme := runtime.NewScheme()
 	_ = v1beta1.AddToScheme(scheme)
 	handler := &ValidatingHandler{
-		Client:         fake.NewClientBuilder().WithScheme(scheme).Build(),
+		// Allows every access review, so the author may install addons and the checks run on.
+		Client:         &askingClient{Client: fake.NewClientBuilder().WithScheme(scheme).Build()},
 		addonValidator: validator,
 	}
 	app := addonApplication()

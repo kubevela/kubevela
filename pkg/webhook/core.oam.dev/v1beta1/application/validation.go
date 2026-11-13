@@ -862,10 +862,12 @@ func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *
 }
 
 // validateRequester runs the soundness checks that turn on who is asking: whether they may set
-// the annotations they set, and use the definitions the Application names.
+// the annotations they set, use the definitions the Application names, and install the addons
+// its addon components name.
 func (h *ValidatingHandler) validateRequester(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
 	errs := h.ValidateAnnotations(ctx, app, oldApp, req)
-	return append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
+	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
+	return append(errs, h.ValidateAddonInstallers(ctx, app, req)...)
 }
 
 // validateContent runs the soundness checks on what the Application says.
