@@ -3,7 +3,7 @@ import "vela/test"
 // Rendering a chart fetches it, so helm.#Render is mocked.
 _chart: {
 	definition: "helmchart"
-	context: {name: "redis", appName: "shop", namespace: "team-a"}
+	context: {name: "redis", appName: "shop", namespace: *"team-a" | string}
 	_source: *"redis" | string
 	parameter: chart: {source: _source, repoURL: "https://charts.example.com", version: "18.1.0"}
 	_resources: *[
@@ -56,6 +56,14 @@ _chart: {
 
 "a render for the hub names the local cluster": test.#ComponentRender & _chart & {
 	expect: calls: "vela/helm": "#Render": [{$params: context: cluster: "local"}]
+}
+
+"a topology namespace takes the release, and the Application keeps ownership": test.#ComponentRender & _chart & {
+	context: {namespace: "team-a-prod", appNamespace: "team-a"}
+	expect: calls: "vela/helm": "#Render": [{$params: {
+		release: {name: "redis", namespace: "team-a-prod"}
+		context: {appNamespace: "team-a", namespace: "team-a-prod"}
+	}}]
 }
 
 "a named release keeps the Application's namespace": test.#ComponentRender & _chart & {

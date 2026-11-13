@@ -1058,6 +1058,7 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) velaprocess
 		// has one. Callers rendering for a specific cluster overwrite this.
 		Cluster:              pkgmulticluster.Local,
 		Namespace:            appfile.Namespace,
+		AppNamespace:         appfile.Namespace,
 		AppName:              appfile.Name,
 		CompName:             wlName,
 		AppRevisionName:      appfile.AppRevisionName,

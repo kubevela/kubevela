@@ -74,7 +74,7 @@ func Status(s Subject, in Input, observed Observed) (*StatusReport, error) {
 		return nil, err
 	}
 
-	accessor := util.NewApplicationResourceNamespaceAccessor(r.namespace, "")
+	accessor := util.NewApplicationResourceNamespaceAccessor(r.namespace, r.placement)
 	var errs []string
 	report := &StatusReport{Traits: map[string]*health.StatusResult{}}
 	if s.Kind == KindTrait {
@@ -169,7 +169,7 @@ func seedCluster(r *rendering, observed Observed) (client.Client, error) {
 		case clusterScoped(obj.GroupVersionKind()):
 			obj.SetNamespace("")
 		case obj.GetNamespace() == "":
-			obj.SetNamespace(r.namespace)
+			obj.SetNamespace(or(r.placement, r.namespace))
 		}
 		if obj.GetGeneration() == 0 {
 			obj.SetGeneration(1)

@@ -51,8 +51,11 @@ const (
 	ContextAppSourceSensitivePaths = "appSourceSensitivePaths"
 	// ContextAppSourceCacheStore stores the source cache store used for source cache access.
 	ContextAppSourceCacheStore = "appSourceCacheStore"
-	// ContextNamespace is the namespace of the app
+	// ContextNamespace is the namespace being rendered for: the Application's, or the one a
+	// topology policy places the component in
 	ContextNamespace = "namespace"
+	// ContextAppNamespace is the Application's own namespace, wherever the component is placed
+	ContextAppNamespace = "appNamespace"
 	// ContextCluster is the cluster currently focusing on
 	ContextCluster = "cluster"
 	// ContextClusterVersion is the version object info of cluster
