@@ -383,7 +383,9 @@ admissionWebhooks:
   # Tools that render without cluster access (Argo CD, helm template) render
   # failurePolicy: Ignore. For Argo CD, add an ignoreDifferences entry with
   # jqPathExpressions: [".webhooks[].failurePolicy"]. When patch.enabled=false
-  # and cert-manager is off, supply the Secret and the caBundle yourself.
+  # and cert-manager is off, supply the Secret and the caBundle yourself. With
+  # cert-manager or a supplied Secret, the chart renders failurePolicy as set
+  # here from the start, so with Fail writes are refused until the caBundle is in place.
   # Only patch.enabled is still read. image, nodeSelector, affinity and
   # tolerations configured the removed cert Jobs and are kept so existing values
   # files still apply.
