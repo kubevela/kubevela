@@ -156,7 +156,7 @@ classifier needs structured changes. Handlers never shell out and never call a m
 
 | Tool | Class | Wraps | Phase |
 |---|---|---|---|
-| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health; for a given namespace, the delivery practice in use and whether the caller may create plain workloads; for a given cloud service, the installed provisioner — the cloud's own controller first (ACK on AWS, Config Connector on GCP, Azure Service Operator on Azure), then Crossplane — with a kind's CRD spec schema when the kind is given, or what to install; when the resolved controller carries an endpoint override (an emulator or private endpoint), the result names it, so a verification against an emulator can never read as a verification against the cloud | P0 |
+| `get_platform_info` | read | `vela version`, vela-core Deployment image and flags, feature gates, Kubernetes version per cluster, enabled addons with versions, controller health; for a given namespace, the delivery practice in use and whether the caller may create plain workloads; for a given cloud service, the installed provisioner — the cloud's own controller first (ACK on AWS, Config Connector on GCP, Azure Service Operator on Azure), then Crossplane — with a kind's CRD spec schema when the kind is given, or what to install; for ACK it reads the resolved controller Deployment's endpoint override and names it when one is set, so a verification against an emulator does not read as one against the cloud — and when that lookup cannot be certain it says so in a warning rather than implying cloud access (other families' overrides are not yet probed) | P0 |
 | `list_definitions` | read | `vela def list`, `vela components`, `vela traits`; filtered by what a definition provides, with the platform's default for the namespace marked | P0 |
 | `describe_definition` | read | `vela show`; CUE parameters as JSON Schema, required, defaults, examples, current revision | P0 |
 | `explain_definition` | read | `vela def get` + static inspection of the template, which works even when required parameters have no default: what kinds it produces, which parameters drive which fields, health and status rules, restrictions, revision history, consumer count | P0 |
@@ -646,10 +646,11 @@ every component with its declared `dependsOn` and `inputs` edges, live resource 
 and findings ordered by severity. `diagnose_application` interprets: it walks the
 managed-resource inventory, reuses tree health for plain Kubernetes resources, and
 live-reads a bounded set of provider resources to classify their conditions — explain
-reports, diagnose interprets. Both carry endpoint provenance: a resource whose owning
-controller is configured with an endpoint override is stamped with that endpoint, because
-conditions read through an override describe the emulator's view, not the cloud's, and an
-explanation that hides that difference overstates its evidence. Neither tool elects a single root-cause component or
+reports, diagnose interprets. `diagnose_application` carries endpoint provenance: an ACK
+resource whose controller is confirmed to call an endpoint override is stamped with that
+endpoint, because conditions read through an override describe the emulator's view, not
+the cloud's; when the lookup cannot be certain it records that as a note rather than
+implying cloud access. `explain_application` does not carry this stamp. Neither tool elects a single root-cause component or
 reports traffic state; the agent draws those conclusions from the dependency edges and
 workflow phase in the response, as the transcript above shows. Reads are deterministic
 and bounded.

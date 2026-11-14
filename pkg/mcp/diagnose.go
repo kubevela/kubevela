@@ -89,11 +89,12 @@ type ResourceDiagnosis struct {
 	State    string `json:"state" jsonschema:"Ready, NotReady, Halted when the controller stopped reconciling, or Unknown when the resource could not be read."`
 	// Summary names the rule that produced the state.
 	Summary string `json:"summary" jsonschema:"The convention applied and what was observed, written by the server."`
-	// EndpointOverride is set when the owning controller is configured to
-	// call an endpoint other than the cloud API.
-	EndpointOverride string `json:"endpointOverride,omitempty" jsonschema:"Endpoint the owning controller is configured to call instead of the cloud API, read from its Deployment. The conditions here describe that endpoint's view, usually an emulator's, not the cloud's."`
-	Conditions []ResourceCondition `json:"conditions,omitempty" jsonschema:"Conditions read live from the resource."`
-	Notes      []string            `json:"notes,omitempty" jsonschema:"Caveats about this verdict, such as conditions that do not record the generation they describe."`
+	// EndpointOverride is set when the owning controller is confirmed to call
+	// an endpoint other than the cloud API; empty otherwise, with a note when
+	// the lookup could not be certain.
+	EndpointOverride string              `json:"endpointOverride,omitempty" jsonschema:"Endpoint the owning controller is configured to call instead of the cloud API, read from its Deployment. The conditions here describe that endpoint's view, usually an emulator's, not the cloud's. Empty means the controller calls the cloud or the lookup was uncertain; a note distinguishes the two."`
+	Conditions       []ResourceCondition `json:"conditions,omitempty" jsonschema:"Conditions read live from the resource."`
+	Notes            []string            `json:"notes,omitempty" jsonschema:"Caveats about this verdict, such as conditions that do not record the generation they describe."`
 }
 
 // DiagnoseApplicationOutput is the structured result of diagnose_application.
@@ -139,6 +140,8 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 	// An inventory that failed, withheld resources or left trees unread can
 	// prove unhealth but never health.
 	allReady := err == nil && info.withheld == 0 && len(info.notes) == 0
+	// one ACK endpoint lookup per service per request, shared across its resources
+	epCache := map[string]ackEndpointResult{}
 	for i := range applied {
 		res := applied[i]
 		clusters[res.Cluster] = true
@@ -167,7 +170,7 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 				continue
 			}
 			reads++
-			d.diagnoseLive(ctx, &diag, &out)
+			d.diagnoseLive(ctx, &diag, &out, epCache)
 		}
 		if !diag.Ready {
 			allReady = false
@@ -240,7 +243,7 @@ func diagnoseFromTree(diag *ResourceDiagnosis, res querytypes.AppliedResource, u
 
 // diagnoseLive reads one provisioner resource from its cluster and applies
 // its family's conventions.
-func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *DiagnoseApplicationOutput) {
+func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *DiagnoseApplicationOutput, epCache map[string]ackEndpointResult) {
 	cctx := ctx
 	if diag.Cluster != "" && diag.Cluster != localCluster {
 		cctx = multicluster.ContextWithClusterName(ctx, diag.Cluster)
@@ -257,9 +260,17 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 	diag.Conditions = objectConditions(obj)
 	if diag.Provider == providerACK {
 		service := strings.TrimSuffix(groupOf(diag.APIVersion), ".services.k8s.aws")
-		if ep := ackEndpointOverride(cctx, d.f.Client(), service); ep != "" {
-			diag.EndpointOverride = ep
-			out.Evidence = append(out.Evidence, fmt.Sprintf("ACK %s controller Deployment env AWS_ENDPOINT_URL=%s: this diagnosis describes that endpoint, not AWS", service, ep))
+		ep, ok := epCache[service]
+		if !ok {
+			ep = ackControllerEndpoint(cctx, d.f.Client(), service)
+			epCache[service] = ep
+		}
+		switch ep.status {
+		case ackEndpointStatusOverride:
+			diag.EndpointOverride = ep.url
+			out.Evidence = append(out.Evidence, "endpoint provenance: "+ep.evidence+" — this diagnosis describes that endpoint, not AWS")
+		case ackEndpointStatusUnknown:
+			diag.Notes = append(diag.Notes, "endpoint provenance unknown: "+ep.evidence+"; these conditions may describe an emulator rather than AWS")
 		}
 	}
 	switch diag.Provider {

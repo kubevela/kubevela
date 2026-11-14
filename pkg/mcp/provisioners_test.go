@@ -25,6 +25,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -178,16 +179,54 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		Expect(p.Resource.Health).To(ContainSubstring("ACK.ResourceSynced"))
 	})
 
-	It("names the resolved ACK controller's endpoint override, and stays silent without one", func() {
+	It("names the resolved ACK controller's endpoint override", func() {
 		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", "http://aws-emulator.floci.svc.cluster.local:4566"))...)
 		p := platform(map[string]any{"service": "dynamodb"}).Provisioner
 		Expect(p).NotTo(BeNil())
 		Expect(p.EndpointOverride).To(Equal("http://aws-emulator.floci.svc.cluster.local:4566"))
+	})
 
-		h.close()
+	It("reports cloud when the controller carries no override", func() {
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", ""))...)
+		p := platform(map[string]any{"service": "dynamodb"}).Provisioner
+		Expect(p.EndpointOverride).To(BeEmpty())
+	})
+
+	It("leaves the override empty and warns unknown when no controller Deployment is found", func() {
 		h = startHarness(Options{}, objs(ackTableCRD())...)
-		p = platform(map[string]any{"service": "dynamodb"}).Provisioner
-		Expect(p.EndpointOverride).To(BeEmpty(), "no Deployment with an override: the controller talks to the cloud")
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("endpoint provenance unknown")))
+	})
+
+	It("does not trust a non-ACK Deployment that merely carries the chart label", func() {
+		rogue := ackControllerDeploymentWith("dynamodb", "user-workload",
+			corev1.Container{Name: "x", Image: "x", Env: []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: "http://evil:4566"}}})
+		h = startHarness(Options{}, objs(ackTableCRD(), rogue)...)
+		p := platform(map[string]any{"service": "dynamodb"}).Provisioner
+		Expect(p.EndpointOverride).To(BeEmpty(), "name lacks the ack- prefix, so it is not read as the controller")
+	})
+
+	It("reports unknown when AWS_ENDPOINT_URL comes from valueFrom", func() {
+		vf := ackControllerDeploymentWith("dynamodb", "ack-dynamodb-dynamodb-chart",
+			corev1.Container{Name: "controller", Image: "c", Env: []corev1.EnvVar{{
+				Name: "AWS_ENDPOINT_URL",
+				ValueFrom: &corev1.EnvVarSource{ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "cfg"}, Key: "ep"}}}}})
+		h = startHarness(Options{}, objs(ackTableCRD(), vf)...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("valueFrom")))
+	})
+
+	It("reports unknown when two controller Deployments make the endpoint ambiguous", func() {
+		a := ackControllerDeployment("dynamodb", "http://a:4566")
+		b := ackControllerDeploymentWith("dynamodb", "ack-dynamodb-second",
+			corev1.Container{Name: "controller", Image: "c", Env: []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: "http://b:4566"}}})
+		h = startHarness(Options{}, objs(ackTableCRD(), a, b)...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("ambiguous")))
 	})
 
 	It("falls back to Crossplane, preferring the namespaced v2 group", func() {

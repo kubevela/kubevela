@@ -129,6 +129,17 @@ var _ = Describe("diagnose_application", func() {
 		Expect(out.Evidence).To(ContainElement(ContainSubstring("AWS_ENDPOINT_URL=http://aws-emulator.floci.svc.cluster.local:4566")))
 	})
 
+	It("notes endpoint provenance as unknown when the controller Deployment is absent", func() {
+		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1,
+			[]map[string]any{{"type": "ACK.ResourceSynced", "status": "True"}}, nil)
+		h = startHarness(Options{}, diagnoseApp(db)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources[0].EndpointOverride).To(BeEmpty())
+		Expect(out.Resources[0].Notes).To(ContainElement(ContainSubstring("endpoint provenance unknown")))
+	})
+
 	It("calls a Terminal ACK resource halted, not merely unsynced", func() {
 		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1,
 			[]map[string]any{
