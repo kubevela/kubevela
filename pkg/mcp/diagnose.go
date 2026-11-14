@@ -140,7 +140,7 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 	// An inventory that failed, withheld resources or left trees unread can
 	// prove unhealth but never health.
 	allReady := err == nil && info.withheld == 0 && len(info.notes) == 0
-	// one ACK endpoint lookup per service per request, shared across its resources
+	// one ACK endpoint lookup per cluster+service per request, shared across its resources
 	epCache := map[string]ackEndpointResult{}
 	for i := range applied {
 		res := applied[i]
@@ -260,10 +260,13 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 	diag.Conditions = objectConditions(obj)
 	if diag.Provider == providerACK {
 		service := strings.TrimSuffix(groupOf(diag.APIVersion), ".services.k8s.aws")
-		ep, ok := epCache[service]
+		// key by cluster and service: the lookup is cluster-scoped through
+		// cctx, so the same service in another cluster must not reuse it
+		epKey := diag.Cluster + "\x00" + service
+		ep, ok := epCache[epKey]
 		if !ok {
 			ep = ackControllerEndpoint(cctx, d.f.Client(), service)
-			epCache[service] = ep
+			epCache[epKey] = ep
 		}
 		switch ep.status {
 		case ackEndpointStatusOverride:
