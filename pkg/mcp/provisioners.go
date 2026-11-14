@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	appsv1 "k8s.io/api/apps/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -187,6 +188,12 @@ type ServiceProvisioner struct {
 	// Also lists other provisioners found for the same service.
 	Also     []string             `json:"also,omitempty" jsonschema:"Other provisioners that also serve this service on the cluster."`
 	Resource *ProvisionedResource `json:"resource,omitempty" jsonschema:"Schema of the kind asked for."`
+	// EndpointOverride is the endpoint the resolved controller calls instead
+	// of the cloud API, set only when a single controller Deployment is found
+	// to carry one. When the lookup cannot be certain, EndpointOverride stays
+	// empty and a warning records why, so an empty field is never read as
+	// confirmed cloud access.
+	EndpointOverride string `json:"endpointOverride,omitempty" jsonschema:"Endpoint URL the resolved controller is configured to call instead of the cloud API, read from its Deployment, set only for ACK and only when one controller Deployment carries a literal override. Schemas and verifications taken here describe that endpoint, not the cloud. Empty means either the controller calls the cloud or the lookup could not be certain; a warning distinguishes the two."`
 	// Message is set when no provisioner was found or a kind is missing.
 	Message string `json:"message,omitempty" jsonschema:"Why the service cannot be provisioned yet and what to install. Relay it to the user and do not write a definition for a provisioner that is not installed."`
 
@@ -275,6 +282,16 @@ func serviceProvisioner(ctx context.Context, cli client.Client, names []string, 
 		return out, warnings, nil
 	}
 	out.Provisioner = chosen.name
+	if chosen.name == ProvisionerACK {
+		ep := ackControllerEndpoint(ctx, cli, service)
+		switch ep.status {
+		case ackEndpointStatusOverride:
+			out.EndpointOverride = ep.url
+			warnings = append(warnings, "endpoint provenance: "+ep.evidence)
+		case ackEndpointStatusUnknown:
+			warnings = append(warnings, "endpoint provenance unknown: "+ep.evidence+"; an empty endpointOverride here is not a guarantee the controller calls the AWS API")
+		}
+	}
 
 	// Prefer the most current group of the family, then read its CRDs.
 	fm := byFamily[chosen.name]
@@ -484,4 +501,69 @@ func crdNames(ctx context.Context, cli client.Client) ([]string, error) {
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// endpoint-provenance status for an ACK controller.
+const (
+	ackEndpointStatusOverride = "override" // a literal endpoint override was read
+	ackEndpointStatusCloud    = "cloud"    // the controller carries no override
+	ackEndpointStatusUnknown  = "unknown"  // the lookup could not be certain
+)
+
+// ackEndpointResult is what ackControllerEndpoint resolved, with the evidence
+// it read so the claim can be verified or disputed.
+type ackEndpointResult struct {
+	status   string
+	url      string // set only when status is override
+	evidence string
+}
+
+// ackControllerEndpoint reports whether the installed ACK controller for
+// service calls an endpoint other than the AWS API, read from its Deployment's
+// AWS_ENDPOINT_URL. It is deliberately conservative and returns unknown rather
+// than guessing: the chart's app.kubernetes.io/name label is user-settable, so
+// the Deployment must also carry ACK's ack-<service> name prefix; a list
+// failure, no controller, more than one controller, or an endpoint sourced
+// from valueFrom/envFrom (which it does not resolve) all return unknown. Only a
+// single controller Deployment with no override yields cloud. It never fails
+// the caller; the result is evidence, handled by the caller.
+func ackControllerEndpoint(ctx context.Context, cli client.Client, service string) ackEndpointResult {
+	var list appsv1.DeploymentList
+	if err := cli.List(ctx, &list, client.MatchingLabels{"app.kubernetes.io/name": service + "-chart"}); err != nil {
+		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: "could not list the ACK " + service + " controller Deployment: " + redactLine(err.Error())}
+	}
+	var ctrls []*appsv1.Deployment
+	for i := range list.Items {
+		if strings.HasPrefix(list.Items[i].Name, "ack-"+service) {
+			ctrls = append(ctrls, &list.Items[i])
+		}
+	}
+	switch len(ctrls) {
+	case 0:
+		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: "no ack-" + service + " controller Deployment found to read AWS_ENDPOINT_URL from"}
+	case 1:
+	default:
+		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: fmt.Sprintf("%d ack-%s controller Deployments carry the chart label; the endpoint is ambiguous", len(ctrls), service)}
+	}
+	d := ctrls[0]
+	ref := fmt.Sprintf("Deployment %s/%s resourceVersion %s", d.Namespace, d.Name, d.ResourceVersion)
+	unresolvable := ""
+	for _, c := range d.Spec.Template.Spec.Containers {
+		if len(c.EnvFrom) > 0 && unresolvable == "" {
+			unresolvable = ref + " loads env via envFrom; AWS_ENDPOINT_URL cannot be resolved from the Deployment alone"
+		}
+		for _, env := range c.Env {
+			if env.Name != "AWS_ENDPOINT_URL" {
+				continue
+			}
+			if env.Value != "" {
+				return ackEndpointResult{status: ackEndpointStatusOverride, url: env.Value, evidence: ref + " env AWS_ENDPOINT_URL=" + env.Value}
+			}
+			unresolvable = ref + " sets AWS_ENDPOINT_URL via valueFrom; it cannot be resolved from the Deployment alone"
+		}
+	}
+	if unresolvable != "" {
+		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: unresolvable}
+	}
+	return ackEndpointResult{status: ackEndpointStatusCloud, evidence: ref + " sets no AWS_ENDPOINT_URL; the controller calls the AWS API"}
 }
