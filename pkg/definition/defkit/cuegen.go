@@ -114,8 +114,10 @@ func (g *CUEGenerator) WithImports(imports ...string) *CUEGenerator {
 // returned instead of being appended to g.imports, so detection is scoped to a
 // single definition: one generator can be reused for any number of definitions
 // without the first definition's imports leaking into the next, and g.imports
-// keeps holding only what WithImports was given. Mirrors
-// PolicyCUEGenerator.detectRequiredImports.
+// keeps holding only what WithImports was given. The scratch-generator scan is
+// the same one PolicyCUEGenerator, TraitCUEGenerator and
+// WorkflowStepCUEGenerator use, but those still merge the result onto their own
+// receiver and so leak the same way when reused, tracked in #7574.
 func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) []string {
 	scan := NewCUEGenerator()
 
