@@ -157,11 +157,12 @@ classifier needs structured changes. Handlers never shell out and never call a m
    (controller is reserved until the sweep attributes a cause to a controller's own
    behaviour) — and claims scope only as far as its evidence reaches: a per-Application
    read says `single-resource`; account-wide is said only by a sweep across the
-   provisioner's resources. The chain ends in hand-off handles (the owning controller, the
-   API group, the window) that an observability server can act on, never in "unknown"
-   where a pointer exists. What a status reader cannot see is named as such: a
-   controller's client-side rate limiter surfaces no error in any condition, so saturation
-   there is observability territory.
+   provisioner's resources, and only for resources that share one credential identity as
+   far as the family's convention shows it. The chain ends in hand-off handles (the
+   owning controller, the API group, the window) that an observability server can act on,
+   never in "unknown" where a pointer exists. What a status reader cannot see is named as
+   such: a controller's client-side rate limiter surfaces no error in any condition, so
+   saturation there is observability territory.
 
 ### Tools
 
@@ -184,8 +185,8 @@ classifier needs structured changes. Handlers never shell out and never call a m
 | `apply_application` | write | `vela up` under mode policy | P0, flag |
 | `find_definition_consumers` | read | Applications by component and trait type | P1 |
 | `compare_definition_revisions` | read | Parameter and rendered-output diff between two DefinitionRevisions | P1 |
-| `diagnose_application` | read | Root-cause walk of an unhealthy Application: provisioner-owned resources read live, a bounded number per call, their conditions interpreted by the owning family's conventions (ACK `ResourceSynced` and `Terminal`, Config Connector `Ready` with reason `UpToDate`, Crossplane `Ready` and `Synced`); plain Kubernetes resources keep the tree's pod-corrected health and Secrets are never diagnosed; plus correlated events and findings that each cite the object they came from. Each provisioner-owned resource also carries a `cause`: its cloud error classified from the condition the family writes it into (ACK `Terminal`/`Recoverable` message and `ResourceSynced` reason, Config Connector `Ready` reason and message, Crossplane `Synced` message, or its Cannot warning event when the message carries no recognisable error) as one of `throttled`, `quota-exhausted`, `auth`, `invalid`, `dependency-missing`, `conflict`, `unreachable` or `unclassified`, with the provider's own code token, a single `owner`, `scope: single-resource`, and the owning controller as a handle when this server can identify it; a class that is usually account-wide adds a `nextChecks` pointer to `diagnose_provisioners` with the exact arguments, since one Application cannot show account scope | P1 |
-| `diagnose_provisioners` | read | Fleet health of the installed provisioner families: lists every resource of every served kind in the namespaces the caller may read, at most 500 per call with `truncated` and listed-versus-read counts per family, classifies each with the same rules as `diagnose_application`, keeps those whose matching condition transitioned inside the window (default one hour), and aggregates by cluster, family, API group and class with counts, first and last seen, sample resources and the owning Applications; `scope` is `account-wide`, `cluster-wide` or `single-resource` from the spread across Applications and namespaces, and an aggregate of a usually-account-wide class across two or more Applications is an error finding. Endpoint provenance is stamped per family as in `diagnose_application` | P1 |
+| `diagnose_application` | read | Root-cause walk of an unhealthy Application: provisioner-owned resources read live, a bounded number per call, their conditions interpreted by the owning family's conventions (ACK `Terminal`, then `ReferencesResolved`, then `ResourceSynced`, so a `ResourceSynced` that stayed True behind an unresolved reference is reported as stale and the reference blocker is the diagnosis; Config Connector `Ready` with reason `UpToDate`; Crossplane `Ready` and `Synced`); plain Kubernetes resources keep the tree's pod-corrected health and Secrets are never diagnosed; plus correlated events and findings that each cite the object they came from. A provisioner-owned resource that is not ready carries a `cause` when its family's error-bearing condition holds text (ACK `Terminal` or `Recoverable` message while True, or the `ResourceSynced` reason while not True; Config Connector `Ready` reason and message while not True; Crossplane `Synced` message while not True, or its Cannot warning event when the message carries no recognisable error); a ready resource, or one whose only signal is a stale condition, carries no `cause`. The `cause` classifies that text as one of `throttled`, `quota-exhausted`, `auth`, `invalid`, `dependency-missing`, `conflict`, `unreachable` or `unclassified`, with the provider's own code token, a single `owner`, `scope: single-resource`, and the owning controller as a handle when this server can identify it; a class that is usually account-wide adds a `nextChecks` pointer to `diagnose_provisioners` with the exact arguments, since one Application cannot show account scope | P1 |
+| `diagnose_provisioners` | read | Fleet health of the installed provisioner families: lists every served kind — cluster-scoped kinds, and namespaced kinds in the namespaces the caller may read — under one per-call budget that bounds the work, not only the answer: at most 500 resources read, every list call chunked with `limit` and the API server's continue token, and a wall-clock deadline; when the budget ends the response says `truncated`, carries listed-versus-read counts per family and a cursor (family, kind, namespace, continue token) the next call resumes from, and a kind or namespace the caller cannot list appears under `unknowns`, never as zero. Each resource read is classified with the same rules as `diagnose_application`, kept when its matching condition transitioned inside the window (default one hour), and aggregated by cluster, family, API group, class and credential identity with counts, first and last seen, sample resources and the owning Applications. Credential identity is what the family's convention exposes — the ACK controller Deployment for the service together with any per-namespace account mapping the namespace declares, the `ProviderConfig` a Crossplane resource references, the project a Config Connector resource or its namespace is annotated with — and is `unresolved` when the server cannot read it. `scope` is `account-wide` only for an aggregate whose resources resolve to one credential identity and span two or more Applications, `cluster-wide` when the identity is unresolved and the spread crosses Applications, else `single-resource`; an aggregate of a usually-account-wide class at `account-wide` scope is an error finding. Endpoint provenance is stamped per aggregate from its API group's controller, the same lookup `diagnose_application` makes per resource | P1 |
 | `diff_definition_impact` | plan | Blast radius of a definition change before it is applied: finds consumers the way `find_definition_consumers` does, renders a bounded number of them against the cluster's current definition and against a proposed copy supplied the way `dryrun_application` accepts local definitions, and returns a per-Application result. Changed consumers carry a change set and risk class, unchanged consumers are marked unchanged, base render failures carry a base render error, and proposed render failures carry their render error with no change set or risk class — a missing risk class for a render failure is a blocked consumer, never a safe one | P1 |
 | `vet_definition` | plan | `vela def vet` | P1 |
 | `stage_definition` | plan | Parses and validates a local definition (CUE as `vela def gen-module` writes it, or YAML) exactly as the plan tools do inline, caches it server-side, and returns a content-hash handle with the definition's kind and name. Every plan tool accepts handles wherever it accepts inline definitions, so a 30 KiB generated definition crosses the agent's context once per edit instead of once per call | P1 |
@@ -303,18 +304,21 @@ Connector `DependencyNotFound` reason is `dependency-missing` with owner
 owner `application-spec`; `connection refused`, `no such host` or a TLS failure is
 `unreachable` with owner `platform`. The rules are data, so a family can be described
 rather than coded (see provisioner family profiles under Future scope). Verification is
-stated per family: the ACK path is verified live against an endpoint that returns the real
-error bodies; Config Connector and Crossplane are verified by fixture from the message
-formats their controllers' own source produces, and the contract says so until a live path
-exists. This per-family statement is the verification ledger; it is repeated in the tool
-description. A cause adds the owning controller as a handle whenever this server can
-identify the controller — today the ACK controller Deployment the endpoint-provenance
-lookup selects; Config Connector and Crossplane causes carry a note instead — with a
-window from the condition's transition, or one hour before the read when the condition
-records no transition. Crossplane writes the provider error into the Synced message; when
-that message carries no recognisable error, the newest warning event with a reason
-starting Cannot on the same resource in the same cluster is read instead. The sweep
-pointer is emitted once per provider, family and class per diagnosis and names
+stated per family and names what the controller was talking to: the ACK path is verified
+end to end with the ACK controller in the loop against an endpoint that answers with AWS's
+documented error bodies, not against an AWS account, and the endpoint-provenance evidence
+in each result says which endpoint a diagnosis describes; Config Connector and Crossplane
+are verified by fixture from the message formats their controllers' own source produces.
+No family is verified against a cloud account, and the contract says so until one is.
+This per-family statement is the verification ledger; the description the server serves
+for `diagnose_application` repeats it. A cause adds the owning controller as a handle
+whenever this server can identify the controller — today the ACK controller Deployment
+the endpoint-provenance lookup selects; Config Connector and Crossplane causes carry a
+note instead — with a window from the condition's transition, or one hour before the read
+when the condition records no transition. Crossplane writes the provider error into the
+Synced message; when that message carries no recognisable error, the newest warning event
+with a reason starting Cannot on the same resource in the same cluster is read instead.
+The sweep pointer is emitted once per provider, family and class per diagnosis and names
 diagnose_provisioners as a tool this server may offer. No rule in this release yields the
 owner controller; it is reserved for causes the sweep attributes to a controller's own
 behaviour. `diagnose_application` never runs the fleet sweep on its own: a per-Application
@@ -598,8 +602,9 @@ controller locators are Go code, and move into the same declarative shape when p
 land. A later release lets a platform team, or a vendor shipping its own
 provisioner, declare a family without a change to this server: a profile object the
 server loads at start, validated against a schema, that populates the same tables the
-built-in families use. The built-in families are expressed in the same schema and loaded
-through the same path, so the plug-in route is the one the first-party code exercises. A
+built-in families use. When profiles land, the built-in families will be expressed in the
+same schema and loaded through the same path, so the plug-in route will be the one the
+first-party code exercises. A
 profile is never executable: it names conditions and tokens; the server never runs vendor
 logic and a profile cannot widen what the server may read. A profile that claims a suffix a
 built-in family owns overrides it only when it says so explicitly, and `get_platform_info`
@@ -737,7 +742,10 @@ hand-off     controller ack-system/ack-rds-rds-chart, selector app.kubernetes.io
 
 `diagnose_provisioners` then answers the scope question the per-Application view cannot:
 one aggregate for `rds.services.k8s.aws` × `throttled`, fourteen resources across six
-Applications in the last hour, `scope: account-wide`, with the same controller handle. The
+Applications in the last hour, all reconciled by the one RDS controller whose namespaces
+declare no other account, so `scope: account-wide`, with the same controller handle. Had
+two of those namespaces mapped to another account, they would form a second aggregate with
+its own scope rather than widen the first. The
 same shape applies to an exhausted quota, expired provider credentials, an endpoint that
 stopped answering, or a dependency that does not exist; only the class, owner and
 guidance change.
@@ -763,7 +771,7 @@ guidance change.
 | Agents patch managed resources through the Kubernetes MCP | Setup configures it read-only; skills state the boundary; evaluation counts wrong-server calls |
 | Third-party MCP tool names or auth drift | Version pins per release; server appendices separate from skill bodies; stub mirrors the pins |
 | Scope creep toward semantic-API tools, or cluster-fleet tools before their CRDs exist | Every P0 tool must map to an existing code path; cluster-fleet tools start only after the Cluster Infrastructure KEP lands |
-| A cause is classified from text a controller writes inconsistently | Rules match the provider's own code tokens, not prose; unmatched text is `unclassified` with no owner; the verification ledger names which families are verified live; a controller that hides errors behind generic reasons gets an issue filed against it, not a heuristic here |
+| A cause is classified from text a controller writes inconsistently | Rules match the provider's own code tokens, not prose; unmatched text is `unclassified` with no owner; the verification ledger names what each family was verified against, and none against a cloud account yet; a controller that hides errors behind generic reasons gets an issue filed against it, not a heuristic here |
 
 ## Milestones
 
