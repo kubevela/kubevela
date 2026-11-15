@@ -3,7 +3,7 @@
 **Authors**: Anoop Gopalakrishnan
 **Status**: Draft
 **Created**: 2026-09-29
-**Last Updated**: 2026-11-09
+**Last Updated**: 2026-11-15
 
 > **Status**: Design proposal. Tool names, schemas and flag names may change during
 > implementation and community review. Nothing here is committed behaviour.
@@ -151,6 +151,17 @@ classifier needs structured changes. Handlers never shell out and never call a m
    follows the repository and namespace, and KubeVela is suggested unprompted only on a
    blank start where it is installed. Migration happens only on request. Choices with
    cost or ownership consequences are the user's unless the platform has decided them.
+9. **Diagnoses descend the stack.** KubeVela is the first interface the user touches, so a
+   diagnosis does not stop at "the resource is not ready". Every classified finding names
+   the layer that owns the fix — `application-spec`, `controller`, `cloud` or `platform`
+   (controller is reserved until the sweep attributes a cause to a controller's own
+   behaviour) — and claims scope only as far as its evidence reaches: a per-Application
+   read says `single-resource`; account-wide is said only by a sweep across the
+   provisioner's resources. The chain ends in hand-off handles (the owning controller, the
+   API group, the window) that an observability server can act on, never in "unknown"
+   where a pointer exists. What a status reader cannot see is named as such: a
+   controller's client-side rate limiter surfaces no error in any condition, so saturation
+   there is observability territory.
 
 ### Tools
 
@@ -173,7 +184,8 @@ classifier needs structured changes. Handlers never shell out and never call a m
 | `apply_application` | write | `vela up` under mode policy | P0, flag |
 | `find_definition_consumers` | read | Applications by component and trait type | P1 |
 | `compare_definition_revisions` | read | Parameter and rendered-output diff between two DefinitionRevisions | P1 |
-| `diagnose_application` | read | Root-cause walk of an unhealthy Application: provisioner-owned resources read live, a bounded number per call, their conditions interpreted by the owning family's conventions (ACK `ResourceSynced` and `Terminal`, Config Connector `Ready` with reason `UpToDate`, Crossplane `Ready` and `Synced`); plain Kubernetes resources keep the tree's pod-corrected health and Secrets are never diagnosed; plus correlated events and findings that each cite the object they came from | P1 |
+| `diagnose_application` | read | Root-cause walk of an unhealthy Application: provisioner-owned resources read live, a bounded number per call, their conditions interpreted by the owning family's conventions (ACK `ResourceSynced` and `Terminal`, Config Connector `Ready` with reason `UpToDate`, Crossplane `Ready` and `Synced`); plain Kubernetes resources keep the tree's pod-corrected health and Secrets are never diagnosed; plus correlated events and findings that each cite the object they came from. Each provisioner-owned resource also carries a `cause`: its cloud error classified from the condition the family writes it into (ACK `Terminal`/`Recoverable` message and `ResourceSynced` reason, Config Connector `Ready` reason and message, Crossplane `Synced` message, or its Cannot warning event when the message carries no recognisable error) as one of `throttled`, `quota-exhausted`, `auth`, `invalid`, `dependency-missing`, `conflict`, `unreachable` or `unclassified`, with the provider's own code token, a single `owner`, `scope: single-resource`, and the owning controller as a handle when this server can identify it; a class that is usually account-wide adds a `nextChecks` pointer to `diagnose_provisioners` with the exact arguments, since one Application cannot show account scope | P1 |
+| `diagnose_provisioners` | read | Fleet health of the installed provisioner families: lists every resource of every served kind in the namespaces the caller may read, at most 500 per call with `truncated` and listed-versus-read counts per family, classifies each with the same rules as `diagnose_application`, keeps those whose matching condition transitioned inside the window (default one hour), and aggregates by cluster, family, API group and class with counts, first and last seen, sample resources and the owning Applications; `scope` is `account-wide`, `cluster-wide` or `single-resource` from the spread across Applications and namespaces, and an aggregate of a usually-account-wide class across two or more Applications is an error finding. Endpoint provenance is stamped per family as in `diagnose_application` | P1 |
 | `diff_definition_impact` | plan | Blast radius of a definition change before it is applied: finds consumers the way `find_definition_consumers` does, renders a bounded number of them against the cluster's current definition and against a proposed copy supplied the way `dryrun_application` accepts local definitions, and returns a per-Application result. Changed consumers carry a change set and risk class, unchanged consumers are marked unchanged, base render failures carry a base render error, and proposed render failures carry their render error with no change set or risk class — a missing risk class for a render failure is a blocked consumer, never a safe one | P1 |
 | `vet_definition` | plan | `vela def vet` | P1 |
 | `stage_definition` | plan | Parses and validates a local definition (CUE as `vela def gen-module` writes it, or YAML) exactly as the plan tools do inline, caches it server-side, and returns a content-hash handle with the definition's kind and name. Every plan tool accepts handles wherever it accepts inline definitions, so a 30 KiB generated definition crosses the agent's context once per edit instead of once per call | P1 |
@@ -272,6 +284,42 @@ reports the pods' state, marks the status as derived and keeps both facts. Where
 could not determine something,
 for example a provider condition that was not surfaced, it lists it under `unknowns`
 instead of leaving a gap the model might fill.
+
+**Causes are classified, never guessed.** A provisioner-owned resource's error text is
+matched first against the provider's own error-code token — the one after "api error" in
+an AWS SDK message, else the first CamelCase token immediately followed by a colon that a
+rule names, dotted as EC2 writes it — then against every CamelCase token in the text, then
+against transport phrases such as "connection refused", and last against a googleapi HTTP
+status; the first rule that matches names the class, the token it matched on and the
+owner. Text that matches no rule is `unclassified`, carries the redacted text as evidence
+and carries no owner — the server does not infer who should fix what it could not
+recognise. Illustrative examples: a `Throttling` or `TooManyRequestsException` token is
+`throttled` with owner `cloud`; `LimitExceeded` or `QuotaExceeded` is `quota-exhausted`
+with owner `cloud`; `AccessDenied`, `ExpiredToken` or a `googleapi: Error 403` is `auth`
+with owner `platform`; `InvalidParameterCombination` or `googleapi: Error 400` is
+`invalid` with owner `application-spec`; a `NotFound` or `NotAccessible` token or a Config
+Connector `DependencyNotFound` reason is `dependency-missing` with owner
+`application-spec`; `AlreadyExists`, `InUse` or `ManagementConflict` is `conflict` with
+owner `application-spec`; `connection refused`, `no such host` or a TLS failure is
+`unreachable` with owner `platform`. The rules are data, so a family can be described
+rather than coded (see provisioner family profiles under Future scope). Verification is
+stated per family: the ACK path is verified live against an endpoint that returns the real
+error bodies; Config Connector and Crossplane are verified by fixture from the message
+formats their controllers' own source produces, and the contract says so until a live path
+exists. This per-family statement is the verification ledger; it is repeated in the tool
+description. A cause adds the owning controller as a handle whenever this server can
+identify the controller — today the ACK controller Deployment the endpoint-provenance
+lookup selects; Config Connector and Crossplane causes carry a note instead — with a
+window from the condition's transition, or one hour before the read when the condition
+records no transition. Crossplane writes the provider error into the Synced message; when
+that message carries no recognisable error, the newest warning event with a reason
+starting Cannot on the same resource in the same cluster is read instead. The sweep
+pointer is emitted once per provider, family and class per diagnosis and names
+diagnose_provisioners as a tool this server may offer. No rule in this release yields the
+owner controller; it is reserved for causes the sweep attributes to a controller's own
+behaviour. `diagnose_application` never runs the fleet sweep on its own: a per-Application
+diagnosis stays bounded and cheap, and scope beyond one resource is claimed only when
+`diagnose_provisioners` has been called.
 
 **Explanations are version-gated.** Behaviour that differs across releases is resolved
 against the running version from the envelope, not against a fixed assumption. Examples:
@@ -539,6 +587,27 @@ questions about a plane upgrade the same way it does about an Application revisi
 starts before the CRDs exist; it is listed here so the tool layer is not designed in a way
 that would have to be rebuilt to accommodate it.
 
+### Future scope: provisioner family profiles
+
+The conventions that interpret a family — its API-group suffixes, which condition types,
+statuses and reasons mean ready, not ready or halted, which condition fields and event
+reasons carry the provider's error text, its error-code vocabulary and owner overrides, an
+install hint, and where its controller's endpoint configuration lives — are data. Today
+the error-code vocabulary is a Go table; the readiness conventions, error-field sources and
+controller locators are Go code, and move into the same declarative shape when profiles
+land. A later release lets a platform team, or a vendor shipping its own
+provisioner, declare a family without a change to this server: a profile object the
+server loads at start, validated against a schema, that populates the same tables the
+built-in families use. The built-in families are expressed in the same schema and loaded
+through the same path, so the plug-in route is the one the first-party code exercises. A
+profile is never executable: it names conditions and tokens; the server never runs vendor
+logic and a profile cannot widen what the server may read. A profile that claims a suffix a
+built-in family owns overrides it only when it says so explicitly, and `get_platform_info`
+warns that the built-in is shadowed. Whether the object is a CRD or a labelled ConfigMap is
+an unresolved question below. A profile can only classify what the controller writes into
+status; a controller that hides a throttle behind a generic reason is fixed in that
+controller, not in a profile.
+
 ### Repository placement
 
 | Lives in | Contents | Why |
@@ -655,6 +724,24 @@ reports traffic state; the agent draws those conclusions from the dependency edg
 workflow phase in the response, as the transcript above shows. Reads are deterministic
 and bounded.
 
+A cause reads as a chain, each link cited. With an RDS API that throttles every caller in
+the account:
+
+```
+symptom      Application orders-prod is NotReady; component "db" blocked
+condition    DBCluster default/orders-db: ACK.Recoverable=True "Throttling: Rate exceeded"
+cause        throttled (Throttling) — owner: cloud; scope: single-resource
+next check   confirm the scope with diagnose_provisioners when this server offers it: provider aws, family ack, window 1h
+hand-off     controller ack-system/ack-rds-rds-chart, selector app.kubernetes.io/name=rds-chart, window 09:12–09:42Z
+```
+
+`diagnose_provisioners` then answers the scope question the per-Application view cannot:
+one aggregate for `rds.services.k8s.aws` × `throttled`, fourteen resources across six
+Applications in the last hour, `scope: account-wide`, with the same controller handle. The
+same shape applies to an exhausted quota, expired provider credentials, an endpoint that
+stopped answering, or a dependency that does not exist; only the class, owner and
+guidance change.
+
 ## Alternatives considered
 
 | Alternative | Why not |
@@ -676,13 +763,14 @@ and bounded.
 | Agents patch managed resources through the Kubernetes MCP | Setup configures it read-only; skills state the boundary; evaluation counts wrong-server calls |
 | Third-party MCP tool names or auth drift | Version pins per release; server appendices separate from skill bodies; stub mirrors the pins |
 | Scope creep toward semantic-API tools, or cluster-fleet tools before their CRDs exist | Every P0 tool must map to an existing code path; cluster-fleet tools start only after the Cluster Infrastructure KEP lands |
+| A cause is classified from text a controller writes inconsistently | Rules match the provider's own code tokens, not prose; unmatched text is `unclassified` with no owner; the verification ledger names which families are verified live; a controller that hides errors behind generic reasons gets an issue filed against it, not a heuristic here |
 
 ## Milestones
 
 | Phase | Scope | Exit criteria |
 |---|---|---|
 | P0, KubeVela 1.12 | `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp config`, with per-client steps in `kubevela/skills`; developer, SRE, platform-engineer and defkit-author skills; the documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-deploy on velad in under ten minutes through `gitops` or confirmed `direct`; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
-| P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, `diagnose_application`, `diff_definition_impact`, `stage_definition` with handle support in every plan tool, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; the degraded-cloud-resource fixture (a provisioner that halted or cannot converge) is root-caused by `diagnose_application` with zero manual lookups; one adopter runs the trigger recipe |
+| P1 | Controller hold hook and `gated` mode with stored change sets; `find_definition_consumers`, `vet_definition`, `diagnose_application` with cause classification, `diagnose_provisioners`, `diff_definition_impact`, `stage_definition` with handle support in every plan tool, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, read-only VelaQL tools and risk hints; kube-trigger webhook recipe | New user completes compose-to-gated-deploy on velad in under ten minutes; a concurrent edit during a gated apply is held, never run unconfirmed; definition authoring and impact scenarios pass; the degraded-cloud-resource fixture (a provisioner that halted or cannot converge) is root-caused by `diagnose_application` with zero manual lookups; one adopter runs the trigger recipe |
 | P2, after VelaUX catch-up | VelaUX backend plugin over streamable HTTP; per-caller tool filtering; read-only assistant panel | Hosted client logs in through VelaUX and gets the same allow or deny as the CLI |
 | P3, after the Cluster Infrastructure KEP | Cluster-fleet tools from the Future scope section; cluster-plane handles; `kubevela-cluster-operator` skill | Fleet scenarios pass on three model families; a rollout started through an agent pauses at every approval the KEP defines |
 
@@ -723,6 +811,11 @@ exists.
 8. Names of the `provides` label, the `default-for` annotation and the namespace
    `delivery-default` label, and whether KubeVela's built-in definitions ship with
    `provides` labels in the same release.
+9. Whether a provisioner family profile is a cluster-scoped CRD (`ProvisionerFamily`) or a
+   labelled ConfigMap in `vela-system`, and how a vendor's chart ships one.
+10. Whether `diagnose_provisioners` sweeps every managed cluster by default or only the
+    control plane with an explicit cluster list; the current multi-cluster posture favours
+    the latter.
 
 ## References
 
