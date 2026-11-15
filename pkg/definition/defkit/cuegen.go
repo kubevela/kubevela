@@ -18,6 +18,7 @@ package defkit
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,9 +105,20 @@ func (g *CUEGenerator) WithImports(imports ...string) *CUEGenerator {
 	return g
 }
 
-// detectRequiredImports analyzes the component template and automatically adds
-// any required CUE standard library imports by checking all values for ImportRequirer.
-func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) {
+// detectRequiredImports analyzes the component template and returns the CUE
+// standard library imports its values declare through the ImportRequirer
+// interface, so that a construct such as String("s").MinLen(3)
+// (strings.MinRunes) pulls "strings" without the author calling WithImports.
+//
+// The walk collects into a scratch generator and the detected imports are
+// returned instead of being appended to g.imports, so detection is scoped to a
+// single definition: one generator can be reused for any number of definitions
+// without the first definition's imports leaking into the next, and g.imports
+// keeps holding only what WithImports was given. Mirrors
+// PolicyCUEGenerator.detectRequiredImports.
+func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) []string {
+	scan := NewCUEGenerator()
+
 	// Execute the template to capture what constructs are used
 	tpl := NewTemplate()
 	if templateFn := c.GetTemplate(); templateFn != nil {
@@ -118,53 +130,70 @@ func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) {
 
 	// Check concat helpers (list.Concat requires "list")
 	for _, helper := range tpl.GetConcatHelpers() {
-		g.collectImportsFromValue(helper)
+		scan.collectImportsFromValue(helper)
 	}
 
 	// Check struct array helpers
 	for _, helper := range tpl.GetStructArrayHelpers() {
-		g.collectImportsFromValue(helper)
+		scan.collectImportsFromValue(helper)
 	}
 
 	// Check dedupe helpers
 	for _, helper := range tpl.GetDedupeHelpers() {
-		g.collectImportsFromValue(helper)
+		scan.collectImportsFromValue(helper)
 	}
 
 	// Check helper variables (before and after output)
 	for _, helper := range tpl.GetHelpersBeforeOutput() {
-		g.collectImportsFromValue(helper)
-		g.collectImportsFromValue(helper.Collection())
+		scan.collectImportsFromValue(helper)
+		scan.collectImportsFromValue(helper.Collection())
 	}
 	for _, helper := range tpl.GetHelpersAfterOutput() {
-		g.collectImportsFromValue(helper)
-		g.collectImportsFromValue(helper.Collection())
+		scan.collectImportsFromValue(helper)
+		scan.collectImportsFromValue(helper.Collection())
 	}
 
 	// Check parameters for import requirements (e.g. StringParam with MinLen/MaxLen needs "strings")
 	for _, param := range c.GetParams() {
 		if ir, ok := param.(ImportRequirer); ok {
 			for _, imp := range ir.RequiredImports() {
-				g.addImportIfMissing(imp)
+				scan.addImportIfMissing(imp)
 			}
 		}
 	}
 
 	// Check validator message expressions, at the top level and inside params.
-	g.collectImportsFromValidators(c.GetValidators())
+	scan.collectImportsFromValidators(c.GetValidators())
 	for _, param := range c.GetParams() {
-		g.collectImportsFromParamValidators(param)
+		scan.collectImportsFromParamValidators(param)
 	}
 
 	// Check resource operations in output
 	if output := tpl.GetOutput(); output != nil {
-		g.collectImportsFromResource(output)
+		scan.collectImportsFromResource(output)
 	}
 
 	// Check resource operations in outputs
 	for _, res := range tpl.GetOutputs() {
-		g.collectImportsFromResource(res)
+		scan.collectImportsFromResource(res)
 	}
+
+	return scan.imports
+}
+
+// mergedImports returns the imports to emit for c: the ones added explicitly
+// through WithImports first, in the order they were given, followed by the
+// imports detected for c in traversal order, with a detected import dropped
+// when it is already present. g is left untouched, so repeated Generate* calls
+// on one generator all see the same explicit set.
+func (g *CUEGenerator) mergedImports(c *ComponentDefinition) []string {
+	merged := append([]string{}, g.imports...)
+	for _, imp := range g.detectRequiredImports(c) {
+		if !slices.Contains(merged, imp) {
+			merged = append(merged, imp)
+		}
+	}
+	return merged
 }
 
 // collectImportsFromValidators adds the imports needed by validator message
@@ -404,15 +433,16 @@ func (g *CUEGenerator) GenerateParameterSchema(c *ComponentDefinition) string {
 
 // GenerateFullDefinition generates the complete CUE definition from a component.
 func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
-	// Auto-detect required imports from template
-	g.detectRequiredImports(c)
+	// Explicit imports plus the ones auto-detected from this component's
+	// template. Kept in a local so nothing leaks into the next call.
+	imports := g.mergedImports(c)
 
 	var sb strings.Builder
 
 	// Write imports if any
-	if len(g.imports) > 0 {
+	if len(imports) > 0 {
 		sb.WriteString("import (\n")
-		for _, imp := range g.imports {
+		for _, imp := range imports {
 			sb.WriteString(fmt.Sprintf("\t%q\n", imp))
 		}
 		sb.WriteString(")\n\n")
