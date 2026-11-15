@@ -1,0 +1,192 @@
+/*
+Copyright 2026 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package mcp
+
+import (
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+var _ = Describe("classifyCause", func() {
+	ack := func(conds ...ResourceCondition) *ResourceDiagnosis {
+		return &ResourceDiagnosis{Provider: providerACK, Kind: "DBCluster", Name: "orders-db", Conditions: conds}
+	}
+
+	DescribeTable("classifies from the provider's own code token",
+		func(diag *ResourceDiagnosis, class, code, owner, evidenceHas string) {
+			c := classifyCause(diag)
+			Expect(c).NotTo(BeNil())
+			Expect(c.Class).To(Equal(class))
+			Expect(c.Code).To(Equal(code))
+			Expect(c.Owner).To(Equal(owner))
+			Expect(c.Scope).To(Equal(scopeThisResource))
+			Expect(c.Evidence).To(ContainSubstring(evidenceHas))
+		},
+		// ACK, live strings from the demo cluster and AWS's documented throttle form.
+		Entry("ACK throttle in Recoverable", ack(
+			ResourceCondition{Type: "ACK.ResourceSynced", Status: "Unknown", Reason: "operation error RDS: ModifyDBCluster, https response error StatusCode: 400, RequestID: 1, Throttling: Rate exceeded"},
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "Throttling: Rate exceeded"},
+		), causeThrottled, "Throttling", ownerCloud, "ACK.Recoverable"),
+		Entry("ACK KMS key not accessible", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "KMSKeyNotAccessibleFault: The specified KMS key [arn:aws:kms:us-east-1:000000000000:key/7323017e] does not exist, is not enabled or you do not have permissions to access it."},
+		), causeDependencyMissing, "KMSKeyNotAccessibleFault", ownerApplicationSpec, "ACK.Recoverable"),
+		Entry("ACK terminal invalid parameter", ack(
+			ResourceCondition{Type: "ACK.ResourceSynced", Status: "False", Reason: "resource is in terminal condition", Message: "Resource not synced"},
+			ResourceCondition{Type: "ACK.Terminal", Status: "True", Message: "api error InvalidParameterCombination: Cannot find version 16.3 for aurora-postgresql"},
+		), causeInvalid, "InvalidParameterCombination", ownerApplicationSpec, "ACK.Terminal"),
+		Entry("ACK InvalidSubnet is invalid, not dependency-missing", ack(
+			ResourceCondition{Type: "ACK.Terminal", Status: "True", Message: "InvalidSubnet: 'subnet-does-not-exist-1' is not an EC2 subnet id (expected subnet- followed by 8 or 17 hexadecimal characters)"},
+		), causeInvalid, "InvalidSubnet", ownerApplicationSpec, "ACK.Terminal"),
+		Entry("ACK access denied", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "AccessDeniedException: User: arn:aws:sts::1:assumed-role/x is not authorized to perform: dynamodb:CreateTable"},
+		), causeAuth, "AccessDeniedException", ownerPlatform, "ACK.Recoverable"),
+		Entry("ACK limit exceeded", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "LimitExceededException: Subscriber limit exceeded: Only 2500 tables can be created"},
+		), causeQuota, "LimitExceededException", ownerCloud, "ACK.Recoverable"),
+		Entry("ACK already exists", ack(
+			ResourceCondition{Type: "ACK.Terminal", Status: "True", Message: "EntityAlreadyExists: Role with name demo already exists."},
+		), causeConflict, "EntityAlreadyExists", ownerApplicationSpec, "ACK.Terminal"),
+		Entry("ACK endpoint unreachable", ack(
+			ResourceCondition{Type: "ACK.ResourceSynced", Status: "Unknown", Reason: "operation error RDS: DescribeDBClusters, exceeded maximum number of attempts, 3, https response error StatusCode: 0, RequestID: , request send failed, Post \"http://aws-emulator.floci.svc.cluster.local:4566/\": dial tcp 10.43.0.9:4566: connect: connection refused"},
+		), causeUnreachable, "connection refused", ownerPlatform, "ACK.ResourceSynced"),
+		// Config Connector, message formats from its troubleshooting documentation.
+		Entry("Config Connector 403", &ResourceDiagnosis{Provider: providerConfigConnector, Kind: "SpannerInstance", Name: "db", Conditions: []ResourceCondition{
+			{Type: "Ready", Status: "False", Reason: "UpdateFailed", Message: "Update call failed: error fetching live state: error reading underlying resource: googleapi: Error 403: Caller is missing IAM permission spanner.instances.get on resource"},
+		}}, causeAuth, "googleapi: Error 403", ownerPlatform, "Ready"),
+		Entry("Config Connector dependency not found", &ResourceDiagnosis{Provider: providerConfigConnector, Kind: "SQLDatabase", Name: "db", Conditions: []ResourceCondition{
+			{Type: "Ready", Status: "False", Reason: "DependencyNotFound", Message: "reference SQLInstance default/missing is not found"},
+		}}, causeDependencyMissing, "DependencyNotFound", ownerApplicationSpec, "Ready"),
+		Entry("Config Connector 429 rate limit is a throttle", &ResourceDiagnosis{Provider: providerConfigConnector, Kind: "SQLInstance", Name: "db", Conditions: []ResourceCondition{
+			{Type: "Ready", Status: "False", Reason: "UpdateFailed", Message: "Update call failed: googleapi: Error 429: Quota exceeded for quota metric 'Queries' and limit 'Queries per minute', rateLimitExceeded"},
+		}}, causeThrottled, "rateLimitExceeded", ownerCloud, "Ready"),
+		Entry("Config Connector hard quota on 403 is quota-exhausted, not auth", &ResourceDiagnosis{Provider: providerConfigConnector, Kind: "SQLInstance", Name: "db", Conditions: []ResourceCondition{
+			{Type: "Ready", Status: "False", Reason: "UpdateFailed", Message: "Update call failed: googleapi: Error 403: Quota exceeded for quota metric 'Instances' and limit 'Instances per project per region', quotaExceeded"},
+		}}, causeQuota, "Quota exceeded", ownerCloud, "Ready"),
+		// Crossplane, wrapped as crossplane-runtime's managed reconciler wraps provider errors.
+		Entry("Crossplane throttle inside observe failed", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Bucket", Name: "b", Conditions: []ResourceCondition{
+			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "observe failed: cannot run refresh: refresh failed: operation error S3: HeadBucket, https response error StatusCode: 503, RequestID: x, api error SlowDown: Please reduce your request rate."},
+		}}, causeThrottled, "SlowDown", ownerCloud, "Synced"),
+		Entry("Crossplane expired token", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Bucket", Name: "b", Conditions: []ResourceCondition{
+			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "connect failed: cannot get AWS config: ExpiredTokenException: The security token included in the request is expired"},
+		}}, causeAuth, "ExpiredTokenException", ownerPlatform, "Synced"),
+		Entry("ACK throttle as the live controller writes it", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "api error Throttling: Rate exceeded"},
+		), causeThrottled, "Throttling", ownerCloud, "ACK.Recoverable"),
+		Entry("EC2 dotted code", ack(
+			ResourceCondition{Type: "ACK.Terminal", Status: "True", Message: "InvalidSubnetID.NotFound: The subnet ID 'subnet-0abc' does not exist"},
+		), causeDependencyMissing, "InvalidSubnetID.NotFound", ownerApplicationSpec, "ACK.Terminal"),
+		Entry("code position beats an identifier echoed in the prose", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "ResourceConflictException: function OrderNotFoundHandler is updating"},
+		), causeConflict, "ResourceConflictException", ownerApplicationSpec, "ACK.Recoverable"),
+		Entry("SDK-wrapped code after api error is read at the code position, on a 400", ack(
+			ResourceCondition{Type: "ACK.ResourceSynced", Status: "Unknown", Reason: "operation error EC2: RunInstances, https response error StatusCode: 400, RequestID: x, api error VcpuLimitExceeded: You have requested more vCPU capacity"},
+		), causeQuota, "VcpuLimitExceeded", ownerCloud, "ACK.ResourceSynced"),
+		Entry("codes beat phrases", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "AccessDeniedException: User arn:aws:iam::1:user/x is not authorized; dial tcp 10.0.0.1:443: connect: connection refused"},
+		), causeAuth, "AccessDeniedException", ownerPlatform, "ACK.Recoverable"),
+		Entry("SDK-wrapped conflict beats an identifier echoed in the prose", ack(
+			ResourceCondition{Type: "ACK.ResourceSynced", Status: "Unknown", Reason: "operation error Lambda: UpdateFunctionCode, https response error StatusCode: 409, RequestID: x, api error ResourceConflictException: function OrderNotFoundHandler is updating"},
+		), causeConflict, "ResourceConflictException", ownerApplicationSpec, "ACK.ResourceSynced"),
+		Entry("Crossplane SDK-wrapped not found", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Table", Name: "t", Conditions: []ResourceCondition{
+			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "observe failed: operation error DynamoDB: DescribeTable, https response error StatusCode: 400, RequestID: x, api error ResourceNotFoundException: Requested resource not found"},
+		}}, causeDependencyMissing, "ResourceNotFoundException", ownerApplicationSpec, "Synced"),
+	)
+
+	DescribeTable("leaves text no rule recognises unclassified, with no owner and no code",
+		func(diag *ResourceDiagnosis) {
+			c := classifyCause(diag)
+			Expect(c).NotTo(BeNil())
+			Expect(c.Class).To(Equal(causeUnclassified))
+			Expect(c.Owner).To(BeEmpty())
+			Expect(c.Code).To(BeEmpty())
+		},
+		Entry("sentence-initial prose", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Bucket", Name: "b", Conditions: []ResourceCondition{
+			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "connect failed: Invalid provider config"},
+		}}),
+		Entry("unknown AWS code", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "api error PriorRequestNotComplete: Request is still in progress"},
+		)),
+	)
+
+	It("ignores error fields whose condition is not true", func() {
+		Expect(classifyCause(ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "False", Message: "stale"},
+			ResourceCondition{Type: "ACK.Terminal", Status: "False", Message: "stale"},
+			ResourceCondition{Type: "ACK.ResourceSynced", Status: "True"},
+		))).To(BeNil())
+	})
+
+	It("reads Terminal before Recoverable", func() {
+		c := classifyCause(ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "Throttling: Rate exceeded"},
+			ResourceCondition{Type: "ACK.Terminal", Status: "True", Message: "AccessDeniedException: x"},
+		))
+		Expect(c.Class).To(Equal(causeAuth))
+	})
+
+	It("returns unclassified with the raw text and no owner when nothing matches", func() {
+		c := classifyCause(ack(ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "something the controller made up"}))
+		Expect(c).NotTo(BeNil())
+		Expect(c.Class).To(Equal(causeUnclassified))
+		Expect(c.Owner).To(BeEmpty())
+		Expect(c.Code).To(BeEmpty())
+		Expect(c.Evidence).To(ContainSubstring("something the controller made up"))
+	})
+
+	It("returns nil when the resource is ready or carries no error text", func() {
+		Expect(classifyCause(&ResourceDiagnosis{Provider: providerACK, Ready: true, Conditions: []ResourceCondition{{Type: "ACK.ResourceSynced", Status: "True"}}})).To(BeNil())
+		Expect(classifyCause(ack(ResourceCondition{Type: "ACK.ResourceSynced", Status: "False"}))).To(BeNil())
+		Expect(classifyCause(&ResourceDiagnosis{Provider: providerKubernetes})).To(BeNil())
+	})
+
+	It("ignores lower-case prose words", func() {
+		// "notfound" inside a lower-case sentence is prose, not a code token.
+		c := classifyCause(ack(ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "the controller found nothing to do; notfound is just a word here"}))
+		Expect(c.Class).To(Equal(causeUnclassified))
+	})
+
+	It("does not panic on non-ASCII condition text and still finds the phrase", func() {
+		c := classifyCause(ack(ResourceCondition{Type: "ACK.ResourceSynced", Status: "Unknown", Reason: "İstanbul endpoint: dial tcp 10.0.0.1:4566: connect: connection refused"}))
+		Expect(c.Class).To(Equal(causeUnreachable))
+		Expect(c.Code).To(Equal("connection refused"))
+	})
+
+	It("treats a bare 429 as a throttle and lets the quota phrase override it", func() {
+		bare := &ResourceDiagnosis{Provider: providerConfigConnector, Conditions: []ResourceCondition{{Type: "Ready", Status: "False", Reason: "UpdateFailed", Message: "Update call failed: googleapi: Error 429: too many requests"}}}
+		Expect(classifyCause(bare).Class).To(Equal(causeThrottled))
+		quota := &ResourceDiagnosis{Provider: providerConfigConnector, Conditions: []ResourceCondition{{Type: "Ready", Status: "False", Reason: "UpdateFailed", Message: "Update call failed: googleapi: Error 429: Quota exceeded for quota metric 'Instances', quotaExceeded"}}}
+		Expect(classifyCause(quota).Class).To(Equal(causeQuota))
+	})
+
+	It("records the matched condition's transition time", func() {
+		ts := time.Date(2026, 11, 15, 9, 12, 0, 0, time.UTC)
+		c := classifyCause(ack(ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "Throttling: Rate exceeded", LastTransition: &ts}))
+		Expect(c.Since).NotTo(BeNil())
+		Expect(*c.Since).To(Equal(ts))
+	})
+
+	It("names the account-level classes", func() {
+		for _, cl := range []string{causeThrottled, causeQuota, causeAuth, causeUnreachable} {
+			Expect(accountLevelClass(cl)).To(BeTrue(), cl)
+		}
+		for _, cl := range []string{causeInvalid, causeDependencyMissing, causeConflict, causeUnclassified} {
+			Expect(accountLevelClass(cl)).To(BeFalse(), cl)
+		}
+	})
+})
