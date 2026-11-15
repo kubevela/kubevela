@@ -239,7 +239,15 @@ func registerTools(s *Server, d *deps) {
 			"recent events and findings that each cite the object " +
 			"they came from; anything unread is named in unknowns. The resource tree defaults unknown kinds to " +
 			"Healthy, so use this, not explain_application alone, when a cloud resource looks fine but the " +
-			"application is not.",
+			"application is not. A provisioner-owned resource that is not ready carries a cause when its family's " +
+			"condition holds error text: the cloud error classified from the provider's own error code into " +
+			"throttled, quota-exhausted, auth, invalid, dependency-missing, conflict or unreachable, with a single " +
+			"owner (application-spec, cloud or platform; controller is reserved) and the owning controller as a " +
+			"handle when this server can identify it; text no rule recognises is unclassified with no owner; a " +
+			"ready resource carries none. ACK causes are verified end to end with the ACK controller against an " +
+			"endpoint that answers with AWS's documented error bodies, not against an AWS account; Config " +
+			"Connector and Crossplane against their controllers' message formats. No family is verified against " +
+			"a cloud account.",
 	}, d.diagnoseApplication)
 
 	addTool(s, ToolClassRead, &sdk.Tool{

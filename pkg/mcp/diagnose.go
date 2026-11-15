@@ -95,6 +95,9 @@ type ResourceDiagnosis struct {
 	EndpointOverride string              `json:"endpointOverride,omitempty" jsonschema:"Endpoint the owning controller is configured to call instead of the cloud API, read from its Deployment. The conditions here describe that endpoint's view, usually an emulator's, not the cloud's. Empty means the controller calls the cloud or the lookup was uncertain; a note distinguishes the two."`
 	Conditions       []ResourceCondition `json:"conditions,omitempty" jsonschema:"Conditions read live from the resource."`
 	Notes            []string            `json:"notes,omitempty" jsonschema:"Caveats about this verdict, such as conditions that do not record the generation they describe."`
+	// Cause is the cloud error classified from the family's error fields;
+	// nil when the resource is ready or carries no error text.
+	Cause *Cause `json:"cause,omitempty" jsonschema:"The cloud error behind this verdict, classified from the condition the family writes it into, with the layer that owns the fix. Absent when the resource is ready or recorded no error text."`
 }
 
 // DiagnoseApplicationOutput is the structured result of diagnose_application.
@@ -188,6 +191,31 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 			out.Findings = append(out.Findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("warning event %s on %s, seen %d times", e.Reason, e.Object, e.Count), Observed: e.Message, Evidence: "Event on " + e.Object})
 		}
 	}
+	// Crossplane writes the provider error into the Synced message, but a
+	// bare ReconcileError, or a message no rule recognises, leaves only the
+	// warning event to read.
+	for i := range out.Resources {
+		r := &out.Resources[i]
+		if r.Provider != providerCrossplane || r.Ready || (r.Cause != nil && r.Cause.Class != causeUnclassified) {
+			continue
+		}
+		// a Synced condition that is True makes any Cannot event stale
+		synced := conditionOf(r.Conditions, "Synced")
+		if synced == nil || synced.Status == string(corev1.ConditionTrue) {
+			continue
+		}
+		for _, e := range events {
+			if e.Type != corev1.EventTypeWarning || !strings.HasPrefix(e.Reason, "Cannot") || !eventMatchesResource(e, *r) {
+				continue
+			}
+			if rule, code := classifyText(e.Message); rule != nil {
+				r.Cause = newCause(rule, code, "Event "+e.Reason+" on "+e.Object, e.Message, synced.LastTransition)
+				d.attachCause(r, &out, "", ackEndpointResult{})
+				out.Findings = append(out.Findings, causeFinding(*r))
+			}
+			break
+		}
+	}
 	out.Healthy = applicationHealthy(app) && allReady
 	sortFindings(out.Findings)
 	warnings := out.Meta.Warnings
@@ -258,13 +286,14 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 	}
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s", diag.Kind, diag.Namespace, diag.Name, diag.Cluster, obj.GetResourceVersion()))
 	diag.Conditions = objectConditions(obj)
+	service := strings.TrimSuffix(groupOf(diag.APIVersion), ".services.k8s.aws")
+	var ep ackEndpointResult
 	if diag.Provider == providerACK {
-		service := strings.TrimSuffix(groupOf(diag.APIVersion), ".services.k8s.aws")
 		// key by cluster and service: the lookup is cluster-scoped through
 		// cctx, so the same service in another cluster must not reuse it
 		epKey := diag.Cluster + "\x00" + service
-		ep, ok := epCache[epKey]
-		if !ok {
+		var ok bool
+		if ep, ok = epCache[epKey]; !ok {
 			ep = ackControllerEndpoint(cctx, d.f.Client(), service)
 			epCache[epKey] = ep
 		}
@@ -284,6 +313,98 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 	case providerCrossplane:
 		diagnoseCrossplane(diag)
 	}
+	diag.Cause = classifyCause(diag)
+	if diag.Cause != nil {
+		d.attachCause(diag, out, service, ep)
+	}
+}
+
+// attachCause adds the sweep pointer and the controller handle a classified
+// cause carries. The sweep is never run here: one Application cannot show
+// account scope, and a bounded per-Application read stays bounded.
+func (d *deps) attachCause(diag *ResourceDiagnosis, out *DiagnoseApplicationOutput, service string, ep ackEndpointResult) {
+	if diag.Cause.Class == causeUnclassified {
+		return
+	}
+	addSweepPointer(diag, out)
+	handle, note := controllerHandle(diag, service, ep, time.Now().UTC())
+	diag.Cause.Controller = handle
+	if note == "" {
+		return
+	}
+	if diag.Provider == providerACK {
+		// a missing or ambiguous Deployment already left a provenance note;
+		// say once that it also leaves no handle
+		for i, n := range diag.Notes {
+			if strings.HasPrefix(n, "endpoint provenance unknown") {
+				diag.Notes[i] = n + "; no controller handle"
+				return
+			}
+		}
+	}
+	diag.Notes = append(diag.Notes, note)
+}
+
+// addSweepPointer names diagnose_provisioners for a class that is usually
+// account-wide, once per provider, family and class.
+func addSweepPointer(diag *ResourceDiagnosis, out *DiagnoseApplicationOutput) {
+	c := diag.Cause
+	if !accountLevelClass(c.Class) {
+		return
+	}
+	provider := ""
+	if cloud := cloudOf(diag.APIVersion); cloud != "" {
+		provider = "provider " + cloud + ", "
+	}
+	msg := fmt.Sprintf("confirm the scope with diagnose_provisioners when this server offers it: %sfamily %s, window 1h — a %s cause is usually account-wide and one Application cannot show that", provider, diag.Provider, c.Class)
+	for _, n := range out.NextChecks {
+		if n == msg {
+			return
+		}
+	}
+	out.NextChecks = append(out.NextChecks, msg)
+}
+
+// controllerHandle returns the owning controller as a handle, with a window
+// from the cause's condition transition, or a note saying why there is none.
+func controllerHandle(diag *ResourceDiagnosis, service string, ep ackEndpointResult, now time.Time) (*ControllerHandle, string) {
+	window := TimeWindow{From: now.Add(-time.Hour), To: now, Basis: "fallback: one hour before this read"}
+	if diag.Cause.Since != nil {
+		window = TimeWindow{From: *diag.Cause.Since, To: now, Basis: "condition transition"}
+	}
+	switch diag.Provider {
+	case providerACK:
+		if ep.namespace == "" {
+			return nil, "no controller handle: the ACK " + service + " controller Deployment could not be identified"
+		}
+		return &ControllerHandle{Cluster: diag.Cluster, Namespace: ep.namespace, Name: ep.name, LabelSelector: "app.kubernetes.io/name=" + service + "-chart", Family: providerACK, APIGroup: groupOf(diag.APIVersion), Window: window}, ""
+	case providerConfigConnector:
+		return nil, "no controller handle: this server does not look up the Config Connector manager; it runs as StatefulSet cnrm-controller-manager in cnrm-system (or per-namespace in namespaced mode)"
+	default:
+		return nil, "no controller handle: the Crossplane provider pod for " + groupOf(diag.APIVersion) + " is not identified by this server; list pods with label pkg.crossplane.io/provider in the crossplane-system namespace"
+	}
+}
+
+// eventMatchesResource reports whether an event is about the resource: the
+// same object in the same cluster.
+func eventMatchesResource(e EventSummary, r ResourceDiagnosis) bool {
+	return e.Cluster == r.Cluster && e.Object == r.Kind+"/"+r.Name
+}
+
+// cloudOf maps an API group to its cloud through the family tables, for the
+// diagnose_provisioners pointer. Empty when no family owns the group.
+func cloudOf(apiVersion string) string {
+	group := groupOf(apiVersion)
+	for _, provider := range providerOrder {
+		for _, fam := range providerFamilies[provider] {
+			for _, suffix := range fam.suffixes {
+				if strings.HasSuffix(group, suffix) {
+					return provider
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // diagnoseACK applies the ACK conventions: ready means ACK.ResourceSynced is
@@ -402,12 +523,28 @@ func diagnosisFindings(diag ResourceDiagnosis) []Finding {
 			observed = joinParts(observed, c.Type+"="+c.Status, c.Reason, c.Message)
 		}
 	}
-	return []Finding{{
+	findings := []Finding{{
 		Severity: severity,
 		Message:  fmt.Sprintf("component %q: %s %s is %s (%s): %s", diag.Component, diag.Kind, diag.Name, diag.State, diag.Provider, diag.Summary),
 		Observed: text(observed),
 		Evidence: ref,
 	}}
+	if diag.Cause != nil && diag.Cause.Class != causeUnclassified {
+		findings = append(findings, causeFinding(diag))
+	}
+	return findings
+}
+
+// causeFinding states the classified cause as its own finding so the chain
+// reads without the structured block.
+func causeFinding(diag ResourceDiagnosis) Finding {
+	c := diag.Cause
+	return Finding{
+		Severity: SeverityError,
+		Message:  fmt.Sprintf("component %q: %s %s cause %s (%s) — owner: %s; scope: %s", diag.Component, diag.Kind, diag.Name, c.Class, c.Code, c.Owner, c.Scope),
+		Observed: text(c.Evidence),
+		Evidence: fmt.Sprintf("%s %s/%s in cluster %s", diag.Kind, diag.Namespace, diag.Name, diag.Cluster),
+	}
 }
 
 // objectConditions reads status.conditions from an unstructured object.

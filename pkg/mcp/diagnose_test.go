@@ -19,6 +19,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -156,6 +157,214 @@ var _ = Describe("diagnose_application", func() {
 		Expect(out.Findings[0].Severity).To(Equal(SeverityError))
 		Expect(out.Findings[0].Observed).To(ContainSubstring("InvalidSubnet"))
 		Expect(out.NextChecks).To(ContainElement(ContainSubstring("Terminal message")))
+	})
+
+	It("classifies an ACK throttle as a cloud-owned cause and points at the fleet sweep", func() {
+		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1,
+			[]map[string]any{
+				{"type": "ACK.ResourceSynced", "status": "Unknown", "reason": "operation error RDS: ModifyDBCluster, https response error StatusCode: 400, RequestID: 1, Throttling: Rate exceeded"},
+				{"type": "ACK.Recoverable", "status": "True", "message": "Throttling: Rate exceeded", "lastTransitionTime": "2026-11-15T09:12:00Z"},
+			}, nil)
+		h = startHarness(Options{}, append(diagnoseApp(db), ackControllerDeployment("rds", ""))...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		c := out.Resources[0].Cause
+		Expect(c).NotTo(BeNil())
+		Expect(c.Class).To(Equal(causeThrottled))
+		Expect(c.Owner).To(Equal(ownerCloud))
+		Expect(c.Scope).To(Equal(scopeThisResource))
+		Expect(c.Evidence).To(ContainSubstring("ACK.Recoverable message: Throttling: Rate exceeded"))
+		Expect(c.Controller).NotTo(BeNil())
+		Expect(c.Controller.Namespace).To(Equal("ack-system"))
+		Expect(c.Controller.Name).To(Equal("ack-rds-rds-chart"))
+		Expect(c.Controller.LabelSelector).To(Equal("app.kubernetes.io/name=rds-chart"))
+		Expect(c.Controller.APIGroup).To(Equal("rds.services.k8s.aws"))
+		Expect(c.Controller.Cluster).To(Equal(localCluster))
+		Expect(c.Controller.Window.Basis).To(Equal("condition transition"))
+		Expect(c.Controller.Window.From).To(Equal(time.Date(2026, 11, 15, 9, 12, 0, 0, time.UTC)))
+		Expect(out.Findings).To(ContainElement(SatisfyAll(
+			HaveField("Severity", SeverityError),
+			HaveField("Message", ContainSubstring("cause throttled (Throttling) — owner: cloud")),
+			HaveField("Observed", ContainSubstring("Rate exceeded")),
+		)))
+		Expect(out.NextChecks).To(ContainElement(ContainSubstring("diagnose_provisioners when this server offers it: provider aws, family ack, window 1h")))
+	})
+
+	It("names no controller handle when the ACK controller Deployment is absent, in the provenance note", func() {
+		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1,
+			[]map[string]any{{"type": "ACK.Recoverable", "status": "True", "message": "Throttling: Rate exceeded"}}, nil)
+		h = startHarness(Options{}, diagnoseApp(db)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		r := out.Resources[0]
+		Expect(r.Cause).NotTo(BeNil())
+		Expect(r.Cause.Controller).To(BeNil())
+		Expect(r.Notes).To(ContainElement(ContainSubstring("no controller handle")))
+		provenance := 0
+		for _, n := range r.Notes {
+			if strings.Contains(n, "provenance") {
+				provenance++
+			}
+		}
+		Expect(provenance).To(Equal(1))
+	})
+
+	It("falls back to the hour before the read when the condition records no transition", func() {
+		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1,
+			[]map[string]any{{"type": "ACK.Recoverable", "status": "True", "message": "Throttling: Rate exceeded"}}, nil)
+		h = startHarness(Options{}, append(diagnoseApp(db), ackControllerDeployment("rds", ""))...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		c := out.Resources[0].Cause
+		Expect(c).NotTo(BeNil())
+		Expect(c.Since).To(BeNil())
+		Expect(c.Controller).NotTo(BeNil())
+		Expect(c.Controller.Window.Basis).To(Equal("fallback: one hour before this read"))
+	})
+
+	It("points at the fleet sweep once however many resources are throttled", func() {
+		throttled := []map[string]any{{"type": "ACK.Recoverable", "status": "True", "message": "Throttling: Rate exceeded"}}
+		db1 := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1, throttled, nil)
+		db2 := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db-2", 1, throttled, nil)
+		h = startHarness(Options{}, append(diagnoseApp(db1, db2), ackControllerDeployment("rds", ""))...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources).To(HaveLen(2))
+		for _, r := range out.Resources {
+			Expect(r.Cause).NotTo(BeNil())
+			Expect(r.Cause.Class).To(Equal(causeThrottled))
+		}
+		sweeps := 0
+		for _, n := range out.NextChecks {
+			if strings.Contains(n, "diagnose_provisioners") {
+				sweeps++
+			}
+		}
+		Expect(sweeps).To(Equal(1))
+	})
+
+	It("classifies a Terminal invalid parameter as application-spec and does not point at the sweep", func() {
+		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBInstance", "orders-db-1", 1,
+			[]map[string]any{
+				{"type": "ACK.ResourceSynced", "status": "False", "reason": "resource is in terminal condition", "message": "Resource not synced"},
+				{"type": "ACK.Terminal", "status": "True", "message": "api error InvalidParameterCombination: Cannot find version 16.3 for aurora-postgresql"},
+			}, nil)
+		h = startHarness(Options{}, append(diagnoseApp(db), ackControllerDeployment("rds", ""))...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		c := out.Resources[0].Cause
+		Expect(c).NotTo(BeNil())
+		Expect(c.Class).To(Equal(causeInvalid))
+		Expect(c.Owner).To(Equal(ownerApplicationSpec))
+		Expect(c.Controller).NotTo(BeNil())
+		Expect(c.Controller.Name).To(Equal("ack-rds-rds-chart"))
+		Expect(out.NextChecks).NotTo(ContainElement(ContainSubstring("diagnose_provisioners")))
+
+		h2 := startHarness(Options{}, diagnoseApp(db)...)
+		defer h2.close()
+		var bare DiagnoseApplicationOutput
+		res = h2.call("diagnose_application", args, &bare)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(bare.Resources[0].Cause.Controller).To(BeNil())
+		Expect(bare.Resources[0].Notes).To(ContainElement(ContainSubstring("no controller handle")))
+	})
+
+	It("leaves unrecognised text unclassified with no owner and no cause finding", func() {
+		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1,
+			[]map[string]any{{"type": "ACK.Recoverable", "status": "True", "message": "something the controller made up"}}, nil)
+		h = startHarness(Options{}, diagnoseApp(db)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources[0].Cause.Class).To(Equal(causeUnclassified))
+		Expect(out.Resources[0].Cause.Owner).To(BeEmpty())
+		Expect(out.Findings).NotTo(ContainElement(HaveField("Message", ContainSubstring("— owner:"))))
+	})
+
+	It("classifies a Crossplane resource from a warning event when its Synced message is bare", func() {
+		b := cloudResource("s3.aws.upbound.io/v1beta1", "Bucket", "assets", 1,
+			[]map[string]any{
+				{"type": "Synced", "status": "False", "reason": "ReconcileError"},
+				{"type": "Ready", "status": "False"},
+			}, nil)
+		ev := &corev1.Event{
+			ObjectMeta:     metav1.ObjectMeta{Name: "assets.1", Namespace: "team-a"},
+			InvolvedObject: corev1.ObjectReference{APIVersion: "s3.aws.upbound.io/v1beta1", Kind: "Bucket", Name: "assets", Namespace: "team-a"},
+			Type:           corev1.EventTypeWarning, Reason: "CannotObserveExternalResource",
+			Message: "cannot run refresh: api error SlowDown: Please reduce your request rate.",
+			Count:   3, LastTimestamp: metav1.Now(),
+		}
+		h = startHarness(Options{}, append(diagnoseApp(b), ev)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources[0].Cause).NotTo(BeNil())
+		Expect(out.Resources[0].Cause.Class).To(Equal(causeThrottled))
+		Expect(out.Resources[0].Cause.Evidence).To(ContainSubstring("Event CannotObserveExternalResource"))
+		Expect(out.NextChecks).To(ContainElement(ContainSubstring("diagnose_provisioners when this server offers it: provider aws, family crossplane, window 1h")))
+		Expect(out.Resources[0].Notes).To(ContainElement(ContainSubstring("no controller handle")))
+		Expect(out.Findings).To(ContainElement(HaveField("Message", ContainSubstring("cause throttled (SlowDown) — owner: cloud"))))
+	})
+
+	It("replaces an unclassified Crossplane cause with the one its warning event classifies", func() {
+		ts := "2026-11-15T09:12:00Z"
+		b := cloudResource("s3.aws.upbound.io/v1beta1", "Bucket", "assets", 1,
+			[]map[string]any{
+				{"type": "Synced", "status": "False", "reason": "ReconcileError", "message": "connect failed: Invalid provider config", "lastTransitionTime": ts},
+				{"type": "Ready", "status": "False"},
+			}, nil)
+		ev := &corev1.Event{
+			ObjectMeta:     metav1.ObjectMeta{Name: "assets.1", Namespace: "team-a"},
+			InvolvedObject: corev1.ObjectReference{APIVersion: "s3.aws.upbound.io/v1beta1", Kind: "Bucket", Name: "assets", Namespace: "team-a"},
+			Type:           corev1.EventTypeWarning, Reason: "CannotConnectToProvider",
+			Message: "cannot get AWS config: ExpiredTokenException: The security token included in the request is expired",
+			Count:   2, LastTimestamp: metav1.Now(),
+		}
+		h = startHarness(Options{}, append(diagnoseApp(b), ev)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		c := out.Resources[0].Cause
+		Expect(c).NotTo(BeNil())
+		Expect(c.Class).To(Equal(causeAuth))
+		Expect(c.Code).To(Equal("ExpiredTokenException"))
+		Expect(c.Evidence).To(ContainSubstring("Event CannotConnectToProvider on Bucket/assets"))
+		Expect(c.Since).NotTo(BeNil())
+		Expect(*c.Since).To(Equal(time.Date(2026, 11, 15, 9, 12, 0, 0, time.UTC)))
+		Expect(out.Findings).To(ContainElement(HaveField("Message", ContainSubstring("cause auth (ExpiredTokenException) — owner: platform"))))
+	})
+
+	It("does not read a stale warning event once Synced is True", func() {
+		b := cloudResource("s3.aws.upbound.io/v1beta1", "Bucket", "assets", 1,
+			[]map[string]any{
+				{"type": "Synced", "status": "True"},
+				{"type": "Ready", "status": "False"},
+			}, nil)
+		ev := &corev1.Event{
+			ObjectMeta:     metav1.ObjectMeta{Name: "assets.1", Namespace: "team-a"},
+			InvolvedObject: corev1.ObjectReference{APIVersion: "s3.aws.upbound.io/v1beta1", Kind: "Bucket", Name: "assets", Namespace: "team-a"},
+			Type:           corev1.EventTypeWarning, Reason: "CannotObserveExternalResource",
+			Message: "cannot run refresh: api error SlowDown: Please reduce your request rate.",
+			Count:   3, LastTimestamp: metav1.Now(),
+		}
+		h = startHarness(Options{}, append(diagnoseApp(b), ev)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources[0].Cause).To(BeNil())
+		Expect(out.Findings).NotTo(ContainElement(HaveField("Message", ContainSubstring("— owner:"))))
+	})
+
+	It("matches an event to a resource only in the same cluster", func() {
+		r := ResourceDiagnosis{Cluster: localCluster, Kind: "Bucket", Name: "assets"}
+		Expect(eventMatchesResource(EventSummary{Cluster: localCluster, Object: "Bucket/assets"}, r)).To(BeTrue())
+		Expect(eventMatchesResource(EventSummary{Cluster: "prod-east", Object: "Bucket/assets"}, r)).To(BeFalse())
+		Expect(eventMatchesResource(EventSummary{Cluster: localCluster, Object: "Bucket/other"}, r)).To(BeFalse())
 	})
 
 	It("names the convergence-loop signature when the provider has the resource but sync never turns true", func() {
