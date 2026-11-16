@@ -117,20 +117,14 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req admission.Request, resource, definitionType, appNamespace string) (bool, error) {
 	// Check permission in vela-system namespace first since most definitions are there
 	// This optimizes for the common case and reduces API calls
-	systemNsSar := &authv1.SubjectAccessReview{
-		Spec: authv1.SubjectAccessReviewSpec{
-			User:   req.UserInfo.Username,
-			Groups: req.UserInfo.Groups,
-			ResourceAttributes: &authv1.ResourceAttributes{
-				Verb:      "get",
-				Group:     "core.oam.dev",
-				Version:   "v1beta1",
-				Resource:  resource,
-				Namespace: oam.SystemDefinitionNamespace,
-				Name:      definitionType,
-			},
-		},
-	}
+	systemNsSar := requesterReview(req, authv1.ResourceAttributes{
+		Verb:      "get",
+		Group:     "core.oam.dev",
+		Version:   "v1beta1",
+		Resource:  resource,
+		Namespace: oam.SystemDefinitionNamespace,
+		Name:      definitionType,
+	})
 
 	if err := h.Client.Create(ctx, systemNsSar); err != nil {
 		return false, fmt.Errorf("failed to check %s permission in system namespace: %w", resource, err)
@@ -154,20 +148,14 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 
 	// If not in system namespace and app namespace is different, check app namespace
 	if appNamespace != oam.SystemDefinitionNamespace {
-		appNsSar := &authv1.SubjectAccessReview{
-			Spec: authv1.SubjectAccessReviewSpec{
-				User:   req.UserInfo.Username,
-				Groups: req.UserInfo.Groups,
-				ResourceAttributes: &authv1.ResourceAttributes{
-					Verb:      "get",
-					Group:     "core.oam.dev",
-					Version:   "v1beta1",
-					Resource:  resource,
-					Namespace: appNamespace,
-					Name:      definitionType,
-				},
-			},
-		}
+		appNsSar := requesterReview(req, authv1.ResourceAttributes{
+			Verb:      "get",
+			Group:     "core.oam.dev",
+			Version:   "v1beta1",
+			Resource:  resource,
+			Namespace: appNamespace,
+			Name:      definitionType,
+		})
 
 		if err := h.Client.Create(ctx, appNsSar); err != nil {
 			return false, fmt.Errorf("failed to check %s permission in namespace %s: %w", resource, appNamespace, err)
@@ -425,6 +413,8 @@ func (h *ValidatingHandler) ValidateDefinitionPermissions(ctx context.Context, a
 			}
 			return paths
 		})...)
+
+	errs = append(errs, h.validateIndirectReach(ctx, app, req)...)
 
 	return errs
 }

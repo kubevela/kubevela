@@ -142,8 +142,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 // RegisterValidatingHandler will register application validate handler to the webhook
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{
+	handler := &ValidatingHandler{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}})
+	}
+	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: handler})
+	referenced := &webhook.Admission{Handler: &ReferencedObjectHandler{app: handler, Decoder: handler.Decoder}}
+	server.Register("/validating-core-oam-dev-v1alpha1-workflows", referenced)
+	server.Register("/validating-core-oam-dev-v1alpha1-policies", referenced)
 }
