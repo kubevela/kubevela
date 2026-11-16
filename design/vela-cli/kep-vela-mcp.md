@@ -1,8 +1,11 @@
 # KEP: Vela MCP - Agent-Operable Delivery, Diagnosis and Remediation
 
 **Authors**: Anoop Gopalakrishnan
+
 **Status**: Draft
+
 **Created**: 2026-09-29
+
 **Last Updated**: 2026-11-15
 
 > **Status**: Design proposal. Tool names, schemas and flag names may change during
