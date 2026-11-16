@@ -47,6 +47,17 @@ func (h *ReferencedObjectHandler) Handle(ctx context.Context, req admission.Requ
 	if req.Operation != admissionv1.Create && req.Operation != admissionv1.Update {
 		return admission.Allowed("")
 	}
+	// The controller compiles a Workflow's step conditions and data passing for every Application
+	// that references it, so they are checked whatever the feature gates.
+	if req.Kind.Kind == "Workflow" {
+		wf := &wfTypesv1alpha1.Workflow{}
+		if err := h.Decoder.Decode(req, wf); err != nil {
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+		if errs := StepsCUEDepth(field.NewPath("steps"), wf.Steps); len(errs) > 0 {
+			return admission.Denied(errs.ToAggregate().Error())
+		}
+	}
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateDefinitionPermissions) {
 		return admission.Allowed("")
 	}

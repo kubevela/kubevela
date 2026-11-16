@@ -28,6 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/oam-dev/kubevela/pkg/cue/nesting"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -47,6 +49,13 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate component definition
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	// CUE's parser recurses once per level of nesting, and a deep enough template overflows the
+	// stack, which no recover catches: refuse one before anything parses it.
+	if req.Object.Raw != nil {
+		if err := nesting.CheckJSONStrings(req.Object.Raw, nesting.MaxDepth); err != nil {
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+	}
 	startTime := time.Now()
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "PolicyDefinitionValidator")

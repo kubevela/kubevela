@@ -444,6 +444,10 @@ func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.
 
 // ValidateCreate validates the Application on creation
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
+	// First, before anything reads or compiles the Application's CUE.
+	if errs := ValidateCUEDepth(app); len(errs) > 0 {
+		return errs
+	}
 	var errs field.ErrorList
 
 	errs = append(errs, h.ValidateAnnotations(ctx, app)...)
