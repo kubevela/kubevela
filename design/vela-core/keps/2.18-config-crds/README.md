@@ -4,6 +4,7 @@
 
 **Status:** Drafting (Not ready for consumption)
 **Parent:** [vNext Roadmap](../README.md)
+**Design notes:** [`design/`](./design/)
 
 `ConfigTemplate` and `Config` are currently implemented as formatted `ConfigMap` objects identified by a well-known label convention. The CUE authoring model is good — a `metadata` block and a `template` block containing a `parameter` schema and an output shape — but the storage is not. Schema validation only occurs in the CLI (`vela config`); the API server accepts any ConfigMap regardless of content. GitOps adoption is poor — authors must hand-craft ConfigMaps with CUE embedded as string values in `data` keys, and `kubectl apply` provides no feedback on malformed entries.
 
