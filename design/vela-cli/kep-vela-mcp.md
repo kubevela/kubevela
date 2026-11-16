@@ -290,16 +290,20 @@ for example a provider condition that was not surfaced, it lists it under `unkno
 instead of leaving a gap the model might fill.
 
 **Causes are classified, never guessed.** A provisioner-owned resource's error text is
-matched first against the provider's own error-code token — the one after "api error" in
-an AWS SDK message, else the first CamelCase token immediately followed by a colon that a
-rule names, dotted as EC2 writes it — then against every CamelCase token in the text, then
-against transport phrases such as "connection refused", and last against a googleapi HTTP
-status; the first rule that matches names the class, the token it matched on and the
-owner. Text that matches no rule is `unclassified`, carries the redacted text as evidence
-and carries no owner — the server does not infer who should fix what it could not
-recognise; an explicit provider code that no rule names is `unclassified` too, and the
-prose around it is not scanned, so an identifier echoed in a sentence cannot assign a
-class. A family condition that names a class by its own convention — ACK
+matched in four steps, and the first rule that matches names the class, the token it
+matched on and the owner. Step one reads the code position: the token after "api error"
+in an AWS SDK message, else the first CamelCase token immediately followed by a colon that
+a rule names, dotted as EC2 writes it. An explicit provider code is the "api error" case:
+the provider named this error itself, so when no rule names that token the result is
+`unclassified` and steps two to four are skipped — no CamelCase token, transport phrase or
+HTTP status elsewhere in the same message is read, because a message that carries an API
+error completed its exchange and any transport text in it describes an earlier attempt,
+and an identifier echoed in the prose must not assign a class. Text with no explicit code
+continues: step two matches every CamelCase token in the text, step three transport
+phrases such as "connection refused", step four a googleapi HTTP status. Text that reaches
+the end with no match is `unclassified`, carries the redacted text as evidence and carries
+no owner — the server does not infer who should fix what it could not recognise. A family
+condition that names a class by its own convention — ACK
 `ReferencesResolved` not True is `dependency-missing` — is read as that class with the
 condition as the code. Illustrative examples: a `Throttling` or `TooManyRequestsException`
 token is `throttled` with owner `cloud`; `LimitExceeded` or `QuotaExceeded` is
