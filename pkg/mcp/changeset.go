@@ -333,7 +333,7 @@ func redactLeaf(path string, v any) any {
 	}
 	raw, err := json.Marshal(v)
 	if err == nil && len(raw) > maxTextLen {
-		return string(raw[:maxTextLen]) + truncMark
+		return truncateText(string(raw))
 	}
 	return v
 }

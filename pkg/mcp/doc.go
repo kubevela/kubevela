@@ -49,8 +49,10 @@ limitations under the License.
 // namespace builds on.
 //
 // Secret objects come back as metadata only and ConfigMap values as keys
-// only. Annotations that embed a serialized object are dropped. Secret-like
-// keys and env entries are replaced, and credential-shaped substrings and
+// only. The last-applied-configuration annotations kubectl and KubeVela
+// write, which embed a serialized object, are dropped; other annotations
+// get the pattern-based redaction below. Secret-like keys and env entries
+// are replaced, and credential-shaped substrings and
 // control characters are removed from strings, log lines, event messages
 // and error text. That last step is pattern based and therefore best
 // effort; the structural rules above are what make Secret and ConfigMap

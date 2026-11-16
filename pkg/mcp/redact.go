@@ -19,8 +19,10 @@ package mcp
 import (
 	"encoding/json"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -44,7 +46,7 @@ var (
 	// secretKey matches map keys and env names whose values are credentials
 	// by convention. The cost of matching on names is that a harmless field
 	// such as tokenCount is hidden too.
-	secretKey = regexp.MustCompile(`(?i)(passw|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|authorization|cookie|dockerconfigjson|kubeconfig|tls\.key|(^|[^a-z0-9])pass([^a-z0-9]|$)|[_.-]key$)`)
+	secretKey = regexp.MustCompile(`(?i)(passw|passwd|passphrase|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|authorization|cookie|dockerconfigjson|kubeconfig|tls\.key|(^|[^a-z0-9])pass([^a-z0-9]|$)|[_.-]key$)`)
 
 	// secretLine patterns strip credentials that leak into text. Each
 	// replacement keeps group 1 (the context that says what was removed)
@@ -56,7 +58,7 @@ var (
 	}{
 		{regexp.MustCompile(`(?i)(authorization["']?\s*[:=]\s*["']?(?:(?:bearer|basic|token)\s+)?)[^\s"',;]+`), "${1}" + redactedValue},
 		{regexp.MustCompile(`(?i)(bearer\s+)[a-z0-9._~+/=-]+`), "${1}" + redactedValue},
-		{regexp.MustCompile(`(?i)((?:^|[^a-z0-9])[a-z0-9_.-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential)[a-z0-9_.-]*["']?\s*[:=]\s*["']?)[^\s"',;&]+`), "${1}" + redactedValue},
+		{regexp.MustCompile(`(?i)((?:^|[^a-z0-9])[a-z0-9_.-]*(?:password|passwd|passphrase|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential)[a-z0-9_.-]*["']?\s*[:=]\s*["']?)[^\s"',;&]+`), "${1}" + redactedValue},
 		{regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://[^/\s:@"']+:)[^@/\s"']+@`), "${1}" + redactedValue + "@"},
 		{regexp.MustCompile(`(?i)([?&](?:access_token|id_token|refresh_token|token|api[_-]?key|apikey|key|secret|client_secret|password|passwd|sig|signature|private_token)=)[^&\s"']+`), "${1}" + redactedValue},
 		{regexp.MustCompile(`()\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}`), "${1}" + redactedValue},
@@ -158,9 +160,15 @@ func redactObject(content map[string]any) map[string]any {
 	if fields := payloadFields(content); fields != nil {
 		for _, field := range fields {
 			if data, ok := content[field].(map[string]any); ok {
-				keys := make([]any, 0, len(data))
+				names := make([]string, 0, len(data))
 				for k := range data {
-					keys = append(keys, k)
+					names = append(names, k)
+				}
+				// Sorted, so the same object always reads the same.
+				sort.Strings(names)
+				keys := make([]any, len(names))
+				for i, k := range names {
+					keys[i] = k
 				}
 				content[field+"Keys"] = keys
 				delete(content, field)
@@ -195,11 +203,20 @@ func redactLine(s string) string {
 
 // text is redactLine with a length cap, for message-like fields.
 func text(s string) string {
-	s = redactLine(s)
-	if len(s) > maxTextLen {
-		s = s[:maxTextLen] + truncMark
+	return truncateText(redactLine(s))
+}
+
+// truncateText caps s at maxTextLen bytes and marks the cut. The cut backs
+// off to the start of a rune, so the result stays valid UTF-8.
+func truncateText(s string) string {
+	if len(s) <= maxTextLen {
+		return s
 	}
-	return s
+	n := maxTextLen
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n] + truncMark
 }
 
 // sanitize strips ANSI escapes and the control, bidirectional, zero-width

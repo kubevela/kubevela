@@ -19,6 +19,7 @@ package mcp
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -54,6 +55,41 @@ var _ = Describe("redaction", func() {
 		Expect(redactLine("plain line with no secrets")).To(Equal("plain line with no secrets"))
 		pem := "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----"
 		Expect(redactLine(pem)).To(Equal("-----BEGIN RSA PRIVATE KEY-----" + redactedValue + "-----END RSA PRIVATE KEY-----"))
+	})
+
+	It("redacts passphrase keys, env entries and lines", func() {
+		out := redactMap(map[string]any{
+			"sshPassphrase": "p1",
+			"env":           []any{map[string]any{"name": "SSH_PASSPHRASE", "value": "p2"}},
+		}).(map[string]any)
+		Expect(out).To(HaveKeyWithValue("sshPassphrase", redactedValue))
+		Expect(out["env"].([]any)[0]).To(HaveKeyWithValue("value", redactedValue))
+		Expect(redactLine("PASSPHRASE=hunter2")).To(Equal("PASSPHRASE=" + redactedValue))
+		Expect(redactLine(`key_passphrase: "hunter2"`)).To(Equal(`key_passphrase: "` + redactedValue + `"`))
+	})
+
+	It("lists ConfigMap and Secret payload keys in sorted order", func() {
+		data := map[string]any{"e": "1", "d": "1", "c": "1", "b": "1", "a": "1", "f": "1", "g": "1"}
+		for i := 0; i < 20; i++ {
+			out := redactObject(map[string]any{"kind": "ConfigMap", "data": data, "binaryData": data})
+			Expect(out["dataKeys"]).To(Equal([]any{"a", "b", "c", "d", "e", "f", "g"}))
+			Expect(out["binaryDataKeys"]).To(Equal([]any{"a", "b", "c", "d", "e", "f", "g"}))
+			out = redactObject(map[string]any{"kind": "Secret", "stringData": data})
+			Expect(out["stringDataKeys"]).To(Equal([]any{"a", "b", "c", "d", "e", "f", "g"}))
+		}
+	})
+
+	It("truncates long text on a rune boundary", func() {
+		s := strings.Repeat("a", maxTextLen-1) + "é" + "tail"
+		got := text(s)
+		Expect(utf8.ValidString(got)).To(BeTrue(), "no rune is cut in half")
+		Expect(got).To(Equal(strings.Repeat("a", maxTextLen-1) + truncMark))
+
+		long := []any{strings.Repeat("a", maxTextLen-3) + "é"}
+		leaf, ok := redactLeaf("spec.items", long).(string)
+		Expect(ok).To(BeTrue())
+		Expect(utf8.ValidString(leaf)).To(BeTrue(), "marshalled values are cut on a rune boundary too")
+		Expect(leaf).To(HaveSuffix(truncMark))
 	})
 
 	It("decodes raw properties and keeps undecodable content visible", func() {
