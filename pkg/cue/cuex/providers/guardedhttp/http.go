@@ -24,7 +24,6 @@ package guardedhttp
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	neturl "net/url"
 	"strings"
@@ -72,6 +71,9 @@ func Do(ctx context.Context, doParams *kvhttp.DoParams) (*kvhttp.DoReturns, erro
 	defer transport.CloseIdleConnections()
 	client := &http.Client{
 		Transport: transport,
+		// vela/http has no timeout parameter, so a request may take the longest a workflow HTTP
+		// request may set.
+		Timeout: httpguard.MaxRequestTimeout,
 		// A custom CheckRedirect replaces the net/http default, so the
 		// redirect limit is enforced here too.
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -88,7 +90,7 @@ func Do(ctx context.Context, doParams *kvhttp.DoParams) (*kvhttp.DoReturns, erro
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-	b, err := io.ReadAll(resp.Body)
+	b, err := httpguard.ReadResponseBody(resp.Body)
 	if err != nil {
 		return nil, err
 	}

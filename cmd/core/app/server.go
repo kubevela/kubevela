@@ -125,6 +125,9 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 	// Sync configurations
 	klog.V(2).InfoS("Syncing configurations to global variables")
 	syncConfigurations(ctx, coreOptions)
+	if err := httpguard.CheckBounds(); err != nil {
+		return err
+	}
 	klog.InfoS("Configuration sync completed successfully")
 
 	// Setup logging
