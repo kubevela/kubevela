@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: SourceDefinition
 metadata:
   annotations:
-    definition.oam.dev/cache-key-rules: 6ac674fa
+    definition.oam.dev/cache-key-rules: 62eb1959
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: Whether a KubeVela addon is installed and running, and the name and namespace of the Application it built - chain into vela-app for the detail.
   name: vela-addon

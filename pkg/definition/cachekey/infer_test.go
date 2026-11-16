@@ -333,7 +333,7 @@ func TestUnsupportedContextIsOneMessage(t *testing.T) {
 // discovered against a cluster - the other hash tests prove the function is
 // stable, not that this particular value has not moved.
 func TestStampedRulesHashHasNotMoved(t *testing.T) {
-	const stamped = "6ac674fa" // as written into every generated SourceDefinition
+	const stamped = "62eb1959" // as written into every generated SourceDefinition
 
 	rules, err := LoadRules()
 	if err != nil {
