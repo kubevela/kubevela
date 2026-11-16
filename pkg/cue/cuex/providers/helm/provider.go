@@ -154,6 +154,9 @@ type Provider struct {
 	// override this to inject a fake clientset so the dispatcher's adoption
 	// path and background health checks do not leak to the active cluster.
 	kubeClientFactory func() (kubernetes.Interface, error)
+	// ownerAppExists reports whether an Application exists. It decides whether a release
+	// labelled for another Application is still owned or left behind. Tests stub it.
+	ownerAppExists func(ctx context.Context, namespace, name string) (bool, error)
 }
 
 var (
@@ -282,6 +285,7 @@ func NewProvider() *Provider {
 		}
 		globalProvider.actionConfigFactory = globalProvider.getActionConfig
 		globalProvider.kubeClientFactory = globalProvider.getKubeClientset
+		globalProvider.ownerAppExists = hubAppExists
 	})
 	return globalProvider
 }
@@ -317,6 +321,7 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 	}
 	p.actionConfigFactory = p.getActionConfig
 	p.kubeClientFactory = p.getKubeClientset
+	p.ownerAppExists = hubAppExists
 	return p
 }
 

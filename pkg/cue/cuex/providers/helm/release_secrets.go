@@ -26,7 +26,9 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // validateReleaseHealth checks that the Helm release secret exists and is
@@ -124,9 +126,9 @@ func (p *Provider) listReleaseSecretNames(namespace, releaseName string) []strin
 	return names
 }
 
-// labelReleaseSecrets adds KubeVela ownership labels to all existing Helm
-// release secrets that don't already have them. Called during adoption of
-// external releases so that listReleaseSecretNames picks them up for GC tracking.
+// labelReleaseSecrets labels every Secret of a release as owned by this component, replacing
+// a departed owner's labels. Called during adoption so that listReleaseSecretNames picks them
+// up for GC tracking and the resource keeper accepts them.
 func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *ContextParams) {
 	if velaCtx == nil {
 		return
@@ -145,8 +147,15 @@ func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *C
 	}
 
 	for _, s := range secretList.Items {
-		if s.Labels["app.oam.dev/name"] != "" {
-			continue // already labeled
+		if s.Labels["app.oam.dev/name"] == velaCtx.AppName &&
+			s.Labels["app.oam.dev/namespace"] == velaCtx.AppNamespace &&
+			s.Labels["app.oam.dev/component"] == velaCtx.Name {
+			continue
+		}
+		// Only a release with no owner, or one whose Application is gone, is taken over.
+		if err := p.checkOwnerLabels(context.Background(), s.Labels, namespace, releaseName, velaCtx); err != nil {
+			klog.Warningf("Helm provider [%s]: Not labelling release secret %s/%s: %v", velaContextStr(velaCtx), namespace, s.Name, err)
+			continue
 		}
 		patch := fmt.Sprintf(`{"metadata":{"labels":{"app.oam.dev/name":%q,"app.oam.dev/namespace":%q,"app.oam.dev/component":%q}}}`,
 			velaCtx.AppName, velaCtx.AppNamespace, velaCtx.Name)
@@ -179,11 +188,24 @@ func (p *Provider) deleteReleaseSecretsDirect(namespace, releaseName string, vel
 		return errors.Wrapf(err, "failed to list helm secrets for release %s", releaseName)
 	}
 
+	// A release Helm cannot read still names its owner on its Secrets, and one another Application
+	// owns is not this component's to clear.
+	for _, secret := range secretList.Items {
+		if err := p.checkOwnerLabels(context.Background(), secret.Labels, namespace, releaseName, velaCtx); err != nil {
+			return err
+		}
+	}
+
+	// Any Secret left behind blocks the retry, so a failed delete fails the cleanup.
+	var errs []error
 	for _, secret := range secretList.Items {
 		klog.Infof("Helm provider [%s]: Directly deleting corrupted release secret %s/%s", velaContextStr(velaCtx), namespace, secret.Name)
-		if err := clientset.CoreV1().Secrets(namespace).Delete(context.Background(), secret.Name, metav1.DeleteOptions{}); err != nil {
-			klog.Warningf("Helm provider: Failed to delete secret %s/%s: %v", namespace, secret.Name, err)
+		if err := clientset.CoreV1().Secrets(namespace).Delete(context.Background(), secret.Name, metav1.DeleteOptions{}); client.IgnoreNotFound(err) != nil {
+			errs = append(errs, errors.Wrapf(err, "failed to delete release secret %s/%s", namespace, secret.Name))
 		}
+	}
+	if len(errs) > 0 {
+		return utilerrors.NewAggregate(errs)
 	}
 
 	klog.Infof("Helm provider [%s]: Deleted %d orphaned release secrets for %s in namespace %s", velaContextStr(velaCtx), len(secretList.Items), releaseName, namespace)

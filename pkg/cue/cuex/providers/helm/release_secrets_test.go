@@ -17,6 +17,9 @@ limitations under the License.
 package helm
 
 import (
+	"context"
+	"fmt"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 // providerWithFakeClientset returns a fresh Provider whose kubeClientFactory
@@ -123,26 +127,64 @@ var _ = Describe("release_secrets", func() {
 			Expect(patched.Labels).To(HaveKeyWithValue("app.oam.dev/component", "comp"))
 		})
 
-		It("skips already-labeled secrets", func() {
+		It("replaces a departed owner's labels", func() {
 			ns := "rel-ns"
-			already := &corev1.Secret{
+			stale := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "sh.helm.release.v1.r.v1",
 					Namespace: ns,
 					Labels: map[string]string{
 						"owner": "helm", "name": "r",
-						"app.oam.dev/name": "old-app",
+						"app.oam.dev/name": "old-app", "app.oam.dev/namespace": "elsewhere", "app.oam.dev/component": "comp",
 					},
 				},
 			}
-			p, cs := providerWithFakeClientset(already)
+			p, cs := providerWithFakeClientset(stale)
+			p.ownerAppExists = func(context.Context, string, string) (bool, error) { return false, nil }
 			velaCtx := &ContextParams{AppName: "new-app", AppNamespace: ns, Name: "comp"}
 
 			p.labelReleaseSecrets(ns, "r", velaCtx)
 
 			got, err := cs.CoreV1().Secrets(ns).Get(GinkgoT().Context(), "sh.helm.release.v1.r.v1", metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(got.Labels["app.oam.dev/name"]).To(Equal("old-app"), "must not overwrite existing app.oam.dev/name label")
+			Expect(got.Labels).To(HaveKeyWithValue("app.oam.dev/name", "new-app"))
+			Expect(got.Labels).To(HaveKeyWithValue("app.oam.dev/namespace", ns))
+		})
+
+		It("leaves secrets already labelled for this component untouched", func() {
+			ns := "rel-ns"
+			owned := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "sh.helm.release.v1.r.v1",
+					Namespace: ns,
+					Labels: map[string]string{
+						"owner": "helm", "name": "r",
+						"app.oam.dev/name": "app", "app.oam.dev/namespace": ns, "app.oam.dev/component": "comp",
+					},
+				},
+			}
+			p, cs := providerWithFakeClientset(owned)
+			p.labelReleaseSecrets(ns, "r", &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"})
+
+			for _, a := range cs.Actions() {
+				Expect(a.GetVerb()).To(Equal("list"), "nothing but the list")
+			}
+		})
+
+		It("leaves a release Secret a live Application owns as it is", func() {
+			ns := "rel-ns"
+			theirs := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name: "sh.helm.release.v1.r.v1", Namespace: ns,
+				Labels: map[string]string{"owner": "helm", "name": "r",
+					"app.oam.dev/name": "other", "app.oam.dev/namespace": ns, "app.oam.dev/component": "db"},
+			}}
+			p, cs := providerWithFakeClientset(theirs)
+			p.ownerAppExists = func(context.Context, string, string) (bool, error) { return true, nil }
+			p.labelReleaseSecrets(ns, "r", &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"})
+
+			got, err := cs.CoreV1().Secrets(ns).Get(GinkgoT().Context(), theirs.Name, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(got.Labels).To(Equal(theirs.Labels))
 		})
 
 		It("is a no-op for nil context", func() {
@@ -182,6 +224,55 @@ var _ = Describe("release_secrets", func() {
 				names = append(names, s.Name)
 			}
 			Expect(names).To(ConsistOf("other"))
+		})
+
+		It("leaves a release another live Application owns, and recovers one whose owner is gone", func() {
+			ns := "rel-ns"
+			theirs := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name: "sh.helm.release.v1.r.v1", Namespace: ns,
+				Labels: map[string]string{"owner": "helm", "name": "r",
+					"app.oam.dev/name": "other", "app.oam.dev/namespace": ns, "app.oam.dev/component": "db"},
+			}}
+			velaCtx := &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"}
+
+			p, cs := providerWithFakeClientset(theirs.DeepCopy())
+			p.ownerAppExists = func(context.Context, string, string) (bool, error) { return true, nil }
+			Expect(p.deleteReleaseSecretsDirect(ns, "r", velaCtx)).To(MatchError(ContainSubstring("belongs to Application rel-ns/other")))
+			_, err := cs.CoreV1().Secrets(ns).Get(GinkgoT().Context(), theirs.Name, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred(), "left in place")
+
+			p, cs = providerWithFakeClientset(theirs.DeepCopy())
+			p.ownerAppExists = func(context.Context, string, string) (bool, error) { return false, nil }
+			Expect(p.deleteReleaseSecretsDirect(ns, "r", velaCtx)).To(Succeed())
+			remaining, err := cs.CoreV1().Secrets(ns).List(GinkgoT().Context(), metav1.ListOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(remaining.Items).To(BeEmpty())
+		})
+
+		It("refuses a release whose owner labels are incomplete", func() {
+			ns := "rel-ns"
+			partial := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name: "sh.helm.release.v1.r.v1", Namespace: ns,
+				Labels: map[string]string{"owner": "helm", "name": "r", "app.oam.dev/name": "app", "app.oam.dev/component": "comp"},
+			}}
+			p, cs := providerWithFakeClientset(partial)
+			p.ownerAppExists = func(context.Context, string, string) (bool, error) { return true, nil }
+			err := p.deleteReleaseSecretsDirect(ns, "r", &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"})
+			Expect(err).To(MatchError(ContainSubstring("incomplete ownership labels")))
+			_, err = cs.CoreV1().Secrets(ns).Get(GinkgoT().Context(), partial.Name, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred(), "left in place")
+		})
+
+		It("fails when a release Secret cannot be deleted, so the retry does not run on it", func() {
+			ns := "rel-ns"
+			p, cs := providerWithFakeClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+				Name: "sh.helm.release.v1.r.v1", Namespace: ns, Labels: map[string]string{"owner": "helm", "name": "r"},
+			}})
+			cs.PrependReactor("delete", "secrets", func(k8stesting.Action) (bool, runtime.Object, error) {
+				return true, nil, fmt.Errorf("delete refused")
+			})
+			err := p.deleteReleaseSecretsDirect(ns, "r", &ContextParams{AppName: "app", AppNamespace: ns, Name: "comp"})
+			Expect(err).To(MatchError(ContainSubstring("delete refused")))
 		})
 	})
 

@@ -24,12 +24,19 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	"github.com/kubevela/pkg/util/singleton"
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/auth"
 )
 
 // computeReleaseFingerprint builds a deterministic string from chart version and a
@@ -138,10 +145,12 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	}
 
 	if getErr == nil && existingRelease != nil {
-		// Check if this release was installed by KubeVela (has our ownership labels
-		// on the release Secret). If not, it's an external release that we need to
-		// adopt by forcing an upgrade — even if the fingerprint matches — so the
-		// post-renderer injects KubeVela ownership labels onto every resource.
+		if err := p.checkReleaseOwner(ctx, existingRelease, velaCtx); err != nil {
+			return "", "", 0, err
+		}
+		// A release without this component's labels (a plain helm install, or one whose
+		// owning Application is gone) is adopted by forcing an upgrade, even if the
+		// fingerprint matches, so the post-renderer labels every resource.
 		needsAdoption := velaCtx != nil && !isOwnedByVela(existingRelease, velaCtx)
 		if needsAdoption {
 			klog.Infof("Helm provider [%s]: Release %s exists but was not installed by KubeVela (missing ownership labels), forcing upgrade to adopt", velaContextStr(velaCtx), releaseName)
@@ -214,4 +223,64 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	p.releaseManifests[cacheKey] = rel.Manifest
 	p.releaseVersions[cacheKey] = rel.Version
 	return rel.Manifest, rel.Info.Notes, rel.Version, nil
+}
+
+// checkReleaseOwner refuses a release that another live Application, or another component of
+// this one, owns. Helm release names are unique per namespace, so installing over it would
+// replace that owner's workload.
+func (p *Provider) checkReleaseOwner(ctx context.Context, rel *release.Release, velaCtx *ContextParams) error {
+	if rel == nil {
+		return nil
+	}
+	return p.checkOwnerLabels(ctx, rel.Labels, rel.Namespace, rel.Name, velaCtx)
+}
+
+// checkOwnerLabels applies checkReleaseOwner's rule to the owner labels a release, or one of its
+// Secrets, carries: none, this component, or an owner that is gone are let through.
+func (p *Provider) checkOwnerLabels(ctx context.Context, labels map[string]string, namespace, name string, velaCtx *ContextParams) error {
+	if velaCtx == nil {
+		return nil
+	}
+	ownerName := labels["app.oam.dev/name"]
+	if ownerName == "" {
+		return nil
+	}
+	ownerNamespace, ownerComponent := labels["app.oam.dev/namespace"], labels["app.oam.dev/component"]
+	// The provider writes all three, so one missing is not ours to complete by guessing.
+	if ownerNamespace == "" || ownerComponent == "" {
+		return errors.Errorf("helm release %s/%s has incomplete ownership labels; refusing to adopt it", namespace, name)
+	}
+	if ownerName == velaCtx.AppName && ownerNamespace == velaCtx.AppNamespace && ownerComponent == velaCtx.Name {
+		return nil
+	}
+	exists, err := p.ownerAppExists(ctx, ownerNamespace, ownerName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to check the owner of helm release %s/%s", namespace, name)
+	}
+	if !exists {
+		klog.Infof("Helm provider [%s]: Release %s/%s belonged to Application %s/%s, which no longer exists; adopting it",
+			velaContextStr(velaCtx), namespace, name, ownerNamespace, ownerName)
+		return nil
+	}
+	if ownerName == velaCtx.AppName && ownerNamespace == velaCtx.AppNamespace {
+		return errors.Errorf("helm release %s/%s belongs to component %s of this Application; set release.name to give component %s its own release",
+			namespace, name, ownerComponent, velaCtx.Name)
+	}
+	return errors.Errorf("helm release %s/%s belongs to Application %s/%s (component %s); set release.name to give this component its own release",
+		namespace, name, ownerNamespace, ownerName, ownerComponent)
+}
+
+// hubAppExists looks the Application up on the hub as the controller: the render's context may
+// target a managed cluster and carry the Application user's identity, and neither applies here.
+func hubAppExists(ctx context.Context, namespace, name string) (bool, error) {
+	ctx = auth.ContextClearUserInfo(pkgmulticluster.WithCluster(ctx, pkgmulticluster.Local))
+	err := singleton.KubeClient.Get().Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &v1beta1.Application{})
+	switch {
+	case err == nil:
+		return true, nil
+	case apierrors.IsNotFound(err):
+		return false, nil
+	default:
+		return false, err
+	}
 }
