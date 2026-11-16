@@ -17,12 +17,15 @@ limitations under the License.
 package mcp
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/yaml"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -242,6 +245,71 @@ var _ = Describe("diff_definition_impact", func() {
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
 		Expect(out.Consumers.Count).To(BeZero())
 		Expect(out.Consumers.NamespacesScanned).To(Equal([]string{"team-b"}))
+	})
+
+	It("names only the namespaces it read when a list fails, and goes on to the next", func() {
+		failTeamA := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			lo := &client.ListOptions{}
+			lo.ApplyOptions(opts)
+			if _, ok := list.(*v1beta1.ApplicationList); ok && lo.Namespace == "team-a" {
+				return errors.New("applications forbidden")
+			}
+			return c.List(ctx, list, opts...)
+		}}
+		blog := consumerApp("blog")
+		blog.Namespace = "team-b"
+		h = startHarnessIntercepted(Options{Namespaces: []string{"team-a", "team-b"}}, nil, failTeamA, append(platformFixtures(), consumerApp("shop"), blog)...)
+		var out DefinitionImpactOutput
+		res := h.call("diff_definition_impact", map[string]any{"name": "webservice"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Consumers.NamespacesScanned).To(Equal([]string{"team-b"}))
+		Expect(out.Consumers.Applications).To(Equal([]string{"team-b/blog"}))
+		Expect(out.Consumers.Error).To(ContainSubstring("team-a"))
+		Expect(out.Meta.Truncated).To(BeTrue())
+	})
+
+	It("says the consumer scan failed instead of claiming a live count when nothing was read", func() {
+		failApps := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if _, ok := list.(*v1beta1.ApplicationList); ok {
+				return errors.New("applications forbidden")
+			}
+			return c.List(ctx, list, opts...)
+		}}
+		for _, opts := range []Options{{}, {Namespaces: []string{"team-a", "team-b"}}} {
+			h = startHarnessIntercepted(opts, nil, failApps, fixtures()...)
+			var out DefinitionImpactOutput
+			res := h.call("diff_definition_impact", map[string]any{"name": "webservice"}, &out)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			Expect(out.Consumers.NamespacesScanned).To(BeEmpty())
+			Expect(out.Evidence).To(ContainElement("consumer scan failed; see warnings"))
+			Expect(out.Evidence).NotTo(ContainElement(ContainSubstring("counted from a live scan")))
+			Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("consumer scan incomplete")))
+			h.close()
+			h = nil
+		}
+	})
+
+	It("names every namespace whose scan stopped at the bound", func() {
+		old := maxConsumerScan
+		maxConsumerScan = 1
+		DeferCleanup(func() { maxConsumerScan = old })
+		paged := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if err := c.List(ctx, list, opts...); err != nil {
+				return err
+			}
+			if l, ok := list.(*v1beta1.ApplicationList); ok {
+				l.Continue = "more"
+			}
+			return nil
+		}}
+		blog := consumerApp("blog")
+		blog.Namespace = "team-b"
+		h = startHarnessIntercepted(Options{Namespaces: []string{"team-a", "team-b"}}, nil, paged, append(platformFixtures(), consumerApp("shop"), blog)...)
+		var out DefinitionImpactOutput
+		res := h.call("diff_definition_impact", map[string]any{"name": "webservice"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Consumers.Error).To(ContainSubstring("in team-a"))
+		Expect(out.Consumers.Error).To(ContainSubstring("in team-b"))
 	})
 
 	It("stays a live result when consumers exist but none was rendered", func() {

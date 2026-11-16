@@ -458,6 +458,23 @@ var _ = Describe("what the tools return", func() {
 			}
 		})
 
+		It("names the root, never an empty path, when minProperties asks for more than the schema names", func() {
+			sch := openapi3.NewObjectSchema().WithProperty("a", openapi3.NewStringSchema())
+			sch.MinProps = 2
+			ex, err := definitionExample(DefinitionTypeTrait, "t", sch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ex.Placeholders).NotTo(ContainElement(""))
+			Expect(ex.Placeholders).To(ContainElement("properties"))
+		})
+
+		It("emits no element for an array whose maxItems is zero", func() {
+			sch := openapi3.NewObjectSchema().WithProperty("none", openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema()).WithMaxItems(0))
+			sch.Required = []string{"none"}
+			var ph []string
+			out := exampleObject(sch, "", &ph, 0)
+			Expect(out["none"]).To(BeEmpty())
+		})
+
 		It("caps a large minItems and marks the array as a placeholder", func() {
 			sch := openapi3.NewObjectSchema().WithProperty("ids", openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema()).WithMinItems(1_000_000))
 			sch.Required = []string{"ids"}

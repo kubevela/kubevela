@@ -17,12 +17,15 @@ limitations under the License.
 package mcp
 
 import (
+	"context"
+	"errors"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -196,6 +199,53 @@ var _ = Describe("explain_definition", func() {
 		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("parameter schema unavailable")))
 	})
 
+	It("marks the answer truncated and warns when the consumer scan is incomplete", func() {
+		failApps := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if _, ok := list.(*v1beta1.ApplicationList); ok {
+				return errors.New("applications forbidden")
+			}
+			return c.List(ctx, list, opts...)
+		}}
+		h = startHarnessIntercepted(Options{}, nil, failApps, explainFixtures()...)
+		var out ExplainDefinitionOutput
+		res := h.call("explain_definition", map[string]any{"name": "webservice"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Consumers.Error).To(ContainSubstring("applications forbidden"))
+		Expect(out.Meta.Truncated).To(BeTrue())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("consumer scan incomplete: ")))
+	})
+
+	It("reports a namespace restriction set only by the annotation", func() {
+		objs := explainFixtures()
+		webservice := objs[1].(*v1beta1.ComponentDefinition)
+		webservice.Annotations[oam.AnnotationRestrictNamespaces] = "team-a,prod-*"
+		h = startHarness(Options{}, objs...)
+		var out ExplainDefinitionOutput
+		h.call("explain_definition", map[string]any{"name": "webservice", "type": "component"}, &out)
+		Expect(out.RestrictedToNamespaces).To(Equal([]string{"team-a", "prod-*"}))
+	})
+
+	It("says the listed revisions may not be the newest when the revision scan stopped at its bound", func() {
+		old := maxRevisionsScanned
+		maxRevisionsScanned = 1
+		DeferCleanup(func() { maxRevisionsScanned = old })
+		paged := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if err := c.List(ctx, list, opts...); err != nil {
+				return err
+			}
+			if l, ok := list.(*v1beta1.DefinitionRevisionList); ok {
+				l.Continue = "more"
+			}
+			return nil
+		}}
+		h = startHarnessIntercepted(Options{}, nil, paged, explainFixtures()...)
+		var out ExplainDefinitionOutput
+		h.call("explain_definition", map[string]any{"name": "webservice", "type": "component"}, &out)
+		Expect(out.Meta.Truncated).To(BeTrue())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("revision scan stopped after 1 entries; the listed revisions are the newest of those read, not necessarily the newest overall")))
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("than the 10 newest listed")))
+	})
+
 	It("reports an unknown definition", func() {
 		h = startHarness(Options{}, explainFixtures()...)
 		res := h.call("explain_definition", map[string]any{"name": "ghost"}, nil)
@@ -222,6 +272,19 @@ parameter: {}
 		dynamic := inspectTemplate("\"\\(parameter.name)\": {kind: \"ConfigMap\"}\nparameter: name: string\n")
 		Expect(dynamic.Err).To(BeEmpty())
 		Expect(dynamic.Dynamic).To(BeTrue())
+	})
+
+	It("flags an embed inside a top-level comprehension as computed, like a bare top-level embed", func() {
+		for _, tpl := range []string{
+			"_p: patch: spec: replicas: 2\nif parameter.on { _p }\nparameter: on: bool\n",
+			"_p: patch: spec: replicas: 2\nfor _, x in [1] { _p }\nparameter: {}\n",
+		} {
+			facts := inspectTemplate(tpl)
+			Expect(facts.Err).To(BeEmpty(), tpl)
+			Expect(facts.Dynamic).To(BeTrue(), tpl)
+		}
+		Expect(inspectTemplate("if parameter.on { patch: spec: replicas: 2 }\nparameter: on: bool\n").Dynamic).To(BeFalse(),
+			"a conditional field with a static name is still read statically")
 	})
 
 	It("detects $super as a reference, not as text in a comment or a string", func() {
