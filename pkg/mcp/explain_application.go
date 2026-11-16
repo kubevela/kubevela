@@ -18,6 +18,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -198,14 +199,21 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 		for _, o := range c.Outputs {
 			ce.Outputs = append(ce.Outputs, DataFlow{Name: o.Name, ValueFrom: o.ValueFrom})
 		}
-		if summary, _, err := d.findDefinition(ctx, cli, DescribeDefinitionInput{Name: c.Type, Type: DefinitionTypeComponent, Namespace: app.Namespace}); err == nil {
-			// The namespace was allowed by loadApplication, so this lookup
-			// stays inside the allowlist plus the system namespace.
+		// The namespace was allowed by loadApplication, so this lookup stays
+		// inside the allowlist plus the system namespace.
+		summary, _, err := d.findDefinition(ctx, cli, DescribeDefinitionInput{Name: c.Type, Type: DefinitionTypeComponent, Namespace: app.Namespace})
+		var notFound *definitionNotFoundError
+		switch {
+		case err == nil:
 			ce.DefinitionFound = true
 			ce.Description = summary.Description
 			out.Evidence = append(out.Evidence, fmt.Sprintf("ComponentDefinition %s/%s", summary.Namespace, summary.Name))
-		} else {
+		case errors.As(err, &notFound):
 			out.Findings = append(out.Findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("component %q uses type %q which is not published on this cluster", c.Name, c.Type), Evidence: appRef})
+		default:
+			// A refused or failed read says nothing about whether the type
+			// is published.
+			out.Unknowns = append(out.Unknowns, fmt.Sprintf("definition of component %q (type %q): %s", c.Name, c.Type, redactLine(err.Error())))
 		}
 		for _, res := range byComponent[c.Name] {
 			rs := summarizeResource(res, info.untraced[appliedKey(res)])
@@ -225,7 +233,9 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%d Event objects involving the application or its resources", len(events)))
 	for _, e := range events {
 		if e.Type == corev1.EventTypeWarning {
-			out.Findings = append(out.Findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("warning event %s on %s, seen %d times", e.Reason, e.Object, e.Count), Observed: e.Message, Evidence: "Event on " + e.Object})
+			// The reason is cluster text like the message, so both go in
+			// Observed.
+			out.Findings = append(out.Findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("warning event on %s, seen %d times", e.Object, e.Count), Observed: joinParts(e.Reason, e.Message), Evidence: "Event on " + e.Object})
 		}
 	}
 	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
@@ -331,7 +341,9 @@ func serviceFindings(component string, services []ServiceStatus, appRef string) 
 			findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("component %q in %s reports unhealthy", component, where), Observed: s.Message, Evidence: appRef + " status.services"})
 		}
 		for _, t := range s.Traits {
-			if !t.Healthy {
+			// The controller's health rollup skips pending traits, so a
+			// trait that is only waiting is not reported as unhealthy.
+			if !t.Pending && !t.Healthy {
 				findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("trait %q on component %q in %s reports unhealthy", t.Type, component, where), Observed: t.Message, Evidence: appRef + " status.services"})
 			}
 		}
@@ -358,9 +370,17 @@ func applicationFindings(app *v1beta1.Application, wf *WorkflowDetail, appRef st
 		if wf.Suspended {
 			findings = append(findings, Finding{Severity: SeverityInfo, Message: fmt.Sprintf("workflow is suspended at %s; next action: %s", strings.Join(wf.SuspendedSteps, ", "), wf.NextAction), Evidence: appRef + " status.workflow"})
 		}
-		for _, s := range wf.Steps {
+		failed := func(s SubStepStatus) {
 			if s.Phase == "failed" {
 				findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("workflow step %q (%s) failed", s.Name, s.Type), Observed: joinParts(s.Reason, s.Message), Evidence: appRef + " status.workflow.steps"})
+			}
+		}
+		for _, s := range wf.Steps {
+			failed(s.SubStepStatus)
+			// A failed sub-step of a step group is named on its own: the
+			// group may still be running, or carry a different reason.
+			for _, sub := range s.SubSteps {
+				failed(sub)
 			}
 		}
 	}
@@ -443,7 +463,7 @@ func (d *deps) applicationEvents(ctx context.Context, cli client.Client, app *v1
 			}
 			if scanned >= maxEventsScanned {
 				cut = true
-				notes = append(notes, fmt.Sprintf("events in %s/%s: stopped after %d; older events were not read", sc.cluster, sc.namespace, scanned))
+				notes = append(notes, fmt.Sprintf("events in %s/%s: stopped after scanning %d; the remaining events in this namespace were not read", sc.cluster, sc.namespace, scanned))
 				break
 			}
 		}

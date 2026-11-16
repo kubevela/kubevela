@@ -315,9 +315,23 @@ func (d *deps) listDefinitionType(ctx context.Context, cli client.Client, defTyp
 	return out, more, nil
 }
 
+// definitionNotFoundError is what findDefinition returns when every lookup
+// answered NotFound, so callers can tell a definition that is not published
+// from one that could not be read.
+type definitionNotFoundError struct {
+	name       string
+	namespaces []string
+}
+
+func (e *definitionNotFoundError) Error() string {
+	return fmt.Sprintf("definition %q not found in %s", e.name, strings.Join(e.namespaces, ", "))
+}
+
 // findDefinition looks a definition up by name, trying the requested
 // namespace then the system namespace, and each type in order when no type
-// was given. It returns the summary and the CUE template.
+// was given. It returns the summary and the CUE template. When no lookup
+// found it, the error is a *definitionNotFoundError; any other error means
+// a lookup failed, for example because RBAC refused it.
 func (d *deps) findDefinition(ctx context.Context, cli client.Client, in DescribeDefinitionInput) (DefinitionSummary, string, error) {
 	namespaces := []string{d.opts.SystemNamespace}
 	if in.Namespace != "" && in.Namespace != d.opts.SystemNamespace {
@@ -338,7 +352,7 @@ func (d *deps) findDefinition(ctx context.Context, cli client.Client, in Describ
 			}
 		}
 	}
-	return DefinitionSummary{}, "", fmt.Errorf("definition %q not found in %s", in.Name, strings.Join(namespaces, ", "))
+	return DefinitionSummary{}, "", &definitionNotFoundError{name: in.Name, namespaces: namespaces}
 }
 
 func getDefinition(ctx context.Context, cli client.Client, defType, ns, name string) (DefinitionSummary, string, error) {
