@@ -70,8 +70,6 @@ func TestNewCoreOptions_DefaultValues(t *testing.T) {
 	assert.Equal(t, false, opt.MultiCluster.EnableClusterGateway)
 	assert.Equal(t, false, opt.MultiCluster.EnableClusterMetrics)
 	assert.Equal(t, 15*time.Second, opt.MultiCluster.ClusterMetricsInterval)
-	assert.Equal(t, "", opt.MultiCluster.ClusterGatewayTLSSecret)
-	assert.Equal(t, "", opt.MultiCluster.ClusterGatewayService)
 
 	// Test CUE defaults
 	assert.NotNil(t, opt.CUE)
@@ -151,8 +149,6 @@ func TestCoreOptions_FlagsCompleteSet(t *testing.T) {
 		"--enable-cluster-gateway=true",
 		"--enable-cluster-metrics=true",
 		"--cluster-metrics-interval=5s",
-		"--cluster-gateway-tls-secret=vela-system/kubevela-vela-core-cluster-gateway-tls-v2",
-		"--cluster-gateway-service=vela-system/kubevela-cluster-gateway-service",
 		// CUE flags
 		"--enable-external-package-for-default-compiler=true",
 		"--enable-external-package-watch-for-default-compiler=true",
@@ -214,8 +210,6 @@ func TestCoreOptions_FlagsCompleteSet(t *testing.T) {
 	assert.Equal(t, true, opt.MultiCluster.EnableClusterGateway)
 	assert.Equal(t, true, opt.MultiCluster.EnableClusterMetrics)
 	assert.Equal(t, 5*time.Second, opt.MultiCluster.ClusterMetricsInterval)
-	assert.Equal(t, "vela-system/kubevela-vela-core-cluster-gateway-tls-v2", opt.MultiCluster.ClusterGatewayTLSSecret)
-	assert.Equal(t, "vela-system/kubevela-cluster-gateway-service", opt.MultiCluster.ClusterGatewayService)
 
 	// Verify CUE flags
 	assert.True(t, opt.CUE.EnableExternalPackage)

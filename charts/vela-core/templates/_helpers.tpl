@@ -158,7 +158,7 @@ not touch it.
 {{- end -}}
 
 {{/*
-Returns "true" when vela-core manages the cluster-gateway serving cert itself
+Returns "true" when cluster-gateway manages its serving cert itself
 (--cluster-gateway-tls-secret). The alternative is cert-manager.
 */}}
 {{- define "kubevela.clusterGatewayRuntimeCerts" -}}
