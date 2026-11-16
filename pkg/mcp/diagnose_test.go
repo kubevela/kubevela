@@ -473,6 +473,100 @@ var _ = Describe("diagnose_application", func() {
 		Expect(out.Resources[0].Summary).To(ContainSubstring("no Synced condition yet"))
 	})
 
+	It("reads a cert-manager Certificate by the standard-conditions convention and classifies the ACME limit", func() {
+		// condition reason and message as cert-manager's documented issuance failure writes them
+		cert := cloudResource("cert-manager.io/v1", "Certificate", "tls-cert", 1,
+			[]map[string]any{
+				{"type": "Issuing", "status": "False", "reason": "Failed", "message": "The certificate request has failed to complete and will be retried: Failed to wait for order resource \"tls-cert-1\" to become ready: order is in \"errored\" state: Failed to create Order: 429 urn:ietf:params:acme:error:rateLimited: too many certificates (5) already issued for this exact set of domains in the last 168 hours", "lastTransitionTime": "2026-11-16T08:00:00Z"},
+				{"type": "Ready", "status": "False", "reason": "Failed", "message": "The certificate request has failed to complete and will be retried: Failed to wait for order resource \"tls-cert-1\" to become ready: order is in \"errored\" state: Failed to create Order: 429 urn:ietf:params:acme:error:rateLimited: too many certificates (5) already issued for this exact set of domains in the last 168 hours", "lastTransitionTime": "2026-11-16T08:00:00Z"},
+			}, nil)
+		h = startHarness(Options{}, diagnoseApp(cert)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Healthy).To(BeFalse())
+		r := out.Resources[0]
+		Expect(r.Provider).To(Equal(providerStandardConditions))
+		Expect(r.State).To(Equal(stateNotReady))
+		Expect(r.Summary).To(Equal("Ready is False; reason Failed"))
+		Expect(r.Cause).NotTo(BeNil())
+		Expect(r.Cause.Class).To(Equal(causeThrottled))
+		Expect(r.Cause.Code).To(Equal("rateLimited"))
+		Expect(r.Cause.Owner).To(Equal(ownerExternal))
+		Expect(r.Cause.Evidence).To(HavePrefix("Ready message: "))
+		Expect(r.Cause.Controller).To(BeNil())
+		Expect(r.Notes).To(ContainElement("no controller handle: the standard-conditions family names no controller; a profile for cert-manager.io can name it"))
+		Expect(out.NextChecks).To(ContainElement(ContainSubstring("diagnose_controllers when this server offers it: family standard-conditions, group cert-manager.io, window 1h")))
+		Expect(out.Findings).To(ContainElement(HaveField("Message", ContainSubstring("cause throttled (rateLimited) — owner: external"))))
+		Expect(out.Evidence).To(ContainElement(ContainSubstring("Certificate team-a/tls-cert")))
+	})
+
+	It("calls a standard-conditions resource ready only on Ready True", func() {
+		cert := cloudResource("cert-manager.io/v1", "Certificate", "tls-cert", 1,
+			[]map[string]any{{"type": "Ready", "status": "True", "reason": "Ready", "message": "Certificate is up to date and has not expired"}}, nil)
+		h = startHarness(Options{}, diagnoseApp(cert)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Healthy).To(BeTrue())
+		Expect(out.Resources[0].Provider).To(Equal(providerStandardConditions))
+		Expect(out.Resources[0].Ready).To(BeTrue())
+		Expect(out.Resources[0].Cause).To(BeNil())
+	})
+
+	It("reports a resource with no Ready condition unknown, never healthy, and lists it", func() {
+		// a Gateway writes Accepted and Programmed, as the Gateway API documents
+		gw := cloudResource("gateway.networking.k8s.io/v1", "Gateway", "edge", 1,
+			[]map[string]any{
+				{"type": "Accepted", "status": "True", "reason": "Accepted", "message": "Gateway is accepted"},
+				{"type": "Programmed", "status": "False", "reason": "AddressNotAssigned", "message": "no address has been assigned to the Gateway"},
+			}, nil)
+		h = startHarness(Options{}, diagnoseApp(gw)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Healthy).To(BeFalse())
+		r := out.Resources[0]
+		Expect(r.Provider).To(Equal(providerStandardConditions))
+		Expect(r.Ready).To(BeFalse())
+		Expect(r.State).To(Equal(stateUnknown))
+		Expect(r.Summary).To(ContainSubstring("its controller writes Accepted, Programmed"))
+		Expect(out.Unknowns).To(ContainElement(ContainSubstring("Gateway team-a/edge in cluster local: readiness unknown, it writes no Ready condition (Accepted, Programmed)")))
+		// the newest False condition with a message is read, and its text matches no rule
+		Expect(r.Cause).NotTo(BeNil())
+		Expect(r.Cause.Class).To(Equal(causeUnclassified))
+		Expect(r.Cause.Evidence).To(HavePrefix("Programmed reason: "))
+		Expect(out.Findings).NotTo(ContainElement(HaveField("Message", ContainSubstring("— owner:"))))
+	})
+
+	It("keeps the tree's health for a custom resource that writes no conditions, and says so", func() {
+		widget := cloudResource("widgets.example.com/v1", "Widget", "w", 1, nil, map[string]any{"phase": "Active"})
+		h = startHarness(Options{}, diagnoseApp(widget)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		r := out.Resources[0]
+		Expect(r.Provider).To(Equal(providerKubernetes))
+		Expect(r.Ready).To(BeTrue())
+		Expect(r.Summary).To(HavePrefix("resource tree health: Healthy"))
+		Expect(r.Notes).To(ContainElement(ContainSubstring("writes no conditions: kept the resource tree's health")))
+		Expect(r.Cause).To(BeNil())
+		Expect(out.Evidence).To(ContainElement(ContainSubstring("Widget team-a/w")))
+	})
+
+	It("maps API groups to families, built-in groups to kubernetes and other custom resources to standard-conditions", func() {
+		Expect(providerOf("rds.services.k8s.aws/v1alpha1")).To(Equal(providerACK))
+		Expect(providerOf("sql.cnrm.cloud.google.com/v1beta1")).To(Equal(providerConfigConnector))
+		Expect(providerOf("s3.aws.upbound.io/v1beta1")).To(Equal(providerCrossplane))
+		Expect(providerOf("apps/v1")).To(Equal(providerKubernetes))
+		Expect(providerOf("v1")).To(Equal(providerKubernetes))
+		Expect(providerOf("networking.k8s.io/v1")).To(Equal(providerKubernetes))
+		Expect(providerOf("gateway.networking.k8s.io/v1")).To(Equal(providerStandardConditions))
+		Expect(providerOf("cert-manager.io/v1")).To(Equal(providerStandardConditions))
+		Expect(providerOf("cilium.io/v2")).To(Equal(providerStandardConditions))
+		Expect(providerOf("storage.azure.com/v1api20230101")).To(Equal(providerStandardConditions))
+	})
+
 	It("settles plain Kubernetes resources from the tree without live reads", func() {
 		h = startHarness(Options{}, managedFixtures()...)
 		var out DiagnoseApplicationOutput

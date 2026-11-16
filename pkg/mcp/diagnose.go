@@ -42,12 +42,32 @@ const (
 	stateHalted  = "Halted"
 	stateUnknown = "Unknown"
 
-	// Provider families a managed resource's API group maps to.
+	// Controller families a managed resource's API group maps to.
 	providerACK             = "ack"
 	providerConfigConnector = "config-connector"
 	providerCrossplane      = "crossplane"
-	providerKubernetes      = "kubernetes"
+	// providerStandardConditions reads any custom resource no named family
+	// claims by the metav1.Condition convention; it is settled per resource
+	// after the live read, since a custom resource that writes no
+	// conditions keeps the tree's health instead.
+	providerStandardConditions = "standard-conditions"
+	providerKubernetes         = "kubernetes"
 )
+
+// builtinGroups are the API groups the Kubernetes API server itself serves.
+// Resources in them are plain Kubernetes resources, settled from the
+// resource tree; any other group is a custom resource some controller
+// reconciles. Gateway API's gateway.networking.k8s.io is served by CRDs and
+// is deliberately absent.
+var builtinGroups = map[string]bool{
+	"": true, "apps": true, "batch": true, "autoscaling": true, "policy": true,
+	"admissionregistration.k8s.io": true, "apiextensions.k8s.io": true, "apiregistration.k8s.io": true,
+	"authentication.k8s.io": true, "authorization.k8s.io": true, "certificates.k8s.io": true,
+	"coordination.k8s.io": true, "discovery.k8s.io": true, "events.k8s.io": true,
+	"flowcontrol.apiserver.k8s.io": true, "networking.k8s.io": true, "node.k8s.io": true,
+	"rbac.authorization.k8s.io": true, "resource.k8s.io": true, "scheduling.k8s.io": true,
+	"storage.k8s.io": true, "storagemigration.k8s.io": true,
+}
 
 var (
 	// maxDiagnoseReads bounds the live reads one diagnosis performs. Vars so
@@ -84,7 +104,7 @@ type ResourceDiagnosis struct {
 	Namespace  string `json:"namespace,omitempty"`
 	Name       string `json:"name"`
 	// Provider is the family whose conventions interpreted the conditions.
-	Provider string `json:"provider" jsonschema:"Family whose conventions interpreted this resource: ack, config-connector, crossplane, or kubernetes for everything else."`
+	Provider string `json:"provider" jsonschema:"Family whose conventions interpreted this resource: ack, config-connector, crossplane, standard-conditions for any other custom resource that writes conditions, or kubernetes for plain resources and custom resources that write none."`
 	Ready    bool   `json:"ready" jsonschema:"Whether the owning controller's conventions say the resource is ready."`
 	State    string `json:"state" jsonschema:"Ready, NotReady, Halted when the controller stopped reconciling, or Unknown when the resource could not be read."`
 	// Summary names the rule that produced the state.
@@ -174,6 +194,12 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 			}
 			reads++
 			d.diagnoseLive(ctx, &diag, &out, epCache)
+			if diag.Provider == providerKubernetes {
+				// a custom resource that writes no conditions: the family
+				// has nothing to read, so the tree's health stands
+				diagnoseFromTree(&diag, res, info.untraced[appliedKey(res)])
+				diag.Notes = append(diag.Notes, "writes no conditions: kept the resource tree's health, which defaults unknown kinds to Healthy; a controller family profile for "+groupOf(res.APIVersion)+" can name the controller whose logs carry its state")
+			}
 		}
 		if !diag.Ready {
 			allReady = false
@@ -234,13 +260,11 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 	return nil, out, nil
 }
 
-// providerOf maps an API group to the provisioner family whose conventions
-// interpret its conditions.
+// providerOf maps an API group to the controller family whose conventions
+// interpret its conditions: a named family by its group suffix, else
+// standard-conditions for any custom resource, else kubernetes.
 func providerOf(apiVersion string) string {
-	group := ""
-	if i := strings.Index(apiVersion, "/"); i >= 0 {
-		group = apiVersion[:i]
-	}
+	group := groupOf(apiVersion)
 	switch {
 	case strings.HasSuffix(group, ".services.k8s.aws"):
 		return providerACK
@@ -249,8 +273,10 @@ func providerOf(apiVersion string) string {
 	case strings.HasSuffix(group, ".upbound.io"), strings.HasSuffix(group, ".crossplane.io"),
 		strings.Contains(group, ".upbound.io"), strings.Contains(group, ".crossplane.io"):
 		return providerCrossplane
+	case builtinGroups[group]:
+		return providerKubernetes
 	}
-	return providerKubernetes
+	return providerStandardConditions
 }
 
 // diagnoseFromTree settles a plain Kubernetes resource from the health the
@@ -274,8 +300,10 @@ func diagnoseFromTree(diag *ResourceDiagnosis, res querytypes.AppliedResource, u
 	}
 }
 
-// diagnoseLive reads one provisioner resource from its cluster and applies
-// its family's conventions.
+// diagnoseLive reads one family-owned resource from its cluster and applies
+// its family's conventions. A standard-conditions candidate that writes no
+// conditions leaves as provider kubernetes, for the caller to settle from
+// the tree.
 func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *DiagnoseApplicationOutput, epCache map[string]ackEndpointResult) {
 	cctx := ctx
 	if diag.Cluster != "" && diag.Cluster != localCluster {
@@ -291,6 +319,10 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 	}
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s", diag.Kind, diag.Namespace, diag.Name, diag.Cluster, obj.GetResourceVersion()))
 	diag.Conditions = objectConditions(obj)
+	if diag.Provider == providerStandardConditions && len(diag.Conditions) == 0 {
+		diag.Provider = providerKubernetes
+		return
+	}
 	service := strings.TrimSuffix(groupOf(diag.APIVersion), ".services.k8s.aws")
 	var ep ackEndpointResult
 	if diag.Provider == providerACK {
@@ -317,6 +349,8 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 		diagnoseConfigConnector(diag, out)
 	case providerCrossplane:
 		diagnoseCrossplane(diag)
+	case providerStandardConditions:
+		diagnoseStandardConditions(diag, out)
 	}
 	diag.Cause = classifyCause(diag)
 	if diag.Cause != nil {
@@ -351,17 +385,20 @@ func (d *deps) attachCause(diag *ResourceDiagnosis, out *DiagnoseApplicationOutp
 }
 
 // addSweepPointer names diagnose_controllers for a class that is usually
-// account-wide, once per provider, family and class.
+// account-wide, once per provider, family and class; per family and API
+// group when the family has no provider.
 func addSweepPointer(diag *ResourceDiagnosis, out *DiagnoseApplicationOutput) {
 	c := diag.Cause
 	if !accountLevelClass(c.Class) {
 		return
 	}
-	provider := ""
+	target := "family " + diag.Provider
 	if cloud := cloudOf(diag.APIVersion); cloud != "" {
-		provider = "provider " + cloud + ", "
+		target = "provider " + cloud + ", " + target
+	} else {
+		target += ", group " + groupOf(diag.APIVersion)
 	}
-	msg := fmt.Sprintf("confirm the scope with diagnose_controllers when this server offers it: %sfamily %s, window 1h — a %s cause is usually account-wide and one Application cannot show that", provider, diag.Provider, c.Class)
+	msg := fmt.Sprintf("confirm the scope with diagnose_controllers when this server offers it: %s, window 1h — a %s cause is usually account-wide and one Application cannot show that", target, c.Class)
 	for _, n := range out.NextChecks {
 		if n == msg {
 			return
@@ -385,6 +422,8 @@ func controllerHandle(diag *ResourceDiagnosis, service string, ep ackEndpointRes
 		return &ControllerHandle{Cluster: diag.Cluster, Namespace: ep.namespace, Name: ep.name, LabelSelector: "app.kubernetes.io/name=" + service + "-chart", Family: providerACK, APIGroup: groupOf(diag.APIVersion), Window: window}, ""
 	case providerConfigConnector:
 		return nil, "no controller handle: this server does not look up the Config Connector manager; it runs as StatefulSet cnrm-controller-manager in cnrm-system (or per-namespace in namespaced mode)"
+	case providerStandardConditions:
+		return nil, "no controller handle: the standard-conditions family names no controller; a profile for " + groupOf(diag.APIVersion) + " can name it"
 	default:
 		return nil, "no controller handle: the Crossplane provider pod for " + groupOf(diag.APIVersion) + " is not identified by this server; list pods with label pkg.crossplane.io/provider in the crossplane-system namespace"
 	}
@@ -506,6 +545,34 @@ func diagnoseCrossplane(diag *ResourceDiagnosis) {
 	default:
 		diag.Ready, diag.State = true, stateReady
 		diag.Summary = "Ready and Synced are both True"
+	}
+}
+
+// diagnoseStandardConditions applies the metav1.Condition convention: ready
+// means a Ready condition that is True; with no Ready condition the
+// readiness is unknown, never healthy, and the resource is listed under
+// unknowns. Whether Accepted or Programmed should count as ready for the
+// kinds that write those instead is an open question in the KEP.
+func diagnoseStandardConditions(diag *ResourceDiagnosis, out *DiagnoseApplicationOutput) {
+	ready := conditionOf(diag.Conditions, "Ready")
+	switch {
+	case ready == nil:
+		types := make([]string, 0, len(diag.Conditions))
+		for _, c := range diag.Conditions {
+			types = append(types, c.Type)
+		}
+		diag.State = stateUnknown
+		diag.Summary = "no Ready condition: the standard-conditions convention cannot say whether this resource is ready; its controller writes " + strings.Join(types, ", ")
+		out.Unknowns = append(out.Unknowns, fmt.Sprintf("%s %s/%s in cluster %s: readiness unknown, it writes no Ready condition (%s); a controller family profile for %s can name the condition that means ready", diag.Kind, diag.Namespace, diag.Name, diag.Cluster, strings.Join(types, ", "), groupOf(diag.APIVersion)))
+	case ready.Status == string(corev1.ConditionTrue):
+		diag.Ready, diag.State = true, stateReady
+		diag.Summary = "Ready is True"
+	default:
+		diag.State = stateNotReady
+		diag.Summary = "Ready is " + ready.Status
+		if ready.Reason != "" {
+			diag.Summary += "; reason " + ready.Reason
+		}
 	}
 }
 

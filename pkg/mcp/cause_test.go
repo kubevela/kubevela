@@ -141,6 +141,51 @@ var _ = Describe("classifyCause", func() {
 		)),
 	)
 
+	Describe("standard-conditions sources", func() {
+		std := func(conds ...ResourceCondition) *ResourceDiagnosis {
+			return &ResourceDiagnosis{Provider: providerStandardConditions, Kind: "Gateway", Name: "edge", Conditions: conds}
+		}
+
+		It("reads the Ready reason, then its message, while Ready is not True", func() {
+			c := classifyCause(std(
+				ResourceCondition{Type: "Accepted", Status: "False", Reason: "Invalid", Message: "AccessDenied: listener rejected"},
+				ResourceCondition{Type: "Ready", Status: "False", Reason: "BackendNotFound", Message: "Service team-a/orders not found"},
+			))
+			Expect(c.Class).To(Equal(causeDependencyMissing))
+			Expect(c.Code).To(Equal("BackendNotFound"))
+			Expect(c.Evidence).To(HavePrefix("Ready reason: BackendNotFound"))
+		})
+
+		It("falls back to the newest False condition with a message when Ready is absent", func() {
+			older := time.Date(2026, 11, 16, 8, 0, 0, 0, time.UTC)
+			newer := time.Date(2026, 11, 16, 9, 0, 0, 0, time.UTC)
+			c := classifyCause(std(
+				ResourceCondition{Type: "Accepted", Status: "True"},
+				ResourceCondition{Type: "ResolvedRefs", Status: "False", Reason: "RefNotPermitted", Message: "AccessDenied: cross-namespace reference", LastTransition: &older},
+				ResourceCondition{Type: "Programmed", Status: "False", Reason: "Pending", Message: "dial tcp 10.0.0.1:443: connection refused", LastTransition: &newer},
+				ResourceCondition{Type: "Stale", Status: "False", Reason: "Silent"},
+			))
+			Expect(c.Class).To(Equal(causeUnreachable))
+			Expect(c.Evidence).To(HavePrefix("Programmed message: dial tcp"))
+			Expect(*c.Since).To(Equal(newer))
+		})
+
+		It("falls back to the newest False condition when Ready is not True but carries no text", func() {
+			c := classifyCause(std(
+				ResourceCondition{Type: "Ready", Status: "False"},
+				ResourceCondition{Type: "Synced", Status: "False", Reason: "QuotaExceeded", Message: "zone record quota exceeded"},
+			))
+			Expect(c.Class).To(Equal(causeQuota))
+			Expect(c.Code).To(Equal("QuotaExceeded"))
+		})
+
+		It("returns nil for Ready True, a lone True condition, or False conditions without text", func() {
+			Expect(classifyCause(&ResourceDiagnosis{Provider: providerStandardConditions, Ready: true, Conditions: []ResourceCondition{{Type: "Ready", Status: "True"}}})).To(BeNil())
+			Expect(classifyCause(std(ResourceCondition{Type: "Accepted", Status: "True"}))).To(BeNil())
+			Expect(classifyCause(std(ResourceCondition{Type: "Programmed", Status: "False", Reason: "Pending"}))).To(BeNil())
+		})
+	})
+
 	It("ignores error fields whose condition is not true", func() {
 		Expect(classifyCause(ack(
 			ResourceCondition{Type: "ACK.Recoverable", Status: "False", Message: "stale"},
@@ -196,6 +241,14 @@ var _ = Describe("classifyCause", func() {
 		c := classifyCause(ack(ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "Throttling: Rate exceeded", LastTransition: &ts}))
 		Expect(c.Since).NotTo(BeNil())
 		Expect(*c.Since).To(Equal(ts))
+	})
+
+	It("gives every rule one known owner and reserves controller for the sweep", func() {
+		known := map[string]bool{ownerApplicationSpec: true, ownerController: true, ownerExternal: true, ownerPlatform: true}
+		for _, r := range classRules {
+			Expect(known).To(HaveKey(r.owner), r.class)
+			Expect(r.owner).NotTo(Equal(ownerController), r.class+": no rule attributes a cause to the controller's own behaviour in this release")
+		}
 	})
 
 	It("names the account-level classes", func() {

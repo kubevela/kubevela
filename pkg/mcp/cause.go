@@ -204,8 +204,37 @@ func causeSources(diag *ResourceDiagnosis) []causeSource {
 		if c := conditionOf(diag.Conditions, "Synced"); c != nil && c.Status != string(corev1.ConditionTrue) {
 			add(c, "message", c.Message)
 		}
+	case providerStandardConditions:
+		// the Ready reason and message while not True, else the newest
+		// condition that is False and carries a message
+		if c := conditionOf(diag.Conditions, "Ready"); c != nil && c.Status != string(corev1.ConditionTrue) {
+			add(c, "reason", c.Reason)
+			add(c, "message", c.Message)
+		}
+		if len(out) == 0 {
+			if c := newestFalseWithMessage(diag.Conditions); c != nil {
+				add(c, "reason", c.Reason)
+				add(c, "message", c.Message)
+			}
+		}
 	}
 	return out
+}
+
+// newestFalseWithMessage returns the False condition with a message whose
+// transition is latest; the first such condition when none records a time.
+func newestFalseWithMessage(conds []ResourceCondition) *ResourceCondition {
+	var newest *ResourceCondition
+	for i := range conds {
+		c := &conds[i]
+		if c.Status != string(corev1.ConditionFalse) || strings.TrimSpace(c.Message) == "" {
+			continue
+		}
+		if newest == nil || (c.LastTransition != nil && (newest.LastTransition == nil || c.LastTransition.After(*newest.LastTransition))) {
+			newest = c
+		}
+	}
+	return newest
 }
 
 var (
