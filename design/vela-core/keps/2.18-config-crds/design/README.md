@@ -19,7 +19,7 @@ Admission webhooks and a CEL rule check what they can before anything is stored.
 
 KubeVela 1.11 kept the same data in a `config-template-<name>` ConfigMap and a labelled Secret per
 config. That storage still works: every reader looks at both, every new write goes to a CR, and
-legacy objects are adopted into CRs by `vela config-template migrate` or, with the
+legacy objects are adopted into CRs by `vela config-template migrate` and `vela config migrate` or, with the
 `AutoMigrateLegacyConfigs` feature gate, once at controller startup.
 
 ```mermaid

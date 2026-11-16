@@ -42,13 +42,14 @@ a template that reached the cluster with the webhooks off; a broken block puts t
 
 ### The sync
 
-After the output Secret and `outputs` are in place, the controller syncs Nacos
-(`pkg/controller/config.oam.dev/v1alpha1/config/nacos_sync.go`):
+The block is rendered in the same compile as the Secret, before anything is written, and its
+endpoint is checked against the namespace rule there: a failure at that point puts the Config in
+`Error` and writes no Secret. After the output Secret and `outputs` are in place, the controller
+syncs Nacos (`pkg/controller/config.oam.dev/v1alpha1/config/nacos_sync.go`):
 
 ```mermaid
 flowchart TD
-    start(["Secret and outputs applied,<br/>phase Available"]) --> render["Render the nacos block<br/>(same compile as the Secret)"]
-    render --> ep{"Read the endpoint config"}
+    start(["nacos block rendered with the Secret,<br/>Secret and outputs applied, phase Available"]) --> ep{"Read the endpoint config"}
     ep -- "missing" --> nf["NacosSynced False<br/>EndpointNotFound"]
     ep -- "sensitive and not marked,<br/>or malformed, or refused" --> ur["NacosSynced False<br/>EndpointUnreadable"]
     ep -- ok --> same{"content hash and endpoint hash<br/>equal to status, and<br/>NacosSynced True?"}
@@ -76,8 +77,8 @@ flowchart TD
 - **A refused publish is a failure.** A publish Nacos answers with a refusal is `PublishFailed`, not
   `Published`.
 - **Nacos never decides the phase.** The Secret and `outputs` are in place, so the Config is
-  `Available`; Nacos trouble is on the `NacosSynced` condition and retried with backoff. No Nacos
-  error is terminal.
+  `Available`; reading the endpoint, reading Nacos and publishing report on the `NacosSynced`
+  condition and are retried with backoff. None of them is terminal.
 - **Nothing is ever deleted from Nacos.** Deleting a Config, or removing the block from its template,
   leaves the published entry; `status.expandedWriter` and the condition are cleared in the latter case.
 
@@ -96,7 +97,7 @@ Secret of a `Config`, both under the key `input-properties`.
 | not sensitive | yes |
 | sensitive, marked `config.oam.dev/nacos-endpoint: "true"` by its owner | yes ([Design 05](./05-sensitive-data.md)) |
 | sensitive, not marked | no: `EndpointUnreadable`, naming the annotation to add |
-| in a namespace other than the template's or `vela-system` | only the one the template's text names, which admission reviewed ([Design 04](./04-template-scope-and-access.md)) |
+| in a namespace other than the template's or `vela-system` | only the one a `ConfigTemplate` CR's text names, which admission reviewed; never for a legacy template ([Design 04](./04-template-scope-and-access.md)) |
 
 **Watching the endpoint.** Configs are indexed by the endpoint their status names
 (`status.expandedWriter.nacos.endpoint`). When that Secret appears, changes or goes, exactly the

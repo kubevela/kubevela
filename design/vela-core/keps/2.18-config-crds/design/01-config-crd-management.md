@@ -86,7 +86,7 @@ flowchart TB
     CFG -- "reads" --> PS
     CFG == "controller owner" ==> OS
     CFG == "controller owner" ==> OUT
-    CFG == "owner" ==> APP
+    CFG == "controller owner" ==> APP
 ```
 
 Deleting a Config removes its output Secret, its `outputs` and its distribution Application by
@@ -133,13 +133,13 @@ type ConfigSpec struct {
 
 | Field | Meaning |
 |---|---|
-| `spec.templateRef` | the template to render; immutable after create. Empty: the properties are stored as they are, with no render |
+| `spec.templateRef` | the template to render; immutable after create (enforced by the webhook). Empty: the properties are stored as they are, with no render |
 | `spec.properties` | inline properties, any JSON |
 | `spec.propertiesFrom.secretRef` | a Secret in the Config's namespace whose key holds the properties as JSON. Always makes the Config sensitive |
 | `status.phase` | `Available` or `Error` |
 | `status.observedGeneration` | the generation the status describes; a reader waiting for `Available` (the `create-config` step) waits for the current generation |
 | `status.secretRef` | the output Secret |
-| `status.expandedWriter.nacos` | the last confirmed Nacos sync: `dataId`, `group`, `contentHash`, `endpoint`, `endpointHash`, `lastSyncTime` |
+| `status.expandedWriter.nacos` | the last confirmed Nacos sync: `dataId`, `group`, `contentHash`, `endpoint`, `endpointHash`, `lastSyncTime`; the target and `endpoint` are recorded on every attempt |
 | `status.conditions` | `Synced`; `NacosSynced` for a template with a `nacos` block |
 
 #### ConfigTemplate reconciler
@@ -183,8 +183,9 @@ flowchart TD
 ```
 
 **Template resolution** (`pkg/config/resolve.go`, `ResolveConfigTemplate`) is shared by the
-reconciler, the Config webhook, the CLI and the workflow steps, so they all agree on what a
-template is:
+reconciler and the Config webhook, and the workflow steps use its sibling `TemplateScopeOf`, so they
+agree on what a template is. The CLI's `Factory.LoadTemplate` follows the same order, CR first and
+the ConfigMap as fallback:
 
 ```mermaid
 flowchart TD
@@ -208,8 +209,9 @@ put on the Secret survive. A Secret marked sensitive stays marked.
 The controller refuses to write over a Secret, or an `outputs` object, that it does not control
 (`already exists and is not owned by this Config`). A user who can only create Configs therefore
 cannot use the controller's permissions to overwrite an unrelated object. The one exception is a
-legacy config Secret that migration handed to this Config (the `config.oam.dev/adopt-by` mark, which
-takes write access to the Secret to set; [Design 03](./03-migration.md)).
+legacy config Secret that migration handed to this Config, together with the `outputs` objects that
+Secret recorded: the Config carries the migration label and the Secret the `config.oam.dev/adopt-by`
+mark, which takes write access to the Secret to set ([Design 03](./03-migration.md)).
 
 **`outputs`** objects are applied in the Config's namespace whatever namespace the template names,
 each with the Config as controller owner.
@@ -246,7 +248,7 @@ on CREATE and UPDATE, failure policy `Fail`.
 | `config.oam.dev/grandfathered-configs` may lose entries, never gain them | update |
 | `scope: system` outside `vela-system` is denied | create, or an update that makes it so |
 | the `nacos` block's shape: `endpoint.name`, `metadata.dataId`, `format` one of json, yaml, toml, properties | create and update |
-| a Nacos endpoint in another namespace (not the template's, not `vela-system`) needs the requester to be able to `get` that Secret | create, or an update that changes `spec.template` |
+| `nacos.endpoint.namespace` is a plain string literal; a Nacos endpoint in another namespace (not the template's, not `vela-system`) needs the requester to be able to `get` that Secret | create, or an update that changes `spec.template` |
 | a template that does not compile is **admitted**; the reconciler reports it as `Error` | |
 
 **Config**
@@ -257,8 +259,8 @@ on CREATE and UPDATE, failure policy `Fail`.
 | `properties` and `propertiesFrom` together are denied | create and update |
 | the template access table, with a SubjectAccessReview for the requesting user ([Design 04](./04-template-scope-and-access.md)) | create (the reference is immutable) |
 | a sensitive template with inline `properties` is denied | create and update |
-| the `propertiesFrom` Secret and key must exist and hold JSON | create and update |
-| the properties match the template's schema; the render succeeds; `validation.$returns` reports no message; `output` decodes as a Secret | create and update |
+| the `propertiesFrom` Secret and key must exist and hold JSON | create and update, when `templateRef` names a usable template |
+| the properties match the template's schema; the render succeeds; `validation.$returns` reports no message; `output` decodes as a Secret | create and update, when `templateRef` names a usable template |
 
 A Config whose template does not exist yet, or is not usable yet, is admitted when the template is in
 the Config's own namespace, or is a ConfigTemplate in `vela-system` that declares `scope: system`:
@@ -270,7 +272,8 @@ immutable the create is the only time that is asked.
 **With the webhooks off**, the reconcilers repeat every structural rule they can and report a
 violation as `Error`: a misplaced `system` template, inline properties on a sensitive template,
 both property sources, a malformed `nacos` block. They cannot repeat a SubjectAccessReview: a
-reconciler has no requesting user.
+reconciler has no requesting user. Nor do they keep `templateRef` from changing: a changed reference
+is rendered against the new template ([Design 09](./09-known-limits.md)).
 
 ### Examples
 
@@ -324,7 +327,8 @@ with `SCOPE`, `PHASE` and `TEMPLATE` columns, instead of label-filtered ConfigMa
 - [x] `ConfigTemplate`/`Config` API types, CRD manifests, deepcopy (#7211).
 - [x] `ConfigTemplateReconciler`, `ConfigReconciler`, legacy ConfigMap fallback (#7211).
 - [x] Validating webhooks for `Config` and `ConfigTemplate` (#7211).
-- [x] `outputs` and the Nacos publish in the Config reconciler; `observedGeneration` (#7457, #7467, #7470).
+- [x] `outputs` in the Config reconciler (#7211).
+- [x] The Nacos publish in the Config reconciler (#7457, #7467); `observedGeneration` (#7470).
 - [x] CLI and workflow steps on the CRDs, reading both storages ([Design 02](./02-backward-compatibility-and-cli.md), [Design 07](./07-workflow-steps.md)).
 - [x] Migration from the legacy storage ([Design 03](./03-migration.md)).
 - [x] Template scope and access, sensitive rules ([Design 04](./04-template-scope-and-access.md), [Design 05](./05-sensitive-data.md)).

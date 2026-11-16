@@ -34,7 +34,8 @@ The **effective scope** every reader applies (`ResolvedTemplate.EffectiveScope` 
 ### The placement guarantee
 
 A `system` template outside `vela-system` must be impossible to create, and harmless if it gets in
-anyway. Four layers, each with the same message (`scope system is only valid in vela-system`):
+anyway. Four layers; the three that can refuse give the same message
+(`scope system is only valid in vela-system`):
 
 ```mermaid
 flowchart LR
@@ -82,13 +83,15 @@ reference to a template that does not exist or is not usable yet is denied at cr
 template is in the Config's namespace or is a `ConfigTemplate` in `vela-system` declaring
 `scope: system`, because the access question can only be asked once the template's scope is known. The Config controller does not repeat the
 SubjectAccessReview: it has no requesting user. A Config admitted with the webhooks off is the
-operator's decision, as with every other admission rule.
+operator's decision, as with every other admission rule. Migration asks the same table for the
+user who runs it ([Design 03](./03-migration.md)).
 
 **The workflow step.** `create-config` checks the same table before it reads the template
 ([Design 07](./07-workflow-steps.md)):
 
-- with the `AuthenticateApplication` feature gate on, the Application carries its user
-  (`app.oam.dev/username`), and the review is asked for that user;
+- with the `AuthenticateApplication` feature gate on, the review is asked for the Application's
+  identity: its user (`app.oam.dev/username`, written with `--authentication-with-user`), else its
+  service account, else the default user;
 - with it off, there is no user: the step may use only a template in the Application's namespace or
   a `system` one. The Config webhook gives the controller's own writes the same structural answer,
   taking the namespace from the Config's `app.oam.dev/namespace` label, so a step cannot widen it by

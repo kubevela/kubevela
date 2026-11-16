@@ -30,8 +30,8 @@ All take `--dry-run` (the commands) and report one row per legacy object.
   object where it was ([Design 08](./08-gitops-upgrade-and-rollback.md)).
 - **Nothing a Config can observe changes.** The CR gets the scope its legacy object always had in
   effect (below), and the controller's first render produces the Secret that was there.
-- **Idempotent.** A second run changes nothing and reports `skipped`; a run interrupted half-way is
-  finished by the next one.
+- **Idempotent.** A second run changes nothing: what was adopted reports `skipped`, and a conflict
+  stays a conflict until it is resolved. A run interrupted half-way is finished by the next one.
 - **Opt-out per object.** `config.oam.dev/migrate: "false"` on a legacy ConfigMap or Secret keeps it
   legacy; on a template ConfigMap it keeps that template's configs legacy too.
 
@@ -83,8 +83,8 @@ sequenceDiagram
     Note over API: webhook admits it as for any Config.<br/>A template in another namespace not usable yet<br/>is retried for about 40 s
     API-->>C: Config event
     C->>S: adopt: owner reference, drop adopt-by,<br/>render the same data
-    M->>S: owner reference (if not already), migrated-to: <Config UID>, drop adopt-by
     M->>API: own outputs objects, distribute-<name> Application, <name>-properties Secret
+    M->>S: last: owner reference (if not already), migrated-to: <Config UID>, drop adopt-by
 ```
 
 The controller accepts the hand-over only when the Secret's `adopt-by` names this Config, the
@@ -115,13 +115,15 @@ flowchart TD
     out -- yes --> cf2["conflict: the controller would<br/>recreate them in the Config's namespace"]
     out -- no --> found{"template found,<br/>CR or legacy?"}
     found -- no --> fl["failed"]
-    found -- yes --> foreign{"a CR not made by migration<br/>beside its legacy ConfigMap?"}
+    found -- yes --> foreign{"a CR not made by migration,<br/>not adopted into, beside<br/>its legacy ConfigMap?"}
     foreign -- yes --> cf3["conflict"]
     foreign -- no --> optt{"legacy template opted out?"}
     optt -- yes --> sk4["skipped"]
     optt -- no --> acc{"usable by this Config?<br/>(Design 04)"}
     acc -- "no, or no user to ask" --> sk5["skipped"]
-    acc -- yes --> ad2["adopted: Config created"]
+    acc -- yes --> props{"its properties Secret exists,<br/>not made by migration?"}
+    props -- yes --> cf4["conflict"]
+    props -- no --> ad2["adopted: Config created"]
 ```
 
 Templates follow the same pattern: opted out (`skipped`), a CR of the name not made by migration
@@ -134,8 +136,8 @@ not wrong to be one.
 
 **Events** are recorded on the legacy objects: `MigrationAdopted`, `MigrationSkipped`,
 `MigrationConflict`, `MigrationFailed` (source `vela-cli` for the commands, `ConfigMigration` for
-the sweep). An adopted object that a GitOps or release tool manages (Argo CD's tracking annotation,
-Flux's labels, Helm's `managed-by`) also gets a `MigratedGitOpsManaged` Event on the new CR and a
+the sweep); a row skipped as already migrated records none. An adopted object that a GitOps or release tool manages (Argo CD's tracking annotation,
+Flux's labels, Helm's `managed-by`, or `app.kubernetes.io/instance` alone) also gets a `MigratedGitOpsManaged` Event on the new CR and a
 note in its row: keep the CR in git where the legacy object was
 ([Design 08](./08-gitops-upgrade-and-rollback.md)). Every write uses the field manager
 `kubevela-config-migration`, so a tool that applies the legacy object server-side does not see
@@ -155,8 +157,8 @@ sequenceDiagram
     participant Lib as Migration library
 
     Mgr->>Sw: start, after leader election and cache sync
-    Sw->>WH: wait until serving (up to 2 min, then run anyway)
-    loop up to 3 attempts, 30 s apart, while rows fail
+    Sw->>WH: with webhooks on, wait until serving (up to 2 min, then run anyway)
+    loop up to 3 attempts, 30 s apart, while listing or rows fail
         Sw->>Lib: MigrateAll
         Lib-->>Sw: report (adopted, skipped, conflict, failed)
         Sw->>Sw: log the counts, and each conflict and failure
@@ -165,14 +167,14 @@ sequenceDiagram
 ```
 
 - It never fails the manager: list errors and panics are logged, and readiness does not wait for it.
-- It waits for the webhook server because every Config it creates goes through that server, which
+- With webhooks on, it waits for the webhook server because every Config it creates goes through that server, which
   runs in the same process.
 - A restart runs it again; everything already adopted comes back `skipped`.
 - It does not watch for legacy objects created later (by an older CLI, say): run `migrate` again or
   restart the controller.
 - It runs with no user. A config bound across namespaces to a namespace-scoped template is adopted
   only when the template's CR grandfathers it ([Design 04](./04-template-scope-and-access.md)).
-- With sharding, every shard's leader runs it; the duplicates only add `skipped` counts.
+- With sharding, only the master shard runs it; worker shards run only the Application controller.
 
 ### Alternatives not taken
 

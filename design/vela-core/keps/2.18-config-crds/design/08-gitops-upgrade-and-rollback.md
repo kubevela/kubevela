@@ -21,7 +21,7 @@ tool manages are migrated, and the upgrade from 1.11 and the rollback to it, wit
 - **Order mostly does not matter.** A Config applied before or with its template in the same
   namespace is admitted and converges when the template becomes `Available`; so is one that names
   an existing `system` template in `vela-system` not yet reconciled. A Config whose template is in
-  another namespace and does not exist yet is refused until it does: put the template in an earlier
+  another namespace and does not exist or is not yet `Available` is refused until it is: put the template in an earlier
   sync wave, or let the tool's retry apply it ([Design 01](./01-config-crd-management.md)).
 - **Sensitive values** go in a Secret the tool manages (or a sealed or external secret), referenced
   by `propertiesFrom`.

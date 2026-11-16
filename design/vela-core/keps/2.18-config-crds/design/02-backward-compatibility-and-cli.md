@@ -17,8 +17,8 @@ storage. Moving the objects into CRs is [Design 03](./03-migration.md).
 ### The rule: one write path, two read paths
 
 - **Every read looks at both storages, always.** The Config controller resolves a template CR
-  first and falls back to the legacy ConfigMap; the CLI and the workflow steps list, show and delete
-  across both. No feature gate turns this on or off.
+  first and falls back to the legacy ConfigMap; `vela config-template list`, `show` and `delete`,
+  `vela config list` and `delete`, and the workflow read, list and delete steps work across both. No feature gate turns this on or off.
 - **Every new write is a CR.** `vela config-template apply` writes a `ConfigTemplate`,
   `vela config create` writes a `Config`, the `create-config` step writes a `Config`
   ([Design 07](./07-workflow-steps.md)). There is no flag to write legacy objects.
@@ -30,7 +30,7 @@ flowchart LR
     W["Writes<br/>vela config-template apply<br/>vela config create<br/>create-config step"]
     CR[("CRs<br/>ConfigTemplate, Config")]
     LEG[("Legacy<br/>ConfigMap, Secret")]
-    R["Reads and deletes<br/>vela config[-template] list, show, delete<br/>workflow read/list/delete steps<br/>Config controller (template resolution)"]
+    R["Reads and deletes<br/>vela config-template list, show, delete<br/>vela config list, delete<br/>workflow read/list/delete steps<br/>Config controller (template resolution)"]
 
     W -- "always" --> CR
     CR -- "first" --> R
@@ -52,7 +52,7 @@ Secrets directly, an Application or an older CLI, sees a CR-backed config as bef
 | `vela config-template migrate` | [Design 03](./03-migration.md) |
 | `vela config create` | Validates the properties against the template from either storage, then writes a `Config` CR. Fails without the CRD. For a sensitive template the properties go to a `<name>-properties` Secret referenced by `spec.propertiesFrom`. `--target` creates the distribution Application, owned by the Config. `--dry-run` prints the rendered Secret and `outputs` and writes nothing |
 | `vela config list` | Both storages, with `SOURCE` and `PHASE` columns; legacy rows have no phase, since nothing reconciles them |
-| `vela config delete` | A `Config` CR of the name is deleted (its Secret, `outputs` and distribution follow by garbage collection; the `<name>-properties` Secret is removed explicitly). Otherwise the legacy Secret and the objects its `objects-reference` lists are deleted, and its distribution recalled |
+| `vela config delete` | A `Config` CR of the name is deleted: its distribution is recalled first, its Secret and `outputs` follow by garbage collection, and the `<name>-properties` Secret is removed explicitly. `--not-recall` is refused while the Config has a distribution, which it owns. Otherwise the legacy Secret and the objects its `objects-reference` lists are deleted, and its distribution recalled |
 | `vela config distribute` | Unchanged; the distribution Application is owned by the Config when one exists |
 | `vela config migrate` | [Design 03](./03-migration.md) |
 
@@ -62,7 +62,7 @@ Secrets directly, an Application or an older CLI, sees a CR-backed config as bef
 |---|---|
 | `crd` | a `ConfigTemplate` CR |
 | `legacy` | a legacy ConfigMap with no CR of its name |
-| `legacy (shadowed)` | a legacy ConfigMap with a CR of the same name and namespace that migration did not create: the CR is in effect |
+| `legacy (shadowed)` | a legacy ConfigMap with a CR of the same name and namespace that has not adopted it (the ConfigMap's `migrated-to` does not name the CR): the CR is in effect |
 | `legacy (migrated)` | only with `--config-mode legacy`: a ConfigMap migration adopted. In the merged view the CR row stands for it and the ConfigMap is not repeated |
 
 **`--config-mode`** exists only on the two `list` commands: `legacy` or `crd` shows one storage;

@@ -38,7 +38,7 @@ A config is sensitive when **any** of these is true:
 |---|---|
 | A template's `sensitive` can be turned on, never off | the CRD's CEL transition rule (Kubernetes 1.25+, answers before the webhook); the ConfigTemplate webhook (any version); `vela config-template apply` before it writes; the factory keeps a stored `true` when a tool rewrites a template |
 | A sensitive template refuses inline `spec.properties` | the Config webhook (create and update); the Config controller (`Error`: `is sensitive: spec.properties must not be set, use spec.propertiesFrom instead`) |
-| `propertiesFrom` always makes the Config sensitive | the Config controller marks the Secret before anything else in the reconcile can fail, the template's resolution included |
+| `propertiesFrom` always makes the Config sensitive | the Config controller marks the Secret before the template's resolution and every later step can fail |
 | A Secret marked sensitive stays marked | the Config controller never writes the mark back to `false`; only deleting and recreating the Config resets it |
 | The CLI never writes sensitive values inline | `vela config create` puts a sensitive template's properties in a `<name>-properties` Secret referenced by `propertiesFrom` |
 | Migration never moves sensitive values inline | a legacy config whose template or Secret is sensitive becomes a Config with a `<name>-properties` Secret ([Design 03](./03-migration.md)) |
@@ -62,10 +62,12 @@ stateDiagram-v2
 ```
 
 **Turning `sensitive` on** for a template in use is allowed. The Config controller watches the
-template, so every dependent Config is reconciled at once: its Secret is marked sensitive before
-anything else is checked, and a Config with inline properties goes to `Error` until its author moves
-the values to `propertiesFrom`. Readers stop returning the values immediately, even while the Config
-is in `Error`.
+template, so every dependent Config is reconciled at once: its Secret is marked sensitive as soon
+as the template resolves, before the inline-properties check, and a Config with inline properties
+goes to `Error` until its author moves the values to `propertiesFrom`. Readers stop returning the
+values immediately, even while the Config is in `Error`. A template that cannot be resolved (one
+edit that turns `sensitive` on and also breaks its CUE) marks nothing until it is fixed
+([Design 09](./09-known-limits.md)).
 
 **Why the marks are sticky.** Turning sensitive off can still happen where no admission runs: a
 legacy ConfigMap's annotation edited by hand, or a template edited with the webhooks off on a server
@@ -80,7 +82,7 @@ those cases either, because the Secret keeps its mark.
 | `list-config` workflow step, `vela config list` | listed, without properties or Secret data |
 | The Config controller rendering the Config | reads them: it needs them to render |
 | The Config controller reading a **Nacos endpoint** config | reads it only if the endpoint config carries `config.oam.dev/nacos-endpoint: "true"`; otherwise `NacosSynced` is `False`, reason `EndpointUnreadable` |
-| The application controller's `SourceDefinition` cache | reads only its own cache entries (`pkg/config.SecretInputProperties` after `IsSourceCacheEntry`); a planted Secret of the same name is not an entry and is not read |
+| The application controller's `SourceDefinition` cache | reads only Secrets labelled as its own cache entries (`IsSourceCacheEntry` in `pkg/sources`, then `pkg/config.SecretInputProperties`), not any Secret that happens to have the cache key as its name |
 
 **The `nacos-endpoint` mark** is the owner's leave for one specific use. An endpoint config holds the
 Nacos login, so it is usually sensitive; the controller needs to read it to publish. The owner sets
