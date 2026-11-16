@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"sigs.k8s.io/yaml"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -253,6 +254,31 @@ var _ = Describe("what the tools return", func() {
 			}
 			Expect(sortedKeys(reader.failed)).To(ConsistOf(HavePrefix("SeldonDeployment team-a/model: ")))
 			Expect(sortedKeys(reader.refused)).To(ConsistOf("SeldonDeployment team-b/model"))
+		})
+
+		It("names an HTTPRoute without hostnames as an unknown instead of dropping it", func() {
+			objs := endpointFixtures()
+			for _, o := range objs {
+				if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+					rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+						ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{
+							APIVersion: gatewayv1beta1.GroupVersion.String(), Kind: "HTTPRoute", Namespace: "team-a", Name: "web-route"}},
+						OAMObjectReference: oamcommon.OAMObjectReference{Component: "web"},
+					})
+				}
+			}
+			prefix := gatewayv1beta1.PathMatchPathPrefix
+			root := "/"
+			objs = append(objs, &gatewayv1beta1.HTTPRoute{
+				TypeMeta:   metav1.TypeMeta{APIVersion: gatewayv1beta1.GroupVersion.String(), Kind: "HTTPRoute"},
+				ObjectMeta: metav1.ObjectMeta{Name: "web-route", Namespace: "team-a"},
+				Spec: gatewayv1beta1.HTTPRouteSpec{Rules: []gatewayv1beta1.HTTPRouteRule{{
+					Matches: []gatewayv1beta1.HTTPRouteMatch{{Path: &gatewayv1beta1.HTTPPathMatch{Type: &prefix, Value: &root}}},
+				}}},
+			})
+			h = startHarness(Options{}, objs...)
+			out := getApp("web", "team-a")
+			Expect(out.Unknowns).To(ContainElement(ContainSubstring("HTTPRoute team-a/web-route sets no host")))
 		})
 	})
 
