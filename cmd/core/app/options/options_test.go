@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 
@@ -132,4 +133,17 @@ func TestCuexOptions_Flags(t *testing.T) {
 
 	assert.True(t, cuex.EnableExternalPackageForDefaultCompiler, "The --enable-external-package-for-default-compiler flag should be enabled")
 	assert.True(t, cuex.EnableExternalPackageWatchForDefaultCompiler, "The --enable-external-package-watch-for-default-compiler flag should be enabled")
+}
+
+// The workflow HTTP bounds flags set the bounds the workflow engine's guard applies.
+func TestWorkflowHTTPBoundsFlags(t *testing.T) {
+	timeout, bytes := httpguard.MaxRequestTimeout, httpguard.MaxResponseBytes
+	t.Cleanup(func() { httpguard.MaxRequestTimeout, httpguard.MaxResponseBytes = timeout, bytes })
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	for _, f := range NewCoreOptions().Flags().FlagSets {
+		fs.AddFlagSet(f)
+	}
+	assert.NoError(t, fs.Parse([]string{"--max-workflow-http-timeout=10s", "--max-workflow-http-response-bytes=2048"}))
+	assert.Equal(t, 10*time.Second, httpguard.MaxRequestTimeout)
+	assert.Equal(t, int64(2048), httpguard.MaxResponseBytes)
 }

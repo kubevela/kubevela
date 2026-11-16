@@ -104,6 +104,9 @@ func NewCoreCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, s *options.CoreOptions) error {
+	if err := httpguard.CheckBounds(); err != nil {
+		return err
+	}
 	// restartForNewCA cancels this context to restart vela-core.
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()

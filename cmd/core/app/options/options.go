@@ -29,6 +29,7 @@ import (
 	utillog "github.com/kubevela/pkg/util/log"
 	"github.com/kubevela/pkg/util/profiling"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	cliflag "k8s.io/component-base/cli/flag"
 
@@ -203,6 +204,8 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	wfs.IntVar(&wfTypes.MaxWorkflowWaitBackoffTime, "max-workflow-wait-backoff-time", 60, "Set the max workflow wait backoff time, default is 60")
 	wfs.IntVar(&wfTypes.MaxWorkflowFailedBackoffTime, "max-workflow-failed-backoff-time", 300, "Set the max workflow failed backoff time, default is 300")
 	wfs.IntVar(&wfTypes.MaxWorkflowStepErrorRetryTimes, "max-workflow-step-error-retry-times", 10, "Set the max workflow step error retry times, default is 10")
+	wfs.DurationVar(&httpguard.MaxRequestTimeout, "max-workflow-http-timeout", httpguard.MaxRequestTimeout, "Set the longest timeout a workflow or definition HTTP request may set; a request holds a reconcile worker for its duration")
+	wfs.Int64Var(&httpguard.MaxResponseBytes, "max-workflow-http-response-bytes", httpguard.MaxResponseBytes, "Set the largest response body, in bytes, a workflow or definition HTTP request may read")
 
 	pkgmulticluster.AddFlags(fss.FlagSet("multicluster"))
 	ctrlrec.AddFlags(fss.FlagSet("controllerreconciles"))
