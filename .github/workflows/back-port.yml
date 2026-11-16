@@ -1,8 +1,11 @@
 name: Backport
+# Runs on the merge commit rather than pull_request_target, which GitHub blocks by default
+# in public repositories; the GITHUB_TOKEN of a push to this repo can open the backport PR.
 on:
-  pull_request_target:
-    types:
-      - closed
+  push:
+    branches:
+      - master
+      - release-*
 
 permissions:
   contents: read
@@ -11,12 +14,36 @@ jobs:
   # align with crossplane's choice https://github.com/crossplane/crossplane/blob/master/.github/workflows/backport.yml
   open-pr:
     runs-on: ubuntu-22.04
-    if: github.event.pull_request.merged
     permissions:
       contents: write
       pull-requests: write
     steps:
+      - name: Find merged PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          # The commit-to-PR association can lag the push by a few seconds.
+          for attempt in 1 2 3; do
+            pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
+              --jq "[.[] | select(.merge_commit_sha == \"$SHA\")][0] // empty")
+            [[ -n "$pr" ]] && break
+            sleep $((attempt * 5))
+          done
+          if [[ -z "$pr" ]]; then
+            echo "No pull request merged as $SHA; nothing to backport"
+            exit 0
+          fi
+          number=$(jq -r .number <<<"$pr")
+          if jq -e '[.labels[].name | select(startswith("backport "))] | length > 0' <<<"$pr" >/dev/null; then
+            echo "number=$number" >> "$GITHUB_OUTPUT"
+          else
+            echo "#$number has no backport label"
+          fi
+
       - name: Checkout
+        if: steps.pr.outputs.number
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           fetch-depth: 0
@@ -26,17 +53,13 @@ jobs:
       # they sign off with, so the backport is committed under the sign-off identity.
       - name: Committer from sign-off
         id: committer
+        if: steps.pr.outputs.number
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.sha }}
         run: |
-          sha=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json mergeCommit --jq '.mergeCommit.oid // empty')
           re='^([^<>]+) <([^<>[:space:]]+@[^<>[:space:]]+)>[[:space:]]*$'
-          line=""
-          if [[ -n "$sha" ]]; then
-            # The step runs under -eo pipefail; no valid sign-off means the fallback, not a failure.
-            line=$(git log -1 --format=%B "$sha" | sed -n 's/^Signed-off-by: //p' | grep -E -m1 "$re" || true)
-          fi
+          # The step runs under -eo pipefail; no valid sign-off means the fallback, not a failure.
+          line=$(git log -1 --format=%B "$SHA" | sed -n 's/^Signed-off-by: //p' | grep -E -m1 "$re" || true)
           if [[ "$line" =~ $re ]]; then
             echo "name=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
             echo "email=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
@@ -45,9 +68,11 @@ jobs:
           fi
 
       - name: Open Backport PR
+        if: steps.pr.outputs.number
         uses: korthout/backport-action@8560fb503c275d433c56f05a2f64850093baa9f7 # v4.7.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_workspace: ${{ github.workspace }}
+          source_pr_number: ${{ steps.pr.outputs.number }}
           git_committer_name: ${{ steps.committer.outputs.name || 'github-actions[bot]' }}
           git_committer_email: ${{ steps.committer.outputs.email || '41898282+github-actions[bot]@users.noreply.github.com' }}
