@@ -6,6 +6,29 @@
 **Parent:** [vNext Roadmap](../README.md)
 **Design notes:** [`design/`](./design/)
 
+## Implementation status
+
+The first version of this KEP is implemented as `config.oam.dev/v1alpha1` and lands in KubeVela
+v1.12: the API in #7211 (issue #7105), backward compatibility and migration in the PRs of issue
+#7410. The [design notes](./design/) describe that implementation and are the reference for how it
+behaves. The rest of this document is the vNext direction it started from; where the two differ,
+the implementation took the path below.
+
+| This KEP proposes | `v1alpha1` implements | Design note |
+|---|---|---|
+| `config.oam.dev/v1beta1` | `config.oam.dev/v1alpha1` | [01](./design/01-config-crd-management.md) |
+| `ConfigTemplate` cluster-scoped | namespaced; `spec.scope: system` only in `vela-system`, usable from any namespace; a `namespace` template is usable from another namespace only by a user who can `get` it, or by a Config migration grandfathered onto it | [04](./design/04-template-scope-and-access.md) |
+| Scope derived from the Config's namespace | scope belongs to the template; the Config's namespace decides which templates it may use | [04](./design/04-template-scope-and-access.md) |
+| `spec.template: <name>` | `spec.templateRef: {name, namespace}`, immutable after create (webhook) | [01](./design/01-config-crd-management.md) |
+| `fromSecrets[]` and `fromConfigMaps[]` with per-key mapping, merged with `properties` | one `spec.propertiesFrom.secretRef: {name, key}` holding the properties as JSON, mutually exclusive with `spec.properties`; no ConfigMap source | [01](./design/01-config-crd-management.md) |
+| `status.phase: Valid \| Invalid \| Pending`, `lastSyncAt` | `status.phase: Available \| Error`, `observedGeneration`, `secretRef`, conditions; a missing `propertiesFrom` Secret is refused at admission (for a Config naming a usable template) and is an `Error` (retried) in the controller | [01](./design/01-config-crd-management.md) |
+| `// +sensitive` markers on single parameters; the CLI splits the values | `spec.sensitive` on the whole template, never turned off once on; `propertiesFrom` always makes a Config sensitive | [05](./design/05-sensitive-data.md) |
+| Output objects watched and corrected | the output Secret is watched and corrected; `outputs` objects are re-applied on every reconcile but not watched | [01](./design/01-config-crd-management.md), [09](./design/09-known-limits.md) |
+| Expanded writers re-triggered on change | the Config controller publishes the `nacos` block when its content or endpoint changes and Nacos does not already hold it, and reports `NacosSynced` | [06](./design/06-nacos-expanded-writer.md) |
+| `vela config migrate`: a Config referencing the old Secret; legacy fallback removed at vNext GA | `vela config-template migrate`, `vela config migrate` and an opt-in startup sweep adopt the legacy objects in place and keep them for rollback; the legacy fallback stays, with no removal date | [02](./design/02-backward-compatibility-and-cli.md), [03](./design/03-migration.md) |
+| Distribution through `spec.topology` (draft) | `vela config distribute` unchanged; when a Config CR exists, it owns the distribution Application | [02](./design/02-backward-compatibility-and-cli.md) |
+| `sensitive` entries are not for credentials | `sensitive` exists to keep credentials out of KubeVela's read paths (`vela config`, the `read-config` step); controllers still read them, and Secret RBAC still applies | [05](./design/05-sensitive-data.md) |
+
 `ConfigTemplate` and `Config` are currently implemented as formatted `ConfigMap` objects identified by a well-known label convention. The CUE authoring model is good — a `metadata` block and a `template` block containing a `parameter` schema and an output shape — but the storage is not. Schema validation only occurs in the CLI (`vela config`); the API server accepts any ConfigMap regardless of content. GitOps adoption is poor — authors must hand-craft ConfigMaps with CUE embedded as string values in `data` keys, and `kubectl apply` provides no feedback on malformed entries.
 
 This KEP promotes both to proper CRDs while preserving the existing CUE authoring model exactly.

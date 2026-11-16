@@ -2,103 +2,282 @@
 
 Companion design note to [KEP-2.18](../README.md). See the [design index](./README.md).
 
-- Owner: Anish Bista (@anishbista60)
+- Owner: Anish Bista (@anishbista60), Jerrin Francis (@jerrinfrancis)
 - Date: 2026-08-12
-- Status: Implementing
+- Status: Implemented (KubeVela v1.12)
 
 ### Introduction
 
-This proposal introduces a new Kubernetes API group, `config.oam.dev/v1alpha1`, with two CRDs — `ConfigTemplate` and `Config` — backed by controllers and a validating webhook. It replaces the current pattern of storing config templates as labeled `ConfigMap`s and configs as labeled `Secret`s, while keeping the existing ConfigMap/Secret convention fully working as a fallback.
+This note describes the `config.oam.dev/v1alpha1` API group: two CRDs, `ConfigTemplate` and
+`Config`, their two reconcilers and their two validating webhooks. They replace the 1.11 pattern of
+storing config templates as labelled `ConfigMap`s and configs as labelled `Secret`s, which keeps
+working alongside them ([Design 02](./02-backward-compatibility-and-cli.md)) until it is migrated
+([Design 03](./03-migration.md)).
 
 ### Background
 
-KubeVela's Config Management (`vela config` / `vela config-template`) today has no Kubernetes API types of its own. A `ConfigTemplate` is a `ConfigMap` named `config-template-<name>` carrying a `config.oam.dev/catalog: velacore-config` label, and a `Config` is a `Secret` with the same label. All of the logic that creates, validates and renders them lives in `pkg/config.Factory`, which is called directly by the `vela` CLI.
+KubeVela's Config Management (`vela config` / `vela config-template`) had no Kubernetes API types of
+its own in 1.11. A config template was a `ConfigMap` named `config-template-<name>` carrying the
+`config.oam.dev/catalog: velacore-config` label, and a config was a `Secret` with the same label.
+All of the logic that created, validated and rendered them lived in `pkg/config.Factory`, called
+directly by the `vela` CLI, VelaUX and the workflow steps.
 
-This has three problems:
+This had four problems:
 
-1. **No proper API types.** `kubectl get configs` returns nothing meaningful — configs are indistinguishable from any other Secret without inspecting labels. There's no schema, no `kubectl explain`, no discoverability, and no clean integration point for GitOps tooling or kubectl plugins.
-2. **Validation only runs in the CLI.** CUE schema validation (`script.ValidatePropertiesWithCueX`) and the custom `template.validation.$returns` check (in `pkg/config/factory.go`) run client-side, inside `Factory.ParseConfig`. A `Config`/Secret created through any other path — a workflow step, VelaUX, or a direct `kubectl apply` — bypasses validation entirely, so the same template can silently enforce different rules depending on how the config was created.
-3. **No native separation of secret input from resolved output.** Property values supplied by the user and the materialized output are both stored as a single Secret, and there's no first-class way to source sensitive property values from an existing Secret instead of putting them in the config object itself.
+1. **No proper API types.** `kubectl get configs` returned nothing; configs were indistinguishable
+   from any other Secret without inspecting labels. No schema, no `kubectl explain`, no status,
+   no clean integration point for GitOps tooling.
+2. **Validation only ran in the client.** The CUE schema check (`ValidatePropertiesWithCueX`) and the
+   template's own `validation.$returns` ran inside `Factory.ParseConfig`. A config Secret created by
+   any other path, a direct `kubectl apply` say, bypassed validation entirely.
+3. **Nothing reconciled a config after it was written.** The output Secret, the `outputs` objects
+   and the Nacos publish were written once, from the client's machine. A deleted or edited output
+   stayed that way; a Nacos publish happened only if the CLI ran it.
+4. **No first-class place for sensitive input.** The properties and the rendered output were stored
+   together in one Secret, and there was no way to source the properties from a Secret that someone
+   else manages.
 
 ### Goals & Non-Goals
 
 **Goals**
 
-- Introduce `ConfigTemplate` and `Config` as proper CRDs with controllers, so `kubectl get`/`describe`/`explain` work and the objects have real status/conditions.
-- Enforce the same validation (CUE schema, `template.validation.$returns`, mutual exclusivity of `properties`/`propertiesFrom`) for every entry point — CLI, workflow step, VelaUX, or raw `kubectl apply` — via an admission webhook, instead of only in the CLI.
-- Allow a `Config`'s properties to be sourced from an existing `Secret` (`spec.propertiesFrom.secretRef`) instead of being embedded inline, for sensitive values.
-- Preserve full backward compatibility: existing `config-template-*` ConfigMaps and Secret-based Configs, and addons that install them, continue to work unchanged.
+- `ConfigTemplate` and `Config` as CRDs with controllers, so `kubectl get`/`describe`/`explain`
+  work and the objects carry status and conditions.
+- The same validation for every entry point that writes the CRs (CLI, workflow step,
+  `kubectl apply`, GitOps), enforced at admission, and repeated by the controller wherever it can
+  be. Writers still on the 1.11 storage (an unchanged VelaUX, the workflow step on a cluster
+  without the CRDs) keep working without CR admission.
+- A Config's properties sourced from an existing Secret (`spec.propertiesFrom`) instead of being
+  written inline.
+- The rendered result (output Secret, `outputs`, Nacos) kept in line with the Config by a
+  reconciler, not written once by a client.
+- Full backward compatibility with the 1.11 storage, and a migration path from it
+  ([Design 02](./02-backward-compatibility-and-cli.md), [Design 03](./03-migration.md)).
 
 **Non-Goals**
 
-- A migration tool that converts legacy ConfigMap-based templates into `ConfigTemplate` CRDs. Both forms are expected to coexist.
-- A deprecation timeline for the legacy ConfigMap/Secret convention.
-- Changes to multi-cluster config distribution. Phase 1 keeps the existing Application-based distribution mechanism (`Factory.CreateOrUpdateDistribution`) unchanged and orthogonal to this proposal.
+- Removing the legacy ConfigMap/Secret storage, or a deprecation timeline for it.
+- Changes to multi-cluster config distribution: `vela config distribute` keeps creating an
+  Application that ships the output Secret; the Application is now owned by the Config.
+- VelaUX changes.
 
 ### Proposal
 
+#### Object model
+
+```mermaid
+flowchart TB
+    subgraph tns["Template namespace (vela-system for a system template)"]
+        direction LR
+        CT["ConfigTemplate<br/>spec.template (CUE)<br/>spec.scope, spec.sensitive<br/>status.schema"]
+        LCM["config-template-&lt;name&gt; ConfigMap<br/>(legacy)"]
+    end
+
+    CFG["Config<br/>spec.templateRef<br/>spec.properties | spec.propertiesFrom"]
+
+    subgraph cns["Config namespace"]
+        direction LR
+        PS["Properties Secret<br/>(propertiesFrom)"]
+        OS["Output Secret<br/>input-properties, rendered data,<br/>objects-reference"]
+        OUT["outputs objects"]
+        APP["distribute-&lt;name&gt; Application<br/>(vela config distribute)"]
+    end
+
+    CFG -- "templateRef, CR first" --> CT
+    CFG -. "fallback when no CR" .-> LCM
+    CFG -- "reads" --> PS
+    CFG == "controller owner" ==> OS
+    CFG == "controller owner" ==> OUT
+    CFG == "controller owner" ==> APP
+```
+
+Deleting a Config removes its output Secret, its `outputs` and its distribution Application by
+garbage collection. Neither CRD has a finalizer. A Nacos entry the Config published stays in Nacos
+([Design 06](./06-nacos-expanded-writer.md)).
+
 #### API types
 
-Two namespaced CRDs are added under `apis/config.oam.dev/v1alpha1/`:
+Both CRDs are namespaced, in the `oam` category, under `apis/config.oam.dev/v1alpha1/`. The CRD
+manifests are `charts/vela-core/crds/config.oam.dev_configtemplates.yaml` and
+`config.oam.dev_configs.yaml`.
 
 ```go
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.sensitive) || !oldSelf.sensitive || (has(self.sensitive) && self.sensitive)",message="sensitive cannot be changed from true to false"
 type ConfigTemplateSpec struct {
-    Template    string               // CUE template, same format as the legacy config-template-* ConfigMap's "template" key
-    Scope       ConfigTemplateScope  // "system" | "namespace", defaults to "namespace"
-    Sensitive   bool                 // Configs from this template can't be read back through CLI/workflow
+    Template    string              // required; CUE, the same format as the legacy ConfigMap's "template" key
+    Scope       ConfigTemplateScope // "system" | "namespace", default "namespace"
+    Sensitive   bool                // once true, never false again
     Alias       string
     Description string
 }
 
 type ConfigSpec struct {
-    TemplateRef    *ConfigTemplateReference // name (+ optional namespace, defaults to vela-system)
-    Properties     *runtime.RawExtension    // inline properties; mutually exclusive with PropertiesFrom
+    TemplateRef    *ConfigTemplateReference // {name, namespace}; namespace defaults to vela-system
+    Properties     *runtime.RawExtension    // inline; mutually exclusive with PropertiesFrom
     PropertiesFrom *PropertiesReference     // secretRef{name, key}; key defaults to "properties"
     Alias          string
     Description    string
 }
 ```
 
-`Config.status.phase` is `Available`/`Error` with a `secretRef` pointing at the materialized output Secret. `ConfigTemplate.status` carries the same phase plus an OpenAPI v3 `schema` extracted from `template.parameter`, used to validate `Config` properties against.
+**ConfigTemplate** (short name `ct`; columns `SCOPE`, `PHASE`, `AGE`)
 
-Sensitive values are never stored in the `Config` object: `spec.propertiesFrom.secretRef` points at a Secret the controller reads at reconcile time, so the CRD itself only ever holds a reference, not the value.
+| Field | Meaning |
+|---|---|
+| `spec.template` | `template: {parameter, output, outputs?, nacos?, validation?}`, unchanged from 1.11 |
+| `spec.scope` | `namespace` or `system`; `system` is valid only in `vela-system` ([Design 04](./04-template-scope-and-access.md)) |
+| `spec.sensitive` | Configs from it are sensitive; the CEL rule above refuses turning it off on Kubernetes 1.25+, the webhook on any version ([Design 05](./05-sensitive-data.md)) |
+| `status.phase` | `Available` or `Error` |
+| `status.schema` | the OpenAPI v3 schema extracted from `template.parameter` |
+| `status.conditions` | `Synced`: `ReconcileSuccess`, or `ReconcileError` with the message |
 
-#### Controllers
+**Config** (short name `cfg`; columns `TEMPLATE`, `PHASE`, `AGE`)
 
-Both reconcilers (`pkg/controller/config.oam.dev/v1alpha1/{config,configtemplate}`) are purely event-driven — no `RequeueAfter` — matching the existing `ComponentDefinition`/`TraitDefinition` pattern.
+| Field | Meaning |
+|---|---|
+| `spec.templateRef` | the template to render; immutable after create (enforced by the webhook). Empty: the properties are stored as they are, with no render |
+| `spec.properties` | inline properties, any JSON |
+| `spec.propertiesFrom.secretRef` | a Secret in the Config's namespace whose key holds the properties as JSON. Always makes the Config sensitive |
+| `status.phase` | `Available` or `Error` |
+| `status.observedGeneration` | the generation the status describes; a reader waiting for `Available` (the `create-config` step) waits for the current generation |
+| `status.secretRef` | the output Secret |
+| `status.expandedWriter.nacos` | the last confirmed Nacos sync: `dataId`, `group`, `contentHash`, `endpoint`, `endpointHash`, `lastSyncTime`; the target and `endpoint` are recorded on every attempt |
+| `status.conditions` | `Synced`; `NacosSynced` for a template with a `nacos` block |
 
-- **`ConfigTemplateReconciler`**: parses the CUE template, extracts an OpenAPI schema from `template.parameter`, and writes it to `status.schema`. Marks `Error` phase (with a condition) on parse failure, `Available` on success.
-- **`ConfigReconciler`**:
-  1. Resolves `spec.templateRef` — CRD first, falling back to the legacy `config-template-<name>` ConfigMap if no CRD exists (see below). If the CRD exists but hasn't reconciled to `Available` yet, reconciliation is deferred by marking the Config `Error` and relying on the ConfigTemplate watch to retrigger it.
-  2. Resolves properties, either from `spec.properties` inline or by reading `spec.propertiesFrom.secretRef`.
-  3. Evaluates the CUE template against the properties (`template.output`, `template.validation.$returns`), same evaluation path the legacy `Factory.ParseConfig` uses.
-  4. Applies the materialized output as a `Secret` it owns via `controllerutil.SetControllerReference`, so deleting the `Config` garbage-collects the Secret. It refuses to adopt a pre-existing Secret it doesn't already control, to avoid a Config author overwriting an unrelated Secret via a name collision.
-  5. Sets `status.phase`, `status.secretRef`, and a `ReconcileSuccess`/`ReconcileError` condition.
+#### ConfigTemplate reconciler
 
-  The controller also watches `ConfigTemplate` objects, `Secret`s referenced via `propertiesFrom`, and legacy `config-template-*` ConfigMaps, re-enqueuing any `Config` that depends on the changed object.
+`pkg/controller/config.oam.dev/v1alpha1/configtemplate/`. It parses the CUE, extracts the
+OpenAPI schema from `template.parameter` into `status.schema` and sets `Available`. A parse or
+schema failure clears the schema and sets `Error`. A `system` template outside `vela-system` (one
+that reached the cluster with the webhooks off) is `Error` with its schema kept: readers then treat
+it as namespace-scoped. It reconciles on ConfigTemplate events only: no requeue, no finalizer.
 
-#### Validating webhook
+#### Config reconciler
 
-A validating webhook on `Config` (`pkg/webhook/config.oam.dev/v1alpha1/config`) mirrors the controller's template/property resolution and, on create/update, enforces:
+`pkg/controller/config.oam.dev/v1alpha1/config/`. One pass:
 
-| Validation | Before | After |
-|---|---|---|
-| `properties` match the template's CUE schema | CLI only (`script.ValidatePropertiesWithCueX`) | Webhook |
-| Custom `template.validation.$returns` check | CLI only (`factory.go`) | Webhook |
-| `properties` / `propertiesFrom` mutual exclusivity | Not enforced | Webhook |
-| `ConfigTemplate` CUE syntax is parseable | CLI only | Webhook (`ConfigTemplate` webhook, on the template itself) |
+```mermaid
+flowchart TD
+    start(["Config event"]) --> gen["Record observedGeneration"]
+    gen --> marks["Bring the nacos-endpoint mark in line on the owned Secret;<br/>with propertiesFrom, mark the owned Secret sensitive"]
+    marks --> excl{"properties and<br/>propertiesFrom both set?"}
+    excl -- yes --> err
+    excl -- no --> resolve["Resolve the template<br/>(see below)"]
+    resolve -- "not found, or a CR<br/>not usable yet" --> err
+    resolve --> sens{"sensitive template?"}
+    sens -- yes --> marksens["Mark the owned Secret sensitive;<br/>inline properties are an error"]
+    marksens -- "inline properties" --> err
+    marksens --> props
+    sens -- no --> props["Check the nacos block;<br/>read the properties<br/>(inline or the propertiesFrom Secret)"]
+    props --> render["Render the CUE once:<br/>validation.$returns, output, outputs, nacos"]
+    render --> secret["Apply the output Secret<br/>(controller owner; refuse a Secret it does not own)"]
+    secret --> outputs["Apply each outputs object<br/>in the Config's namespace (controller owner)"]
+    outputs --> avail["phase Available, secretRef,<br/>ReconcileSuccess"]
+    avail --> nacos{"nacos block?"}
+    nacos -- yes --> sync["Sync Nacos, set NacosSynced<br/>(failure: retry with backoff,<br/>phase stays Available)"]
+    nacos -- no --> done(["Status written"])
+    sync --> done
+    props -- "error" --> err
+    render -- "error" --> err
+    secret -- "error" --> err
+    outputs -- "error" --> err
+    err["phase Error, ReconcileError<br/>retry in 30 s<br/>(a write conflict: retry in 1 s, no Error)"]
+```
 
-This means every entry point — CLI, workflow step, VelaUX, or a raw `kubectl apply` — is admitted or rejected under the same rules with the same error messages, closing the gap described in Background.
+**Template resolution** (`pkg/config/resolve.go`, `ResolveConfigTemplate`) is shared by the
+reconciler and the Config webhook, and the workflow steps use its sibling `TemplateScopeOf`, so they
+agree on what a template is. The CLI's `Factory.LoadTemplate` follows the same order, CR first and
+the ConfigMap as fallback:
 
-Validation is skipped (admitted) when the referenced template can't yet be resolved (e.g. `ConfigTemplate` not `Available`, or neither CRD nor legacy ConfigMap exists) — the reconciler is the source of truth for that failure mode and will mark the `Config` as `Error`, rather than the webhook rejecting the write outright.
+```mermaid
+flowchart TD
+    ref["templateRef {name, namespace or vela-system}"] --> getcr{"ConfigTemplate CR<br/>of that name?"}
+    getcr -- yes --> usable{"schema extracted?<br/>(Available, or Error only for placement)"}
+    usable -- yes --> crt["Use the CR"]
+    usable -- no --> wait["Not usable yet:<br/>the Config waits in Error,<br/>re-triggered by the template's next status"]
+    getcr -- "no, or the kind is not served" --> getcm{"config-template-&lt;name&gt;<br/>ConfigMap?"}
+    getcm -- yes --> cmt["Use the legacy template"]
+    getcm -- no --> nf["Not found: Error"]
+```
 
-#### Backward compatibility: dual-read, single-write
+**The output Secret** is named by the template's `output` (default: the Config's name) and placed in
+the Config's namespace. It carries the labels a 1.11 reader looks for (`config.oam.dev/catalog:
+velacore-config`, `config.oam.dev/type: <template>`, `config.oam.dev/scope`), the annotations
+`config.oam.dev/sensitive`, `config.oam.dev/template-namespace`, alias and description, the rendered
+data plus `input-properties`, and `objects-reference` when there are `outputs`. Its type defaults to
+`/<template name>`, as 1.11 wrote it. Labels and annotations are merged, not replaced, so keys others
+put on the Secret survive, except the ones the controller manages: it overwrites the keys it sets,
+removes `config.oam.dev/adopt-by`, and makes `config.oam.dev/nacos-endpoint` follow the Config. A
+Secret marked sensitive stays marked.
 
-- `ConfigReconciler` and the validating webhook both read **either** a `ConfigTemplate` CRD **or** a legacy `config-template-<name>` ConfigMap, CRD taking priority when both exist.
-- `pkg/config.Factory.LoadTemplate` (used by the CLI and workflow `config` provider) follows the same CRD-first, ConfigMap-fallback resolution, so old and new templates are interchangeable from the caller's point of view.
-- Old CLI versions, and addons that install ConfigMap-based templates, are unaffected — they keep writing ConfigMaps/Secrets directly and keep working.
-- New CLI versions (`vela config-template apply/list/show/delete`, `vela config create/list/delete`) write the new CRDs; `references/cli/config_crd.go` falls back to the legacy factory-based path if the CRD API isn't installed on the cluster (e.g. an older KubeVela control plane).
-- A migration tool to convert legacy ConfigMaps into `ConfigTemplate` CRDs is explicitly out of scope (see Non-Goals) — both representations are expected to coexist indefinitely.
+The controller refuses to write over a Secret, or an `outputs` object, that it does not control
+(`already exists and is not owned by this Config`). A user who can only create Configs therefore
+cannot use the controller's permissions to overwrite an unrelated object. The one exception is a
+legacy config Secret that migration handed to this Config, together with the `outputs` objects that
+Secret recorded: the Config carries the migration label and the Secret the `config.oam.dev/adopt-by`
+mark, which takes write access to the Secret to set ([Design 03](./03-migration.md)).
+
+**`outputs`** objects are applied in the Config's namespace whatever namespace the template names,
+each with the Config as controller owner.
+
+**Watches.** A change to any input re-renders at once:
+
+| Watched | Re-triggers |
+|---|---|
+| Config | itself |
+| Secrets it owns | the owner (a hand edit or deletion of the output Secret is reverted) |
+| ConfigTemplate | the Configs whose `templateRef` names it |
+| any Secret | the Configs that read it through `propertiesFrom`, the Config of the same name (a foreign Secret in the way), and the Configs that use it as their Nacos endpoint |
+| `config-template-*` ConfigMaps | the Configs whose `templateRef` names that legacy template |
+
+`outputs` objects are not watched: one deleted by hand comes back on the Config's next reconcile
+([Design 09](./09-known-limits.md)).
+
+**Errors.** A spec-level error sets `Error` with the message on the `Synced` condition and renders
+again after 30 seconds, because some causes are outside anything watched (an object of the same
+name owned by someone else, of a kind with no watch). A write conflict is not the Config's error:
+the controller reads again after one second and reports nothing.
+
+#### Validating webhooks
+
+`pkg/webhook/config.oam.dev/v1alpha1/`, registered in the chart as
+`validating.config.oam.dev.v1alpha1.configtemplates` and `validating.config.oam.dev.v1alpha1.configs`,
+on CREATE and UPDATE, failure policy `Fail`.
+
+**ConfigTemplate**
+
+| Check | When |
+|---|---|
+| `sensitive` true to false is denied | update; also the CRD's CEL rule on 1.25+ |
+| `config.oam.dev/grandfathered-configs` may lose entries, never gain them | update |
+| `scope: system` outside `vela-system` is denied | create, or an update that makes it so |
+| the `nacos` block's shape: `endpoint.name`, `metadata.dataId`; `format`, if set, a string, and when concrete one of json, yaml, toml, properties (any other rendered value publishes as YAML) | create and update |
+| `nacos.endpoint.namespace` is a plain string literal; a Nacos endpoint in another namespace (not the template's, not `vela-system`) needs the requester to be able to `get` that Secret | create, or an update that changes `spec.template` |
+| a template that does not compile is **admitted**; the reconciler reports it as `Error` | |
+
+**Config**
+
+| Check | When |
+|---|---|
+| `spec.templateRef` cannot change (`delete and recreate the config to use a different template`) | update |
+| `properties` and `propertiesFrom` together are denied | create and update |
+| the template access table, with a SubjectAccessReview for the requesting user ([Design 04](./04-template-scope-and-access.md)) | create (the reference is immutable) |
+| a sensitive template with inline `properties` is denied | create and update |
+| the `propertiesFrom` Secret and key must exist and hold JSON | create and update, when `templateRef` names a usable template |
+| the properties match the template's schema; the render succeeds; `validation.$returns` reports no message; `output` decodes as a Secret | create and update, when `templateRef` names a usable template |
+
+A Config whose template does not exist yet, or is not usable yet, is admitted when the template is in
+the Config's own namespace, or is a ConfigTemplate in `vela-system` that declares `scope: system`:
+the template may be applied in the same batch or a later GitOps wave, and the reconciler reports the
+Config `Error` until it is `Available`. Any other reference is denied at create until the template
+is usable (`is not available yet`): its scope decides who may use it, and with `templateRef`
+immutable the create is the only time that is asked.
+
+**With the webhooks off**, the reconcilers repeat every structural rule they can and report a
+violation as `Error`: a misplaced `system` template, inline properties on a sensitive template,
+both property sources, a malformed `nacos` block. They cannot repeat a SubjectAccessReview: a
+reconciler has no requesting user. Nor do they keep `templateRef` from changing: a changed reference
+is rendered against the new template ([Design 09](./09-known-limits.md)).
 
 ### Examples
 
@@ -109,7 +288,8 @@ metadata:
   name: image-registry
   namespace: vela-system
 spec:
-  scope: namespace
+  scope: system
+  sensitive: true
   template: |
     template: {
       parameter: {
@@ -120,7 +300,7 @@ spec:
       output: {
         apiVersion: "v1"
         kind:       "Secret"
-        data: {
+        stringData: {
           registry: parameter.registry
           username: parameter.username
           password: parameter.password
@@ -143,13 +323,18 @@ spec:
       key: properties
 ```
 
-`kubectl get configtemplates -n vela-system` and `kubectl describe config my-registry -n default` now show real objects with `SCOPE`/`PHASE`/`TEMPLATE` columns, instead of requiring label-filtered `kubectl get configmaps/secrets`.
+`kubectl get configtemplates -n vela-system` and `kubectl get configs -n default` show real objects
+with `SCOPE`, `PHASE` and `TEMPLATE` columns, instead of label-filtered ConfigMaps and Secrets.
 
 ### Progress / Timeline / Milestones
 
-- [x] `ConfigTemplate`/`Config` API types, CRD manifests, deepcopy.
-- [x] `ConfigTemplateReconciler`, `ConfigReconciler`, legacy ConfigMap/Secret fallback.
-- [x] Validating webhooks for `Config` and `ConfigTemplate`.
-- [x] `vela config` / `vela config-template` CLI switched to the CRDs, with fallback to the legacy factory path.
-- [ ] Migration tool for ConfigMap → `ConfigTemplate` (future follow-up, out of scope here).
-- [ ] Deprecation timeline for the legacy ConfigMap/Secret convention (future follow-up, out of scope here).
+- [x] `ConfigTemplate`/`Config` API types, CRD manifests, deepcopy (#7211).
+- [x] `ConfigTemplateReconciler`, `ConfigReconciler`, legacy ConfigMap fallback (#7211).
+- [x] Validating webhooks for `Config` and `ConfigTemplate` (#7211).
+- [x] `outputs` in the Config reconciler (#7211).
+- [x] The Nacos publish in the Config reconciler (#7457, #7467); `observedGeneration` (#7470).
+- [x] CLI and workflow steps on the CRDs, reading both storages ([Design 02](./02-backward-compatibility-and-cli.md), [Design 07](./07-workflow-steps.md)).
+- [x] Migration from the legacy storage ([Design 03](./03-migration.md)).
+- [x] Template scope and access, sensitive rules ([Design 04](./04-template-scope-and-access.md), [Design 05](./05-sensitive-data.md)).
+- [ ] A `Ready` condition for GitOps health checks, and the other limits in [Design 09](./09-known-limits.md).
+- [ ] Removal of the legacy storage: not planned.
