@@ -238,6 +238,22 @@ var _ = Describe("what the tools return", func() {
 			Expect(out.Unknowns).To(ContainElement(ContainSubstring("Ingress team-a/web sets no host")))
 			Expect(out.Unknowns).NotTo(ContainElement(SatisfyAll(ContainSubstring("Ingress"), ContainSubstring("NodePort"))))
 		})
+
+		It("names the kind of an unstructured object it refused or could not read", func() {
+			seldon := schema.GroupVersionKind{Group: "machinelearning.seldon.io", Version: "v1", Kind: "SeldonDeployment"}
+			forbid := &interceptor.Funcs{Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+				return apierrors.NewForbidden(schema.GroupResource{Group: seldon.Group, Resource: "seldondeployments"}, "model", errors.New("denied"))
+			}}
+			h = startHarnessIntercepted(Options{}, nil, forbid)
+			reader := &endpointReader{Client: h.srv.deps.f.Client(), allowed: func(ns string) bool { return ns == "team-a" }}
+			for _, ns := range []string{"team-a", "team-b"} {
+				obj := &unstructured.Unstructured{}
+				obj.SetGroupVersionKind(seldon)
+				Expect(reader.Get(h.ctx, client.ObjectKey{Namespace: ns, Name: "model"}, obj)).NotTo(Succeed())
+			}
+			Expect(sortedKeys(reader.failed)).To(ConsistOf(HavePrefix("SeldonDeployment team-a/model: ")))
+			Expect(sortedKeys(reader.refused)).To(ConsistOf("SeldonDeployment team-b/model"))
+		})
 	})
 
 	Context("get_logs", func() {
