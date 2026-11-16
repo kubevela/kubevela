@@ -113,6 +113,8 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	if in.Pod != "" {
 		targets = selectPod(targets, in.Pod)
 		switch {
+		case len(targets) == 0 && len(info.unread) > 0:
+			return nil, out, fmt.Errorf("pod %q was not found under the resources of application %s/%s that could be read; it may be under %s", in.Pod, app.Namespace, app.Name, unreadList(info.unread))
 		case len(targets) == 0:
 			return nil, out, fmt.Errorf("pod %q is not managed by application %s/%s", in.Pod, app.Namespace, app.Name)
 		case len(targets) > 1:
@@ -126,6 +128,9 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	if len(targets) == 0 {
 		if len(info.untraced) > 0 {
 			return nil, out, fmt.Errorf("no pods were found in the cluster and namespace pairs this server traced; %d resources of %s/%s were not traced: %s", len(info.untraced), app.Namespace, app.Name, strings.Join(info.notes, "; "))
+		}
+		if len(info.unread) > 0 {
+			return nil, out, fmt.Errorf("no pods matching the filter were found under the resources of application %s/%s that could be read; pods may be under %s", app.Namespace, app.Name, unreadList(info.unread))
 		}
 		return nil, out, fmt.Errorf("application %s/%s has no pods matching the filter", app.Namespace, app.Name)
 	}
@@ -177,6 +182,21 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	meta.Warnings = append(meta.Warnings, handleUnknowns...)
 	out.Meta = meta
 	return nil, out, nil
+}
+
+// unreadList names recorded resources the tree pass could not read, for an
+// error that must not claim their pods do not exist.
+func unreadList(unread []querytypes.AppliedResource) string {
+	names := make([]string, 0, len(unread))
+	for _, r := range unread {
+		names = append(names, r.Kind+" "+objectName(r.Namespace, r.Name)+" in cluster "+clusterName(r.Cluster))
+	}
+	sort.Strings(names)
+	more := ""
+	if len(names) > maxUnreadListed {
+		names, more = names[:maxUnreadListed], fmt.Sprintf(" and %d more", len(names)-maxUnreadListed)
+	}
+	return fmt.Sprintf("%d recorded resources that could not be read, or were deleted after they were recorded: %s%s", len(unread), strings.Join(names, ", "), more)
 }
 
 func logOptions(in GetLogsInput) corev1.PodLogOptions {

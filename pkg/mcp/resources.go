@@ -66,9 +66,14 @@ type ResourceHealth struct {
 // rule for most workload kinds and defaults them to Healthy, so without
 // this a crash-looping Deployment reads as healthy at the top line. All
 // pods failing is UnHealthy; some failing is Progressing. The original
-// verdict is kept in the message.
+// verdict is kept in the message. Jobs and CronJobs are left alone: their
+// pods run to completion, so a running pod reads as Progressing and a
+// retried one as failed while the Job itself is fine.
 func deriveFromPods(nodes []ResourceNode) []ResourceNode {
 	if len(nodes) == 0 || nodes[0].Health.Status != string(querytypes.HealthStatusHealthy) {
+		return nodes
+	}
+	if nodes[0].Kind == "Job" || nodes[0].Kind == "CronJob" {
 		return nodes
 	}
 	pods, failing := 0, 0
@@ -173,6 +178,11 @@ func (d *deps) getManagedResource(ctx context.Context, _ *sdk.CallToolRequest, i
 		out.Resources = append(out.Resources, viewManagedResource(res))
 	}
 	if in.ResourceName != "" && len(out.Resources) == 0 {
+		for _, r := range info.unread {
+			if r.Name == in.ResourceName && (in.Kind == "" || strings.EqualFold(r.Kind, in.Kind)) {
+				return nil, out, fmt.Errorf("%s %s in cluster %s is recorded by application %s/%s but could not be read: this server may not be allowed to read it, or it was deleted after it was recorded", r.Kind, objectName(r.Namespace, r.Name), clusterName(r.Cluster), app.Namespace, app.Name)
+			}
+		}
 		return nil, out, fmt.Errorf("%s %q is not managed by application %s/%s; only managed objects are read", kindLabel(in.Kind), in.ResourceName, app.Namespace, app.Name)
 	}
 	out.Meta = d.meta(ctx)
@@ -188,7 +198,7 @@ func (d *deps) getManagedResource(ctx context.Context, _ *sdk.CallToolRequest, i
 		if len(out.Resources[i].Tree) > maxTreeNodes {
 			out.Resources[i].Tree = out.Resources[i].Tree[:maxTreeNodes]
 			out.Meta.Truncated = true
-			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("%s %s has more than %d descendants; only the first %d are listed", out.Resources[i].Kind, out.Resources[i].Name, maxTreeNodes, maxTreeNodes))
+			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("%s %s has more than %d objects in its tree; only the first %d are listed", out.Resources[i].Kind, out.Resources[i].Name, maxTreeNodes, maxTreeNodes))
 		}
 	}
 	if len(out.Resources) == 1 && (in.ResourceName != "" || in.Kind != "") {
@@ -205,20 +215,17 @@ func withheldWarning(withheld int) []string {
 	return []string{fmt.Sprintf("%d managed resources are outside this server's allowed namespaces and were withheld", withheld)}
 }
 
-// listAppliedResources runs the same collector VelaQL's resource views use,
-// so the tree and health here match vela status --tree. When the server
-// has a namespace allowlist, resources recorded in other namespaces are
-// dropped before anything is read from them and the count is returned:
-// an Application can record objects anywhere a topology or read-only
-// policy points, and the allowlist must hold for those too. Cluster-scoped
-// objects have no namespace and are withheld under an allowlist.
 // appliedInfo is what listAppliedResources knows beyond the resources
-// themselves: how many it withheld, notes for the caller to surface, and
-// which resources it listed without tracing their tree.
+// themselves: how many it withheld, notes for the caller to surface, which
+// resources it listed without tracing their tree, and which recorded
+// resources the tree pass could not read.
 type appliedInfo struct {
 	withheld int
 	notes    []string
 	untraced map[string]bool
+	// unread are resources the trackers record that the tree pass did not
+	// return, so they are absent from the resources listed.
+	unread []querytypes.AppliedResource
 }
 
 // appliedKey identifies a managed resource for appliedInfo.untraced.
@@ -226,6 +233,13 @@ func appliedKey(r querytypes.AppliedResource) string {
 	return clusterName(r.Cluster) + "/" + r.Namespace + "/" + r.Kind + "/" + r.Name
 }
 
+// listAppliedResources runs the same collector VelaQL's resource views use,
+// so the tree and health here match vela status --tree. When the server
+// has a namespace allowlist, resources recorded in other namespaces are
+// dropped before anything is read from them and the count is returned:
+// an Application can record objects anywhere a topology or read-only
+// policy points, and the allowlist must hold for those too. Cluster-scoped
+// objects have no namespace and are withheld under an allowlist.
 func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Application, component, cluster string) ([]querytypes.AppliedResource, appliedInfo, error) {
 	cli := d.f.Client()
 	if cli == nil {
@@ -309,6 +323,7 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 			kept = append(kept, applied...)
 		}
 		info.notes = append(info.notes, unreadResources(allowed, kept)...)
+		info.unread = missingResources(allowed, kept)
 		return kept, info, nil
 	}
 	// The trackers say what the Application manages; the tree pass skips any
@@ -323,7 +338,7 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 	if err != nil {
 		return nil, appliedInfo{}, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 	}
-	return applied, appliedInfo{notes: unreadResources(recorded, applied)}, nil
+	return applied, appliedInfo{notes: unreadResources(recorded, applied), unread: missingResources(recorded, applied)}, nil
 }
 
 // maxUnreadListed bounds how many unread resources a note names.
@@ -359,6 +374,24 @@ func unreadResources(recorded, read []querytypes.AppliedResource) []string {
 	}
 	return []string{fmt.Sprintf("%d managed resources could not be read, or were deleted after they were recorded, so they and the pods and endpoints under them are missing from this answer: %s%s",
 		len(missing), strings.Join(listed, ", "), more)}
+}
+
+// missingResources returns the resources in recorded that read does not
+// contain, once each, for callers that must not mistake them for absent.
+func missingResources(recorded, read []querytypes.AppliedResource) []querytypes.AppliedResource {
+	got := make(map[string]bool, len(read))
+	for i := range read {
+		got[appliedKey(read[i])] = true
+	}
+	var missing []querytypes.AppliedResource
+	for i := range recorded {
+		k := appliedKey(recorded[i])
+		if !got[k] {
+			got[k] = true
+			missing = append(missing, recorded[i])
+		}
+	}
+	return missing
 }
 
 // attachLiveObject reads the selected object from its cluster. A Secret is
