@@ -24,6 +24,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -31,7 +33,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
@@ -177,6 +181,47 @@ var _ = Describe("Test the config provider", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(configs)).To(Equal(1))
 		Expect(configs[0].Properties["url"]).To(Equal("kubevela.net"))
+	})
+	It("reaches configs outside the application's namespace only to read shared system configs", func() {
+		ctx := context.Background()
+		for _, ns := range []string{"vela-system", "wf-b"} {
+			Expect(client.IgnoreAlreadyExists(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}))).Should(Succeed())
+		}
+		writeConfig := func(name, namespace, scope string) {
+			Expect(k8sClient.Create(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: map[string]string{
+				types.LabelConfigCatalog: types.VelaCoreConfig, types.LabelConfigType: "shared-read", types.LabelConfigScope: scope,
+			}}, StringData: map[string]string{"input-properties": `{"registry":"` + name + `.example"}`}})).Should(Succeed())
+		}
+		writeConfig("tenant-db", "wf-b", "project")
+		writeConfig("platform-registry", "vela-system", "system")
+		rt := oamprovidertypes.RuntimeParams{ConfigFactory: factory, KubeClient: k8sClient,
+			AppLabels: map[string]string{oam.LabelAppNamespace: "default"}}
+		nn := func(namespace, name string) *oamprovidertypes.OAMParams[config.NamespacedName] {
+			return &oamprovidertypes.OAMParams[config.NamespacedName]{Params: config.NamespacedName{Namespace: namespace, Name: name}, RuntimeParams: rt}
+		}
+		gateOff := "the AuthenticateApplication feature gate is off"
+
+		By("another tenant's config: read, list and delete refused, nothing deleted")
+		_, err := ReadConfig(ctx, nn("wf-b", "tenant-db"))
+		Expect(err).Should(MatchError(ContainSubstring("config wf-b/tenant-db is outside the application's namespace default")))
+		Expect(err).Should(MatchError(ContainSubstring(gateOff)))
+		_, err = ListConfig(ctx, &oamprovidertypes.OAMParams[ListVars]{Params: ListVars{Namespace: "wf-b", Template: "shared-read"}, RuntimeParams: rt})
+		Expect(err).Should(MatchError(ContainSubstring("configs in namespace wf-b is outside the application's namespace default")))
+		_, err = DeleteConfig(ctx, nn("wf-b", "tenant-db"))
+		Expect(err).Should(MatchError(ContainSubstring(gateOff)))
+		Expect(factory.IsExist(ctx, "wf-b", "tenant-db")).Should(BeTrue(), "not deleted")
+
+		By("a system-scoped config in vela-system: read from anywhere, not deleted")
+		_, err = ReadConfig(ctx, nn("vela-system", "platform-registry"))
+		Expect(err).ToNot(HaveOccurred())
+		_, err = DeleteConfig(ctx, nn("vela-system", "platform-registry"))
+		Expect(err).Should(MatchError(ContainSubstring(gateOff)))
+
+		By("no config written into another namespace")
+		_, err = CreateConfig(ctx, &CreateParams{Params: CreateConfigProperties{Name: "planted", Namespace: "wf-b",
+			Config: map[string]interface{}{"url": "x"}}, RuntimeParams: rt})
+		Expect(err).Should(MatchError(ContainSubstring("config wf-b/planted is outside the application's namespace default")))
+		Expect(factory.IsExist(ctx, "wf-b", "planted")).Should(BeFalse())
 	})
 })
 
