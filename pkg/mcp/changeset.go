@@ -58,6 +58,10 @@ type ResourceChange struct {
 	Fields     []FieldChange `json:"fields,omitempty" jsonschema:"Leaves that differ, for MODIFY only."`
 	// FieldsTruncated is set when more than maxFieldChanges leaves differ.
 	FieldsTruncated bool `json:"fieldsTruncated,omitempty" jsonschema:"True when more leaves differ than are listed."`
+	// examined is every leaf the classifier judges: all differing leaves
+	// of a MODIFY, past the cap on Fields, and all leaves of an ADD. It is
+	// never part of a result.
+	examined []FieldChange
 }
 
 // ChangeSet is everything the classifier and the reader need about a
@@ -183,7 +187,24 @@ func compareObjects(oldObj, newObj *unstructured.Unstructured) *ResourceChange {
 		ref = newObj
 	}
 	rc := &ResourceChange{APIVersion: ref.GetAPIVersion(), Kind: ref.GetKind(), Namespace: ref.GetNamespace(), Name: ref.GetName(), Action: action}
-	if action != ActionModify {
+	secret := ref.GetKind() == "Secret"
+	switch action {
+	case ActionRemove:
+		return rc
+	case ActionAdd:
+		// A new object lists no fields, but the classifier judges every leaf
+		// it sets, so a privileged or exposed object is seen.
+		newLeaves, newShown := leaves(newObj.Object), leaves(redactMap(newObj.Object))
+		sortedPaths := make([]string, 0, len(newLeaves))
+		for p := range newLeaves {
+			if !isIgnoredLeaf(p) {
+				sortedPaths = append(sortedPaths, p)
+			}
+		}
+		sort.Strings(sortedPaths)
+		for _, p := range sortedPaths {
+			rc.examined = append(rc.examined, FieldChange{Path: p, To: shownLeaf(secret, p, newLeaves[p], newShown)})
+		}
 		return rc
 	}
 	oldLeaves, newLeaves := leaves(oldObj.Object), leaves(newObj.Object)
@@ -191,7 +212,6 @@ func compareObjects(oldObj, newObj *unstructured.Unstructured) *ResourceChange {
 	// redacted copies, which carry the sibling context (an env entry's name)
 	// that a single leaf path does not.
 	oldShown, newShown := leaves(redactMap(oldObj.Object)), leaves(redactMap(newObj.Object))
-	secret := ref.GetKind() == "Secret"
 	paths := map[string]bool{}
 	for p := range oldLeaves {
 		paths[p] = true
@@ -213,14 +233,15 @@ func compareObjects(oldObj, newObj *unstructured.Unstructured) *ResourceChange {
 		if hadFrom && hadTo && reflect.DeepEqual(from, to) {
 			continue
 		}
-		if len(rc.Fields) >= maxFieldChanges {
-			rc.FieldsTruncated = true
-			break
-		}
-		rc.Fields = append(rc.Fields, FieldChange{Path: p, From: shownLeaf(secret, p, from, oldShown), To: shownLeaf(secret, p, to, newShown)})
+		rc.examined = append(rc.examined, FieldChange{Path: p, From: shownLeaf(secret, p, from, oldShown), To: shownLeaf(secret, p, to, newShown)})
 	}
-	if len(rc.Fields) == 0 && !rc.FieldsTruncated {
+	if len(rc.examined) == 0 {
 		return nil
+	}
+	// Every differing leaf is classified; only the listing is capped.
+	rc.Fields = rc.examined
+	if len(rc.Fields) > maxFieldChanges {
+		rc.Fields, rc.FieldsTruncated = rc.Fields[:maxFieldChanges:maxFieldChanges], true
 	}
 	return rc
 }
@@ -413,18 +434,34 @@ func policiesChanged(oldApp, newApp *v1beta1.Application) []string {
 	return names
 }
 
+// deploySteps are the step types that apply the rendered resources.
+var deploySteps = map[string]bool{"deploy": true, "apply-component": true, "builtin-apply-component": true, "apply-application": true}
+
 // hasGate reports whether a suspend step precedes the first deploy step,
-// which is the shape gated mode relies on.
+// which is the shape gated mode relies on. A step-group counts by its
+// sub-steps, which run side by side: one that deploys is the first deploy
+// even when it also suspends, and one that only suspends is a gate.
 func hasGate(app *v1beta1.Application) bool {
 	if app.Spec.Workflow == nil {
 		return false
 	}
 	for _, s := range app.Spec.Workflow.Steps {
-		switch s.Type {
-		case "suspend":
+		switch {
+		case s.Type == "suspend":
 			return true
-		case "deploy", "apply-component", "builtin-apply-component", "apply-application":
+		case deploySteps[s.Type]:
 			return false
+		case s.Type == "step-group":
+			suspends := false
+			for _, sub := range s.SubSteps {
+				if deploySteps[sub.Type] {
+					return false
+				}
+				suspends = suspends || sub.Type == "suspend"
+			}
+			if suspends {
+				return true
+			}
 		}
 	}
 	return false

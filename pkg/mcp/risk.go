@@ -46,11 +46,10 @@ type Risk struct {
 }
 
 var (
-	securityPath = regexp.MustCompile(`(?i)(securityContext|serviceAccountName|automountServiceAccountToken|hostNetwork|hostPID|hostIPC|privileged|capabilities|allowPrivilegeEscalation|runAsUser|runAsRoot|hostPath|imagePullSecrets|tls|ingressClassName|externalIPs|loadBalancerSourceRanges)`)
-	statefulPath = regexp.MustCompile(`(?i)(volumeClaimTemplates|persistentVolumeClaim|storageClassName|storage|serviceName|podManagementPolicy)`)
+	securityPath = regexp.MustCompile(`(?i)(securityContext|serviceAccountName|automountServiceAccountToken|hostNetwork|hostPID|hostIPC|privileged|capabilities|allowPrivilegeEscalation|runAsUser|runAsRoot|hostPath|hostUsers|shareProcessNamespace|hostPort|imagePullSecrets|tls|ingressClassName|externalIPs|loadBalancerSourceRanges)`)
+	statefulPath = regexp.MustCompile(`(?i)(volumeClaimTemplates|persistentVolumeClaim|storageClassName|resources\.requests\.storage$|serviceName|podManagementPolicy)`)
 	configPath   = regexp.MustCompile(`(?i)(\.env\b|\.env\[|envFrom|configMap|\.args|\.command|volumes|volumeMounts|\.data\.|annotations|labels|livenessProbe|readinessProbe|startupProbe|ports|resources\.(requests|limits))`)
 	scalingPath  = regexp.MustCompile(`(?i)(\.replicas$|minReplicas|maxReplicas|targetCPUUtilizationPercentage|metrics\[)`)
-	replacePath  = regexp.MustCompile(`(?i)(^spec\.selector|^spec\.clusterIP$|^spec\.template\.metadata\.labels|^spec\.completions$|^spec\.parallelism$)`)
 	imagePath    = regexp.MustCompile(`(?i)containers\[\d+\]\.image$`)
 	// serviceTypeExposing matches a Service type change that opens the
 	// workload to traffic from outside the cluster.
@@ -126,8 +125,11 @@ func classify(cs ChangeSet) Risk {
 				fire("security-surface", RiskHigh, id+" is a new security-relevant object")
 			case statefulKinds[rc.Kind]:
 				fire("stateful", RiskHigh, id+" is a new stateful object")
-			case !cs.NewApplication:
-				fire("addition", RiskMedium, id+" would be created in an existing Application")
+			default:
+				classifyAdded(fire, id, rc)
+				if !cs.NewApplication {
+					fire("addition", RiskMedium, id+" would be created in an existing Application")
+				}
 			}
 			continue
 		}
@@ -137,27 +139,74 @@ func classify(cs ChangeSet) Risk {
 		if statefulKinds[rc.Kind] {
 			fire("stateful", RiskHigh, id+" is a stateful object and changed")
 		}
-		if rc.FieldsTruncated {
-			fire("unclassified", RiskMedium, id+" has more field changes than were examined")
+		fields := rc.examined
+		if fields == nil {
+			// A change set built elsewhere carries only the listed fields.
+			fields = rc.Fields
+			if rc.FieldsTruncated {
+				fire("unclassified", RiskMedium, id+" has more field changes than were examined")
+			}
 		}
-		for _, f := range rc.Fields {
-			classifyField(fire, id, rc.Kind, f)
+		for _, f := range fields {
+			classifyField(fire, id, rc.APIVersion, rc.Kind, f)
 		}
 	}
 	return r
 }
 
+// classifyAdded applies the security rules a change to an existing object
+// would meet to the leaves a new object sets, so a new privileged workload
+// or exposed Service is HIGH like the same change to an existing one.
+func classifyAdded(fire func(rule, class, evidence string), id string, rc ResourceChange) {
+	for _, f := range rc.examined {
+		at := fmt.Sprintf("%s %s", id, f.Path)
+		switch {
+		case securityPath.MatchString(f.Path):
+			fire("security-surface", RiskHigh, at+" is set on a new object")
+		case exposesService(rc.Kind, f):
+			fire("security-surface", RiskHigh, at+" exposes the new Service outside the cluster")
+		}
+	}
+}
+
+// exposesService reports a Service type that opens the workload to traffic
+// from outside the cluster.
+func exposesService(kind string, f FieldChange) bool {
+	return kind == "Service" && f.Path == "spec.type" && serviceTypeExposing[fmt.Sprint(f.To)]
+}
+
+// immutable reports whether the API server rejects an in-place change of
+// the field on this kind, so applying it replaces the object: a workload's
+// selector, a Service's clusterIP, and a Job's completions and pod
+// template.
+func immutable(apiVersion, kind, p string) bool {
+	group := ""
+	if i := strings.Index(apiVersion, "/"); i >= 0 {
+		group = apiVersion[:i]
+	}
+	under := func(prefix string) bool { return p == prefix || strings.HasPrefix(p, prefix+".") }
+	switch {
+	case group == "apps" && (kind == "Deployment" || kind == "StatefulSet" || kind == "DaemonSet" || kind == "ReplicaSet"):
+		return under("spec.selector")
+	case group == "batch" && kind == "Job":
+		return under("spec.selector") || p == "spec.completions" || under("spec.template")
+	case group == "" && kind == "Service":
+		return p == "spec.clusterIP"
+	}
+	return false
+}
+
 // classifyField applies the path rules in order of severity and fires the
 // first that matches, so one field yields one rule.
-func classifyField(fire func(rule, class, evidence string), id, kind string, f FieldChange) {
+func classifyField(fire func(rule, class, evidence string), id, apiVersion, kind string, f FieldChange) {
 	p := f.Path
 	at := fmt.Sprintf("%s %s", id, p)
 	switch {
-	case replacePath.MatchString(p):
+	case immutable(apiVersion, kind, p):
 		fire("replace", RiskHigh, at+" is immutable; the object would be replaced")
 	case securityPath.MatchString(p):
 		fire("security-surface", RiskHigh, at)
-	case kind == "Service" && p == "spec.type" && serviceTypeExposing[fmt.Sprint(f.To)]:
+	case exposesService(kind, f):
 		fire("security-surface", RiskHigh, at+" exposes the Service outside the cluster")
 	case statefulPath.MatchString(p):
 		fire("stateful", RiskHigh, at)
