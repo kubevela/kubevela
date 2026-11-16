@@ -423,6 +423,17 @@ var _ = Describe("security properties", func() {
 			Expect(toJSON(rc)).NotTo(ContainSubstring("internal-value"))
 		})
 
+		It("never shows a ConfigMap payload that renders as a list", func() {
+			rc := compareObjects(
+				obj("ConfigMap", map[string]any{"data": []any{"old-internal-value"}}),
+				obj("ConfigMap", map[string]any{"data": []any{"new-internal-value"}}))
+			Expect(rc).NotTo(BeNil())
+			Expect(rc.Fields).To(HaveLen(1))
+			Expect(rc.Fields[0].Path).To(Equal("data[0]"))
+			Expect(rc.Fields[0].From).To(Equal(redactedValue))
+			Expect(rc.Fields[0].To).To(Equal(redactedValue))
+		})
+
 		It("redacts every leaf under a key that redaction replaces whole", func() {
 			rc := compareObjects(
 				obj("Widget", map[string]any{"spec": map[string]any{"auth": map[string]any{"credentials": map[string]any{"primary": "abc"}, "authorization": map[string]any{"bearer": "ghi"}}, "replicas": int64(1)}}),
@@ -441,7 +452,13 @@ var _ = Describe("security properties", func() {
 
 		It("drops embedded last-applied annotations a base revision carries", func() {
 			embedded := `{"spec":{"components":[{"properties":{"env":[{"name":"DB_PASSWORD","value":"hunter2"}]}}]}}`
-			for _, key := range embeddedObjectAnnotations {
+			// A literal list, so dropping a key from embeddedObjectAnnotations
+			// fails this spec instead of shrinking it.
+			for _, key := range []string{
+				"kubectl.kubernetes.io/last-applied-configuration",
+				"app.oam.dev/last-applied-configuration",
+				"kubevela.io/last-applied-configuration",
+			} {
 				base := obj("Deployment", map[string]any{"spec": map[string]any{"replicas": int64(1)}})
 				base.SetAnnotations(map[string]string{key: embedded})
 				target := obj("Deployment", map[string]any{"spec": map[string]any{"replicas": int64(1)}})

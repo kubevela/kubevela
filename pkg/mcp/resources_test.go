@@ -388,6 +388,39 @@ var _ = Describe("get_logs", func() {
 		Expect(out.Pods[0].Lines).To(Equal([]string{"crashed: panic"}))
 	})
 
+	It("stops reading a log stream at the byte cap and says so", func() {
+		saved := maxLogStreamBytes
+		maxLogStreamBytes = 2 * maxLogBytesPerPod
+		DeferCleanup(func() { maxLogStreamBytes = saved })
+		stream := &longLog{size: 4 * maxLogStreamBytes}
+		logs := func(context.Context, *rest.Config, string, string, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
+			return io.NopCloser(stream), nil
+		}
+		h = startHarness(Options{PodLogs: logs}, managedFixtures()...)
+		var out GetLogsOutput
+		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "web-abc-1"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(stream.read).To(Equal(maxLogStreamBytes+1), "reading stops one byte past the cap, the byte that proves the stream goes on")
+		Expect(out.Pods).To(HaveLen(1))
+		p := out.Pods[0]
+		Expect(p.Truncated).To(BeTrue())
+		Expect(p.Error).To(BeEmpty())
+		Expect(p.Note).To(ContainSubstring("newer lines"))
+		Expect(p.Lines).NotTo(BeEmpty())
+		Expect(p.Lines[len(p.Lines)-1]).To(Equal("0123456789abcde"), "the last whole line read is kept, the probe byte is not")
+		Expect(out.Meta.Truncated).To(BeTrue())
+
+		stream = &longLog{size: maxLogStreamBytes}
+		out = GetLogsOutput{}
+		res = h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "web-abc-1"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(stream.read).To(Equal(maxLogStreamBytes))
+		p = out.Pods[0]
+		Expect(p.Note).To(BeEmpty(), "a stream exactly at the cap was read to its end")
+		Expect(p.Truncated).To(BeTrue(), "only because the stream is longer than the per-pod budget")
+		Expect(p.Lines[len(p.Lines)-1]).To(Equal("0123456789abcde"))
+	})
+
 	It("refuses pods the application does not manage and reports empty matches", func() {
 		h = startHarness(Options{PodLogs: fakeLogs}, managedFixtures()...)
 		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "other"}, nil)
@@ -410,3 +443,20 @@ var _ = Describe("get_logs", func() {
 		Expect(requests).To(BeEmpty())
 	})
 })
+
+// longLog is a log stream of 16-byte lines, size bytes long, that counts
+// the bytes read from it.
+type longLog struct{ size, read int }
+
+func (l *longLog) Read(p []byte) (int, error) {
+	if l.read >= l.size {
+		return 0, io.EOF
+	}
+	n := min(len(p), l.size-l.read)
+	const line = "0123456789abcde\n"
+	for i := 0; i < n; i++ {
+		p[i] = line[(l.read+i)%len(line)]
+	}
+	l.read += n
+	return n, nil
+}

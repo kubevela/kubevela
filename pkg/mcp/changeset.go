@@ -317,7 +317,7 @@ func shownLeaf(payload []string, path string, raw any, shown map[string]any) any
 		return nil
 	}
 	for _, field := range payload {
-		if path == field || strings.HasPrefix(path, field+".") {
+		if path == field || strings.HasPrefix(path, field+".") || strings.HasPrefix(path, field+"[") {
 			return redactedValue
 		}
 	}

@@ -19,6 +19,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -48,6 +49,16 @@ const (
 	podKind    = "Pod"
 )
 
+// errLogStreamCapped reports that a log stream reached maxLogStreamBytes and
+// was not read to its end.
+var errLogStreamCapped = errors.New("log stream exceeded the read cap")
+
+// maxLogStreamBytes caps the bytes read from one log stream. tailLines
+// bounds the lines the API server returns but not their length, so without
+// this cap a stream of very long lines would be read in full. It is a
+// variable so tests can lower it.
+var maxLogStreamBytes = 16 * maxLogBytesPerPod
+
 // PodLogsFunc opens a log stream for one pod. Options.PodLogs lets tests
 // supply one without an API server.
 type PodLogsFunc func(ctx context.Context, cfg *rest.Config, cluster, namespace, pod string, opts *corev1.PodLogOptions) (io.ReadCloser, error)
@@ -75,6 +86,7 @@ type PodLogs struct {
 	Phase      string   `json:"phase,omitempty"`
 	Lines      []string `json:"lines"`
 	Truncated  bool     `json:"truncated"`
+	Note       string   `json:"note,omitempty" jsonschema:"Set when reading stopped at the per-stream byte cap: the lines shown are the newest of what was read, and lines written after the cap were not read."`
 	Error      string   `json:"error,omitempty"`
 }
 
@@ -254,7 +266,10 @@ func (d *deps) readPodLogs(ctx context.Context, t podTarget, container string, o
 	}
 	defer func() { _ = rc.Close() }()
 	pl.Lines, pl.Truncated, err = readLines(rc, maxLogBytesPerPod)
-	if err != nil {
+	switch {
+	case errors.Is(err, errLogStreamCapped):
+		pl.Note = fmt.Sprintf("the log stream exceeded the %d byte read cap, so reading stopped there; the lines shown are the newest of what was read, and newer lines beyond the cap were not read. Lower tailLines or set sinceSeconds to reach them", maxLogStreamBytes)
+	case err != nil:
 		pl.Error = redactLine(err.Error())
 	}
 	return pl
@@ -266,8 +281,23 @@ func (d *deps) readPodLogs(ctx context.Context, t podTarget, container string, o
 // budget drops the oldest bytes. Truncated is set only when the stream had
 // more than the budget; a line cut by the budget is dropped rather than
 // returned partial.
+//
+// At most maxLogStreamBytes are read, plus one byte that shows whether the
+// stream goes on. Only when that byte arrives is the cap reported: reading
+// stops, the newest whole lines read are kept (the extra byte and any line
+// it or the cap cut are dropped), Truncated is set, and the error is
+// errLogStreamCapped. A stream exactly at the cap is read to its end.
 func readLines(r io.Reader, budget int) ([]string, bool, error) {
-	data, truncated, err := readTail(r, budget)
+	lr := &io.LimitedReader{R: r, N: int64(maxLogStreamBytes) + 1}
+	data, truncated, err := readTail(lr, budget)
+	capped := err == nil && lr.N == 0
+	if capped {
+		if i := bytes.LastIndexByte(data, '\n'); i >= 0 {
+			data = data[:i+1]
+		} else {
+			data = nil
+		}
+	}
 	if truncated {
 		if i := bytes.IndexByte(data, '\n'); i >= 0 {
 			data = data[i+1:]
@@ -280,6 +310,9 @@ func readLines(r io.Reader, budget int) ([]string, bool, error) {
 		for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
 			lines = append(lines, redactLine(strings.TrimSuffix(line, "\r")))
 		}
+	}
+	if capped {
+		truncated, err = true, errLogStreamCapped
 	}
 	return lines, truncated, err
 }
