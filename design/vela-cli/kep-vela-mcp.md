@@ -305,10 +305,14 @@ the end with no match is `unclassified`, carries the redacted text as evidence a
 no owner — the server does not infer who should fix what it could not recognise. A family
 condition that names a class by its own convention — ACK
 `ReferencesResolved` not True is `dependency-missing` — is read as that class with the
-condition as the code. Illustrative examples: a `Throttling` or `TooManyRequestsException`
-token is `throttled` with owner `cloud`; `LimitExceeded` or `QuotaExceeded` is
-`quota-exhausted` with owner `cloud`; `AccessDenied`, `ExpiredToken` or a `googleapi: Error
-403` is `auth` with owner `platform`; `InvalidParameterCombination` or `googleapi: Error
+condition as the code. A rule names a token whole, or with a wildcard the rule declares,
+and rules are tried in a fixed order in which `throttled` precedes `quota-exhausted`, so a
+token both could claim goes to the throttle. Illustrative examples: a `Throttling`,
+`TooManyRequestsException` or `RateLimitExceeded` token, or a `googleapi: Error 429`, is
+`throttled` with owner `cloud` — `RateLimitExceeded` is a throttle though it ends in
+LimitExceeded; `LimitExceeded` or `QuotaExceeded` is `quota-exhausted` with owner `cloud`;
+`AccessDenied`, `ExpiredToken` or a `googleapi: Error 403` is `auth` with owner
+`platform`; `InvalidParameterCombination` or `googleapi: Error
 400` is `invalid` with owner `application-spec`; a `NotFound` token or a Config Connector
 `DependencyNotFound` reason is `dependency-missing` with owner
 `application-spec`; `AlreadyExists`, `InUse` or `ManagementConflict` is `conflict` with
