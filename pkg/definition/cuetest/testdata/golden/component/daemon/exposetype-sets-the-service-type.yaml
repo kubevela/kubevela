@@ -50,6 +50,7 @@ outputs:
       ports:
       - name: port-24224
         port: 24224
+        protocol: TCP
         targetPort: 24224
       selector:
         app.oam.dev/component: agent
