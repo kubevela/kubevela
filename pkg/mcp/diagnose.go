@@ -209,7 +209,12 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 				continue
 			}
 			if rule, code := classifyText(e.Message); rule != nil {
-				r.Cause = newCause(rule, code, "Event "+e.Reason+" on "+e.Object, e.Message, synced.LastTransition)
+				// the event is the evidence, so its own time dates the cause
+				since := synced.LastTransition
+				if e.Last != nil && !e.Last.IsZero() {
+					since = e.Last
+				}
+				r.Cause = newCause(rule, code, "Event "+e.Reason+" on "+e.Object, e.Message, since)
 				d.attachCause(r, &out, "", ackEndpointResult{})
 				out.Findings = append(out.Findings, causeFinding(*r))
 			}
@@ -386,9 +391,9 @@ func controllerHandle(diag *ResourceDiagnosis, service string, ep ackEndpointRes
 }
 
 // eventMatchesResource reports whether an event is about the resource: the
-// same object in the same cluster.
+// same object in the same namespace and cluster.
 func eventMatchesResource(e EventSummary, r ResourceDiagnosis) bool {
-	return e.Cluster == r.Cluster && e.Object == r.Kind+"/"+r.Name
+	return e.Cluster == r.Cluster && e.Namespace == r.Namespace && e.Object == r.Kind+"/"+r.Name
 }
 
 // cloudOf maps an API group to its cloud through the family tables, for the

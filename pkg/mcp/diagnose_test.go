@@ -323,7 +323,7 @@ var _ = Describe("diagnose_application", func() {
 			InvolvedObject: corev1.ObjectReference{APIVersion: "s3.aws.upbound.io/v1beta1", Kind: "Bucket", Name: "assets", Namespace: "team-a"},
 			Type:           corev1.EventTypeWarning, Reason: "CannotConnectToProvider",
 			Message: "cannot get AWS config: ExpiredTokenException: The security token included in the request is expired",
-			Count:   2, LastTimestamp: metav1.Now(),
+			Count:   2, LastTimestamp: metav1.NewTime(time.Date(2026, 11, 15, 9, 40, 0, 0, time.UTC)),
 		}
 		h = startHarness(Options{}, append(diagnoseApp(b), ev)...)
 		var out DiagnoseApplicationOutput
@@ -334,8 +334,10 @@ var _ = Describe("diagnose_application", func() {
 		Expect(c.Class).To(Equal(causeAuth))
 		Expect(c.Code).To(Equal("ExpiredTokenException"))
 		Expect(c.Evidence).To(ContainSubstring("Event CannotConnectToProvider on Bucket/assets"))
+		// the event is the evidence, so its last timestamp dates the cause,
+		// not the Synced transition at 09:12
 		Expect(c.Since).NotTo(BeNil())
-		Expect(*c.Since).To(Equal(time.Date(2026, 11, 15, 9, 12, 0, 0, time.UTC)))
+		Expect(*c.Since).To(Equal(time.Date(2026, 11, 15, 9, 40, 0, 0, time.UTC)))
 		Expect(out.Findings).To(ContainElement(HaveField("Message", ContainSubstring("cause auth (ExpiredTokenException) — owner: platform"))))
 	})
 
@@ -360,11 +362,15 @@ var _ = Describe("diagnose_application", func() {
 		Expect(out.Findings).NotTo(ContainElement(HaveField("Message", ContainSubstring("— owner:"))))
 	})
 
-	It("matches an event to a resource only in the same cluster", func() {
-		r := ResourceDiagnosis{Cluster: localCluster, Kind: "Bucket", Name: "assets"}
-		Expect(eventMatchesResource(EventSummary{Cluster: localCluster, Object: "Bucket/assets"}, r)).To(BeTrue())
-		Expect(eventMatchesResource(EventSummary{Cluster: "prod-east", Object: "Bucket/assets"}, r)).To(BeFalse())
-		Expect(eventMatchesResource(EventSummary{Cluster: localCluster, Object: "Bucket/other"}, r)).To(BeFalse())
+	It("matches an event to a resource only in the same namespace and cluster", func() {
+		r := ResourceDiagnosis{Cluster: localCluster, Namespace: "team-a", Kind: "Bucket", Name: "assets"}
+		Expect(eventMatchesResource(EventSummary{Cluster: localCluster, Namespace: "team-a", Object: "Bucket/assets"}, r)).To(BeTrue())
+		Expect(eventMatchesResource(EventSummary{Cluster: "prod-east", Namespace: "team-a", Object: "Bucket/assets"}, r)).To(BeFalse())
+		Expect(eventMatchesResource(EventSummary{Cluster: localCluster, Namespace: "team-b", Object: "Bucket/assets"}, r)).To(BeFalse())
+		Expect(eventMatchesResource(EventSummary{Cluster: localCluster, Namespace: "team-a", Object: "Bucket/other"}, r)).To(BeFalse())
+		clusterScoped := ResourceDiagnosis{Cluster: localCluster, Kind: "Bucket", Name: "assets"}
+		Expect(eventMatchesResource(EventSummary{Cluster: localCluster, Object: "Bucket/assets"}, clusterScoped)).To(BeTrue())
+		Expect(eventMatchesResource(EventSummary{Cluster: localCluster, Namespace: "team-a", Object: "Bucket/assets"}, clusterScoped)).To(BeFalse())
 	})
 
 	It("names the convergence-loop signature when the provider has the resource but sync never turns true", func() {

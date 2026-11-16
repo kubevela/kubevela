@@ -43,9 +43,13 @@ var _ = Describe("classifyCause", func() {
 			ResourceCondition{Type: "ACK.ResourceSynced", Status: "Unknown", Reason: "operation error RDS: ModifyDBCluster, https response error StatusCode: 400, RequestID: 1, Throttling: Rate exceeded"},
 			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "Throttling: Rate exceeded"},
 		), causeThrottled, "Throttling", ownerCloud, "ACK.Recoverable"),
-		Entry("ACK KMS key not accessible", ack(
-			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "KMSKeyNotAccessibleFault: The specified KMS key [arn:aws:kms:us-east-1:000000000000:key/7323017e] does not exist, is not enabled or you do not have permissions to access it."},
-		), causeDependencyMissing, "KMSKeyNotAccessibleFault", ownerApplicationSpec, "ACK.Recoverable"),
+		Entry("ACK unresolved reference names the class by the family's own convention, ahead of a stale Synced", ack(
+			ResourceCondition{Type: "ACK.ResourceSynced", Status: "True"},
+			ResourceCondition{Type: "ACK.ReferencesResolved", Status: "False", Message: "resource reference wrapper or ID required: VPCID"},
+		), causeDependencyMissing, "ACK.ReferencesResolved", ownerApplicationSpec, "ACK.ReferencesResolved message"),
+		Entry("Google RateLimitExceeded is a throttle, not an exhausted quota", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Instance", Name: "db", Conditions: []ResourceCondition{
+			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "observe failed: googleapi: Error 429: RateLimitExceeded: Rate limit exceeded for this project"},
+		}}, causeThrottled, "RateLimitExceeded", ownerCloud, "Synced"),
 		Entry("ACK terminal invalid parameter", ack(
 			ResourceCondition{Type: "ACK.ResourceSynced", Status: "False", Reason: "resource is in terminal condition", Message: "Resource not synced"},
 			ResourceCondition{Type: "ACK.Terminal", Status: "True", Message: "api error InvalidParameterCombination: Cannot find version 16.3 for aurora-postgresql"},
@@ -121,6 +125,15 @@ var _ = Describe("classifyCause", func() {
 		}}),
 		Entry("unknown AWS code", ack(
 			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "api error PriorRequestNotComplete: Request is still in progress"},
+		)),
+		Entry("explicit code no rule names, with a rule token echoed in its prose", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "api error DBSubnetGroupDoesNotCoverEnoughAZs: The DB subnet group does not meet Availability Zone coverage; compare with InvalidSubnet in the service reference"},
+		)),
+		Entry("ACK KMS key not accessible: a missing key or a denying key policy, owned by different layers", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "KMSKeyNotAccessibleFault: The specified KMS key [arn:aws:kms:us-east-1:000000000000:key/7323017e] does not exist, is not enabled or you do not have permissions to access it."},
+		)),
+		Entry("insufficient capacity is not an exhausted quota", ack(
+			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "api error InsufficientInstanceCapacity: We currently do not have sufficient m5.large capacity in the Availability Zone you requested"},
 		)),
 	)
 
