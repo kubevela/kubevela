@@ -76,8 +76,10 @@ type deps struct {
 	opts Options
 
 	mu sync.Mutex
-	// platformMu guards the platform cache on its own, so a slow refresh
-	// does not hold up applies and log reads that take mu.
+	// platformMu guards the platform cache separately from mu, so a refresh
+	// never blocks the mu critical sections; responses that need the
+	// envelope do wait for an in-flight refresh, which is bounded by the
+	// refreshing call's deadline.
 	platformMu sync.Mutex
 	platform   *platformInfo
 	platformAt time.Time
@@ -104,7 +106,7 @@ func newDeps(f velacmd.Factory, opts Options) *deps {
 // than failing the tool, because an answer with "vela-core: unknown" is
 // still more useful than no answer.
 func (d *deps) meta(ctx context.Context) Meta {
-	info, err := d.cachedPlatform(ctx)
+	info, _, _, err := d.cachedPlatform(ctx)
 	return metaFrom(info, err)
 }
 
@@ -129,17 +131,19 @@ func metaFrom(info platformInfo, err error) Meta {
 }
 
 // cachedPlatform returns platform information, read at most once per
-// platformCacheTTL. Only a complete read is cached: a failed or cancelled
-// one is returned to its caller and the next call reads again.
-func (d *deps) cachedPlatform(ctx context.Context) (platformInfo, error) {
+// platformCacheTTL, with the time it was read and whether it came from the
+// cache. Only a complete read is cached: a failed or cancelled one is
+// returned to its caller and the next call reads again.
+func (d *deps) cachedPlatform(ctx context.Context) (info platformInfo, readAt time.Time, hit bool, err error) {
 	d.platformMu.Lock()
 	defer d.platformMu.Unlock()
 	if d.platform != nil && time.Since(d.platformAt) < platformCacheTTL {
-		return *d.platform, nil
+		return *d.platform, d.platformAt, true, nil
 	}
-	info, err := d.readPlatform(ctx)
+	readAt = time.Now()
+	info, err = d.readPlatform(ctx)
 	if err == nil && ctx.Err() == nil {
-		d.platform, d.platformAt = &info, time.Now()
+		d.platform, d.platformAt = &info, readAt
 	}
-	return info, err
+	return info, readAt, false, err
 }

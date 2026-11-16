@@ -272,8 +272,7 @@ func providerOf(apiVersion string) string {
 		return providerACK
 	case strings.HasSuffix(group, ".cnrm.cloud.google.com"):
 		return providerConfigConnector
-	case strings.HasSuffix(group, ".upbound.io"), strings.HasSuffix(group, ".crossplane.io"),
-		strings.Contains(group, ".upbound.io"), strings.Contains(group, ".crossplane.io"):
+	case strings.HasSuffix(group, ".upbound.io"), strings.HasSuffix(group, ".crossplane.io"):
 		return providerCrossplane
 	case builtinGroups[group]:
 		return providerKubernetes
