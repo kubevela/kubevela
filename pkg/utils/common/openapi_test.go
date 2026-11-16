@@ -78,10 +78,18 @@ func TestGenOpenAPIBoundedDefault(t *testing.T) {
 			field:    "offset",
 			want:     map[string]any{"type": "integer", "default": float64(-1), "minimum": float64(-10)},
 		},
+		"scalar parameter": {
+			template: `parameter: *1 | int & >=1 & <=5`,
+			want:     map[string]any{"type": "integer", "default": float64(1), "minimum": float64(1), "maximum": float64(5)},
+		},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			require.Equal(t, c.want, prop(parameterSchema(t, c.template), c.field))
+			s := parameterSchema(t, c.template)
+			if c.field != "" {
+				s = prop(s, c.field)
+			}
+			require.Equal(t, c.want, s)
 		})
 	}
 }
