@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -252,4 +253,18 @@ func ackControllerDeploymentWith(service, name string, c corev1.Container) *apps
 			},
 		},
 	}
+}
+
+// isSecretObject reports whether a Get into obj would return a whole
+// Secret, data included: a typed Secret or an unstructured one. A
+// PartialObjectMetadata read is not one.
+func isSecretObject(obj client.Object) bool {
+	switch o := obj.(type) {
+	case *corev1.Secret:
+		return true
+	case *unstructured.Unstructured:
+		gvk := o.GroupVersionKind()
+		return gvk.Group == "" && gvk.Kind == "Secret"
+	}
+	return false
 }

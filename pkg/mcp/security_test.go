@@ -24,13 +24,16 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // These specs pin the security properties the package documents: the
@@ -314,6 +317,35 @@ var _ = Describe("security properties", func() {
 			opts := logOptions(GetLogsInput{TailLines: 1 << 20, SinceSeconds: -5})
 			Expect(*opts.TailLines).To(Equal(maxTailLines))
 			Expect(opts.SinceSeconds).To(BeNil())
+		})
+	})
+
+	Context("Secret reads", func() {
+		It("checks a rendered Secret that already exists without reading the live Secret's data", func() {
+			live := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "db", Namespace: "team-a", ResourceVersion: "41"}, Data: map[string][]byte{"url": []byte("postgres://u:live@db")}}
+			var fullReads []string
+			metadataReads := 0
+			base := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(live).Build()
+			cli := interceptor.NewClient(base, interceptor.Funcs{Create: func(_ context.Context, _ client.WithWatch, obj client.Object, _ ...client.CreateOption) error {
+				// The fake client does not report a dry-run create of an
+				// existing object as a conflict; the API server does.
+				return apierrors.NewAlreadyExists(corev1.Resource("secrets"), obj.GetName())
+			}, Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, partial := obj.(*metav1.PartialObjectMetadata); partial {
+					metadataReads++
+				} else if isSecretObject(obj) {
+					fullReads = append(fullReads, key.String())
+				}
+				return c.Get(ctx, key, obj, opts...)
+			}})
+			rendered := &unstructured.Unstructured{Object: map[string]any{
+				"apiVersion": "v1", "kind": "Secret",
+				"metadata":   map[string]any{"name": "db"},
+				"stringData": map[string]any{"url": "postgres://u:rendered@db"},
+			}}
+			Expect(dryRunObject(context.Background(), cli, rendered, "team-a")).To(Succeed())
+			Expect(fullReads).To(BeEmpty(), "the live resourceVersion comes from a metadata-only read")
+			Expect(metadataReads).To(Equal(1))
 		})
 	})
 

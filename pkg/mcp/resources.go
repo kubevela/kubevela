@@ -244,10 +244,12 @@ func appliedKey(r querytypes.AppliedResource) string {
 // policy points, and the allowlist must hold for those too. Cluster-scoped
 // objects have no namespace and are withheld under an allowlist.
 func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Application, component, cluster string) ([]querytypes.AppliedResource, appliedInfo, error) {
-	cli := d.f.Client()
-	if cli == nil {
+	if d.f.Client() == nil {
 		return nil, appliedInfo{}, errNoConfig
 	}
+	// The tree pass reads every recorded root, a Secret included; this
+	// client turns that read into a metadata-only one.
+	cli := secretMetadataClient{d.f.Client()}
 	opt := query.Option{
 		Name:      app.Name,
 		Namespace: app.Namespace,
@@ -342,6 +344,35 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 		return nil, appliedInfo{}, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 	}
 	return applied, appliedInfo{notes: unreadResources(recorded, applied), unread: missingResources(recorded, applied)}, nil
+}
+
+// secretMetadataClient reads a Secret requested as an unstructured object
+// through the metadata-only API, so the collector's tree pass gets the
+// Secret's metadata, enough for its tree node and health, and never its
+// data or type. Every other read passes through unchanged.
+type secretMetadataClient struct{ client.Client }
+
+func (c secretMetadataClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return c.Client.Get(ctx, key, obj, opts...)
+	}
+	gvk := u.GroupVersionKind()
+	if gvk.Group != "" || gvk.Kind != secretKind {
+		return c.Client.Get(ctx, key, obj, opts...)
+	}
+	pm := &metav1.PartialObjectMetadata{}
+	pm.SetGroupVersionKind(gvk)
+	if err := c.Client.Get(ctx, key, pm, opts...); err != nil {
+		return err
+	}
+	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pm)
+	if err != nil {
+		return err
+	}
+	u.Object = raw
+	u.SetGroupVersionKind(gvk)
+	return nil
 }
 
 // maxUnreadListed bounds how many unread resources a note names.

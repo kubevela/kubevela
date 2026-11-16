@@ -24,6 +24,7 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -213,7 +214,9 @@ func dryRunObject(ctx context.Context, cli client.Client, rendered *unstructured
 	if !apierrors.IsAlreadyExists(err) {
 		return err
 	}
-	live := &unstructured.Unstructured{}
+	// Only the resourceVersion is needed, so the live object is read as
+	// metadata: a live Secret's data never reaches this process.
+	live := &metav1.PartialObjectMetadata{}
 	live.SetGroupVersionKind(obj.GroupVersionKind())
 	if err := cli.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
 		return err

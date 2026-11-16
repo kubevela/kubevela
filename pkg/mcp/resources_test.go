@@ -19,6 +19,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 
@@ -281,22 +282,28 @@ var _ = Describe("get_managed_resource", func() {
 
 	It("returns only metadata for a Secret, read through the metadata API", func() {
 		metadataReads := 0
+		var fullReads []string
 		funcs := &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 			if pm, partial := obj.(*metav1.PartialObjectMetadata); partial && pm.GetObjectKind().GroupVersionKind().Kind == "Secret" {
 				metadataReads++
+			} else if isSecretObject(obj) {
+				fullReads = append(fullReads, key.String())
+				return fmt.Errorf("full read of Secret %s", key)
 			}
 			return c.Get(ctx, key, obj, opts...)
 		}}
 		h = startHarnessIntercepted(Options{}, nil, funcs, managedFixtures()...)
 		var out GetManagedResourceOutput
 		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Secret", "resourceName": "web-creds"}, &out)
+		Expect(fullReads).To(BeEmpty(), "no read of the Secret, the resource tree pass included, returns its data")
 		Expect(out.Resources).To(HaveLen(1))
 		obj := out.Resources[0].Object
 		Expect(obj).To(HaveKey("metadata"))
 		Expect(obj).NotTo(HaveKey("data"))
 		Expect(obj).NotTo(HaveKey("stringData"))
 		Expect(out.Resources[0].ObjectNote).To(ContainSubstring("metadata only"))
-		Expect(metadataReads).To(Equal(1), "the live read of the Secret asks for metadata only")
+		Expect(metadataReads).To(BeNumerically(">", 1), "the tree pass and the live read both ask for metadata only")
+		Expect(out.Resources[0].Tree).NotTo(BeEmpty(), "the Secret keeps its tree node")
 		Expect(toJSON(out)).NotTo(ContainSubstring("hunter2"), "no Secret value appears anywhere in the result")
 	})
 
