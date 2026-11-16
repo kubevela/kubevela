@@ -107,7 +107,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	if i, err := appParser.ValidateComponentNames(app); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].name", i)), app, err.Error()))
 	}
-	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
+	if err := appParser.ValidateCUESchematicAppfile(ctx, af); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, err.Error()))
 	}
 	return componentErrs

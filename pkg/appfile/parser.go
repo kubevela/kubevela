@@ -520,6 +520,10 @@ func (p *Parser) convertTemplate2Component(name, typ string, props *runtime.RawE
 func (p *Parser) parseComponents(ctx context.Context, af *Appfile) error {
 	var comps []*Component
 	for _, c := range af.app.Spec.Components {
+		// An admission request is cancelled once the API server stops waiting for it.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		comp, err := p.parseComponent(ctx, c, af.app.Annotations)
 		if err != nil {
 			return err
