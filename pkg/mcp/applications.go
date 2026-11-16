@@ -341,11 +341,14 @@ func (d *deps) getApplication(ctx context.Context, _ *sdk.CallToolRequest, in Ge
 	if len(endpoints) > 0 {
 		out.Evidence = append(out.Evidence, fmt.Sprintf("%d endpoints from the Services, Ingresses and HTTPRoutes the Application manages", len(endpoints)))
 	}
-	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
+	handles, handleEvidence, handleUnknowns, podsCut := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
 	out.Handles = handles
 	out.Evidence = append(out.Evidence, handleEvidence...)
 	out.Unknowns = append(out.Unknowns, handleUnknowns...)
-	out.Meta.Truncated = out.Meta.Truncated || cut || len(info.untraced) > 0
+	if podsCut != "" {
+		out.Unknowns = append(out.Unknowns, podsCut)
+	}
+	out.Meta.Truncated = out.Meta.Truncated || cut || len(info.untraced) > 0 || podsCut != ""
 	clusters := map[string]bool{}
 	for i := range applied {
 		clusters[applied[i].Cluster] = true

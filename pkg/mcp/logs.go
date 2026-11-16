@@ -160,7 +160,9 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		out.Pods = append(out.Pods, pl)
 		out.Evidence = append(out.Evidence, fmt.Sprintf("Pod %s/%s container %s in cluster %s", t.namespace, t.name, pl.Container, t.cluster))
 	}
-	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, d.f.Client(), app, applied, time.Now().UTC())
+	// The handles' pod-cap note is dropped: the pods below replace the
+	// handle list, and the per-call cap above already says what was cut.
+	handles, handleEvidence, handleUnknowns, _ := d.buildHandles(ctx, d.f.Client(), app, applied, time.Now().UTC())
 	// The handles describe the pods this call read, after the pod filter and
 	// the per-call cap, not every pod the Application runs.
 	handles.Pods = make([]PodHandle, 0, len(targets))

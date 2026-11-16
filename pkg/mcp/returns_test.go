@@ -143,7 +143,7 @@ var _ = Describe("what the tools return", func() {
 			out.Handles.Window.To, explained.Handles.Window.To = out.Handles.Window.From, explained.Handles.Window.From
 			Expect(out.Handles).To(Equal(explained.Handles))
 			Expect(out.Handles.Pods).To(HaveLen(2))
-			Expect(out.Handles.LabelSelector).To(Equal("app.oam.dev/name=web,app.oam.dev/namespace=team-a"))
+			Expect(out.Handles.LabelSelector).To(Equal("app.oam.dev/name=web"))
 		})
 
 		It("under an allowlist does not read nodes for a NodePort address and says so", func() {

@@ -238,10 +238,14 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 			out.Findings = append(out.Findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("warning event on %s, seen %d times", e.Object, e.Count), Observed: joinParts(e.Reason, e.Message), Evidence: "Event on " + e.Object})
 		}
 	}
-	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
+	handles, handleEvidence, handleUnknowns, podsCut := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
 	out.Handles = handles
 	out.Evidence = append(out.Evidence, handleEvidence...)
 	out.Unknowns = append(out.Unknowns, handleUnknowns...)
+	if podsCut != "" {
+		out.Unknowns = append(out.Unknowns, podsCut)
+		truncated = true
+	}
 	out.Unknowns = append(out.Unknowns, "metrics, traces and historical logs are outside vela; use the observability MCP for them with the handles")
 	sortFindings(out.Findings)
 	out.Meta = d.meta(ctx)
