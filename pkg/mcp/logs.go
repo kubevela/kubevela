@@ -260,16 +260,17 @@ func (d *deps) readPodLogs(ctx context.Context, t podTarget, container string, o
 	return pl
 }
 
-// readLines reads up to budget bytes of newline-separated text, redacting
-// each line. Truncated is set only when the stream had more than the
-// budget; a line cut by the budget is dropped rather than returned partial.
+// readLines reads newline-separated text and keeps at most the last budget
+// bytes of it, redacting each line. The API server has already selected the
+// requested tail, and its newest lines usually explain a failure, so the
+// budget drops the oldest bytes. Truncated is set only when the stream had
+// more than the budget; a line cut by the budget is dropped rather than
+// returned partial.
 func readLines(r io.Reader, budget int) ([]string, bool, error) {
-	data, err := io.ReadAll(&io.LimitedReader{R: r, N: int64(budget) + 1})
-	truncated := len(data) > budget
+	data, truncated, err := readTail(r, budget)
 	if truncated {
-		data = data[:budget]
-		if i := bytes.LastIndexByte(data, '\n'); i >= 0 {
-			data = data[:i]
+		if i := bytes.IndexByte(data, '\n'); i >= 0 {
+			data = data[i+1:]
 		} else {
 			data = nil
 		}
@@ -281,6 +282,33 @@ func readLines(r io.Reader, budget int) ([]string, bool, error) {
 		}
 	}
 	return lines, truncated, err
+}
+
+// readTail reads r to the end and returns its last bytes, holding no more
+// than budget+1 bytes plus one read chunk at a time. Truncated reports that
+// the stream was longer than budget. In that case the result is budget+1
+// bytes long: its first byte is the one just before the budget window, so
+// a caller that drops everything up to and including the first newline
+// keeps exactly the whole lines that fit the budget.
+func readTail(r io.Reader, budget int) ([]byte, bool, error) {
+	keep := budget + 1
+	chunk := make([]byte, 32<<10)
+	buf := make([]byte, 0, keep+len(chunk))
+	total := 0
+	for {
+		n, err := r.Read(chunk)
+		total += n
+		buf = append(buf, chunk[:n]...)
+		if over := len(buf) - keep; over > 0 {
+			buf = append(buf[:0], buf[over:]...)
+		}
+		if err == io.EOF {
+			return buf, total > budget, nil
+		}
+		if err != nil {
+			return buf, total > budget, err
+		}
+	}
 }
 
 // collectPods walks every tree for Pod nodes. The collector already holds

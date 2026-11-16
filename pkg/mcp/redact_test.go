@@ -17,6 +17,7 @@ limitations under the License.
 package mcp
 
 import (
+	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -70,7 +71,29 @@ var _ = Describe("redaction", func() {
 		lines, truncated, err = readLines(strings.NewReader("one\ntwo\nthree\n"), 7)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(truncated).To(BeTrue())
-		Expect(lines).To(Equal([]string{"one"}))
+		Expect(lines).To(Equal([]string{"three"}), "the newest lines are kept and the line cut by the budget is dropped")
+	})
+
+	It("keeps the newest lines of a tail longer than the budget", func() {
+		lines, truncated, err := readLines(strings.NewReader("one\ntwo\nthree\n"), 6)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeTrue())
+		Expect(lines).To(Equal([]string{"three"}), "a window that starts on a line boundary keeps its first line")
+
+		var sb strings.Builder
+		for i := 0; i < 50000; i++ {
+			fmt.Fprintf(&sb, "line %05d\n", i)
+		}
+		lines, truncated, err = readLines(strings.NewReader(sb.String()), 1<<10)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeTrue())
+		Expect(lines[len(lines)-1]).To(Equal("line 49999"))
+		Expect(lines[0]).To(MatchRegexp(`^line \d{5}$`), "no partial first line")
+
+		lines, truncated, err = readLines(strings.NewReader("aaaaaaaaaa\n"), 4)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeTrue())
+		Expect(lines).To(BeEmpty(), "a single line longer than the budget is dropped, not returned partial")
 	})
 
 	It("keeps a lone blank line", func() {
