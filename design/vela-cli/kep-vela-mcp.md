@@ -330,10 +330,12 @@ This per-family statement is the verification ledger; the description the server
 for `diagnose_application` repeats it. A cause adds the owning controller as a handle
 whenever this server can identify the controller — today the ACK controller Deployment
 the endpoint-provenance lookup selects; Config Connector and Crossplane causes carry a
-note instead — with a window from the condition's transition, or one hour before the read
-when the condition records no transition. Crossplane writes the provider error into the
+note instead — with a window that starts at the evidence: the condition's transition, or
+the event's last timestamp when the cause was read from an event, or one hour before the
+read when the evidence records no time. Crossplane writes the provider error into the
 Synced message; when that message carries no recognisable error, the newest warning event
-with a reason starting Cannot on the same resource in the same cluster is read instead.
+with a reason starting Cannot on the same resource — same cluster, namespace and
+Kind/name — is read instead, and that event's time dates the cause.
 The sweep pointer is emitted once per provider, family and class per diagnosis and names
 diagnose_provisioners as a tool this server may offer. No rule in this release yields the
 owner controller; it is reserved for causes the sweep attributes to a controller's own
