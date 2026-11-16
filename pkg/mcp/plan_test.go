@@ -385,7 +385,8 @@ spec:
 			Expect(listed("admissionregistration.k8s.io/v1", "ValidatingWebhookConfiguration", "team-a")).To(BeEmpty(), "a namespace the render stamped on a cluster-scoped object is dropped")
 			Expect(listed("example.com/v1", "Namespace", "")).To(Equal("team-a"), "the mapping wins over the fixed list")
 			Expect(listed("scheduling.k8s.io/v1", "PriorityClass", "team-a")).To(BeEmpty(), "an unknown mapping falls back to the fixed list")
-			Expect(listed("example.com/v1", "Widget", "")).To(Equal("team-a"))
+			Expect(listed("example.com/v1", "Widget", "")).To(Equal("team-a"), "an unknown kind is listed as namespaced")
+			Expect(r.unresolvedScope).To(ConsistOf("Widget"), "and recorded as a kind whose scope nobody knows")
 		})
 
 		It("rejects bad input", func() {

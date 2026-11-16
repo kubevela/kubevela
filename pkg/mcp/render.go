@@ -19,6 +19,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -133,6 +134,10 @@ type rendered struct {
 	duplicates []string
 	// cli resolves whether a kind is namespaced. Nil uses clusterScopedKind.
 	cli client.Client
+	// unresolvedScope lists the kinds neither the cluster's REST mapping
+	// nor clusterScopedKind knows. They are listed as namespaced, but no
+	// namespace allowlist can vouch for them.
+	unresolvedScope []string
 }
 
 func (d *deps) dryRunApplication(ctx context.Context, _ *sdk.CallToolRequest, in DryRunInput) (*sdk.CallToolResult, DryRunOutput, error) {
@@ -396,14 +401,21 @@ func resourceKey(apiVersion, kind, ns, name string) string {
 
 // namespaced reports the object's scope from the cluster's REST mapping,
 // and from clusterScopedKind only when the mapping is unknown, such as for
-// a kind whose CRD is not installed yet.
+// a kind whose CRD is not installed yet. A kind neither knows is reported
+// as namespaced and recorded in unresolvedScope.
 func (r *rendered) namespaced(obj *unstructured.Unstructured) bool {
 	if r.cli != nil {
 		if namespaced, err := r.cli.IsObjectNamespaced(obj); err == nil {
 			return namespaced
 		}
 	}
-	return !clusterScopedKind(obj.GetKind())
+	if clusterScopedKind(obj.GetKind()) {
+		return false
+	}
+	if !slices.Contains(r.unresolvedScope, obj.GetKind()) {
+		r.unresolvedScope = append(r.unresolvedScope, obj.GetKind())
+	}
+	return true
 }
 
 // clusterScopedKind covers the kinds definitions commonly emit without a

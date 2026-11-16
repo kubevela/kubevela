@@ -174,8 +174,14 @@ func (d *deps) applyApplication(ctx context.Context, req *sdk.CallToolRequest, i
 	if len(rec.clusterScoped) > 0 {
 		return nil, out, fmt.Errorf("the Application renders cluster-scoped %s, which belong to no namespace, so the direct allowlist cannot cover them; nothing was applied. Use mode gitops", strings.Join(rec.clusterScoped, ", "))
 	}
-	if len(d.opts.Namespaces) > 0 && len(rec.opaqueSteps) > 0 {
-		return nil, out, fmt.Errorf("the workflow runs %s, whose writes the diff cannot see, and this server restricts namespaces, so it cannot vouch that they stay inside them; nothing was applied. Use mode gitops", strings.Join(rec.opaqueSteps, ", "))
+	if len(rec.unresolvedScope) > 0 {
+		return nil, out, fmt.Errorf("the cluster does not say whether %s is namespaced, for example because its CRD is not installed, so the direct allowlist cannot vouch for where it lands; nothing was applied. Use mode gitops", strings.Join(rec.unresolvedScope, " or "))
+	}
+	if err := d.directPlacement(rec.placement); err != nil {
+		return nil, out, err
+	}
+	if len(rec.opaqueSteps) > 0 {
+		return nil, out, fmt.Errorf("the workflow runs %s, whose writes the diff cannot see, so it cannot vouch that they stay inside the direct allowlist; nothing was applied. Use mode gitops", strings.Join(rec.opaqueSteps, ", "))
 	}
 	if !clientCanElicit(req) {
 		return nil, out, fmt.Errorf("direct mode needs a client that can ask the user to confirm (MCP elicitation), and this client cannot; nothing was applied. Use mode gitops instead")
@@ -208,7 +214,16 @@ func (d *deps) applyApplication(ctx context.Context, req *sdk.CallToolRequest, i
 	}
 
 	initiator := d.initiator(ctx, cli)
-	recheck := func() (*v1beta1.Application, error) { return d.checkUnchanged(ctx, cli, app, rec) }
+	recheck := func() (*v1beta1.Application, error) {
+		fresh, err := d.checkUnchanged(ctx, cli, app, rec)
+		if err != nil {
+			return nil, err
+		}
+		if err := directBase(app, fresh, rec); err != nil {
+			return nil, err
+		}
+		return fresh, nil
+	}
 	written, err := writeApplication(ctx, cli, app, live, recheck, initiator, in.Token, rec.risk.Class)
 	if err != nil {
 		return nil, out, err
@@ -233,6 +248,24 @@ func directBase(app, live *v1beta1.Application, rec diffRecord) error {
 	}
 	if want := liveBaseName(live); rec.base != want {
 		return fmt.Errorf("the diff compared against %s, but the running revision is %s, so a direct write would also undo changes the diff did not show; nothing was applied. Call diff_application without a revision, or use mode gitops", rec.base, want)
+	}
+	return nil
+}
+
+// directPlacement refuses a direct write whose topology places resources
+// where the render does not show them: a namespace off the direct
+// allowlist, any other cluster, or a placement that cannot be determined.
+func (d *deps) directPlacement(p placement) error {
+	if len(p.unknown) > 0 {
+		return fmt.Errorf("%s, so where it places resources cannot be determined; nothing was applied. Use mode gitops", strings.Join(p.unknown, "; "))
+	}
+	if len(p.clusterSelectors) > 0 {
+		return fmt.Errorf("topology policy %s selects clusters, and a direct write never fans out to another cluster; nothing was applied. Use mode gitops", strings.Join(p.clusterSelectors, ", "))
+	}
+	for _, pn := range p.namespaces {
+		if d.namespaceAllowed(pn[1]) != nil || !d.directAllowed(pn[1]) {
+			return fmt.Errorf("topology policy %s places resources in namespace %s, which is not on this server's direct allowlist; nothing was applied. Use mode gitops", pn[0], pn[1])
+		}
 	}
 	return nil
 }
