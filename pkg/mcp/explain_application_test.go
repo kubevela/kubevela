@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
@@ -107,13 +108,16 @@ var _ = Describe("explain_application", func() {
 		Expect(out.Events).To(HaveLen(2), "the event on the unmanaged object is excluded")
 		Expect(out.Events[0].Object).To(Equal("Pod/web-abc-2"))
 		Expect(out.Events[0].Message).To(Equal("Back-off restarting failed container web; token=" + redactedValue))
+		var backOff []Finding
 		for _, f := range out.Findings {
 			Expect(f.Message).NotTo(ContainSubstring("Back-off"), "observed text stays out of the server's sentence")
 			Expect(f.Message).NotTo(ContainSubstring("BackOff"), "the event reason is cluster text too")
-			if f.Evidence == "Event on Pod/web-abc-2" {
-				Expect(f.Observed).To(Equal("BackOff; Back-off restarting failed container web; token=" + redactedValue))
+			if strings.Contains(f.Message, "warning event on Pod/web-abc-2") {
+				backOff = append(backOff, f)
 			}
 		}
+		Expect(backOff).To(HaveLen(1), toJSON(out.Findings))
+		Expect(backOff[0].Observed).To(Equal("BackOff; Back-off restarting failed container web; token=" + redactedValue))
 		Expect(out.Events[1].Object).To(Equal("Application/web"))
 
 		messages := []string{}

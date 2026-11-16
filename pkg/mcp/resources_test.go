@@ -117,6 +117,11 @@ var forbidDeploymentWeb = &interceptor.Funcs{Get: func(ctx context.Context, c cl
 // jobFixtures adds to managedFixtures a Job the web component manages, with
 // one pod that failed and was retried and one that is still running.
 func jobFixtures() []client.Object {
+	return jobFixturesWith(corev1.PodFailed, corev1.PodRunning)
+}
+
+// jobFixturesWith is jobFixtures with the phases of its two pods.
+func jobFixturesWith(first, second corev1.PodPhase) []client.Object {
 	objs := managedFixtures()
 	for _, o := range objs {
 		if rt, ok := o.(*v1beta1.ResourceTracker); ok {
@@ -144,8 +149,8 @@ func jobFixtures() []client.Object {
 			},
 			Status: batchv1.JobStatus{Active: 1, Failed: 1},
 		},
-		pod("migrate-1", corev1.PodFailed),
-		pod("migrate-2", corev1.PodRunning),
+		pod("migrate-1", first),
+		pod("migrate-2", second),
 	)
 }
 
@@ -251,6 +256,27 @@ var _ = Describe("get_managed_resource", func() {
 		Expect(tree[0].Kind).To(Equal("Job"))
 		Expect(tree[0].Health.Derived).To(BeFalse(), toJSON(tree[0]))
 		Expect(tree[0].Health.Status).To(Equal("Healthy"))
+	})
+
+	It("marks a Job unhealthy when every one of its pods failed", func() {
+		h = startHarness(Options{}, jobFixturesWith(corev1.PodFailed, corev1.PodFailed)...)
+		var out GetManagedResourceOutput
+		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Job"}, &out)
+		Expect(out.Resources).To(HaveLen(1))
+		root := out.Resources[0].Tree[0]
+		Expect(root.Kind).To(Equal("Job"))
+		Expect(root.Health.Status).To(Equal("UnHealthy"), toJSON(root))
+		Expect(root.Health.Derived).To(BeTrue())
+		Expect(root.Health.Reason).To(Equal("2 of 2 pods are not healthy"))
+
+		var explained ExplainApplicationOutput
+		res := h.call("explain_application", map[string]any{"name": "web", "namespace": "team-a"}, &explained)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		messages := []string{}
+		for _, f := range explained.Findings {
+			messages = append(messages, f.Severity+": "+f.Message)
+		}
+		Expect(messages).To(ContainElement(`error: component "web": Job migrate is UnHealthy`))
 	})
 
 	It("returns only metadata for a Secret, read through the metadata API", func() {

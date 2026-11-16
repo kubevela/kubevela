@@ -66,27 +66,30 @@ type ResourceHealth struct {
 // rule for most workload kinds and defaults them to Healthy, so without
 // this a crash-looping Deployment reads as healthy at the top line. All
 // pods failing is UnHealthy; some failing is Progressing. The original
-// verdict is kept in the message. Jobs and CronJobs are left alone: their
-// pods run to completion, so a running pod reads as Progressing and a
-// retried one as failed while the Job itself is fine.
+// verdict is kept in the message. Jobs and CronJobs are judged only by
+// pods that failed outright: their pods run to completion, so a running pod
+// reads as Progressing and a retried one as failed while the Job is fine.
+// A Job whose every pod failed is UnHealthy; the tree does not read Job
+// conditions, so this is the only signal that its retries ran out.
 func deriveFromPods(nodes []ResourceNode) []ResourceNode {
 	if len(nodes) == 0 || nodes[0].Health.Status != string(querytypes.HealthStatusHealthy) {
 		return nodes
 	}
-	if nodes[0].Kind == "Job" || nodes[0].Kind == "CronJob" {
-		return nodes
-	}
+	batch := nodes[0].Kind == "Job" || nodes[0].Kind == "CronJob"
 	pods, failing := 0, 0
 	for _, n := range nodes[1:] {
 		if n.Kind != podKind {
 			continue
 		}
 		pods++
-		if n.Health.Status != string(querytypes.HealthStatusHealthy) {
+		switch {
+		case batch && n.Health.Status == string(querytypes.HealthStatusUnHealthy):
+			failing++
+		case !batch && n.Health.Status != string(querytypes.HealthStatusHealthy):
 			failing++
 		}
 	}
-	if failing == 0 {
+	if failing == 0 || (batch && failing < pods) {
 		return nodes
 	}
 	status := string(querytypes.HealthStatusProgressing)
