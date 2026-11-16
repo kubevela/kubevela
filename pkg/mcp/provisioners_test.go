@@ -186,6 +186,15 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		Expect(p.EndpointOverride).To(Equal("http://aws-emulator.floci.svc.cluster.local:4566"))
 	})
 
+	It("redacts credentials in the endpoint override and its evidence", func() {
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", "http://admin:s3cr3t@localstack:4566/?token=t0k3n"))...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner).NotTo(BeNil())
+		Expect(out.Provisioner.EndpointOverride).To(Equal("http://admin:" + redactedValue + "@localstack:4566/?token=" + redactedValue))
+		Expect(toJSON(out)).NotTo(ContainSubstring("s3cr3t"))
+		Expect(toJSON(out)).NotTo(ContainSubstring("t0k3n"))
+	})
+
 	It("reports cloud when the controller carries no override", func() {
 		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", ""))...)
 		p := platform(map[string]any{"service": "dynamodb"}).Provisioner

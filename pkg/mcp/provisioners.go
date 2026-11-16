@@ -560,7 +560,9 @@ func ackControllerEndpoint(ctx context.Context, cli client.Client, service strin
 				continue
 			}
 			if env.Value != "" {
-				return ackEndpointResult{status: ackEndpointStatusOverride, url: env.Value, evidence: ref + " env AWS_ENDPOINT_URL=" + env.Value, namespace: d.Namespace, name: d.Name}
+				// The URL can carry userinfo or a token query parameter.
+				url := redactLine(env.Value)
+				return ackEndpointResult{status: ackEndpointStatusOverride, url: url, evidence: ref + " env AWS_ENDPOINT_URL=" + url, namespace: d.Namespace, name: d.Name}
 			}
 			unresolvable = ref + " sets AWS_ENDPOINT_URL via valueFrom; it cannot be resolved from the Deployment alone"
 		}
