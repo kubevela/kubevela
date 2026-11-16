@@ -1,8 +1,18 @@
 name: Backport
+# Opens backport PRs for a merged PR labelled "backport <branch>". It runs on
+# pull_request_target so the token can push to this repository when the PR came
+# from a fork; the job acts only on merged PRs and checks out the base branch, never
+# the PR's code. A repository Actions policy allows pull_request_target and
+# issue_comment for this file (public repositories block pull_request_target by
+# default). Someone with write access can also comment "/backport" on a merged PR to
+# run it again.
 on:
   pull_request_target:
     types:
       - closed
+  issue_comment:
+    types:
+      - created
 
 permissions:
   contents: read
@@ -11,17 +21,48 @@ jobs:
   # align with crossplane's choice https://github.com/crossplane/crossplane/blob/master/.github/workflows/backport.yml
   open-pr:
     runs-on: ubuntu-22.04
-    if: github.event.pull_request.merged
+    if: >
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.pull_request.merged
+      ) || (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        startsWith(github.event.comment.body, '/backport') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      )
     permissions:
       contents: write
       pull-requests: write
     steps:
+      # author_association above only says the commenter is in the organization or was
+      # invited to the repository; most of those have read access. Backporting is for
+      # people who can write to the repository, so ask for the commenter's permission.
+      - name: Check that the commenter can write to the repository
+        id: gate
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+        run: |
+          perm=$(gh api "repos/${GITHUB_REPOSITORY}/collaborators/${COMMENTER}/permission" --jq .permission)
+          echo "${COMMENTER} has ${perm} permission on ${GITHUB_REPOSITORY}"
+          case "$perm" in
+            admin | write) echo "ok=true" >>"$GITHUB_OUTPUT" ;;
+            *)
+              echo "ok=false" >>"$GITHUB_OUTPUT"
+              echo "::notice::/backport is for maintainers with write access; ${COMMENTER} has ${perm}"
+              ;;
+          esac
+
       - name: Checkout
+        if: github.event_name == 'pull_request_target' || steps.gate.outputs.ok == 'true'
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           fetch-depth: 0
 
       - name: Open Backport PR
+        if: github.event_name == 'pull_request_target' || steps.gate.outputs.ok == 'true'
         uses: zeebe-io/backport-action@0193454f0c5947491d348f33a275c119f30eb736
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
