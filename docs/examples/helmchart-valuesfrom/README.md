@@ -46,7 +46,7 @@ inline `values` > valuesFrom[N] > valuesFrom[N-1] > ... > valuesFrom[0] > chart 
 |--------------|--------------------------------|------------------------------------------------------------|
 | `kind`       | —                              | Only `Secret` and `ConfigMap` are supported.               |
 | `name`       | —                              | Required.                                                  |
-| `namespace`  | Chart release namespace (which itself defaults to the Application's own namespace when `release.namespace` is unset) | Cross-namespace references are **rejected** by design — the explicit value must equal either the release namespace or the Application's own namespace. |
+| `namespace`  | The Application's own namespace | Must be the Application's own namespace; any other is **rejected**, the release namespace included. |
 | `key`        | `values.yaml`                  | Which key inside `.data` holds the YAML blob.              |
 | `optional`   | `false`                        | When `true`, missing resource/key is skipped silently. Parse errors and permission errors still fail. |
 
@@ -54,17 +54,10 @@ inline `values` > valuesFrom[N] > valuesFrom[N-1] > ... > valuesFrom[0] > chart 
 
 Because the KubeVela controller has cluster-wide read on ConfigMaps and Secrets,
 allowing an arbitrary user-supplied `namespace` would let any tenant read
-arbitrary Secrets. An explicit `valuesFrom.namespace` is therefore accepted
-only if it matches one of:
-
-- the **chart release namespace** (`release.namespace`, the default), or
-- the **Application's own namespace** (`metadata.namespace` on the
-  `Application` object).
-
-When `release.namespace` is unset it falls back to the Application's namespace,
-so the two are equal in the common single-namespace case. They diverge when a
-user explicitly puts the chart in a different namespace from the App; both
-options remain valid for the source.
+arbitrary Secrets. A `valuesFrom` source is therefore read only from the
+**Application's own namespace** (`metadata.namespace` on the `Application`),
+which is also the default. The release namespace is not a source either: the
+Application chooses it, so naming it grants nothing.
 
 Anything else fails with:
 

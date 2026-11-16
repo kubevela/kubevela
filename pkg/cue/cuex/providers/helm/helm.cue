@@ -26,8 +26,8 @@ package helm
 					// +usage=Secret name.
 					name: string
 					// +usage=Secret namespace. MAY be omitted (defaults to the
-					// release namespace). When set, it MUST equal either the
-					// release namespace or the Application namespace.
+					// Application namespace). When set, it MUST equal the
+					// Application namespace; the release namespace is refused.
 					namespace?: string
 				}
 			}
@@ -50,7 +50,7 @@ package helm
 			kind: "Secret" | "ConfigMap"
 			// +usage=Resource name
 			name: string
-			// +usage=Resource namespace
+			// +usage=Resource namespace. MAY be omitted (defaults to the Application namespace). When set, it MUST equal the Application namespace.
 			namespace?: string
 			// +usage=Specific key in ConfigMap/Secret
 			key?: string
