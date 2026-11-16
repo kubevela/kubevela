@@ -43,7 +43,8 @@ const (
 	maxDefinitionBytes  = 256 << 10
 	maxDefinitionsBytes = 1 << 20
 	// maxRenderedBytes bounds the rendered objects one plan result carries;
-	// beyond it objects are listed without content.
+	// objects that do not fit the remaining budget are listed without
+	// content.
 	maxRenderedBytes = 1 << 20
 	// mcpAnnotationPrefix marks annotations the server writes itself. They
 	// are stripped from any input so a record cannot be forged.
@@ -165,7 +166,7 @@ func (d *deps) dryRunApplication(ctx context.Context, _ *sdk.CallToolRequest, in
 	}
 	if trimRendered(out.Resources, out.Policies) {
 		out.Meta.Truncated = true
-		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("rendered objects exceed %d bytes; later objects are listed without content", maxRenderedBytes))
+		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("rendered objects exceed %d bytes; objects that did not fit the budget are listed without content", maxRenderedBytes))
 	}
 	return nil, out, nil
 }
@@ -416,8 +417,10 @@ func clusterScopedKind(kind string) bool {
 	return false
 }
 
-// trimRendered drops object content past the byte budget, keeping the
-// identities so the list stays complete. It reports whether it trimmed.
+// trimRendered drops the content of each object that does not fit the
+// remaining byte budget and keeps the content of later objects that still
+// fit, keeping every identity so the list stays complete. It reports
+// whether it trimmed.
 func trimRendered(resources []RenderedResource, policies []RenderedPolicy) bool {
 	used, trimmed := 0, false
 	for i := range resources {

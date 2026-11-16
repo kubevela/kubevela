@@ -514,7 +514,7 @@ spec:
 			Expect(out.Risk.Rules).To(BeEmpty())
 		})
 
-		It("binds the token to the exact document and expires it", func() {
+		It("binds the token to the exact document", func() {
 			h = startHarness(Options{}, append(platformFixtures(), shopRunning()...)...)
 			var a, b DiffOutput
 			h.call("diff_application", map[string]any{"application": shopDoc("nginx:1.27", 2, "")}, &a)
