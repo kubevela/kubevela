@@ -108,12 +108,13 @@ func startHarnessIntercepted(opts Options, copts *sdk.ClientOptions, funcs *inte
 // clusterScopedTestKinds are the scheme's cluster-scoped kinds the specs
 // render or read. Every other kind in the scheme maps as namespaced, even
 // one that is cluster-scoped in a real cluster: a spec that renders
-// IngressClass, RuntimeClass, APIService or a cluster-scoped KubeVela CRD
-// such as ResourceTracker must add the kind here.
+// IngressClass, RuntimeClass, APIService or another cluster-scoped
+// KubeVela CRD must add the kind here.
 var clusterScopedTestKinds = map[string]bool{
 	"Namespace": true, "Node": true, "PersistentVolume": true, "StorageClass": true, "PriorityClass": true,
 	"ClusterRole": true, "ClusterRoleBinding": true, "CustomResourceDefinition": true,
 	"ValidatingWebhookConfiguration": true, "MutatingWebhookConfiguration": true,
+	"ResourceTracker": true,
 }
 
 // testRESTMapper maps every kind in the scheme with its real scope, as a

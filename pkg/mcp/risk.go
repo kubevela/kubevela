@@ -48,7 +48,7 @@ type Risk struct {
 var (
 	securityPath = regexp.MustCompile(`(?i)(securityContext|serviceAccountName|automountServiceAccountToken|hostNetwork|hostPID|hostIPC|privileged|capabilities|allowPrivilegeEscalation|runAsUser|runAsRoot|hostPath|hostUsers|shareProcessNamespace|hostPort|imagePullSecrets|tls|ingressClassName|externalIPs|loadBalancerSourceRanges)`)
 	statefulPath = regexp.MustCompile(`(?i)(volumeClaimTemplates|persistentVolumeClaim|storageClassName|resources\.requests\.storage$|serviceName|podManagementPolicy)`)
-	configPath   = regexp.MustCompile(`(?i)(\.env\b|\.env\[|envFrom|configMap|\.args|\.command|volumes|volumeMounts|\.data\.|annotations|labels|livenessProbe|readinessProbe|startupProbe|ports|resources\.(requests|limits))`)
+	configPath   = regexp.MustCompile(`(?i)(\.env\b|\.env\[|envFrom|configMap|\.args|\.command|volumes|volumeMounts|(^|\.)data\.|annotations|labels|livenessProbe|readinessProbe|startupProbe|ports|resources\.(requests|limits))`)
 	scalingPath  = regexp.MustCompile(`(?i)(\.replicas$|minReplicas|maxReplicas|targetCPUUtilizationPercentage|metrics\[)`)
 	imagePath    = regexp.MustCompile(`(?i)containers\[\d+\]\.image$`)
 	// serviceTypeExposing matches a Service type change that opens the
@@ -177,8 +177,9 @@ func exposesService(kind string, f FieldChange) bool {
 
 // immutable reports whether the API server rejects an in-place change of
 // the field on this kind, so applying it replaces the object: a workload's
-// selector, a Service's clusterIP, and a Job's completions and pod
-// template.
+// selector, a Service's clusterIP, and a Job's completions, pod template,
+// success policy and scheduling configuration (whose gang minCount alone
+// may change).
 func immutable(apiVersion, kind, p string) bool {
 	group := ""
 	if i := strings.Index(apiVersion, "/"); i >= 0 {
@@ -189,7 +190,8 @@ func immutable(apiVersion, kind, p string) bool {
 	case group == "apps" && (kind == "Deployment" || kind == "StatefulSet" || kind == "DaemonSet" || kind == "ReplicaSet"):
 		return under("spec.selector")
 	case group == "batch" && kind == "Job":
-		return under("spec.selector") || p == "spec.completions" || under("spec.template")
+		return under("spec.selector") || p == "spec.completions" || under("spec.template") || under("spec.successPolicy") ||
+			(under("spec.scheduling") && p != "spec.scheduling.schedulingPolicy.gang.minCount")
 	case group == "" && kind == "Service":
 		return p == "spec.clusterIP"
 	}

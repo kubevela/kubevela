@@ -341,20 +341,23 @@ func clusterScopedObjects(r *rendered) []string {
 // placement records what an Application's topology policies and deploy
 // steps say about where its resources go.
 type placement struct {
-	// namespaces are the namespaces topology policies set, as
-	// policy name and namespace pairs.
+	// namespaces are the namespaces topology policies and workflow steps
+	// set, as pairs of the source ("topology policy x", "workflow step y")
+	// and the namespace.
 	namespaces [][2]string
-	// clusterSelectors names topology policies that select clusters.
-	clusterSelectors []string
+	// clusters says which policies and steps reach beyond the local
+	// cluster, one description each.
+	clusters []string
 	// unknown says why the placement cannot be determined, one reason each.
 	unknown []string
 }
 
-// placementOf reads the placement an Application declares. A topology
-// policy that does not parse, a policy of the deprecated env-binding type,
-// a workflow that refers to an external Workflow object, and a deploy step that names a policy the
-// Application does not declare (an external Policy object), make the
-// placement unknown.
+// placementOf reads the placement an Application declares: topology
+// policies, and the cluster and namespace of apply-component steps. A
+// topology policy or step whose properties do not parse, a policy of the
+// deprecated env-binding type, a workflow that refers to an external
+// Workflow object, and a deploy step that names a policy the Application
+// does not declare (an external Policy object) make the placement unknown.
 func placementOf(app *v1beta1.Application) placement {
 	var p placement
 	declared := map[string]bool{}
@@ -378,7 +381,7 @@ func placementOf(app *v1beta1.Application) placement {
 		}
 		for _, key := range []string{"clusters", "clusterLabelSelector", "clusterSelector"} {
 			if _, ok := props[key]; ok {
-				p.clusterSelectors = append(p.clusterSelectors, pol.Name)
+				p.clusters = append(p.clusters, fmt.Sprintf("topology policy %s selects clusters", pol.Name))
 				break
 			}
 		}
@@ -389,7 +392,7 @@ func placementOf(app *v1beta1.Application) placement {
 				continue
 			}
 			if ns != "" {
-				p.namespaces = append(p.namespaces, [2]string{pol.Name, ns})
+				p.namespaces = append(p.namespaces, [2]string{"topology policy " + pol.Name, ns})
 			}
 		}
 	}
@@ -407,19 +410,38 @@ func placementOf(app *v1beta1.Application) placement {
 		steps = append(steps, s.SubSteps...)
 	}
 	for _, s := range steps {
-		if s.Type != "deploy" || s.Properties == nil || len(s.Properties.Raw) == 0 {
+		if s.Properties == nil || len(s.Properties.Raw) == 0 {
 			continue
 		}
-		var props struct {
-			Policies []string `json:"policies"`
-		}
-		if err := json.Unmarshal(s.Properties.Raw, &props); err != nil {
-			p.unknown = append(p.unknown, fmt.Sprintf("deploy step %s has properties that do not parse", s.Name))
-			continue
-		}
-		for _, name := range props.Policies {
-			if !declared[name] {
-				p.unknown = append(p.unknown, fmt.Sprintf("deploy step %s uses policy %s, which the Application does not declare", s.Name, name))
+		switch s.Type {
+		case "deploy":
+			var props struct {
+				Policies []string `json:"policies"`
+			}
+			if err := json.Unmarshal(s.Properties.Raw, &props); err != nil {
+				p.unknown = append(p.unknown, fmt.Sprintf("deploy step %s has properties that do not parse", s.Name))
+				continue
+			}
+			for _, name := range props.Policies {
+				if !declared[name] {
+					p.unknown = append(p.unknown, fmt.Sprintf("deploy step %s uses policy %s, which the Application does not declare", s.Name, name))
+				}
+			}
+		case "apply-component", "builtin-apply-component":
+			// These steps place one component like a topology does.
+			var props struct {
+				Cluster   string `json:"cluster"`
+				Namespace string `json:"namespace"`
+			}
+			if err := json.Unmarshal(s.Properties.Raw, &props); err != nil {
+				p.unknown = append(p.unknown, fmt.Sprintf("workflow step %s has properties that do not parse", s.Name))
+				continue
+			}
+			if props.Cluster != "" && props.Cluster != "local" {
+				p.clusters = append(p.clusters, fmt.Sprintf("workflow step %s targets cluster %s", s.Name, props.Cluster))
+			}
+			if props.Namespace != "" {
+				p.namespaces = append(p.namespaces, [2]string{"workflow step " + s.Name, props.Namespace})
 			}
 		}
 	}

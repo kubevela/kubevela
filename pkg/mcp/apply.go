@@ -259,12 +259,12 @@ func (d *deps) directPlacement(p placement) error {
 	if len(p.unknown) > 0 {
 		return fmt.Errorf("%s, so where it places resources cannot be determined; nothing was applied. Use mode gitops", strings.Join(p.unknown, "; "))
 	}
-	if len(p.clusterSelectors) > 0 {
-		return fmt.Errorf("topology policy %s selects clusters, and a direct write never fans out to another cluster; nothing was applied. Use mode gitops", strings.Join(p.clusterSelectors, ", "))
+	if len(p.clusters) > 0 {
+		return fmt.Errorf("%s, and a direct write never fans out to another cluster; nothing was applied. Use mode gitops", strings.Join(p.clusters, "; "))
 	}
 	for _, pn := range p.namespaces {
 		if d.namespaceAllowed(pn[1]) != nil || !d.directAllowed(pn[1]) {
-			return fmt.Errorf("topology policy %s places resources in namespace %s, which is not on this server's direct allowlist; nothing was applied. Use mode gitops", pn[0], pn[1])
+			return fmt.Errorf("%s places resources in namespace %s, which is not on this server's direct allowlist; nothing was applied. Use mode gitops", pn[0], pn[1])
 		}
 	}
 	return nil

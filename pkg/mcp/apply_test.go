@@ -623,6 +623,34 @@ spec:
 				Expect(string(liveApp("shop").Spec.Components[0].Properties.Raw)).To(ContainSubstring("nginx:1.26"))
 			})
 
+			// applyStepDoc is shop with one apply-component step whose extra
+			// properties place the component.
+			applyStepDoc := func(placementProps string) string {
+				return shopDoc("nginx:1.27", 2, "  workflow:\n    steps:\n    - name: ship\n      type: apply-component\n      properties: {component: shop, "+placementProps+"}\n")
+			}
+
+			It("refuses an apply-component step that places the component in a namespace off the direct allowlist", func() {
+				h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
+				doc := applyStepDoc("namespace: prod-payments")
+				d := diff(doc)
+				Expect(d.Risk.Class).NotTo(Equal(RiskHigh))
+				res, _ := apply(doc, d.Token, ModeDirect)
+				Expect(errorText(res)).To(ContainSubstring("workflow step ship places resources in namespace prod-payments, which is not on this server's direct allowlist"))
+				Expect(prompt.messages).To(BeEmpty())
+				Expect(string(liveApp("shop").Spec.Components[0].Properties.Raw)).To(ContainSubstring("nginx:1.26"))
+			})
+
+			It("refuses an apply-component step that targets another cluster", func() {
+				h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
+				doc := applyStepDoc("cluster: eu-1")
+				d := diff(doc)
+				Expect(d.Risk.Class).NotTo(Equal(RiskHigh))
+				res, _ := apply(doc, d.Token, ModeDirect)
+				Expect(errorText(res)).To(ContainSubstring("workflow step ship targets cluster eu-1"))
+				Expect(prompt.messages).To(BeEmpty())
+				Expect(string(liveApp("shop").Spec.Components[0].Properties.Raw)).To(ContainSubstring("nginx:1.26"))
+			})
+
 			It("lets an inline topology whose namespace is on the direct allowlist go direct", func() {
 				props := `{"namespace":"team-a"}`
 				h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), runningWith(topology(props))...)
