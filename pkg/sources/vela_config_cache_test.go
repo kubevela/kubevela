@@ -41,7 +41,17 @@ func TestVelaConfigIsCachedPerConsumerNamespace(t *testing.T) {
 	for _, d := range dims {
 		fields = append(fields, d.String())
 	}
-	require.Contains(t, fields, "namespace")
+	require.Contains(t, fields, "appNamespace", "the Application's namespace, not where a component is placed")
+}
+
+// With nothing recorded, the consumer is the Application's own namespace, not the placement's.
+func TestSourceResolverTakesTheApplicationsNamespace(t *testing.T) {
+	r := newSourceResolver(context.Background(), map[string]interface{}{
+		velaprocess.ContextNamespace: "team-b", velaprocess.ContextAppNamespace: "team-a",
+	}, "component", sourceInputs{})
+	ns, ok := velaconfig.ConsumerNamespaceFrom(r.goCtx)
+	require.True(t, ok)
+	require.Equal(t, "team-a", ns)
 }
 
 // The resolver records the consumer's namespace for providers that read on its behalf.

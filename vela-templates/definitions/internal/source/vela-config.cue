@@ -43,7 +43,7 @@ template: {
 
 	// Which configs a source may read depends on the namespace of the Application it resolves
 	// for, so the resolved value is cached per namespace rather than shared across them.
-	_consumerNamespace: context.namespace
+	_consumerNamespace: context.appNamespace
 
 	_cfg: velaconfig.#Read & {
 		$params: {

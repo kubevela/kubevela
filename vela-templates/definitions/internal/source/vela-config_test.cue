@@ -34,5 +34,13 @@ _config: $returns: {
 	definition: "vela-config"
 	parameter: name: "registry"
 	mocks: "vela/velaconfig": "#Read": _config
-	expect: storage: {ttl: "5m", onStaleFailure: "use-stale", keyInputs: ["namespace"]}
+	expect: storage: {ttl: "5m", onStaleFailure: "use-stale", keyInputs: ["appNamespace"]}
+}
+
+"caches by the Application's namespace, not where a component is placed": test.#SourceExec & {
+	definition: "vela-config"
+	context: {namespace: "shared-placement", appNamespace: "team-a"}
+	parameter: name: "registry"
+	mocks: "vela/velaconfig": "#Read": _config
+	expect: storage: {keyInputs: ["appNamespace"], key: =~"^vela-config-team-a-"}
 }

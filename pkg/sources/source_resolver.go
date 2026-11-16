@@ -331,11 +331,15 @@ func newSourceResolver(goCtx context.Context, ctxValues map[string]interface{}, 
 	if compiler == nil {
 		compiler = velacuex.SourceCompiler.Get()
 	}
-	// Providers that read on the Application's behalf keep to its namespace by this. The
-	// controller records the Application's own; context.namespace, which for a placed component is
-	// where it is placed, stands in only when nothing is recorded, as on the CLI.
+	// Providers that read on the Application's behalf keep to its namespace by this: the one the
+	// controller recorded, or else the render's appNamespace. namespace stands in only where there
+	// is neither; for a placed component it is where the component is placed.
 	if _, recorded := velaconfig.ConsumerNamespaceFrom(goCtx); !recorded {
-		if ns, _ := ctxValues[velaprocess.ContextNamespace].(string); ns != "" {
+		ns, _ := ctxValues[velaprocess.ContextAppNamespace].(string)
+		if ns == "" {
+			ns, _ = ctxValues[velaprocess.ContextNamespace].(string)
+		}
+		if ns != "" {
 			goCtx = velaconfig.WithConsumerNamespace(goCtx, ns)
 		}
 	}
