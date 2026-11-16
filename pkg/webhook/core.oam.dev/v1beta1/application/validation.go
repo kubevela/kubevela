@@ -574,6 +574,10 @@ func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool
 
 // ValidateCreate validates the Application on creation
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
+	// First, before anything reads or compiles the Application's CUE.
+	if errs := ValidateCUEDepth(app); len(errs) > 0 {
+		return errs
+	}
 	return h.validateSoundness(ctx, app, nil, req)
 }
 
@@ -591,6 +595,10 @@ func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *
 
 // ValidateUpdate validates the Application on update
 func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
+	// First, before anything reads or compiles the Application's CUE.
+	if errs := ValidateCUEDepth(newApp); len(errs) > 0 {
+		return errs
+	}
 	errs := h.validateSoundness(ctx, newApp, oldApp, req)
 	errs = append(errs, h.ValidateImmutableFields(ctx, newApp, oldApp)...)
 	return errs

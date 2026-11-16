@@ -21,11 +21,14 @@ package upgrade
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	pkgupgrade "github.com/kubevela/pkg/cue/upgrade"
+	"k8s.io/klog/v2"
 
+	"github.com/oam-dev/kubevela/pkg/cue/nesting"
 	velaversion "github.com/oam-dev/kubevela/version"
 )
 
@@ -81,6 +84,9 @@ func SetCacheEntryTTL(d time.Duration) {
 }
 
 func Upgrade(cueStr string, targetVersion ...Version) (string, error) {
+	if err := nesting.Check(cueStr, nesting.MaxDepth); err != nil {
+		return "", err
+	}
 	syncLocalFlagsMu.Lock()
 	defer syncLocalFlagsMu.Unlock()
 	syncLocalFlagsLocked()
@@ -88,13 +94,25 @@ func Upgrade(cueStr string, targetVersion ...Version) (string, error) {
 }
 
 func RequiresUpgrade(cueStr string, targetVersion ...Version) (bool, []string, error) {
+	if err := nesting.Check(cueStr, nesting.MaxDepth); err != nil {
+		return false, nil, err
+	}
 	syncLocalFlagsMu.Lock()
 	defer syncLocalFlagsMu.Unlock()
 	syncLocalFlagsLocked()
 	return pkgupgrade.RequiresUpgrade(cueStr, targetVersion...)
 }
 
+// EnsureCueVersionCompatibility returns cueStr upgraded to the current CUE version where it
+// needs to be. A template nested too deeply for CUE's parser, which a stored definition admitted
+// without the webhook's check can be, is never parsed: in its place is a template that fails to
+// compile with the reason, so its render fails rather than the controller.
 func EnsureCueVersionCompatibility(cueStr, defName string, defKind DefinitionKind, area TemplateArea) (string, bool) {
+	if err := nesting.Check(cueStr, nesting.MaxDepth); err != nil {
+		// The render fails with the same reason, so this is for tracing, not reporting.
+		klog.V(4).InfoS("Refusing to parse a definition template", "definition", defName, "kind", defKind, "area", area, "err", err)
+		return fmt.Sprintf("%q & false\n", defName+": "+err.Error()), false
+	}
 	syncLocalFlagsMu.Lock()
 	defer syncLocalFlagsMu.Unlock()
 	syncLocalFlagsLocked()
