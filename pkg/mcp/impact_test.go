@@ -310,6 +310,41 @@ var _ = Describe("diff_definition_impact", func() {
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
 		Expect(out.Consumers.Error).To(ContainSubstring("in team-a"))
 		Expect(out.Consumers.Error).To(ContainSubstring("in team-b"))
+		Expect(out.Meta.Truncated).To(BeTrue())
+	})
+
+	It("drops the partial results of a namespace whose list fails on a later page", func() {
+		secondPageFails := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			lo := &client.ListOptions{}
+			lo.ApplyOptions(opts)
+			l, ok := list.(*v1beta1.ApplicationList)
+			if !ok || lo.Namespace != "team-a" {
+				return c.List(ctx, list, opts...)
+			}
+			if lo.Continue != "" {
+				return errors.New("applications forbidden")
+			}
+			if err := c.List(ctx, list, opts...); err != nil {
+				return err
+			}
+			l.Continue = "page-2"
+			return nil
+		}}
+		blog := consumerApp("blog")
+		blog.Namespace = "team-b"
+		h = startHarnessIntercepted(Options{Namespaces: []string{"team-a", "team-b"}}, nil, secondPageFails, append(platformFixtures(), consumerApp("shop"), blog)...)
+		var out DefinitionImpactOutput
+		res := h.call("diff_definition_impact", map[string]any{
+			"name":       "webservice",
+			"definition": proposedWebservice(labeledWebserviceTemplate),
+		}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Consumers.NamespacesScanned).To(Equal([]string{"team-b"}))
+		Expect(out.Consumers.Count).To(Equal(1), "team-a/shop came from a namespace that was not fully read")
+		Expect(out.Consumers.Applications).To(Equal([]string{"team-b/blog"}))
+		Expect(out.Impacts).To(HaveLen(1))
+		Expect(out.Impacts[0].Namespace).To(Equal("team-b"))
+		Expect(out.Consumers.Error).To(ContainSubstring("team-a"))
 	})
 
 	It("stays a live result when consumers exist but none was rendered", func() {

@@ -230,6 +230,17 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("valueFrom")))
 	})
 
+	It("reports cloud when an empty literal sits beside envFrom, since env takes precedence", func() {
+		c := corev1.Container{Name: "controller", Image: "c",
+			Env:     []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: ""}},
+			EnvFrom: []corev1.EnvFromSource{{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "cfg"}}}}}
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeploymentWith("dynamodb", "ack-dynamodb-dynamodb-chart", c))...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("endpoint provenance unknown")))
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("envFrom")))
+	})
+
 	It("reports unknown when two controller Deployments make the endpoint ambiguous", func() {
 		a := ackControllerDeployment("dynamodb", "http://a:4566")
 		b := ackControllerDeploymentWith("dynamodb", "ack-dynamodb-second",

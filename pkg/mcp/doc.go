@@ -30,9 +30,9 @@ limitations under the License.
 //
 // # Security model
 //
-// vela mcp runs it as a child process of the agent harness over stdio
-// (Run); there is no listener. Serve accepts another transport only for
-// embedding and tests. On the control plane it acts with the
+// The vela mcp command runs as a child process of the agent harness over
+// stdio (Run); there is no listener. Serve accepts another transport only
+// for embedding and tests. On the control plane it acts with the
 // caller's kubeconfig identity through the same Factory the rest of the
 // CLI uses, so Kubernetes RBAC is the authorization boundary. Reads in
 // other clusters go through cluster-gateway and carry the caller's identity

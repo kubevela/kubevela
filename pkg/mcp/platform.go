@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	goversion "github.com/hashicorp/go-version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -121,11 +122,13 @@ type GetPlatformInfoOutput struct {
 func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in GetPlatformInfoInput) (*sdk.CallToolResult, GetPlatformInfoOutput, error) {
 	info, readAt, hit, err := d.cachedPlatform(ctx)
 	out := GetPlatformInfoOutput{platformInfo: info, Addons: []AddonSummary{}, ServedData: servedDataBuiltin, Meta: metaFrom(info, err)}
-	// The payload itself is the platform snapshot, so it is dated when it
-	// was read, the same way whether this call read it or the cache served it.
+	// The platform fields are dated when they were read, the same way
+	// whether this call read them or the cache served them. On a cache hit
+	// the rest of the response is still read live, so the source is mixed.
 	out.Meta.ObservedAt = readAt.UTC()
 	if hit {
-		out.Meta.Source = SourceCached
+		out.Meta.Source = SourceMixed
+		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("velaCLI, velaCore, gitRevision, kubernetes, featureGates, controller, clusterGateway and warnings come from a cached platform read at %s; addons, cloudProvisioners, provisioner and practice were read live by this call", readAt.UTC().Format(time.RFC3339)))
 	}
 	if cli := d.f.Client(); cli != nil {
 		addons, more, err := enabledAddons(ctx, cli, d.opts.SystemNamespace)

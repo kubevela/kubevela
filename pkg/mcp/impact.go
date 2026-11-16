@@ -245,6 +245,10 @@ func (d *deps) findConsumerApps(ctx context.Context, cli client.Client, defType,
 	var problems []string
 namespaceLoop:
 	for _, ns := range namespaces {
+		// A namespace whose list fails part way is rolled back, so the count,
+		// the listed Applications and the kept consumers cover exactly the
+		// namespaces NamespacesScanned names.
+		count, listed, retained := sum.Count, len(sum.Applications), len(kept)
 		scanned, next := 0, ""
 		for {
 			var list v1beta1.ApplicationList
@@ -257,6 +261,7 @@ namespaceLoop:
 			}
 			if err := cli.List(ctx, &list, opts...); err != nil {
 				problems = append(problems, redactLine(fmt.Sprintf("list applications in %s: %v", nsLabel(ns), err)))
+				sum.Count, sum.Applications, kept = count, sum.Applications[:listed], kept[:retained]
 				continue namespaceLoop
 			}
 			for i := range list.Items {

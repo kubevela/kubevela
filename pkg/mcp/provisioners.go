@@ -561,7 +561,13 @@ func ackControllerEndpoint(ctx context.Context, cli client.Client, service strin
 	ref := fmt.Sprintf("Deployment %s/%s resourceVersion %s", d.Namespace, d.Name, d.ResourceVersion)
 	unresolvable := ""
 	for _, c := range d.Spec.Template.Spec.Containers {
-		if len(c.EnvFrom) > 0 && unresolvable == "" {
+		// An entry in env, even an empty literal, takes precedence over
+		// envFrom, so envFrom only matters when the container declares none.
+		declared := false
+		for _, env := range c.Env {
+			declared = declared || env.Name == "AWS_ENDPOINT_URL"
+		}
+		if len(c.EnvFrom) > 0 && unresolvable == "" && !declared {
 			unresolvable = ref + " loads env via envFrom; AWS_ENDPOINT_URL cannot be resolved from the Deployment alone"
 		}
 		for _, env := range c.Env {

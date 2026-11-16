@@ -393,16 +393,25 @@ func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *defi
 		if err := cli.List(ctx, &list, opts...); err != nil {
 			return nil, false, false, err
 		}
+		// The bound is enforced per item, so the scan stops at exactly
+		// maxRevisionsScanned entries, as the warning says.
 		for i := range list.Items {
+			if len(revs) == maxRevisionsScanned {
+				stopped = true
+				break
+			}
 			r := &list.Items[i]
 			revs = append(revs, RevisionSummary{Name: r.Name, Revision: r.Spec.Revision, Hash: r.Spec.RevisionHash, CreatedAt: timePtr(r.CreationTimestamp.Time)})
 		}
 		next = list.Continue
-		if next == "" {
+		if !stopped && next != "" && len(revs) >= maxRevisionsScanned {
+			stopped = true
+		}
+		if stopped {
+			cut = true
 			break
 		}
-		if len(revs) >= maxRevisionsScanned {
-			cut, stopped = true, true
+		if next == "" {
 			break
 		}
 	}

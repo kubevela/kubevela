@@ -34,8 +34,9 @@ const (
 	// SourceCached marks data served from a cache; only definition schemas
 	// may be, and they carry their revision so staleness is visible.
 	SourceCached = "cached"
-	// SourceMixed marks a response built from a live read and a render
-	// together; its evidence lines say which parts are which.
+	// SourceMixed marks a response built from a live read together with a
+	// render or with a cache read; its evidence or warning lines say which
+	// parts are which.
 	SourceMixed = "mixed"
 
 	// platformCacheTTL bounds how long version and gate information is
@@ -60,7 +61,7 @@ type Meta struct {
 	// ObservedAt is when the data in this response was read.
 	ObservedAt time.Time `json:"observedAt" jsonschema:"When the data in this response was read, UTC."`
 	// Source is one of SourceLive, SourceRendered, SourceCached or SourceMixed.
-	Source string `json:"source" jsonschema:"live for an API server read, rendered for dry-run or diff output, cached for served data, mixed when a live read and a render both contributed; the evidence says which parts are which."`
+	Source string `json:"source" jsonschema:"live for an API server read, rendered for dry-run or diff output, cached for served data, mixed when a live read and a render, or a live read and a cache read, both contributed; the evidence or warnings say which parts are which."`
 	// Truncated is set when a size or line budget cut the data.
 	Truncated bool `json:"truncated" jsonschema:"True when a size or count limit cut the data; narrow the request to see the rest."`
 	// Warnings carries version skew and similar findings that every tool

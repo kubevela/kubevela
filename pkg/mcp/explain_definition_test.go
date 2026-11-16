@@ -227,7 +227,7 @@ var _ = Describe("explain_definition", func() {
 
 	It("says the listed revisions may not be the newest when the revision scan stopped at its bound", func() {
 		old := maxRevisionsScanned
-		maxRevisionsScanned = 1
+		maxRevisionsScanned = 2
 		DeferCleanup(func() { maxRevisionsScanned = old })
 		paged := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
 			if err := c.List(ctx, list, opts...); err != nil {
@@ -242,7 +242,8 @@ var _ = Describe("explain_definition", func() {
 		var out ExplainDefinitionOutput
 		h.call("explain_definition", map[string]any{"name": "webservice", "type": "component"}, &out)
 		Expect(out.Meta.Truncated).To(BeTrue())
-		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("revision scan stopped after 1 entries; the listed revisions are the newest of those read, not necessarily the newest overall")))
+		Expect(out.Revisions).To(HaveLen(2), "the scan stops at the bound, not at the end of the page that reached it")
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("revision scan stopped after 2 entries; the listed revisions are the newest of those read, not necessarily the newest overall")))
 		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("than the 10 newest listed")))
 	})
 

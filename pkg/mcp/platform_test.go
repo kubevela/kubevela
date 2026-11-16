@@ -42,7 +42,7 @@ var _ = Describe("platform information", func() {
 			map[string]bool{"ClientIdentityPenetration": true}),
 	)
 
-	It("labels get_platform_info cached, with the time it was read, when it comes from the cache", func() {
+	It("labels get_platform_info mixed, dated by the cache read, when its platform fields come from the cache", func() {
 		h := startHarness(Options{}, platformFixtures()...)
 		DeferCleanup(h.close)
 		var first GetPlatformInfoOutput
@@ -52,7 +52,10 @@ var _ = Describe("platform information", func() {
 		secondStart := time.Now()
 		var second GetPlatformInfoOutput
 		Expect(h.call("get_platform_info", nil, &second).IsError).To(BeFalse())
-		Expect(second.Meta.Source).To(Equal(SourceCached))
+		Expect(second.Meta.Source).To(Equal(SourceMixed), "addons and the rest are still read live")
+		Expect(second.Meta.Warnings).To(ContainElement(SatisfyAll(
+			ContainSubstring("cached platform read at "+first.Meta.ObservedAt.Format(time.RFC3339)),
+			ContainSubstring("addons, cloudProvisioners, provisioner and practice were read live"))))
 		Expect(second.Meta.ObservedAt.After(first.Meta.ObservedAt)).To(BeFalse(),
 			"the cached snapshot is dated when it was read, not when it was served")
 		Expect(first.Meta.ObservedAt).To(BeTemporally("<=", secondStart.Add(-20*time.Millisecond)))
