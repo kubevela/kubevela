@@ -284,31 +284,36 @@ func readLines(r io.Reader, budget int) ([]string, bool, error) {
 	return lines, truncated, err
 }
 
-// readTail reads r to the end and returns its last bytes, holding no more
-// than budget+1 bytes plus one read chunk at a time. Truncated reports that
-// the stream was longer than budget. In that case the result is budget+1
-// bytes long: its first byte is the one just before the budget window, so
-// a caller that drops everything up to and including the first newline
-// keeps exactly the whole lines that fit the budget.
+// readTail reads r to the end and returns its last bytes, holding at most
+// twice budget+1 bytes at a time. Truncated reports that the stream was
+// longer than budget. In that case the result is budget+1 bytes long: its
+// first byte is the one just before the budget window, so a caller that
+// drops everything up to and including the first newline keeps exactly the
+// whole lines that fit the budget.
 func readTail(r io.Reader, budget int) ([]byte, bool, error) {
 	keep := budget + 1
-	chunk := make([]byte, 32<<10)
-	buf := make([]byte, 0, keep+len(chunk))
+	chunk := min(32<<10, keep)
+	// The buffer holds two windows, so the tail is moved to the front only
+	// once per keep bytes read, not after every read.
+	buf := make([]byte, 0, 2*keep)
 	total := 0
-	for {
-		n, err := r.Read(chunk)
+	var err error
+	for err == nil {
+		if cap(buf)-len(buf) < chunk {
+			buf = append(buf[:0], buf[len(buf)-keep:]...)
+		}
+		var n int
+		n, err = r.Read(buf[len(buf) : len(buf)+chunk])
+		buf = buf[:len(buf)+n]
 		total += n
-		buf = append(buf, chunk[:n]...)
-		if over := len(buf) - keep; over > 0 {
-			buf = append(buf[:0], buf[over:]...)
-		}
-		if err == io.EOF {
-			return buf, total > budget, nil
-		}
-		if err != nil {
-			return buf, total > budget, err
-		}
 	}
+	if len(buf) > keep {
+		buf = buf[len(buf)-keep:]
+	}
+	if err == io.EOF {
+		err = nil
+	}
+	return buf, total > budget, err
 }
 
 // collectPods walks every tree for Pod nodes. The collector already holds

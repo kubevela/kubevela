@@ -268,3 +268,16 @@ func isSecretObject(obj client.Object) bool {
 	}
 	return false
 }
+
+// isSecretList reports whether a List into list would return whole
+// Secrets: a typed SecretList or an unstructured list of core Secrets.
+func isSecretList(list client.ObjectList) bool {
+	switch l := list.(type) {
+	case *corev1.SecretList:
+		return true
+	case *unstructured.UnstructuredList:
+		gvk := l.GroupVersionKind()
+		return gvk.Group == "" && (gvk.Kind == "SecretList" || gvk.Kind == "Secret")
+	}
+	return false
+}

@@ -291,6 +291,12 @@ var _ = Describe("get_managed_resource", func() {
 				return fmt.Errorf("full read of Secret %s", key)
 			}
 			return c.Get(ctx, key, obj, opts...)
+		}, List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if isSecretList(list) {
+				fullReads = append(fullReads, "list")
+				return fmt.Errorf("full list of Secrets")
+			}
+			return c.List(ctx, list, opts...)
 		}}
 		h = startHarnessIntercepted(Options{}, nil, funcs, managedFixtures()...)
 		var out GetManagedResourceOutput
@@ -302,7 +308,7 @@ var _ = Describe("get_managed_resource", func() {
 		Expect(obj).NotTo(HaveKey("data"))
 		Expect(obj).NotTo(HaveKey("stringData"))
 		Expect(out.Resources[0].ObjectNote).To(ContainSubstring("metadata only"))
-		Expect(metadataReads).To(BeNumerically(">", 1), "the tree pass and the live read both ask for metadata only")
+		Expect(metadataReads).To(Equal(3), "the tree pass reads the root twice (children lookup, then the root itself) and the live read once, all as metadata")
 		Expect(out.Resources[0].Tree).NotTo(BeEmpty(), "the Secret keeps its tree node")
 		Expect(toJSON(out)).NotTo(ContainSubstring("hunter2"), "no Secret value appears anywhere in the result")
 	})

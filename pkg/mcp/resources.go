@@ -346,10 +346,11 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 	return applied, appliedInfo{notes: unreadResources(recorded, applied), unread: missingResources(recorded, applied)}, nil
 }
 
-// secretMetadataClient reads a Secret requested as an unstructured object
-// through the metadata-only API, so the collector's tree pass gets the
-// Secret's metadata, enough for its tree node and health, and never its
-// data or type. Every other read passes through unchanged.
+// secretMetadataClient serves Secret reads through the metadata-only API: a
+// Get of an unstructured Secret and a List of Secrets, unstructured or
+// typed. The collector's tree pass therefore gets a Secret's metadata,
+// enough for its tree node and health, and never its data or type. Every
+// other read passes through unchanged.
 type secretMetadataClient struct{ client.Client }
 
 func (c secretMetadataClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
@@ -373,6 +374,61 @@ func (c secretMetadataClient) Get(ctx context.Context, key client.ObjectKey, obj
 	u.Object = raw
 	u.SetGroupVersionKind(gvk)
 	return nil
+}
+
+// List serves a list of core Secrets, unstructured or typed, from the
+// metadata-only API. The tree pass lists Secrets as children of some kinds,
+// such as a Flux HelmRelease. Each item comes back with its metadata only.
+func (c secretMetadataClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	switch l := list.(type) {
+	case *unstructured.UnstructuredList:
+		gvk := l.GroupVersionKind()
+		if gvk.Group != "" || (gvk.Kind != secretKind+"List" && gvk.Kind != secretKind) {
+			return c.Client.List(ctx, list, opts...)
+		}
+		pml, err := c.listSecretMetadata(ctx, opts...)
+		if err != nil {
+			return err
+		}
+		items := make([]unstructured.Unstructured, 0, len(pml.Items))
+		for i := range pml.Items {
+			raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pml.Items[i])
+			if err != nil {
+				return err
+			}
+			item := unstructured.Unstructured{Object: raw}
+			item.SetAPIVersion(corev1.SchemeGroupVersion.String())
+			item.SetKind(secretKind)
+			items = append(items, item)
+		}
+		l.Items = items
+		l.SetResourceVersion(pml.ResourceVersion)
+		l.SetContinue(pml.Continue)
+		l.SetRemainingItemCount(pml.RemainingItemCount)
+		return nil
+	case *corev1.SecretList:
+		pml, err := c.listSecretMetadata(ctx, opts...)
+		if err != nil {
+			return err
+		}
+		l.ListMeta = pml.ListMeta
+		l.Items = make([]corev1.Secret, len(pml.Items))
+		for i := range pml.Items {
+			l.Items[i] = corev1.Secret{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: secretKind}, ObjectMeta: pml.Items[i].ObjectMeta}
+		}
+		return nil
+	}
+	return c.Client.List(ctx, list, opts...)
+}
+
+// listSecretMetadata lists core v1 Secrets through the metadata-only API.
+func (c secretMetadataClient) listSecretMetadata(ctx context.Context, opts ...client.ListOption) (*metav1.PartialObjectMetadataList, error) {
+	pml := &metav1.PartialObjectMetadataList{}
+	pml.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind(secretKind + "List"))
+	if err := c.Client.List(ctx, pml, opts...); err != nil {
+		return nil, err
+	}
+	return pml, nil
 }
 
 // maxUnreadListed bounds how many unread resources a note names.

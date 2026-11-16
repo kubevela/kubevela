@@ -321,6 +321,58 @@ var _ = Describe("security properties", func() {
 	})
 
 	Context("Secret reads", func() {
+		It("lists Secrets for the tree pass as metadata only, in the shape the caller asked for", func() {
+			labelled := map[string]string{"app": "web"}
+			base := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(
+				&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "team-a", Labels: labelled}, Type: corev1.SecretTypeOpaque, Data: map[string][]byte{"k": []byte("hunter2")}},
+				&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "b", Namespace: "team-a", Labels: labelled}, StringData: map[string]string{"k": "hunter2"}},
+				&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "c", Namespace: "other"}, Data: map[string][]byte{"k": []byte("hunter2")}},
+			).Build()
+			fullLists, metadataLists := 0, 0
+			cli := secretMetadataClient{interceptor.NewClient(base, interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				if _, partial := list.(*metav1.PartialObjectMetadataList); partial {
+					metadataLists++
+				} else if isSecretList(list) {
+					fullLists++
+				}
+				return c.List(ctx, list, opts...)
+			}})}
+
+			ul := &unstructured.UnstructuredList{}
+			ul.SetAPIVersion("v1")
+			ul.SetKind("SecretList")
+			Expect(cli.List(context.Background(), ul, client.InNamespace("team-a"), client.MatchingLabels(labelled))).To(Succeed())
+			Expect(ul.Items).To(HaveLen(2))
+			for _, item := range ul.Items {
+				Expect(item.GetKind()).To(Equal("Secret"))
+				Expect(item.GetAPIVersion()).To(Equal("v1"))
+				Expect(item.GetNamespace()).To(Equal("team-a"))
+				Expect(item.GetLabels()).To(Equal(labelled))
+				Expect(item.Object).NotTo(HaveKey("data"))
+				Expect(item.Object).NotTo(HaveKey("stringData"))
+				Expect(item.Object).NotTo(HaveKey("type"))
+			}
+
+			sl := &corev1.SecretList{}
+			Expect(cli.List(context.Background(), sl, client.InNamespace("team-a"))).To(Succeed())
+			Expect(sl.Items).To(HaveLen(2))
+			for _, item := range sl.Items {
+				Expect(item.Name).NotTo(BeEmpty())
+				Expect(item.Data).To(BeEmpty())
+				Expect(item.StringData).To(BeEmpty())
+				Expect(item.Type).To(BeEmpty())
+			}
+
+			Expect(fullLists).To(Equal(0), "no list of Secrets returns their data")
+			Expect(metadataLists).To(Equal(2))
+
+			cms := &unstructured.UnstructuredList{}
+			cms.SetAPIVersion("v1")
+			cms.SetKind("ConfigMapList")
+			Expect(cli.List(context.Background(), cms)).To(Succeed(), "other kinds pass through")
+			Expect(metadataLists).To(Equal(2))
+		})
+
 		It("checks a rendered Secret that already exists without reading the live Secret's data", func() {
 			live := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "db", Namespace: "team-a", ResourceVersion: "41"}, Data: map[string][]byte{"url": []byte("postgres://u:live@db")}}
 			var fullReads []string
