@@ -313,6 +313,29 @@ var _ = Describe("what the tools return", func() {
 			Expect(out.Meta.Warnings).To(ContainElement(SatisfyAll(ContainSubstring("not traced"), ContainSubstring("Narrow by cluster or component"))))
 		})
 
+		It("does not deny pods exist when the allowlist withheld the filtered resources", func() {
+			objs := managedFixtures()
+			for _, o := range objs {
+				if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+					rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+						ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "team-b", Name: "worker"}},
+						OAMObjectReference:     oamcommon.OAMObjectReference{Component: "worker"},
+					})
+				}
+			}
+			reads := 0
+			logs := func(context.Context, *rest.Config, string, string, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
+				reads++
+				return io.NopCloser(strings.NewReader("ready\n")), nil
+			}
+			h = startHarness(Options{PodLogs: logs, Namespaces: []string{"team-a"}}, objs...)
+			res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "component": "worker"}, nil)
+			text := errorText(res)
+			Expect(text).NotTo(ContainSubstring("has no pods matching"))
+			Expect(text).To(SatisfyAll(ContainSubstring("may belong to a recorded resource"), ContainSubstring("1 resources are outside this server's allowed namespaces and were withheld")))
+			Expect(reads).To(BeZero(), "no log was read")
+		})
+
 		It("does not call a named pod unmanaged when some resources were not traced", func() {
 			objs := managedFixtures()
 			allowed := []string{"team-a"}

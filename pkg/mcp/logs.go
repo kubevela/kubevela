@@ -126,11 +126,8 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		}
 	}
 	if len(targets) == 0 {
-		if len(info.untraced) > 0 {
-			return nil, out, fmt.Errorf("no pods were found in the cluster and namespace pairs this server traced; %d resources of %s/%s were not traced: %s", len(info.untraced), app.Namespace, app.Name, strings.Join(info.notes, "; "))
-		}
-		if len(info.unread) > 0 {
-			return nil, out, fmt.Errorf("no pods matching the filter were found under the resources of application %s/%s that could be read; pods may be under %s", app.Namespace, app.Name, unreadList(info.unread))
+		if incomplete := incompleteInventory(info); len(incomplete) > 0 {
+			return nil, out, fmt.Errorf("no pods matching the filter were found under the resources of application %s/%s whose trees were read; they may belong to a recorded resource whose tree was not read: %s", app.Namespace, app.Name, strings.Join(incomplete, "; "))
 		}
 		return nil, out, fmt.Errorf("application %s/%s has no pods matching the filter", app.Namespace, app.Name)
 	}
