@@ -25,6 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
@@ -313,6 +314,57 @@ var _ = Describe("security properties", func() {
 			opts := logOptions(GetLogsInput{TailLines: 1 << 20, SinceSeconds: -5})
 			Expect(*opts.TailLines).To(Equal(maxTailLines))
 			Expect(opts.SinceSeconds).To(BeNil())
+		})
+	})
+
+	Context("change set values", func() {
+		obj := func(kind string, fields map[string]any) *unstructured.Unstructured {
+			o := map[string]any{"apiVersion": "v1", "kind": kind, "metadata": map[string]any{"name": "web", "namespace": "team-a"}}
+			for k, v := range fields {
+				o[k] = v
+			}
+			return &unstructured.Unstructured{Object: o}
+		}
+
+		It("never shows a ConfigMap's payload, only that it changed", func() {
+			rc := compareObjects(
+				obj("ConfigMap", map[string]any{"data": map[string]any{"DB_HOST": "old-internal-value"}, "binaryData": map[string]any{"blob": "b2xk"}}),
+				obj("ConfigMap", map[string]any{"data": map[string]any{"DB_HOST": "new-internal-value"}, "binaryData": map[string]any{"blob": "bmV3"}}))
+			Expect(rc).NotTo(BeNil())
+			Expect(rc.Fields).To(HaveLen(2))
+			for _, f := range rc.Fields {
+				Expect(f.From).To(Equal(redactedValue), f.Path)
+				Expect(f.To).To(Equal(redactedValue), f.Path)
+			}
+			Expect(toJSON(rc)).NotTo(ContainSubstring("internal-value"))
+		})
+
+		It("redacts every leaf under a key that redaction replaces whole", func() {
+			rc := compareObjects(
+				obj("Widget", map[string]any{"spec": map[string]any{"auth": map[string]any{"credentials": map[string]any{"primary": "abc"}, "authorization": map[string]any{"bearer": "ghi"}}, "replicas": int64(1)}}),
+				obj("Widget", map[string]any{"spec": map[string]any{"auth": map[string]any{"credentials": map[string]any{"primary": "def"}, "authorization": map[string]any{"bearer": "jkl"}}, "replicas": int64(2)}}))
+			Expect(rc).NotTo(BeNil())
+			Expect(rc.Fields).To(HaveLen(3))
+			for _, f := range rc.Fields {
+				if f.Path == "spec.replicas" {
+					Expect(f.To).To(Equal(int64(2)), "unrelated leaves still show their values")
+					continue
+				}
+				Expect(f.From).To(Equal(redactedValue), f.Path)
+				Expect(f.To).To(Equal(redactedValue), f.Path)
+			}
+		})
+
+		It("drops embedded last-applied annotations a base revision carries", func() {
+			embedded := `{"spec":{"components":[{"properties":{"env":[{"name":"DB_PASSWORD","value":"hunter2"}]}}]}}`
+			for _, key := range embeddedObjectAnnotations {
+				base := obj("Deployment", map[string]any{"spec": map[string]any{"replicas": int64(1)}})
+				base.SetAnnotations(map[string]string{key: embedded})
+				target := obj("Deployment", map[string]any{"spec": map[string]any{"replicas": int64(1)}})
+				Expect(compareObjects(base, target)).To(BeNil(), key)
+				target.SetAnnotations(map[string]string{key: `{"other":"value"}`})
+				Expect(compareObjects(base, target)).To(BeNil(), key)
+			}
 		})
 	})
 
