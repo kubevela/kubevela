@@ -56,9 +56,11 @@ outputs:
       ports:
       - name: port-24224
         port: 24224
+        protocol: TCP
         targetPort: 24224
       - name: syslog
         port: 514
+        protocol: UDP
         targetPort: 514
       selector:
         app.oam.dev/component: agent

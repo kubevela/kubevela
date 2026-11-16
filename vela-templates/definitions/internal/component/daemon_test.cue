@@ -67,8 +67,8 @@ _daemon: {
 				selector: "app.oam.dev/component": "agent"
 				type: "ClusterIP"
 				ports: [
-					{port: 24224, targetPort: 24224, name: "port-24224"},
-					{port: 514, targetPort: 514, name: "syslog"},
+					{port: 24224, targetPort: 24224, name: "port-24224", protocol: "TCP"},
+					{port: 514, targetPort: 514, name: "syslog", protocol: "UDP"},
 				]
 			}
 		}
