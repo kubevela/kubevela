@@ -18,9 +18,11 @@ objects (`outputs`), and, when the template has a `nacos` block, a publish to a 
 Admission webhooks and a CEL rule check what they can before anything is stored.
 
 KubeVela 1.11 kept the same data in a `config-template-<name>` ConfigMap and a labelled Secret per
-config. That storage still works: every reader looks at both, every new write goes to a CR, and
-legacy objects are adopted into CRs by `vela config-template migrate` and `vela config migrate` or, with the
-`AutoMigrateLegacyConfigs` feature gate, once at controller startup.
+config. That storage still works: every reader in this release looks at both, and every write it
+makes goes to a CR once the CRDs are installed (without them the `create-config` step still writes a
+legacy Secret, and a 1.11 CLI keeps writing legacy objects). Legacy objects are adopted into CRs by
+`vela config-template migrate` and `vela config migrate` or, with the `AutoMigrateLegacyConfigs`
+feature gate, by a sweep at each controller start.
 
 ```mermaid
 flowchart TB
@@ -95,6 +97,6 @@ flowchart TB
 | Legacy template | a `config-template-<name>` ConfigMap labelled `config.oam.dev/catalog: velacore-config`, the 1.11 storage of a template |
 | Legacy config | a Secret labelled `config.oam.dev/catalog: velacore-config` with no controlling Config, the 1.11 storage of a config |
 | Output Secret | the Secret a Config renders; it keeps the legacy config labels, so 1.11 readers still see it |
-| Shadowed | a legacy template with a `ConfigTemplate` of the same name and namespace; the CR is the one in effect |
-| Adopt | migration's hand-over of a legacy object to a CR in place: same object, now owned by the CR |
-| Startup sweep | the one migration of everything legacy that the controller runs at startup when `AutoMigrateLegacyConfigs` is on |
+| Shadowed | a legacy template with a `ConfigTemplate` of the same name and namespace that has not adopted it (its `migrated-to` does not name that CR); the CR is the one in effect |
+| Adopt | migration's hand-over of a legacy object to a CR. A config Secret is adopted in place: same object, now controlled by the Config. A template ConfigMap is copied into a new `ConfigTemplate` and only annotated `migrated-to`; it is not owned |
+| Startup sweep | the migration of everything legacy that the controller's leader runs at each start when `AutoMigrateLegacyConfigs` is on; idempotent |

@@ -9,8 +9,9 @@ Companion design note to [KEP-2.18](../README.md). See the [design index](./READ
 ### Introduction
 
 Four built-in workflow steps work with configs: `create-config`, `read-config`, `list-config` and
-`delete-config` (`pkg/workflow/providers/config/`; the legacy provider exposes the same four under
-older names and shares the code). In 1.11 `create-config` wrote a legacy Secret from the controller
+`delete-config`. They run on the `config` provider (`pkg/workflow/providers/config/`, ops
+`create`, `read`, `list` and `delete`); the legacy provider exposes the same code as
+`create-config`, `read-config`, `list-config` and `delete-config`. In 1.11 `create-config` wrote a legacy Secret from the controller
 pod. Now it writes a `Config` CR, so a config an Application creates is validated, reconciled and
 published like any other; the other three read both storages.
 
@@ -61,7 +62,8 @@ sequenceDiagram
   dispatched is refused (`is a legacy config managed by application ...`): adopting it would hand
   that Application's config to this one.
 - **Waiting.** The step ends only when the Config is `Available` for the spec it just applied
-  (`status.observedGeneration` equals the generation), fails on `Error`, and otherwise asks the
+  (`status.observedGeneration` equals the generation; a status without the field is taken as
+  current), fails on `Error`, and otherwise asks the
   workflow to wait. A later `read-config` in the same workflow finds the Secret as it did when the
   write was synchronous.
 - **Without the Config CRD** (a control plane not yet upgraded), the step writes a legacy Secret as

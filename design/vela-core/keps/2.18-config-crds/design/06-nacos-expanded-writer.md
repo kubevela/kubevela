@@ -100,7 +100,9 @@ Secret of a `Config`, both under the key `input-properties`.
 | in a namespace other than the template's or `vela-system` | only the one a `ConfigTemplate` CR's text names, which admission reviewed; never for a legacy template ([Design 04](./04-template-scope-and-access.md)) |
 
 **Watching the endpoint.** Configs are indexed by the endpoint their status names
-(`status.expandedWriter.nacos.endpoint`). When that Secret appears, changes or goes, exactly the
+(`status.expandedWriter.nacos.endpoint`). When that Secret (labelled
+`config.oam.dev/catalog: velacore-config`, as a legacy config and a Config's output Secret are)
+appears, changes or goes, exactly the
 Configs that use it are reconciled: `EndpointNotFound` clears as soon as the endpoint exists, a
 changed server is re-synced (read first), and a deleted endpoint is reported.
 

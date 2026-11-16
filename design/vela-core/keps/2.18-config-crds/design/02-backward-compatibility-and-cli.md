@@ -19,9 +19,11 @@ storage. Moving the objects into CRs is [Design 03](./03-migration.md).
 - **Every read looks at both storages, always.** The Config controller resolves a template CR
   first and falls back to the legacy ConfigMap; `vela config-template list`, `show` and `delete`,
   `vela config list` and `delete`, and the workflow read, list and delete steps work across both. No feature gate turns this on or off.
-- **Every new write is a CR.** `vela config-template apply` writes a `ConfigTemplate`,
-  `vela config create` writes a `Config`, the `create-config` step writes a `Config`
-  ([Design 07](./07-workflow-steps.md)). There is no flag to write legacy objects.
+- **Every new write is a CR where the cluster serves the CRDs.** `vela config-template apply`
+  writes a `ConfigTemplate`, `vela config create` writes a `Config`, the `create-config` step
+  writes a `Config` ([Design 07](./07-workflow-steps.md)). There is no flag to write legacy objects.
+  Without the CRDs the CLI refuses, and without the Config CRD the step falls back to the 1.11 legacy Secret, with
+  no webhook or access check.
 - **Legacy objects are never deleted by an upgrade or a migration.** Only an explicit
   `vela config[-template] delete` removes one.
 
@@ -32,7 +34,7 @@ flowchart LR
     LEG[("Legacy<br/>ConfigMap, Secret")]
     R["Reads and deletes<br/>vela config-template list, show, delete<br/>vela config list, delete<br/>workflow read/list/delete steps<br/>Config controller (template resolution)"]
 
-    W -- "always" --> CR
+    W -- "with the CRDs installed" --> CR
     CR -- "first" --> R
     LEG -. "fallback, or both for list" .-> R
 ```

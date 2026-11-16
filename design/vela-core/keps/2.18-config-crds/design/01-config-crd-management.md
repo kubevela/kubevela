@@ -43,8 +43,10 @@ This had four problems:
 
 - `ConfigTemplate` and `Config` as CRDs with controllers, so `kubectl get`/`describe`/`explain`
   work and the objects carry status and conditions.
-- The same validation for every entry point (CLI, workflow step, VelaUX, `kubectl apply`, GitOps),
-  enforced at admission, and repeated by the controller wherever it can be.
+- The same validation for every entry point that writes the CRs (CLI, workflow step,
+  `kubectl apply`, GitOps), enforced at admission, and repeated by the controller wherever it can
+  be. Writers still on the 1.11 storage (an unchanged VelaUX, the workflow step on a cluster
+  without the CRDs) keep working without CR admission.
 - A Config's properties sourced from an existing Secret (`spec.propertiesFrom`) instead of being
   written inline.
 - The rendered result (output Secret, `outputs`, Nacos) kept in line with the Config by a
@@ -204,7 +206,9 @@ velacore-config`, `config.oam.dev/type: <template>`, `config.oam.dev/scope`), th
 `config.oam.dev/sensitive`, `config.oam.dev/template-namespace`, alias and description, the rendered
 data plus `input-properties`, and `objects-reference` when there are `outputs`. Its type defaults to
 `/<template name>`, as 1.11 wrote it. Labels and annotations are merged, not replaced, so keys others
-put on the Secret survive. A Secret marked sensitive stays marked.
+put on the Secret survive, except the ones the controller manages: it overwrites the keys it sets,
+removes `config.oam.dev/adopt-by`, and makes `config.oam.dev/nacos-endpoint` follow the Config. A
+Secret marked sensitive stays marked.
 
 The controller refuses to write over a Secret, or an `outputs` object, that it does not control
 (`already exists and is not owned by this Config`). A user who can only create Configs therefore
@@ -247,7 +251,7 @@ on CREATE and UPDATE, failure policy `Fail`.
 | `sensitive` true to false is denied | update; also the CRD's CEL rule on 1.25+ |
 | `config.oam.dev/grandfathered-configs` may lose entries, never gain them | update |
 | `scope: system` outside `vela-system` is denied | create, or an update that makes it so |
-| the `nacos` block's shape: `endpoint.name`, `metadata.dataId`, `format` one of json, yaml, toml, properties | create and update |
+| the `nacos` block's shape: `endpoint.name`, `metadata.dataId`; `format`, if set, a string, and when concrete one of json, yaml, toml, properties (any other rendered value publishes as YAML) | create and update |
 | `nacos.endpoint.namespace` is a plain string literal; a Nacos endpoint in another namespace (not the template's, not `vela-system`) needs the requester to be able to `get` that Secret | create, or an update that changes `spec.template` |
 | a template that does not compile is **admitted**; the reconciler reports it as `Error` | |
 

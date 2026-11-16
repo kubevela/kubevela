@@ -88,7 +88,9 @@ sequenceDiagram
 ```
 
 The controller accepts the hand-over only when the Secret's `adopt-by` names this Config, the
-Config carries the migration label, and the Secret has no other controller. Writing `adopt-by`
+Config carries the migration label, the Secret carries the `config.oam.dev/catalog: velacore-config`
+label, and the Secret has no controller, or its controller is an earlier Config of the same name
+(one deleted and recreated). Writing `adopt-by`
 takes write access to the Secret, which a Config author alone does not have, so a hand-made Config
 cannot claim someone else's Secret by naming itself after it. If creating the Config fails, the mark
 is removed again.

@@ -39,7 +39,7 @@ A config is sensitive when **any** of these is true:
 | A template's `sensitive` can be turned on, never off | the CRD's CEL transition rule (Kubernetes 1.25+, answers before the webhook); the ConfigTemplate webhook (any version); `vela config-template apply` before it writes; the factory keeps a stored `true` when a tool rewrites a template |
 | A sensitive template refuses inline `spec.properties` | the Config webhook (create and update); the Config controller (`Error`: `is sensitive: spec.properties must not be set, use spec.propertiesFrom instead`) |
 | `propertiesFrom` always makes the Config sensitive | the Config controller marks the Secret before the template's resolution and every later step can fail |
-| A Secret marked sensitive stays marked | the Config controller never writes the mark back to `false`; only deleting and recreating the Config resets it |
+| A Secret marked sensitive stays marked | the Config controller never writes the mark back to `false`. The mark lives on the Secret: if the Secret (or the Config) is deleted, the recreated Secret takes its mark from the Config and its template again, so it is still sensitive while `propertiesFrom` is set or the template is sensitive |
 | The CLI never writes sensitive values inline | `vela config create` puts a sensitive template's properties in a `<name>-properties` Secret referenced by `propertiesFrom` |
 | Migration never moves sensitive values inline | a legacy config whose template or Secret is sensitive becomes a Config with a `<name>-properties` Secret ([Design 03](./03-migration.md)) |
 
@@ -57,7 +57,7 @@ stateDiagram-v2
         state "not marked" as nm
         state "marked sensitive" as m
         nm --> m: template turned on,<br/>propertiesFrom set,<br/>or migrated from a marked Secret
-        m --> nm: never (delete and recreate the Config)
+        m --> nm: never (a recreated Secret<br/>re-derives it from the Config)
     }
 ```
 
@@ -72,7 +72,7 @@ edit that turns `sensitive` on and also breaks its CUE) marks nothing until it i
 **Why the marks are sticky.** Turning sensitive off can still happen where no admission runs: a
 legacy ConfigMap's annotation edited by hand, or a template edited with the webhooks off on a server
 older than 1.25 (which drops the CEL rule). What was withheld from readers is not handed back in
-those cases either, because the Secret keeps its mark.
+those cases either, because the Secret keeps its mark for as long as it exists.
 
 ### Who reads a sensitive config's properties
 

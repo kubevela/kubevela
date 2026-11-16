@@ -35,8 +35,9 @@ tool manages are migrated, and the upgrade from 1.11 and the rollback to it, wit
 ### Legacy objects a tool manages
 
 A legacy template ConfigMap or config Secret kept in git is migrated like any other
-([Design 03](./03-migration.md)): owner references and the `migrated-to` annotation, nothing in its
-data. Migration writes under its own field manager, `kubevela-config-migration`, so a tool that
+([Design 03](./03-migration.md)), with nothing in its data changed. A config Secret gets the Config
+as controller owner and the `migrated-to` annotation; a template ConfigMap gets only `migrated-to`,
+so deleting the `ConfigTemplate` leaves it in place. Migration writes under its own field manager, `kubevela-config-migration`, so a tool that
 applies server-side sees no drift in its own fields. Migration recognises a tool's marker and says so
 in the report row and in a `MigratedGitOpsManaged` Event on the new CR:
 
@@ -59,16 +60,18 @@ The message is the action: put the new CR in git where the legacy object was. Un
 flowchart LR
     a["1.11<br/>legacy ConfigMaps<br/>and Secrets"] --> b["Apply the new CRDs<br/>(Helm does not upgrade crds/),<br/>helm upgrade"]
     b --> c["Upgraded, nothing migrated<br/>every legacy object works,<br/>new writes are CRs"]
-    c --> d["vela config-template migrate --all -n NS<br/>per namespace, or the gate once"]
+    c --> d["vela config-template migrate --all -n NS<br/>per namespace, or the gate<br/>(a sweep at each controller start)"]
     d --> e["Migrated<br/>CRs own the objects,<br/>legacy objects kept"]
     c -. "rollback" .-> a
     e -. "rollback" .-> a
 ```
 
 After the upgrade nothing changes on its own: Applications reading config Secrets see the same
-objects (same UID and resourceVersion), the new CLI lists, shows and deletes the legacy objects, and
+objects (same UID; Secrets the CLI wrote keep their resourceVersion too, while one a workflow step
+wrote may be rewritten, with the same content, by its Application), the new CLI lists, shows and deletes the legacy objects, and
 the controller renders new Configs from legacy templates. Migration is a separate, deliberate step,
-per namespace with the command or once for the cluster with `AutoMigrateLegacyConfigs`.
+per namespace with the command, or for the whole cluster with `AutoMigrateLegacyConfigs`, whose
+sweep the leader runs at every start (idempotent: a second run adopts nothing new).
 
 ### Rollback to 1.11
 

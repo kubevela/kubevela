@@ -34,8 +34,8 @@ The **effective scope** every reader applies (`ResolvedTemplate.EffectiveScope` 
 ### The placement guarantee
 
 A `system` template outside `vela-system` must be impossible to create, and harmless if it gets in
-anyway. Four layers; the three that can refuse give the same message
-(`scope system is only valid in vela-system`):
+anyway. Four layers; the CLI and the webhook refuse and the reconciler reports `Error`, all with the
+same message (`scope system is only valid in vela-system`):
 
 ```mermaid
 flowchart LR
