@@ -41,21 +41,23 @@ const (
 	// reserved: no rule yields it in this release; the fleet sweep may
 	// attribute a cause to a controller's own behaviour
 	ownerController = "controller"
-	ownerCloud      = "cloud"
-	ownerPlatform   = "platform"
+	// external is the system the controller reconciles against: a cloud
+	// account as much as a certificate authority or a DNS provider
+	ownerExternal = "external"
+	ownerPlatform = "platform"
 
 	// scopeThisResource is the only scope a per-Application diagnosis can
-	// claim; diagnose_provisioners reports cluster-wide or account-wide.
+	// claim; diagnose_controllers reports cluster-wide or account-wide.
 	scopeThisResource = "single-resource"
 )
 
-// Cause is a provisioner-owned resource's cloud error, classified from the
-// condition its family writes the error into.
+// Cause is a family-owned resource's error, classified from the condition
+// its family writes the error into.
 type Cause struct {
 	Class string `json:"class" jsonschema:"throttled, quota-exhausted, auth, invalid, dependency-missing, conflict, unreachable, or unclassified when the text matched no rule."`
-	Code  string `json:"code,omitempty" jsonschema:"What the class was matched on: the provider's own code token (Throttling), a transport phrase (connection refused), a googleapi status (googleapi: Error 403), or a family condition that names the class itself (ACK.ReferencesResolved). Empty when unclassified."`
-	Owner string `json:"owner,omitempty" jsonschema:"Layer that holds the fix: application-spec, controller, cloud or platform. Empty when unclassified: the server does not guess an owner for text it could not recognise."`
-	Scope string `json:"scope" jsonschema:"How far this verdict reaches: single-resource from diagnose_application; diagnose_provisioners reports cluster-wide or account-wide."`
+	Code  string `json:"code,omitempty" jsonschema:"What the class was matched on: the external system's own code token (Throttling), a transport phrase (connection refused), a googleapi status (googleapi: Error 403), or a family condition that names the class itself (ACK.ReferencesResolved). Empty when unclassified."`
+	Owner string `json:"owner,omitempty" jsonschema:"Layer that holds the fix: application-spec, controller, external (the system the controller reconciles against) or platform. Empty when unclassified: the server does not guess an owner for text it could not recognise."`
+	Scope string `json:"scope" jsonschema:"How far this verdict reaches: single-resource from diagnose_application; diagnose_controllers reports cluster-wide or account-wide."`
 	// Since is the matched condition's last transition, or the matched
 	// event's last timestamp, when recorded.
 	Since    *time.Time `json:"since,omitempty" jsonschema:"When the matched condition last changed, or when the matched event was last seen, UTC."`
@@ -70,13 +72,14 @@ type Cause struct {
 // ControllerHandle identifies the controller that owns a resource, in the
 // exact terms another server needs. The ACK handle is read from the
 // controller Deployment the endpoint-provenance lookup selected; families
-// whose controller this server does not look up get no handle and a note.
+// whose controller this server does not look up, or that name no
+// controller, get no handle and a note.
 type ControllerHandle struct {
 	Cluster       string     `json:"cluster" jsonschema:"Cluster the controller runs in; local is the control plane."`
 	Namespace     string     `json:"namespace" jsonschema:"Namespace of the controller's workload."`
 	Name          string     `json:"name" jsonschema:"Name of the controller's workload (Deployment or StatefulSet)."`
 	LabelSelector string     `json:"labelSelector" jsonschema:"Selects the controller's pods, for kubectl, a Kubernetes MCP server or log discovery."`
-	Family        string     `json:"family" jsonschema:"Provisioner family: ack, config-connector or crossplane."`
+	Family        string     `json:"family" jsonschema:"Controller family: ack, config-connector, crossplane or standard-conditions."`
 	APIGroup      string     `json:"apiGroup" jsonschema:"API group of the diagnosed resource."`
 	Window        TimeWindow `json:"window" jsonschema:"Time span to query, from the matched condition's transition to when this answer was read."`
 }
@@ -86,8 +89,8 @@ type ControllerHandle struct {
 type classRule struct {
 	class string
 	owner string
-	// codes are provider error codes: exact, "Prefix*", "*Suffix" or
-	// "*Contains*". They are matched first against the provider's own code
+	// codes are the external system's error codes: exact, "Prefix*",
+	// "*Suffix" or "*Contains*". They are matched first against the code
 	// token — the one after "api error" in an AWS SDK message, else the
 	// first CamelCase token before a colon that a rule names, dotted as EC2
 	// writes it — then against every CamelCase token in the text; a prefix
@@ -96,7 +99,9 @@ type classRule struct {
 	// statuses are HTTP statuses matched from the googleapi "Error <n>" form
 	// when no code or phrase matched.
 	statuses []int
-	// phrases are transport-level texts matched anywhere, case-insensitive.
+	// phrases are texts matched anywhere, case-insensitive: transport
+	// errors, and the lower-camel codes some controllers write (an ACME
+	// rateLimited), which the token steps cannot read.
 	phrases  []string
 	guidance string
 }
@@ -106,15 +111,15 @@ type classRule struct {
 // precedes quota, so RequestLimitExceeded stays a throttle, and their phrases
 // decide between the two; a bare 429 is a throttle.
 var classRules = []classRule{
-	{class: causeThrottled, owner: ownerCloud,
+	{class: causeThrottled, owner: ownerExternal,
 		codes:    []string{"Throttling", "ThrottlingException", "RequestLimitExceeded", "RateLimitExceeded", "TooManyRequestsException", "ProvisionedThroughputExceededException", "SlowDown", "RequestThrottled", "RequestThrottledException"},
 		statuses: []int{429},
-		phrases:  []string{"ratelimitexceeded", "rate exceeded"},
-		guidance: "the cloud API is rate-limiting this account; the limit is the account's, the pressure is the controller's reconcile rate — confirm the scope with diagnose_provisioners when this server offers it, then reduce reconcile frequency or request a limit increase"},
-	{class: causeQuota, owner: ownerCloud,
+		phrases:  []string{"ratelimitexceeded", "rate exceeded", "ratelimited"},
+		guidance: "the external system is rate-limiting this account; the limit is the account's, the pressure is the controller's reconcile rate — confirm the scope with diagnose_controllers when this server offers it, then reduce reconcile frequency or request a limit increase"},
+	{class: causeQuota, owner: ownerExternal,
 		codes:    []string{"LimitExceededException", "*LimitExceeded", "*QuotaExceeded*", "ResourceExhausted"},
 		phrases:  []string{"quota exceeded", "quotaexceeded", "dailylimitexceeded"},
-		guidance: "a service quota is exhausted for this account; confirm the scope with diagnose_provisioners when this server offers it, then release capacity or request a quota increase"},
+		guidance: "a quota of the external system is exhausted for this account; confirm the scope with diagnose_controllers when this server offers it, then release capacity or request a quota increase"},
 	{class: causeAuth, owner: ownerPlatform,
 		codes:    []string{"AccessDenied", "AccessDeniedException", "UnauthorizedOperation", "UnauthorizedException", "ExpiredToken", "ExpiredTokenException", "InvalidClientTokenId", "AuthFailure", "UnrecognizedClientException", "InvalidSignatureException", "InvalidAccessKeyId", "SignatureDoesNotMatch", "PermissionDenied", "Unauthenticated"},
 		statuses: []int{401, 403},
@@ -129,11 +134,11 @@ var classRules = []classRule{
 	{class: causeConflict, owner: ownerApplicationSpec,
 		codes:    []string{"*AlreadyExists*", "*InUse*", "ConflictException", "ResourceConflict", "ResourceConflictException", "ManagementConflict", "EntityAlreadyExists"},
 		statuses: []int{409},
-		guidance: "the name or identity collides with an existing cloud resource; rename in the Application or adopt the existing resource deliberately"},
+		guidance: "the name or identity collides with a resource that already exists in the external system; rename in the Application or adopt the existing resource deliberately"},
 	{class: causeInvalid, owner: ownerApplicationSpec,
 		codes:    []string{"Invalid*", "ValidationError", "ValidationException", "Malformed*", "UnsupportedOperation", "BadRequest"},
 		statuses: []int{400},
-		guidance: "the cloud API rejected a value in the spec; the condition message names the field"},
+		guidance: "the external system rejected a value in the spec; the condition message names the field"},
 	{class: causeUnreachable, owner: ownerPlatform,
 		phrases:  []string{"connection refused", "no such host", "tls:", "x509:", "i/o timeout", "context deadline exceeded", "dial tcp", "connection reset by peer"},
 		guidance: "the controller cannot reach its endpoint; check the endpoint it is configured to call (endpointOverride, if set) and the network path from the controller's namespace"},
@@ -161,11 +166,11 @@ func ruleFor(class string) *classRule {
 	return nil
 }
 
-// causeSources lists, in match order, the fields each family uses for
-// provider error text. From the controllers' own source: ACK writes the AWS
-// error into Terminal and Recoverable messages and the full SDK error into
-// the ResourceSynced reason; Config Connector into the Ready reason and
-// message; Crossplane wraps it into the Synced message.
+// causeSources lists, in match order, the fields each family uses for the
+// external system's error text. From the controllers' own source: ACK
+// writes the AWS error into Terminal and Recoverable messages and the full
+// SDK error into the ResourceSynced reason; Config Connector into the Ready
+// reason and message; Crossplane wraps it into the Synced message.
 func causeSources(diag *ResourceDiagnosis) []causeSource {
 	var out []causeSource
 	add := func(c *ResourceCondition, field, value string) {
@@ -350,7 +355,7 @@ func newCause(rule *classRule, code, where, text string, since *time.Time) *Caus
 }
 
 // classifyCause reads the family's error fields and returns the cause, nil
-// when the resource is ready, is not provisioner-owned or carries no error
+// when the resource is ready, is not family-owned or carries no error
 // text, and unclassified when text exists that no rule recognises.
 func classifyCause(diag *ResourceDiagnosis) *Cause {
 	if diag.Ready || diag.Provider == providerKubernetes || diag.Provider == "" {

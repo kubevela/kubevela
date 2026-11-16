@@ -172,7 +172,7 @@ var _ = Describe("diagnose_application", func() {
 		c := out.Resources[0].Cause
 		Expect(c).NotTo(BeNil())
 		Expect(c.Class).To(Equal(causeThrottled))
-		Expect(c.Owner).To(Equal(ownerCloud))
+		Expect(c.Owner).To(Equal(ownerExternal))
 		Expect(c.Scope).To(Equal(scopeThisResource))
 		Expect(c.Evidence).To(ContainSubstring("ACK.Recoverable message: Throttling: Rate exceeded"))
 		Expect(c.Controller).NotTo(BeNil())
@@ -185,10 +185,10 @@ var _ = Describe("diagnose_application", func() {
 		Expect(c.Controller.Window.From).To(Equal(time.Date(2026, 11, 15, 9, 12, 0, 0, time.UTC)))
 		Expect(out.Findings).To(ContainElement(SatisfyAll(
 			HaveField("Severity", SeverityError),
-			HaveField("Message", ContainSubstring("cause throttled (Throttling) — owner: cloud")),
+			HaveField("Message", ContainSubstring("cause throttled (Throttling) — owner: external")),
 			HaveField("Observed", ContainSubstring("Rate exceeded")),
 		)))
-		Expect(out.NextChecks).To(ContainElement(ContainSubstring("diagnose_provisioners when this server offers it: provider aws, family ack, window 1h")))
+		Expect(out.NextChecks).To(ContainElement(ContainSubstring("diagnose_controllers when this server offers it: provider aws, family ack, window 1h")))
 	})
 
 	It("names no controller handle when the ACK controller Deployment is absent, in the provenance note", func() {
@@ -240,7 +240,7 @@ var _ = Describe("diagnose_application", func() {
 		}
 		sweeps := 0
 		for _, n := range out.NextChecks {
-			if strings.Contains(n, "diagnose_provisioners") {
+			if strings.Contains(n, "diagnose_controllers") {
 				sweeps++
 			}
 		}
@@ -263,7 +263,7 @@ var _ = Describe("diagnose_application", func() {
 		Expect(c.Owner).To(Equal(ownerApplicationSpec))
 		Expect(c.Controller).NotTo(BeNil())
 		Expect(c.Controller.Name).To(Equal("ack-rds-rds-chart"))
-		Expect(out.NextChecks).NotTo(ContainElement(ContainSubstring("diagnose_provisioners")))
+		Expect(out.NextChecks).NotTo(ContainElement(ContainSubstring("diagnose_controllers")))
 
 		h2 := startHarness(Options{}, diagnoseApp(db)...)
 		defer h2.close()
@@ -306,9 +306,9 @@ var _ = Describe("diagnose_application", func() {
 		Expect(out.Resources[0].Cause).NotTo(BeNil())
 		Expect(out.Resources[0].Cause.Class).To(Equal(causeThrottled))
 		Expect(out.Resources[0].Cause.Evidence).To(ContainSubstring("Event CannotObserveExternalResource"))
-		Expect(out.NextChecks).To(ContainElement(ContainSubstring("diagnose_provisioners when this server offers it: provider aws, family crossplane, window 1h")))
+		Expect(out.NextChecks).To(ContainElement(ContainSubstring("diagnose_controllers when this server offers it: provider aws, family crossplane, window 1h")))
 		Expect(out.Resources[0].Notes).To(ContainElement(ContainSubstring("no controller handle")))
-		Expect(out.Findings).To(ContainElement(HaveField("Message", ContainSubstring("cause throttled (SlowDown) — owner: cloud"))))
+		Expect(out.Findings).To(ContainElement(HaveField("Message", ContainSubstring("cause throttled (SlowDown) — owner: external"))))
 	})
 
 	It("replaces an unclassified Crossplane cause with the one its warning event classifies", func() {

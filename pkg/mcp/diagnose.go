@@ -95,9 +95,9 @@ type ResourceDiagnosis struct {
 	EndpointOverride string              `json:"endpointOverride,omitempty" jsonschema:"Endpoint the owning controller is configured to call instead of the cloud API, read from its Deployment. The conditions here describe that endpoint's view, usually an emulator's, not the cloud's. Empty means the controller calls the cloud or the lookup was uncertain; a note distinguishes the two."`
 	Conditions       []ResourceCondition `json:"conditions,omitempty" jsonschema:"Conditions read live from the resource."`
 	Notes            []string            `json:"notes,omitempty" jsonschema:"Caveats about this verdict, such as conditions that do not record the generation they describe."`
-	// Cause is the cloud error classified from the family's error fields;
-	// nil when the resource is ready or carries no error text.
-	Cause *Cause `json:"cause,omitempty" jsonschema:"The cloud error behind this verdict, classified from the condition the family writes it into, with the layer that owns the fix. Absent when the resource is ready or recorded no error text."`
+	// Cause is the error classified from the family's error fields; nil
+	// when the resource is ready or carries no error text.
+	Cause *Cause `json:"cause,omitempty" jsonschema:"The error behind this verdict, classified from the condition the family writes it into, with the layer that owns the fix. Absent when the resource is ready or recorded no error text."`
 }
 
 // DiagnoseApplicationOutput is the structured result of diagnose_application.
@@ -350,7 +350,7 @@ func (d *deps) attachCause(diag *ResourceDiagnosis, out *DiagnoseApplicationOutp
 	diag.Notes = append(diag.Notes, note)
 }
 
-// addSweepPointer names diagnose_provisioners for a class that is usually
+// addSweepPointer names diagnose_controllers for a class that is usually
 // account-wide, once per provider, family and class.
 func addSweepPointer(diag *ResourceDiagnosis, out *DiagnoseApplicationOutput) {
 	c := diag.Cause
@@ -361,7 +361,7 @@ func addSweepPointer(diag *ResourceDiagnosis, out *DiagnoseApplicationOutput) {
 	if cloud := cloudOf(diag.APIVersion); cloud != "" {
 		provider = "provider " + cloud + ", "
 	}
-	msg := fmt.Sprintf("confirm the scope with diagnose_provisioners when this server offers it: %sfamily %s, window 1h — a %s cause is usually account-wide and one Application cannot show that", provider, diag.Provider, c.Class)
+	msg := fmt.Sprintf("confirm the scope with diagnose_controllers when this server offers it: %sfamily %s, window 1h — a %s cause is usually account-wide and one Application cannot show that", provider, diag.Provider, c.Class)
 	for _, n := range out.NextChecks {
 		if n == msg {
 			return
@@ -397,7 +397,7 @@ func eventMatchesResource(e EventSummary, r ResourceDiagnosis) bool {
 }
 
 // cloudOf maps an API group to its cloud through the family tables, for the
-// diagnose_provisioners pointer. Empty when no family owns the group.
+// diagnose_controllers pointer. Empty when no family owns the group.
 func cloudOf(apiVersion string) string {
 	group := groupOf(apiVersion)
 	for _, provider := range providerOrder {

@@ -42,14 +42,14 @@ var _ = Describe("classifyCause", func() {
 		Entry("ACK throttle in Recoverable", ack(
 			ResourceCondition{Type: "ACK.ResourceSynced", Status: "Unknown", Reason: "operation error RDS: ModifyDBCluster, https response error StatusCode: 400, RequestID: 1, Throttling: Rate exceeded"},
 			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "Throttling: Rate exceeded"},
-		), causeThrottled, "Throttling", ownerCloud, "ACK.Recoverable"),
+		), causeThrottled, "Throttling", ownerExternal, "ACK.Recoverable"),
 		Entry("ACK unresolved reference names the class by the family's own convention, ahead of a stale Synced", ack(
 			ResourceCondition{Type: "ACK.ResourceSynced", Status: "True"},
 			ResourceCondition{Type: "ACK.ReferencesResolved", Status: "False", Message: "resource reference wrapper or ID required: VPCID"},
 		), causeDependencyMissing, "ACK.ReferencesResolved", ownerApplicationSpec, "ACK.ReferencesResolved message"),
 		Entry("Google RateLimitExceeded is a throttle, not an exhausted quota", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Instance", Name: "db", Conditions: []ResourceCondition{
 			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "observe failed: googleapi: Error 429: RateLimitExceeded: Rate limit exceeded for this project"},
-		}}, causeThrottled, "RateLimitExceeded", ownerCloud, "Synced"),
+		}}, causeThrottled, "RateLimitExceeded", ownerExternal, "Synced"),
 		Entry("ACK terminal invalid parameter", ack(
 			ResourceCondition{Type: "ACK.ResourceSynced", Status: "False", Reason: "resource is in terminal condition", Message: "Resource not synced"},
 			ResourceCondition{Type: "ACK.Terminal", Status: "True", Message: "api error InvalidParameterCombination: Cannot find version 16.3 for aurora-postgresql"},
@@ -62,7 +62,7 @@ var _ = Describe("classifyCause", func() {
 		), causeAuth, "AccessDeniedException", ownerPlatform, "ACK.Recoverable"),
 		Entry("ACK limit exceeded", ack(
 			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "LimitExceededException: Subscriber limit exceeded: Only 2500 tables can be created"},
-		), causeQuota, "LimitExceededException", ownerCloud, "ACK.Recoverable"),
+		), causeQuota, "LimitExceededException", ownerExternal, "ACK.Recoverable"),
 		Entry("ACK already exists", ack(
 			ResourceCondition{Type: "ACK.Terminal", Status: "True", Message: "EntityAlreadyExists: Role with name demo already exists."},
 		), causeConflict, "EntityAlreadyExists", ownerApplicationSpec, "ACK.Terminal"),
@@ -78,20 +78,20 @@ var _ = Describe("classifyCause", func() {
 		}}, causeDependencyMissing, "DependencyNotFound", ownerApplicationSpec, "Ready"),
 		Entry("Config Connector 429 rate limit is a throttle", &ResourceDiagnosis{Provider: providerConfigConnector, Kind: "SQLInstance", Name: "db", Conditions: []ResourceCondition{
 			{Type: "Ready", Status: "False", Reason: "UpdateFailed", Message: "Update call failed: googleapi: Error 429: Quota exceeded for quota metric 'Queries' and limit 'Queries per minute', rateLimitExceeded"},
-		}}, causeThrottled, "rateLimitExceeded", ownerCloud, "Ready"),
+		}}, causeThrottled, "rateLimitExceeded", ownerExternal, "Ready"),
 		Entry("Config Connector hard quota on 403 is quota-exhausted, not auth", &ResourceDiagnosis{Provider: providerConfigConnector, Kind: "SQLInstance", Name: "db", Conditions: []ResourceCondition{
 			{Type: "Ready", Status: "False", Reason: "UpdateFailed", Message: "Update call failed: googleapi: Error 403: Quota exceeded for quota metric 'Instances' and limit 'Instances per project per region', quotaExceeded"},
-		}}, causeQuota, "Quota exceeded", ownerCloud, "Ready"),
+		}}, causeQuota, "Quota exceeded", ownerExternal, "Ready"),
 		// Crossplane, wrapped as crossplane-runtime's managed reconciler wraps provider errors.
 		Entry("Crossplane throttle inside observe failed", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Bucket", Name: "b", Conditions: []ResourceCondition{
 			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "observe failed: cannot run refresh: refresh failed: operation error S3: HeadBucket, https response error StatusCode: 503, RequestID: x, api error SlowDown: Please reduce your request rate."},
-		}}, causeThrottled, "SlowDown", ownerCloud, "Synced"),
+		}}, causeThrottled, "SlowDown", ownerExternal, "Synced"),
 		Entry("Crossplane expired token", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Bucket", Name: "b", Conditions: []ResourceCondition{
 			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "connect failed: cannot get AWS config: ExpiredTokenException: The security token included in the request is expired"},
 		}}, causeAuth, "ExpiredTokenException", ownerPlatform, "Synced"),
 		Entry("ACK throttle as the live controller writes it", ack(
 			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "api error Throttling: Rate exceeded"},
-		), causeThrottled, "Throttling", ownerCloud, "ACK.Recoverable"),
+		), causeThrottled, "Throttling", ownerExternal, "ACK.Recoverable"),
 		Entry("EC2 dotted code", ack(
 			ResourceCondition{Type: "ACK.Terminal", Status: "True", Message: "InvalidSubnetID.NotFound: The subnet ID 'subnet-0abc' does not exist"},
 		), causeDependencyMissing, "InvalidSubnetID.NotFound", ownerApplicationSpec, "ACK.Terminal"),
@@ -100,7 +100,7 @@ var _ = Describe("classifyCause", func() {
 		), causeConflict, "ResourceConflictException", ownerApplicationSpec, "ACK.Recoverable"),
 		Entry("SDK-wrapped code after api error is read at the code position, on a 400", ack(
 			ResourceCondition{Type: "ACK.ResourceSynced", Status: "Unknown", Reason: "operation error EC2: RunInstances, https response error StatusCode: 400, RequestID: x, api error VcpuLimitExceeded: You have requested more vCPU capacity"},
-		), causeQuota, "VcpuLimitExceeded", ownerCloud, "ACK.ResourceSynced"),
+		), causeQuota, "VcpuLimitExceeded", ownerExternal, "ACK.ResourceSynced"),
 		Entry("codes beat phrases", ack(
 			ResourceCondition{Type: "ACK.Recoverable", Status: "True", Message: "AccessDeniedException: User arn:aws:iam::1:user/x is not authorized; dial tcp 10.0.0.1:443: connect: connection refused"},
 		), causeAuth, "AccessDeniedException", ownerPlatform, "ACK.Recoverable"),
@@ -110,6 +110,10 @@ var _ = Describe("classifyCause", func() {
 		Entry("Crossplane SDK-wrapped not found", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Table", Name: "t", Conditions: []ResourceCondition{
 			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "observe failed: operation error DynamoDB: DescribeTable, https response error StatusCode: 400, RequestID: x, api error ResourceNotFoundException: Requested resource not found"},
 		}}, causeDependencyMissing, "ResourceNotFoundException", ownerApplicationSpec, "Synced"),
+		// A lower-camel code the token steps cannot read is matched as a phrase.
+		Entry("ACME rateLimited written in lower camel case is a throttle", &ResourceDiagnosis{Provider: providerConfigConnector, Kind: "Certificate", Name: "tls", Conditions: []ResourceCondition{
+			{Type: "Ready", Status: "False", Reason: "Failed", Message: "The certificate request has failed to complete and will be retried: Failed to wait for order resource \"tls-1\" to become ready: order is in \"errored\" state: Failed to create Order: 429 urn:ietf:params:acme:error:rateLimited: too many certificates (5) already issued for this exact set of domains in the last 168 hours"},
+		}}, causeThrottled, "rateLimited", ownerExternal, "Ready"),
 	)
 
 	DescribeTable("leaves text no rule recognises unclassified, with no owner and no code",
