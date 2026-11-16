@@ -17,6 +17,7 @@ limitations under the License.
 package appfile
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -523,7 +524,7 @@ func TestParser_ValidateCUESchematicAppfile(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.NoError(t, err)
 	})
 
@@ -575,7 +576,7 @@ func TestParser_ValidateCUESchematicAppfile(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot evaluate trait \"my-trait\"")
 	})
@@ -607,7 +608,7 @@ func TestParser_ValidateCUESchematicAppfile(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "missing parameters: image")
 	})
@@ -625,7 +626,7 @@ func TestParser_ValidateCUESchematicAppfile(t *testing.T) {
 			},
 		}
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.NoError(t, err)
 	})
 }
@@ -894,7 +895,7 @@ func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.NoError(t, err, "Should pass when workflow supplies missing param and NO traits present")
 	})
 
@@ -945,7 +946,7 @@ func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.NoError(t, err, "Should pass when workflow supplies missing param even WITH traits")
 	})
 
@@ -1020,7 +1021,7 @@ func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.NoError(t, err, "Should use first enum value as default")
 	})
 
@@ -1057,7 +1058,7 @@ func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.Error(t, err, "Should fail when param is missing everywhere")
 		assert.Contains(t, err.Error(), "missing parameters: image")
 	})
@@ -1112,7 +1113,7 @@ func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.NoError(t, err, "Should pass when override policy supplies missing param")
 	})
 
@@ -1187,7 +1188,7 @@ func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.NoError(t, err, "Should handle int, bool, list types with correct defaults")
 	})
 
@@ -1252,7 +1253,7 @@ func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		// Should pass by skipping validation due to complex constraints
 		assert.NoError(t, err, "Should skip validation when complex constraints cannot be satisfied")
 	})
@@ -1302,7 +1303,7 @@ func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
 		}
 
 		p := &Parser{}
-		err := p.ValidateCUESchematicAppfile(appfile)
+		err := p.ValidateCUESchematicAppfile(context.Background(), appfile)
 		assert.NoError(t, err, "Should use existing param value, not augment from workflow")
 	})
 }
@@ -1553,7 +1554,7 @@ func TestValidateCUESchematicAppfile_LegacySyntax(t *testing.T) {
 		*upgrade.EnableCUEVersionCompatibility = true
 		t.Cleanup(func() { *upgrade.EnableCUEVersionCompatibility = original })
 
-		err := (&Parser{}).ValidateCUESchematicAppfile(newAppfile(legacyTemplate))
+		err := (&Parser{}).ValidateCUESchematicAppfile(context.Background(), newAppfile(legacyTemplate))
 		assert.NoError(t, err)
 	})
 
@@ -1562,7 +1563,7 @@ func TestValidateCUESchematicAppfile_LegacySyntax(t *testing.T) {
 		*upgrade.EnableCUEVersionCompatibility = false
 		t.Cleanup(func() { *upgrade.EnableCUEVersionCompatibility = original })
 
-		err := (&Parser{}).ValidateCUESchematicAppfile(newAppfile(legacyTemplate))
+		err := (&Parser{}).ValidateCUESchematicAppfile(context.Background(), newAppfile(legacyTemplate))
 		assert.Error(t, err)
 	})
 }
