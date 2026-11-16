@@ -25,15 +25,19 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 func stepsOf(types ...string) []wfTypesv1alpha1.WorkflowStep {
@@ -364,6 +368,26 @@ spec:
 			})
 		})
 
+		It("lists an object by the scope the cluster maps its kind to, not the Application's namespace", func() {
+			mapper := meta.NewDefaultRESTMapper(nil)
+			mapper.Add(schema.GroupVersionKind{Group: "admissionregistration.k8s.io", Version: "v1", Kind: "ValidatingWebhookConfiguration"}, meta.RESTScopeRoot)
+			mapper.Add(schema.GroupVersionKind{Group: "example.com", Version: "v1", Kind: "Namespace"}, meta.RESTScopeNamespace)
+			r := &rendered{objects: map[string]*unstructured.Unstructured{}, cli: fake.NewClientBuilder().WithScheme(common.Scheme).WithRESTMapper(mapper).Build()}
+			listed := func(apiVersion, kind, ns string) string {
+				obj := &unstructured.Unstructured{}
+				obj.SetAPIVersion(apiVersion)
+				obj.SetKind(kind)
+				obj.SetName("x")
+				obj.SetNamespace(ns)
+				return r.keep("c", "output", "team-a", obj).Namespace
+			}
+			Expect(listed("admissionregistration.k8s.io/v1", "ValidatingWebhookConfiguration", "")).To(BeEmpty())
+			Expect(listed("admissionregistration.k8s.io/v1", "ValidatingWebhookConfiguration", "team-a")).To(BeEmpty(), "a namespace the render stamped on a cluster-scoped object is dropped")
+			Expect(listed("example.com/v1", "Namespace", "")).To(Equal("team-a"), "the mapping wins over the fixed list")
+			Expect(listed("scheduling.k8s.io/v1", "PriorityClass", "team-a")).To(BeEmpty(), "an unknown mapping falls back to the fixed list")
+			Expect(listed("example.com/v1", "Widget", "")).To(Equal("team-a"))
+		})
+
 		It("rejects bad input", func() {
 			h = startHarness(Options{}, platformFixtures()...)
 			res := h.call("dryrun_application", map[string]any{"application": "kind: Deployment\nmetadata: {name: x}"}, nil)
@@ -470,6 +494,15 @@ spec:
 			h = startHarness(Options{}, append(append(platformFixtures(), shopRunning()...), other)...)
 			res := h.call("diff_application", map[string]any{"application": shopDoc("nginx:1.27", 2, ""), "revision": "billing-v4"}, nil)
 			Expect(errorText(res)).To(ContainSubstring("belongs to another Application"))
+		})
+
+		It("does not take an unlabelled revision of a longer-named Application as its own", func() {
+			other := &v1beta1.ApplicationRevision{ObjectMeta: metav1.ObjectMeta{Name: "shop-victim-v1", Namespace: "team-a"}}
+			h = startHarness(Options{}, append(append(platformFixtures(), shopRunning()...), other)...)
+			res := h.call("diff_application", map[string]any{"application": shopDoc("nginx:1.27", 2, ""), "revision": "shop-victim-v1"}, nil)
+			Expect(errorText(res)).To(ContainSubstring("belongs to another Application"))
+			Expect(revisionOf(&v1beta1.ApplicationRevision{ObjectMeta: metav1.ObjectMeta{Name: "shop-v12"}}, "shop")).To(BeTrue(), "the controller's own naming still matches")
+			Expect(revisionOf(&v1beta1.ApplicationRevision{ObjectMeta: metav1.ObjectMeta{Name: "shop-v"}}, "shop")).To(BeFalse())
 		})
 
 		It("reports no change and no rules for an identical document", func() {

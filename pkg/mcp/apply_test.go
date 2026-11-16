@@ -152,6 +152,35 @@ var _ = Describe("apply_application", func() {
 			Expect(app.Annotations).To(HaveKeyWithValue("filter.oam.dev/annotation-keys", "secret.example/x,"+annoRisk+","+annoInitiator+","+annoDiffToken),
 				"the user's filter entries are kept, in order, without duplicates")
 		})
+
+		It("refuses a diff against a revision other than the one running", func() {
+			objs := append(platformFixtures(), shopRunning()...)
+			objs[len(objs)-2].(*v1beta1.Application).Status.LatestRevision = &oamcommon.Revision{Name: "shop-v5", Revision: 5}
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), objs...)
+			doc := shopDoc("nginx:1.27", 2, "")
+			var d DiffOutput
+			res := h.call("diff_application", map[string]any{"application": doc, "revision": "shop-v1"}, &d)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			Expect(d.Base).To(Equal("shop-v1"))
+			res, _ = apply(doc, d.Token, ModeDirect)
+			Expect(errorText(res)).To(ContainSubstring("the running revision is shop-v5"))
+			Expect(prompt.messages).To(BeEmpty(), "the user is never asked about a change computed against another revision")
+			Expect(string(liveApp("shop").Spec.Components[0].Properties.Raw)).To(ContainSubstring("nginx:1.26"))
+			_, out := apply(doc, d.Token, ModeGitOps)
+			Expect(out.YAML).NotTo(BeEmpty(), "gitops mode may keep an explicit revision")
+		})
+
+		It("refuses a diff against a revision when no Application exists", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()[1])...)
+			doc := shopDoc("nginx:1.27", 2, "")
+			var d DiffOutput
+			res := h.call("diff_application", map[string]any{"application": doc, "revision": "shop-v1"}, &d)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			res, _ = apply(doc, d.Token, ModeDirect)
+			Expect(errorText(res)).To(ContainSubstring("does not exist"))
+			Expect(prompt.messages).To(BeEmpty())
+			Expect(liveApp("shop")).To(BeNil())
+		})
 	})
 
 	Context("no-op and metadata-only applies", func() {
@@ -205,7 +234,9 @@ var _ = Describe("apply_application", func() {
 		It("does not add a kubectl record to an Application kubectl never applied", func() {
 			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
 			doc := shopDoc("nginx:1.27", 2, "")
-			apply(doc, diff(doc).Token, ModeDirect)
+			res, out := apply(doc, diff(doc).Token, ModeDirect)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			Expect(out.Applied).To(BeTrue())
 			Expect(liveApp("shop").Annotations).NotTo(HaveKey("kubectl.kubernetes.io/last-applied-configuration"))
 		})
 	})
@@ -262,6 +293,26 @@ var _ = Describe("apply_application", func() {
 			doc = strings.Replace(shopDoc("nginx:1.27", 2, ""), "  annotations:\n", "  annotations:\n    "+agentWriteModeKey+": gitops\n", 1)
 			_, out = apply(doc, diff(doc).Token, ModeDirect)
 			Expect(out.Mode).To(Equal(ModeGitOps), "a loosening label is ignored and the document tightens")
+		})
+
+		It("treats an unrecognised write-mode value as gitops, never as no policy", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), namespace("team-a", map[string]string{agentWriteModeKey: "readonly"}))...)
+			doc := shopDoc("nginx:1.27", 2, "")
+			_, out := apply(doc, diff(doc).Token, ModeDirect)
+			Expect(out.Mode).To(Equal(ModeGitOps))
+			Expect(out.ModeReasons).To(ContainElement(ContainSubstring(`unrecognised value "readonly"`)))
+			Expect(prompt.messages).To(BeEmpty())
+			Expect(liveApp("shop")).To(BeNil())
+			h.close()
+
+			objs := append(platformFixtures(), shopRunning()...)
+			objs[len(objs)-2].(*v1beta1.Application).Annotations = map[string]string{agentWriteModeKey: "git-ops"}
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), objs...)
+			_, out = apply(doc, diff(doc).Token, ModeDirect)
+			Expect(out.Mode).To(Equal(ModeGitOps))
+			Expect(out.ModeReasons).To(ContainElement(ContainSubstring(`unrecognised value "git-ops"`)))
+			Expect(prompt.messages).To(BeEmpty())
+			Expect(string(liveApp("shop").Spec.Components[0].Properties.Raw)).To(ContainSubstring("nginx:1.26"))
 		})
 
 		It("refuses to start with a production namespace on the direct allowlist", func() {
@@ -411,6 +462,45 @@ spec:
 			res, _ := apply(doc, d.Token, ModeDirect)
 			Expect(errorText(res)).To(ContainSubstring("namespace shared"))
 			Expect(prompt.messages).To(BeEmpty())
+		})
+
+		// renderingDef is a component definition whose output is the given
+		// CUE object, for specs about where rendered objects land.
+		renderingDef := func(name, output string) *v1beta1.ComponentDefinition {
+			return &v1beta1.ComponentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: types.DefaultKubeVelaNS},
+				Spec:       v1beta1.ComponentDefinitionSpec{Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: "output: " + output + "\nparameter: {}\n"}}},
+			}
+		}
+		appOf := func(componentType string) string {
+			return "apiVersion: core.oam.dev/v1beta1\nkind: Application\nmetadata: {name: cfg, namespace: team-a}\nspec:\n  components:\n  - {name: cfg, type: " + componentType + "}\n"
+		}
+
+		It("refuses direct when a rendered namespace is not on the direct allowlist, even on an unrestricted server", func() {
+			// DirectNamespaces are the only namespaces where direct mode may
+			// write, which covers every namespace the render writes into, not
+			// only the Application's own.
+			def := renderingDef("payments-config", `{apiVersion: "v1", kind: "ConfigMap", metadata: {name: context.name, namespace: "payments"}, data: a: "b"}`)
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), def)...)
+			doc := appOf("payments-config")
+			d := diff(doc)
+			Expect(d.Risk.Class).NotTo(Equal(RiskHigh))
+			res, _ := apply(doc, d.Token, ModeDirect)
+			Expect(errorText(res)).To(ContainSubstring("namespace payments, which is not on this server's direct allowlist"))
+			Expect(prompt.messages).To(BeEmpty())
+			Expect(liveApp("cfg")).To(BeNil())
+		})
+
+		It("refuses direct when the Application renders a cluster-scoped object", func() {
+			def := renderingDef("priority", `{apiVersion: "scheduling.k8s.io/v1", kind: "PriorityClass", metadata: name: context.name, value: 1000}`)
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), def)...)
+			doc := appOf("priority")
+			d := diff(doc)
+			Expect(d.Risk.Class).NotTo(Equal(RiskHigh))
+			res, _ := apply(doc, d.Token, ModeDirect)
+			Expect(errorText(res)).To(ContainSubstring("cluster-scoped PriorityClass cfg"))
+			Expect(prompt.messages).To(BeEmpty())
+			Expect(liveApp("cfg")).To(BeNil())
 		})
 
 		It("refuses direct on a restricted server when the workflow runs steps the diff cannot see into", func() {

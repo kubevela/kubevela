@@ -130,6 +130,8 @@ type rendered struct {
 	policies        []RenderedPolicy
 	// duplicates lists identities two rendered objects shared.
 	duplicates []string
+	// cli resolves whether a kind is namespaced. Nil uses clusterScopedKind.
+	cli client.Client
 }
 
 func (d *deps) dryRunApplication(ctx context.Context, _ *sdk.CallToolRequest, in DryRunInput) (*sdk.CallToolResult, DryRunOutput, error) {
@@ -321,7 +323,7 @@ func (d *deps) render(ctx context.Context, app *v1beta1.Application, defs []*uns
 	if err != nil {
 		return nil, fmt.Errorf("render %s/%s: %w", app.Namespace, app.Name, err)
 	}
-	r := &rendered{app: app, objects: map[string]*unstructured.Unstructured{}, resources: []RenderedResource{}, policies: []RenderedPolicy{}}
+	r := &rendered{app: app, objects: map[string]*unstructured.Unstructured{}, resources: []RenderedResource{}, policies: []RenderedPolicy{}, cli: cli}
 	for _, comp := range comps {
 		if comp.ComponentOutput != nil {
 			r.add(comp.Name, "output", app.Namespace, comp.ComponentOutput)
@@ -352,10 +354,16 @@ func (r *rendered) add(component, source, defaultNS string, obj *unstructured.Un
 	r.resources = append(r.resources, r.keep(component, source, defaultNS, obj))
 }
 
-// keep records an object for comparison and returns its listing.
+// keep records an object for comparison and returns its listing. A
+// cluster-scoped object is recorded without a namespace, whatever the
+// render stamped on it, as the API server stores it.
 func (r *rendered) keep(owner, source, defaultNS string, obj *unstructured.Unstructured) RenderedResource {
 	ns := obj.GetNamespace()
-	if ns == "" && !clusterScopedKind(obj.GetKind()) {
+	switch {
+	case !r.namespaced(obj):
+		ns = ""
+		obj.SetNamespace("")
+	case ns == "":
 		ns = defaultNS
 	}
 	key := resourceKey(obj.GetAPIVersion(), obj.GetKind(), ns, obj.GetName())
@@ -385,8 +393,21 @@ func resourceKey(apiVersion, kind, ns, name string) string {
 	return group + "/" + kind + "/" + ns + "/" + name
 }
 
+// namespaced reports the object's scope from the cluster's REST mapping,
+// and from clusterScopedKind only when the mapping is unknown, such as for
+// a kind whose CRD is not installed yet.
+func (r *rendered) namespaced(obj *unstructured.Unstructured) bool {
+	if r.cli != nil {
+		if namespaced, err := r.cli.IsObjectNamespaced(obj); err == nil {
+			return namespaced
+		}
+	}
+	return !clusterScopedKind(obj.GetKind())
+}
+
 // clusterScopedKind covers the kinds definitions commonly emit without a
-// namespace. Anything else without one is assumed namespaced.
+// namespace, for when the cluster cannot say. Anything else is assumed
+// namespaced.
 func clusterScopedKind(kind string) bool {
 	switch kind {
 	case "Namespace", "ClusterRole", "ClusterRoleBinding", "PersistentVolume", "StorageClass", "CustomResourceDefinition", "PriorityClass", "ClusterIssuer":

@@ -160,10 +160,19 @@ func (d *deps) applyApplication(ctx context.Context, req *sdk.CallToolRequest, i
 	if rec.localDefinitions > 0 {
 		return nil, out, fmt.Errorf("this diff used %d local definitions, which the token does not bind, so its risk class cannot vouch for a direct write; nothing was applied. Use mode gitops, or apply the definitions to the cluster and diff again", rec.localDefinitions)
 	}
+	if err := directBase(app, live, rec); err != nil {
+		return nil, out, err
+	}
 	for _, ns := range rec.targetNamespaces {
 		if err := d.namespaceAllowed(ns); err != nil {
 			return nil, out, fmt.Errorf("the Application renders objects into namespace %s, which this server may not write; nothing was applied", ns)
 		}
+		if !d.directAllowed(ns) {
+			return nil, out, fmt.Errorf("the Application renders objects into namespace %s, which is not on this server's direct allowlist; nothing was applied. Use mode gitops", ns)
+		}
+	}
+	if len(rec.clusterScoped) > 0 {
+		return nil, out, fmt.Errorf("the Application renders cluster-scoped %s, which belong to no namespace, so the direct allowlist cannot cover them; nothing was applied. Use mode gitops", strings.Join(rec.clusterScoped, ", "))
 	}
 	if len(d.opts.Namespaces) > 0 && len(rec.opaqueSteps) > 0 {
 		return nil, out, fmt.Errorf("the workflow runs %s, whose writes the diff cannot see, and this server restricts namespaces, so it cannot vouch that they stay inside them; nothing was applied. Use mode gitops", strings.Join(rec.opaqueSteps, ", "))
@@ -209,6 +218,23 @@ func (d *deps) applyApplication(ctx context.Context, req *sdk.CallToolRequest, i
 	out.Evidence = append(out.Evidence, fmt.Sprintf("Application %s/%s written as %s, resourceVersion %s", app.Namespace, app.Name, initiator, written.ResourceVersion))
 	out.Next = "Poll get_application until the workflow finishes, then report health and endpoints."
 	return nil, out, nil
+}
+
+// directBase refuses a direct write whose diff was not computed against
+// what runs. The confirmation shows the change from the token's base, so a
+// base other than the live Application's latest revision, or any revision
+// when no Application exists, would write changes the user never saw.
+func directBase(app, live *v1beta1.Application, rec diffRecord) error {
+	if live == nil {
+		if rec.base != baseNew {
+			return fmt.Errorf("the diff compared against %s, but Application %s/%s does not exist, so a direct write would create all of it without showing it; nothing was applied. Call diff_application without a revision, or use mode gitops", rec.base, app.Namespace, app.Name)
+		}
+		return nil
+	}
+	if want := liveBaseName(live); rec.base != want {
+		return fmt.Errorf("the diff compared against %s, but the running revision is %s, so a direct write would also undo changes the diff did not show; nothing was applied. Call diff_application without a revision, or use mode gitops", rec.base, want)
+	}
+	return nil
 }
 
 // confirmInputKey names the confirmation in the input request map.
@@ -358,7 +384,16 @@ func (d *deps) decideMode(requested, namespace, nsMode, liveMode, docMode, risk 
 	}
 	var reasons []string
 	tighten := func(to, why string) {
-		if _, ok := modeRank[to]; !ok || modeRank[to] <= modeRank[mode] {
+		if to == "" {
+			return
+		}
+		if _, ok := modeRank[to]; !ok {
+			// The owner set a value meant to restrict; a typo must not
+			// leave the mode looser than any value they could have meant.
+			why = fmt.Sprintf("%s, an unrecognised value %q, which is read as %s", why, to, ModeGitOps)
+			to = ModeGitOps
+		}
+		if modeRank[to] <= modeRank[mode] {
 			return
 		}
 		reasons = append(reasons, fmt.Sprintf("%s to %s: %s", mode, to, why))

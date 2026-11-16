@@ -101,6 +101,10 @@ type diffRecord struct {
 	localDefinitions int
 	// targetNamespaces are the namespaces the target render writes into.
 	targetNamespaces []string
+	// clusterScoped names the cluster-scoped objects the target render
+	// writes, as "Kind name". They belong to no namespace, so no namespace
+	// allowlist covers them.
+	clusterScoped []string
 	// opaqueSteps are workflow step types whose writes the render does not
 	// show, such as apply-object or webhook steps.
 	opaqueSteps []string
@@ -213,7 +217,7 @@ func (d *deps) diffApplication(ctx context.Context, _ *sdk.CallToolRequest, in D
 
 	out.ChangeSet = buildChangeSet(base, target)
 	out.Risk = classify(out.ChangeSet)
-	out.Token, out.ExpiresAt = d.issueToken(app, in.Application, baseName, live, out.ChangeSet, out.Risk, len(defs), renderedNamespaces(target))
+	out.Token, out.ExpiresAt = d.issueToken(app, in.Application, baseName, live, out.ChangeSet, out.Risk, len(defs), target)
 	warnings := out.Meta.Warnings
 	out.Meta = d.meta(ctx)
 	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
@@ -244,7 +248,7 @@ func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.App
 		case live.Status.LatestRevision == nil:
 			// Exists but was never rendered: compare with its current spec so
 			// the reader sees what changes relative to what was submitted.
-			return live, "spec of " + live.Name + " (no revision yet)", nil, live, nil
+			return live, liveBaseName(live), nil, live, nil
 		}
 		revision = live.Status.LatestRevision.Name
 	}
@@ -260,6 +264,16 @@ func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.App
 		return nil, "", nil, nil, fmt.Errorf("read definitions recorded in ApplicationRevision %s/%s: %w", app.Namespace, revision, err)
 	}
 	return baseFromRevision(rev, app), rev.Name, defs, live, nil
+}
+
+// liveBaseName is the base a diff without an explicit revision uses for
+// a live Application: its latest revision, or its current spec when it has
+// none yet.
+func liveBaseName(live *v1beta1.Application) string {
+	if live.Status.LatestRevision == nil {
+		return "spec of " + live.Name + " (no revision yet)"
+	}
+	return live.Status.LatestRevision.Name
 }
 
 // renderedSteps are the workflow step types whose effects the dry-run
@@ -303,13 +317,37 @@ func renderedNamespaces(r *rendered) []string {
 	return out
 }
 
+// clusterScopedObjects lists the objects a render writes that carry no
+// namespace, as "Kind name".
+func clusterScopedObjects(r *rendered) []string {
+	var out []string
+	for _, rr := range append(append([]RenderedResource{}, r.resources...), r.policyResources...) {
+		if rr.Namespace == "" {
+			out = append(out, rr.Kind+" "+rr.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // revisionOf reports whether a revision records the named Application: by
 // the label the controller sets, else by the <name>-v<N> naming it uses.
+// N must be all digits, so the revision of an Application whose name only
+// starts with this one, such as <name>-victim-v1, does not match.
 func revisionOf(rev *v1beta1.ApplicationRevision, name string) bool {
 	if owner, ok := rev.Labels[oam.LabelAppName]; ok {
 		return owner == name
 	}
-	return strings.HasPrefix(rev.Name, name+"-v")
+	n, ok := strings.CutPrefix(rev.Name, name+"-v")
+	if !ok || n == "" {
+		return false
+	}
+	for _, c := range n {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // revisionDefinitions returns the definition snapshots a revision recorded,
@@ -408,7 +446,7 @@ func baseFromRevision(rev *v1beta1.ApplicationRevision, target *v1beta1.Applicat
 // object's resourceVersion and the exact submitted document. The document is
 // hashed as bytes, so an edit after the diff, however small, invalidates the
 // token, and so does any change to the live Application.
-func (d *deps) issueToken(app *v1beta1.Application, document, base string, live *v1beta1.Application, cs ChangeSet, risk Risk, localDefs int, namespaces []string) (string, time.Time) {
+func (d *deps) issueToken(app *v1beta1.Application, document, base string, live *v1beta1.Application, cs ChangeSet, risk Risk, localDefs int, target *rendered) (string, time.Time) {
 	specHash := sha256.Sum256([]byte(document))
 	liveRV, liveUID := "", ""
 	if live != nil {
@@ -438,7 +476,8 @@ func (d *deps) issueToken(app *v1beta1.Application, document, base string, live 
 		createdAt:  time.Now(),
 
 		localDefinitions: localDefs,
-		targetNamespaces: namespaces,
+		targetNamespaces: renderedNamespaces(target),
+		clusterScoped:    clusterScopedObjects(target),
 		opaqueSteps:      opaqueSteps(app),
 	}
 	if live != nil {
