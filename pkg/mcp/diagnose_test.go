@@ -561,6 +561,8 @@ var _ = Describe("diagnose_application", func() {
 		Expect(providerOf("apps/v1")).To(Equal(providerKubernetes))
 		Expect(providerOf("v1")).To(Equal(providerKubernetes))
 		Expect(providerOf("networking.k8s.io/v1")).To(Equal(providerKubernetes))
+		Expect(providerOf("internal.apiserver.k8s.io/v1alpha1")).To(Equal(providerKubernetes))
+		Expect(providerOf("lifecycle.k8s.io/v1alpha1")).To(Equal(providerKubernetes))
 		Expect(providerOf("gateway.networking.k8s.io/v1")).To(Equal(providerStandardConditions))
 		Expect(providerOf("cert-manager.io/v1")).To(Equal(providerStandardConditions))
 		Expect(providerOf("cilium.io/v2")).To(Equal(providerStandardConditions))

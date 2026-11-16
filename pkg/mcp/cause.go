@@ -205,13 +205,17 @@ func causeSources(diag *ResourceDiagnosis) []causeSource {
 			add(c, "message", c.Message)
 		}
 	case providerStandardConditions:
-		// the Ready reason and message while not True, else the newest
-		// condition that is False and carries a message
+		// the Ready reason and message while not True, then, when Ready
+		// carried no message, the newest condition that is False and
+		// carries one: a Ready reason alone (Failed) is read first but is
+		// too thin to hide the sibling that holds the error
+		readyMessage := false
 		if c := conditionOf(diag.Conditions, "Ready"); c != nil && c.Status != string(corev1.ConditionTrue) {
 			add(c, "reason", c.Reason)
 			add(c, "message", c.Message)
+			readyMessage = strings.TrimSpace(c.Message) != ""
 		}
-		if len(out) == 0 {
+		if !readyMessage {
 			if c := newestFalseWithMessage(diag.Conditions); c != nil {
 				add(c, "reason", c.Reason)
 				add(c, "message", c.Message)

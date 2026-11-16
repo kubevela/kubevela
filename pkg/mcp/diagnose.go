@@ -54,19 +54,21 @@ const (
 	providerKubernetes         = "kubernetes"
 )
 
-// builtinGroups are the API groups the Kubernetes API server itself serves.
-// Resources in them are plain Kubernetes resources, settled from the
-// resource tree; any other group is a custom resource some controller
+// builtinGroups are the API groups the Kubernetes API server itself serves,
+// the GroupName of every k8s.io/api package plus the aggregation and CRD
+// groups. Resources in them are plain Kubernetes resources, settled from
+// the resource tree; any other group is a custom resource some controller
 // reconciles. Gateway API's gateway.networking.k8s.io is served by CRDs and
 // is deliberately absent.
 var builtinGroups = map[string]bool{
 	"": true, "apps": true, "batch": true, "autoscaling": true, "policy": true,
-	"admissionregistration.k8s.io": true, "apiextensions.k8s.io": true, "apiregistration.k8s.io": true,
-	"authentication.k8s.io": true, "authorization.k8s.io": true, "certificates.k8s.io": true,
-	"coordination.k8s.io": true, "discovery.k8s.io": true, "events.k8s.io": true,
-	"flowcontrol.apiserver.k8s.io": true, "networking.k8s.io": true, "node.k8s.io": true,
-	"rbac.authorization.k8s.io": true, "resource.k8s.io": true, "scheduling.k8s.io": true,
-	"storage.k8s.io": true, "storagemigration.k8s.io": true,
+	"admissionregistration.k8s.io": true, "apidiscovery.k8s.io": true, "apiextensions.k8s.io": true,
+	"apiregistration.k8s.io": true, "authentication.k8s.io": true, "authorization.k8s.io": true,
+	"certificates.k8s.io": true, "coordination.k8s.io": true, "discovery.k8s.io": true,
+	"events.k8s.io": true, "flowcontrol.apiserver.k8s.io": true, "imagepolicy.k8s.io": true,
+	"internal.apiserver.k8s.io": true, "lifecycle.k8s.io": true, "networking.k8s.io": true,
+	"node.k8s.io": true, "rbac.authorization.k8s.io": true, "resource.k8s.io": true,
+	"scheduling.k8s.io": true, "storage.k8s.io": true, "storagemigration.k8s.io": true,
 }
 
 var (

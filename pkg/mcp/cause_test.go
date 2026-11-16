@@ -170,6 +170,24 @@ var _ = Describe("classifyCause", func() {
 			Expect(*c.Since).To(Equal(newer))
 		})
 
+		It("reads past a Ready reason that carries no message to the sibling that holds the error", func() {
+			c := classifyCause(std(
+				ResourceCondition{Type: "Ready", Status: "False", Reason: "Failed"},
+				ResourceCondition{Type: "Issuing", Status: "False", Reason: "Failed", Message: "Failed to create Order: 429 urn:ietf:params:acme:error:rateLimited: too many certificates already issued"},
+			))
+			Expect(c.Class).To(Equal(causeThrottled))
+			Expect(c.Evidence).To(HavePrefix("Issuing message: "))
+		})
+
+		It("lets a Ready reason that classifies win over the sibling's message", func() {
+			c := classifyCause(std(
+				ResourceCondition{Type: "Ready", Status: "False", Reason: "BackendNotFound"},
+				ResourceCondition{Type: "ResolvedRefs", Status: "False", Reason: "RefNotPermitted", Message: "AccessDenied: cross-namespace reference"},
+			))
+			Expect(c.Class).To(Equal(causeDependencyMissing))
+			Expect(c.Evidence).To(HavePrefix("Ready reason: BackendNotFound"))
+		})
+
 		It("falls back to the newest False condition when Ready is not True but carries no text", func() {
 			c := classifyCause(std(
 				ResourceCondition{Type: "Ready", Status: "False"},
