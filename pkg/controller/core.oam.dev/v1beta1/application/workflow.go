@@ -81,6 +81,8 @@ func (r *Reconciler) handleWorkflowRestartAnnotation(ctx context.Context, app *v
 			klog.Errorf("Failed to update workflow restart status for Application %s/%s: %v. Will retry on next reconcile.",
 				app.Namespace, app.Name, err)
 			// Don't fail reconciliation - will retry naturally on next reconcile
+		} else {
+			statusWritten(ctx, app)
 		}
 	}
 
@@ -128,6 +130,8 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 			app.Status.WorkflowRestartScheduledAt = nil
 			if err := r.Status().Update(ctx, app); err != nil {
 				ctx.Error(err, "failed to clear a superseded workflow restart")
+			} else {
+				statusWritten(ctx, app)
 			}
 			return
 		}
@@ -139,6 +143,7 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 			ctx.Error(err, "failed to clear workflow restart scheduled time")
 			return
 		}
+		statusWritten(ctx, app)
 		if app.Status.Workflow != nil {
 			if handler.latestAppRev != nil && handler.latestAppRev.Status.Workflow == nil {
 				app.Status.Workflow.Terminated = true

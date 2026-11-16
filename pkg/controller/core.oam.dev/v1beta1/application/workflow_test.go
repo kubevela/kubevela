@@ -1148,7 +1148,7 @@ var _ = Describe("Test workflow restart annotation functionality", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 
-	It("should store -1 in StepStatusCache when status write fails", func() {
+	It("keeps the step guard when a status write fails", func() {
 		app := &oamcore.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "status-fail-app",
@@ -1163,6 +1163,9 @@ var _ = Describe("Test workflow restart annotation functionality", func() {
 			},
 		}
 		Expect(reconciler.Client.Create(ctx, app)).Should(Succeed())
+		cacheKey := fmt.Sprintf("%s-%s", app.Name, app.Namespace)
+		// The run recorded two steps; a lost write must not let a stale read run them again.
+		executor.StepStatusCache.Put(cacheKey, 2, time.Minute)
 
 		Expect(reconciler.Client.Delete(ctx, app)).Should(Succeed())
 
@@ -1171,10 +1174,9 @@ var _ = Describe("Test workflow restart annotation functionality", func() {
 			return err != nil
 		}, 10*time.Second, time.Second).Should(BeTrue())
 
-		cacheKey := fmt.Sprintf("%s-%s", app.Name, app.Namespace)
 		val, ok := executor.StepStatusCache.Get(cacheKey)
 		Expect(ok).Should(BeTrue())
-		Expect(val).Should(Equal(-1))
+		Expect(val).Should(Equal(2))
 	})
 
 	It("Test workflow restart ignored when workflow not finished", func() {
