@@ -126,11 +126,33 @@ jobs:
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
           fetch-depth: 0
+      # Same sign-off committer as back-port.yml; the DCO check needs it to match.
+      - name: Committer from sign-off
+        id: committer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.issue.number }}
+        run: |
+          sha=$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json mergeCommit --jq '.mergeCommit.oid // empty')
+          re='^([^<>]+) <([^<>[:space:]]+@[^<>[:space:]]+)>[[:space:]]*$'
+          line=""
+          if [[ -n "$sha" ]]; then
+            # The step runs under -eo pipefail; no valid sign-off means the fallback, not a failure.
+            line=$(git log -1 --format=%B "$sha" | sed -n 's/^Signed-off-by: //p' | grep -E -m1 "$re" || true)
+          fi
+          if [[ "$line" =~ $re ]]; then
+            echo "name=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+            echo "email=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No usable Signed-off-by on the merged commit; committing as github-actions[bot]"
+          fi
       - name: Open Backport PR
-        uses: zeebe-io/backport-action@0193454f0c5947491d348f33a275c119f30eb736
+        uses: korthout/backport-action@8560fb503c275d433c56f05a2f64850093baa9f7 # v4.7.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           github_workspace: ${{ github.workspace }}
+          git_committer_name: ${{ steps.committer.outputs.name || 'github-actions[bot]' }}
+          git_committer_email: ${{ steps.committer.outputs.email || '41898282+github-actions[bot]@users.noreply.github.com' }}
 
   retest:
     runs-on: ubuntu-22.04
