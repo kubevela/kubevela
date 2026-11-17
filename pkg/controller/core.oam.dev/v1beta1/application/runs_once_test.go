@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	ctrlEvent "sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -293,6 +294,23 @@ func TestStatusWriteIsNotRetriedOntoAnotherApplication(t *testing.T) {
 	require.NoError(t, base.Get(context.Background(), client.ObjectKeyFromObject(app), got))
 	require.Equal(t, types.UID("new-uid"), got.UID)
 	require.Nil(t, got.Status.Workflow, "the new Application's status is not the old one's")
+}
+
+// vela workflow rollback freezes the Application, restores an earlier spec and releases it. A
+// reconcile cut short by the freeze can leave the phase at rendering, and the release only changes
+// an annotation, so the release must still be reconciled or the Application waits for the resync.
+func TestReleasingAFrozenApplicationIsReconciled(t *testing.T) {
+	frozen := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "busybox", Namespace: "default", Generation: 4},
+		Status: common.AppStatus{Phase: common.ApplicationRendering}}
+	oam.SetControllerRequirement(frozen, "Disabled")
+	released := frozen.DeepCopy()
+	oam.SetControllerRequirement(released, "")
+	require.True(t, applicationUpdateNeedsReconcile(ctrlEvent.UpdateEvent{ObjectOld: frozen, ObjectNew: released}))
+
+	statusOnly := frozen.DeepCopy()
+	statusOnly.Status.Services = []common.ApplicationComponentStatus{{Name: "busybox"}}
+	require.False(t, applicationUpdateNeedsReconcile(ctrlEvent.UpdateEvent{ObjectOld: frozen, ObjectNew: statusOnly}),
+		"a status change while rendering is still left to the reconcile that made it")
 }
 
 // A status write that fails for a reason other than a conflict sets the step guard back to the
