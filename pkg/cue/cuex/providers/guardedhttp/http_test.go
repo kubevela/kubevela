@@ -103,4 +103,26 @@ var _ = Describe("guarded vela/http", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(body).To(Equal("ok"))
 	})
+
+	It("sends the request headers the template sets", func() {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(r.Header.Get("X-Token") + "," + r.Header.Get("Content-Type")))
+		}))
+		DeferCleanup(server.Close)
+
+		src := fmt.Sprintf(`
+import "vela/http"
+
+r: http.#Do & {$params: {
+	method: "POST"
+	url:    %q
+	request: header: {"X-Token": "abc", "Content-Type": "application/json"}
+}}
+`, server.URL)
+		v, err := cuex.NewCompilerWithInternalPackages(Package).CompileString(context.Background(), src)
+		Expect(err).NotTo(HaveOccurred())
+		body, err := v.LookupPath(cue.ParsePath("r.$returns.body")).String()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(body).To(Equal("abc,application/json"))
+	})
 })
