@@ -23,16 +23,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SHA: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
         run: |
-          # The commit-to-PR association can lag the push by a few seconds.
+          # The commit-to-PR association can lag the push by a few seconds. Matching the base
+          # branch keeps a new release branch, pushed at an already-merged commit, from
+          # backporting that PR again.
           for attempt in 1 2 3; do
             pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
-              --jq "[.[] | select(.merge_commit_sha == \"$SHA\")][0] // empty")
+              --jq "[.[] | select(.merge_commit_sha == \"$SHA\" and .base.ref == \"$BRANCH\")][0] // empty")
             [[ -n "$pr" ]] && break
-            sleep $((attempt * 5))
+            if (( attempt < 3 )); then sleep $((attempt * 5)); fi
           done
           if [[ -z "$pr" ]]; then
-            echo "No pull request merged as $SHA; nothing to backport"
+            echo "No pull request merged into $BRANCH as $SHA; nothing to backport"
             exit 0
           fi
           number=$(jq -r .number <<<"$pr")
