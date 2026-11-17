@@ -1236,51 +1236,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.Funcs{
 			// filter the changes in workflow status
 			// let workflow handle its reconcile
-			UpdateFunc: func(e ctrlEvent.UpdateEvent) bool {
-				newApp, isNewApp := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
-				old, isOldApp := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
-				if !isNewApp || !isOldApp {
-					return filterManagedFieldChangesUpdate(e)
-				}
-
-				// We think this event is triggered by resync
-				if reflect.DeepEqual(old, newApp) {
-					return true
-				}
-
-				// filter managedFields changes
-				old.ManagedFields = nil
-				newApp.ManagedFields = nil
-
-				// if the generation is changed, return true to let the controller handle it
-				if old.Generation != newApp.Generation {
-					return true
-				}
-
-				// filter the events triggered by initial application status
-				if newApp.Status.Phase == common.ApplicationRendering || (old.Status.Phase == common.ApplicationRendering && newApp.Status.Phase == common.ApplicationRunningWorkflow) {
-					return false
-				}
-
-				// ignore the changes in workflow status
-				if old.Status.Workflow != nil && newApp.Status.Workflow != nil {
-					// only workflow execution will change the status.workflow
-					// let workflow backoff to requeue the event
-					newApp.Status.Workflow.Steps = old.Status.Workflow.Steps
-					newApp.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
-					newApp.Status.Workflow.Message = old.Status.Workflow.Message
-					newApp.Status.Workflow.EndTime = old.Status.Workflow.EndTime
-				}
-
-				// appliedResources and Services will be changed during the execution of workflow
-				// once the resources is added, the managed fields will also be changed
-				newApp.Status.AppliedResources = old.Status.AppliedResources
-				newApp.Status.Services = old.Status.Services
-				// the resource version will be changed if the object is changed
-				// ignore this change and let reflect.DeepEqual to compare the rest of the object
-				newApp.ResourceVersion = old.ResourceVersion
-				return !reflect.DeepEqual(old, newApp)
-			},
+			UpdateFunc: applicationUpdateNeedsReconcile,
 			CreateFunc: func(e ctrlEvent.CreateEvent) bool {
 				return true
 			},
@@ -1291,6 +1247,59 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&v1beta1.PolicyDefinition{}, r.policyDefinitionEventHandler()).
 		For(&v1beta1.Application{}).
 		Complete(r)
+}
+
+// applicationUpdateNeedsReconcile filters Application update events: workflow status changes are
+// left to the workflow's own requeue, and a spec or controller-requirement change always passes.
+func applicationUpdateNeedsReconcile(e ctrlEvent.UpdateEvent) bool {
+	newApp, isNewApp := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
+	old, isOldApp := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
+	if !isNewApp || !isOldApp {
+		return filterManagedFieldChangesUpdate(e)
+	}
+
+	// We think this event is triggered by resync
+	if reflect.DeepEqual(old, newApp) {
+		return true
+	}
+
+	// filter managedFields changes
+	old.ManagedFields = nil
+	newApp.ManagedFields = nil
+
+	// if the generation is changed, return true to let the controller handle it
+	if old.Generation != newApp.Generation {
+		return true
+	}
+
+	// a frozen Application being released (vela workflow rollback) reconciles whatever its phase
+	if oam.GetControllerRequirement(old) != oam.GetControllerRequirement(newApp) {
+		return true
+	}
+
+	// filter the events triggered by initial application status
+	if newApp.Status.Phase == common.ApplicationRendering || (old.Status.Phase == common.ApplicationRendering && newApp.Status.Phase == common.ApplicationRunningWorkflow) {
+		return false
+	}
+
+	// ignore the changes in workflow status
+	if old.Status.Workflow != nil && newApp.Status.Workflow != nil {
+		// only workflow execution will change the status.workflow
+		// let workflow backoff to requeue the event
+		newApp.Status.Workflow.Steps = old.Status.Workflow.Steps
+		newApp.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
+		newApp.Status.Workflow.Message = old.Status.Workflow.Message
+		newApp.Status.Workflow.EndTime = old.Status.Workflow.EndTime
+	}
+
+	// appliedResources and Services will be changed during the execution of workflow
+	// once the resources is added, the managed fields will also be changed
+	newApp.Status.AppliedResources = old.Status.AppliedResources
+	newApp.Status.Services = old.Status.Services
+	// the resource version will be changed if the object is changed
+	// ignore this change and let reflect.DeepEqual to compare the rest of the object
+	newApp.ResourceVersion = old.ResourceVersion
+	return !reflect.DeepEqual(old, newApp)
 }
 
 // Setup adds a controller that reconciles App.
