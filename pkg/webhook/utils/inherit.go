@@ -43,31 +43,38 @@ func ValidateInheritedTemplate(ctx context.Context, name, template string, ances
 	chain = append(chain, inherit.Level{Name: name, Template: template})
 	chain = append(chain, ancestors...)
 
-	if err := validateOwnTemplate(ctx, name, template); err != nil {
+	own, err := validateOwnTemplate(ctx, name, template)
+	if err != nil {
+		return nil, err
+	}
+	// Refused here rather than left to the first Application that renders it,
+	// so the author of the child hears about it when writing the child.
+	if err := inherit.CheckFinal(name, chain[0], own, ancestors, surface); err != nil {
 		return nil, err
 	}
 	return inherit.CheckCall(ctx, chain, surface, admissionCompiler, alsoRead...)
 }
 
 // validateOwnTemplate checks the child's own CUE, which the call check does
-// not: that judges only the `$super` block against the parent.
+// not: that judges only the `$super` block against the parent. It returns the
+// compiled value, which holds what the child writes itself.
 //
 // The chain is not resolved here, so `$super` is left open. What it holds is the
 // call check's business.
-func validateOwnTemplate(ctx context.Context, name, template string) error {
+func validateOwnTemplate(ctx context.Context, name, template string) (cue.Value, error) {
 	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(
 		ctx, openTemplate(template)+"\n"+inherit.SuperField+": _\n",
 		cuex.DisableResolveProviderFunctions{})
 	if err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return cue.Value{}, fmt.Errorf("%s: %w", name, err)
 	}
 	if err := val.Err(); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return cue.Value{}, fmt.Errorf("%s: %w", name, err)
 	}
 	if err := val.Validate(); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return cue.Value{}, fmt.Errorf("%s: %w", name, err)
 	}
-	return nil
+	return val, nil
 }
 
 // StatusSources returns the CUE a definition carries outside its template.

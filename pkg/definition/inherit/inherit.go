@@ -149,6 +149,12 @@ func renderFrom(ctx context.Context, chain []Level, paramFile, contextFile strin
 			s.Kind, at, parents[0].Name, parents[0].Name)
 	}
 
+	// What the level wrote itself, before the parent's results arrive, is what a
+	// +final marker above it is judged against.
+	if err := CheckFinal(at, self, staged, parents, s); err != nil {
+		return nil, err
+	}
+
 	reads := superReads(self.Template)
 
 	superParams := staged.LookupPath(propertiesPath())

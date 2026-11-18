@@ -16,6 +16,12 @@ limitations under the License.
 
 package defkit
 
+import (
+	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
+)
+
 // ResourceOp represents an operation recorded during resource building.
 type ResourceOp interface {
 	resourceOp()
@@ -237,6 +243,12 @@ func (r *Resource) Directive(path string, directive string) *Resource {
 		r.ops = append(r.ops, op)
 	}
 	return r
+}
+
+// Final marks a field of the resource +final: a definition that extends this
+// one may not add anything to the field or below it.
+func (r *Resource) Final(path string) *Resource {
+	return r.Directive(path, strings.TrimPrefix(inherit.FinalTag, "+"))
 }
 
 // DirectiveOp records a CUE directive annotation on a field path.
