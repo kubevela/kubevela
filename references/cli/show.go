@@ -223,6 +223,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		return err
 	}
 	ref := &docgen.MarkdownReference{
+		Compiler: providers.DefaultCompiler.Get(),
 		ParseReference: docgen.ParseReference{
 			Client: cli,
 			I18N:   &docgen.En,
@@ -290,7 +291,7 @@ func launch(server *http.Server, errChan chan<- error) {
 
 func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	sideBar := filepath.Join(docsPath, SideBar)
-	components, traits, workflowSteps, policies := getDefinitions(capabilities)
+	components, traits, workflowSteps, policies, sources := getDefinitions(capabilities)
 	f, err := os.Create(sideBar) // nolint
 	if err != nil {
 		return err
@@ -326,6 +327,15 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	}
 	for _, t := range policies {
 		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypePolicy, t); err != nil {
+			return err
+		}
+	}
+
+	if _, err := f.WriteString("- Sources\n"); err != nil {
+		return err
+	}
+	for _, t := range sources {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypeSource, t); err != nil {
 			return err
 		}
 	}
@@ -400,7 +410,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 
-	workloads, traits, workflowSteps, policies := getDefinitions(capabilities)
+	workloads, traits, workflowSteps, policies, sources := getDefinitions(capabilities)
 
 	if _, err := f.WriteString("## Component Types\n"); err != nil {
 		return err
@@ -439,11 +449,20 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 		}
 	}
 
+	if _, err := f.WriteString("## Sources\n"); err != nil {
+		return err
+	}
+	for _, t := range sources {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypeSource, t); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func getDefinitions(capabilities []types.Capability) ([]string, []string, []string, []string) {
-	var components, traits, workflowSteps, policies []string
+func getDefinitions(capabilities []types.Capability) ([]string, []string, []string, []string, []string) {
+	var components, traits, workflowSteps, policies, sources []string
 	for _, c := range capabilities {
 		switch c.Type {
 		case types.TypeComponentDefinition:
@@ -454,11 +473,13 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 			workflowSteps = append(workflowSteps, c.Name)
 		case types.TypePolicy:
 			policies = append(policies, c.Name)
+		case types.TypeSource:
+			sources = append(sources, c.Name)
 		case types.TypeWorkload:
 		default:
 		}
 	}
-	return components, traits, workflowSteps, policies
+	return components, traits, workflowSteps, policies, sources
 }
 
 // ShowReferenceConsole will show capability reference in console
@@ -486,7 +507,7 @@ func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil
 	if err != nil {
 		return err
 	}
-	ref := &docgen.MarkdownReference{}
+	ref := &docgen.MarkdownReference{Compiler: providers.DefaultCompiler.Get()}
 	parseRef, err := genRefParser(capabilityNameOrPath, ns, location, i18nPath, rev)
 	if err != nil {
 		return err

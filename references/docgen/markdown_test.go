@@ -158,6 +158,19 @@ variable "acl" {
 			},
 			want: nil,
 		},
+		"SourceCapability": {
+			reason: "source capability",
+			ref:    ref,
+			capabilities: []types.Capability{
+				{
+					Name:        "get-random",
+					Type:        types.TypeSource,
+					CueTemplate: sampleSourceTemplate,
+					Category:    types.CUECategory,
+				},
+			},
+			want: nil,
+		},
 	}
 
 	for name, tc := range cases {
@@ -169,4 +182,20 @@ variable "acl" {
 		})
 	}
 
+}
+
+func TestGenerateMarkdownForSource(t *testing.T) {
+	ref := &MarkdownReference{}
+	ref.I18N = &En
+	c := types.Capability{
+		Name:        "get-random",
+		Type:        types.TypeSource,
+		CueTemplate: sampleSourceTemplate,
+		Category:    types.CUECategory,
+	}
+	got, err := ref.GenerateMarkdownForCap(context.Background(), c, false)
+	assert.NoError(t, err)
+	assert.Contains(t, got, "title:  Get-Random")
+	assert.Contains(t, got, " min |  | int | false | 1 |  \n")
+	assert.Contains(t, got, " max |  | int | false | 5 |  \n")
 }

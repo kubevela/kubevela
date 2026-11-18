@@ -43,6 +43,7 @@ func TestCreateTestDir(t *testing.T) {
 func TestGenerateSideBar(t *testing.T) {
 	workloadName := "component1"
 	traitName := "trait1"
+	sourceName := "source1"
 
 	cases := map[string]struct {
 		reason       string
@@ -63,6 +64,16 @@ func TestGenerateSideBar(t *testing.T) {
 			},
 			want: nil,
 		},
+		"SourceCapability": {
+			reason: "source capabilities are listed in their own section",
+			capabilities: []types.Capability{
+				{
+					Name: sourceName,
+					Type: types.TypeSource,
+				},
+			},
+			want: nil,
+		},
 	}
 
 	for name, tc := range cases {
@@ -75,6 +86,9 @@ func TestGenerateSideBar(t *testing.T) {
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				assert.Contains(t, string(data), c.Name)
+				if c.Type == types.TypeSource {
+					assert.Contains(t, string(data), fmt.Sprintf("- Sources\n  - [%s](%s/%s.md)\n", c.Name, types.TypeSource, c.Name))
+				}
 			}
 		})
 	}
@@ -101,6 +115,7 @@ func TestGenerateCustomCSS(t *testing.T) {
 func TestGenerateREADME(t *testing.T) {
 	workloadName := "component1"
 	traitName := "trait1"
+	sourceName := "source1"
 
 	cases := map[string]struct {
 		reason       string
@@ -117,6 +132,10 @@ func TestGenerateREADME(t *testing.T) {
 				{
 					Name: traitName,
 					Type: types.TypeTrait,
+				},
+				{
+					Name: sourceName,
+					Type: types.TypeSource,
 				},
 			},
 			want: nil,
@@ -136,6 +155,8 @@ func TestGenerateREADME(t *testing.T) {
 					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeComponentDefinition, c.Name))
 				case types.TypeTrait:
 					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeTrait, c.Name))
+				case types.TypeSource:
+					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, types.TypeSource, c.Name))
 				}
 			}
 		})
@@ -191,7 +212,7 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			gotWorkloads, gotTraits, _, gotPolicies := getDefinitions(tc.capabilities)
+			gotWorkloads, gotTraits, _, gotPolicies, _ := getDefinitions(tc.capabilities)
 			assert.Equal(t, tc.want, want{workloads: gotWorkloads, traits: gotTraits, policies: gotPolicies})
 		})
 	}
