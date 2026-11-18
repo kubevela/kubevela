@@ -64,4 +64,15 @@ var _ = Describe("ValidateInheritedTemplate and fields the parent set", func() {
 	It("accepts a child that adds a label", func() {
 		Expect(validate("output: metadata: labels: team: \"a\"\n")).To(Succeed())
 	})
+
+	It("refuses a child that leaves out a +required output when it is written", func() {
+		parentWithSvc := []inherit.Level{{Name: "svc-web", Template: replicasParent +
+			"outputs: {\n\t// +required\n\tsvc: {apiVersion: \"v1\", kind: \"Service\"}\n}\n"}}
+		_, err := ValidateInheritedTemplate(context.Background(), "headless-web",
+			"$super: properties: {image: parameter.image}\nparameter: image: *\"nginx\" | string\n"+
+				"$inherit: {outputs: {svc: false}}\n",
+			parentWithSvc, inherit.ComponentSurface)
+		Expect(err).To(MatchError(ContainSubstring(
+			"component headless-web leaves out outputs.svc, which svc-web marks +required")))
+	})
 })

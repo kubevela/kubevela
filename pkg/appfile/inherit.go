@@ -107,7 +107,9 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 		current = parent
 		currentTemplate = parent.Spec.Schematic.CUE.Template
 	}
-	return nil
+	return checkStatusReads("component", cd.Name, childTemplateOf(tmpl, cd), cd.Spec.Status, ancestorStatuses(tmpl.Ancestors, func(name string) *common.Status {
+		return tmpl.AncestorComponentDefinitions[name].Spec.Status
+	}))
 }
 
 // resolveTraitChain is resolveComponentChain for traits.
@@ -150,7 +152,9 @@ func resolveTraitChain(ctx context.Context, tmpl *Template, td *v1beta1.TraitDef
 		seen = append(seen, name)
 		current = parent
 	}
-	return nil
+	return checkStatusReads("trait", td.Name, traitTemplateOf(tmpl, td), td.Spec.Status, ancestorStatuses(tmpl.Ancestors, func(name string) *common.Status {
+		return tmpl.AncestorTraitDefinitions[name].Spec.Status
+	}))
 }
 
 // upgradedTemplate puts a parent's template through the same CUE compatibility

@@ -154,6 +154,9 @@ func renderFrom(ctx context.Context, chain []Level, paramFile, contextFile strin
 	if err := CheckFinal(at, self, staged, parents, s); err != nil {
 		return nil, err
 	}
+	if err := CheckRequired(at, self, parents, s); err != nil {
+		return nil, err
+	}
 
 	reads := superReads(self.Template)
 

@@ -38,12 +38,16 @@ type finalPath []string
 func (p finalPath) String() string { return strings.Join(p, ".") }
 
 // finalPaths reads the +final markers off a template's surface fields.
+func finalPaths(level Level, s Surface) []finalPath { return markedPaths(level, s, FinalTag) }
+
+// markedPaths reads the fields of a template's surface carrying a marker, such
+// as +final or +required, in their doc comment.
 //
 // They come from the source rather than the compiled value. A merged value has
 // lost its doc comments, and in a shorthand such as
 // `securityContext: runAsNonRoot: true` the compiler moves the comment onto the
 // innermost field, so the value would protect the wrong field.
-func finalPaths(level Level, s Surface) []finalPath {
+func markedPaths(level Level, s Surface, tag string) []finalPath {
 	file, err := parser.ParseFile(level.Name+".cue", level.Template, parser.ParseComments)
 	if err != nil {
 		// A template that will not parse fails later with a better message from
@@ -65,7 +69,7 @@ func finalPaths(level Level, s Surface) []finalPath {
 					continue
 				}
 				here := append(append(finalPath{}, at...), label)
-				if hasFinalTag(d) {
+				if hasTag(d, tag) {
 					out = append(out, here)
 				}
 				if st, ok := d.Value.(*ast.StructLit); ok {
@@ -131,16 +135,16 @@ func interpolationText(raw string, first, last bool) string {
 	return raw
 }
 
-// hasFinalTag reports whether a field's doc comment carries the tag on a line of
-// its own, optionally followed by a reason.
-func hasFinalTag(f *ast.Field) bool {
+// hasTag reports whether a field's doc comment carries the tag on a line of its
+// own, optionally followed by a reason.
+func hasTag(f *ast.Field, tag string) bool {
 	for _, cg := range ast.Comments(f) {
 		if !cg.Doc {
 			continue
 		}
 		for _, c := range cg.List {
 			text := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
-			if text == FinalTag || strings.HasPrefix(text, FinalTag+" ") {
+			if text == tag || strings.HasPrefix(text, tag+" ") {
 				return true
 			}
 		}

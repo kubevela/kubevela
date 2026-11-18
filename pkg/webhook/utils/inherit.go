@@ -58,6 +58,9 @@ func ValidateInheritedTemplate(ctx context.Context, name, template string, ances
 	if err := inherit.CheckFinal(name, chain[0], own, ancestors, surface); err != nil {
 		return warnings, err
 	}
+	if err := inherit.CheckRequired(name, chain[0], ancestors, surface); err != nil {
+		return warnings, err
+	}
 	if err := inherit.CheckOverrides(ctx, name, chain[0], own, ancestors, surface, admissionCompiler); err != nil {
 		return warnings, err
 	}
