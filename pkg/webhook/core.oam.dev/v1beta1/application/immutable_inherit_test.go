@@ -68,11 +68,25 @@ var _ = Describe("+immutable through extends", func() {
 				},
 			}
 		}
+		traitDef := func(name, extends, template string) *v1beta1.TraitDefinition {
+			return &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "vela-system"},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Extends:   extends,
+					Schematic: &common.Schematic{CUE: &common.CUE{Template: template}},
+				},
+			}
+		}
 		handler = &ValidatingHandler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(
 			def("volume", "", immutableParent),
 			def("forwarding-volume", "volume", "$super: properties: parameter\nparameter: {storageClass: string, size: *\"1Gi\" | string}\n"),
 			def("tiered-volume", "volume", "$super: properties: {storageClass: parameter.tier, size: parameter.size}\nparameter: {tier: string, size: *\"1Gi\" | string}\n"),
 			def("fixed-volume", "volume", "$super: properties: {storageClass: \"standard\", size: parameter.size}\nparameter: size: *\"1Gi\" | string\n"),
+			def("replicated", "", "output: {kind: \"Deployment\", spec: replicas: parameter.replicas}\nparameter: {\n\t// +immutable\n\treplicas: *1 | int\n}\n"),
+			def("replicated-child", "replicated", "$super: properties: {replicas: parameter.replicas}\nparameter: replicas: *1 | int\n"),
+			def("tiered-leaf", "tiered-volume", "$super: properties: {tier: parameter.tier}\nparameter: tier: \"fast\" | \"slow\"\n"),
+			traitDef("zone", "", "patch: metadata: labels: zone: parameter.zone\nparameter: {\n\t// +immutable\n\tzone: string\n}\n"),
+			traitDef("region-zone", "zone", "$super: properties: {zone: parameter.region + \"-a\"}\nparameter: region: string\n"),
 		).Build()}
 	})
 
@@ -123,5 +137,33 @@ var _ = Describe("+immutable through extends", func() {
 		next.Annotations = map[string]string{"app.oam.dev/force-param-mutations": "true"}
 		Expect(handler.ValidateImmutableFields(context.Background(), next,
 			app("tiered-volume", map[string]any{"tier": "fast"}))).To(BeEmpty())
+	})
+
+	It("lets a parameter the parent only had as a default be set for the first time", func() {
+		errs := handler.ValidateImmutableFields(context.Background(),
+			app("replicated-child", map[string]any{"replicas": 3}),
+			app("replicated-child", map[string]any{}))
+		Expect(errs).To(BeEmpty())
+	})
+
+	It("holds the root's immutable parameter through a middle level", func() {
+		errs := handler.ValidateImmutableFields(context.Background(),
+			app("tiered-leaf", map[string]any{"tier": "slow"}),
+			app("tiered-leaf", map[string]any{"tier": "fast"}))
+		Expect(errs).To(HaveLen(1))
+		Expect(errs[0].Detail).To(ContainSubstring("volume's immutable parameter storageClass cannot be changed"))
+	})
+
+	It("holds a parent trait's immutable parameter through a child trait", func() {
+		withTrait := func(region string) *v1beta1.Application {
+			a := app("fixed-volume", map[string]any{})
+			raw, err := json.Marshal(map[string]any{"region": region})
+			Expect(err).NotTo(HaveOccurred())
+			a.Spec.Components[0].Traits = []common.ApplicationTrait{{Type: "region-zone", Properties: &runtime.RawExtension{Raw: raw}}}
+			return a
+		}
+		errs := handler.ValidateImmutableFields(context.Background(), withTrait("eu"), withTrait("us"))
+		Expect(errs).To(HaveLen(1))
+		Expect(errs[0].Detail).To(ContainSubstring(`zone's immutable parameter zone cannot be changed (current: "us-a", new: "eu-a")`))
 	})
 })

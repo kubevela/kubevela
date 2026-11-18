@@ -27,8 +27,9 @@ import (
 // AncestorProperties is what each ancestor of chain[0] receives as its
 // parameter when chain[0] is given paramFile: the `$super: properties` each
 // level passes up, as the render passes them. The i-th entry is for
-// chain[i+1], as JSON of its concrete fields; a field that depends on the
-// render's context is left out.
+// chain[i+1], as JSON of its concrete fields. A field that depends on the
+// render's context is left out, and so is one that only arrives as a default:
+// nobody set it, as with a field an Application leaves out.
 //
 // It lets a check that belongs to an ancestor's parameters, such as
 // +immutable, judge them where they arrive rather than where the Application
@@ -51,14 +52,14 @@ func AncestorProperties(ctx context.Context, chain []Level, paramFile, contextFi
 	return out, nil
 }
 
-// concreteOf is the concrete part of a value as plain data, a default standing
-// in for a disjunction that has one.
+// concreteOf is the concrete part of a value as plain data. A value still
+// carrying a default was not set by anyone, so it is left out.
 func concreteOf(v cue.Value) any {
 	if !v.Exists() {
 		return map[string]any{}
 	}
-	if d, ok := v.Default(); ok {
-		v = d
+	if _, ok := v.Default(); ok && !v.IsConcrete() {
+		return nil
 	}
 	if v.IncompleteKind() == cue.StructKind {
 		out := map[string]any{}

@@ -111,8 +111,8 @@ func (c *ComponentDefinition) Abstract() *ComponentDefinition {
 // nothing or only a name.
 func (c *ComponentDefinition) GetParent() *ComponentDefinition { return c.parent }
 
-// hasDeclaredWorkload reports whether the component names its own workload,
-// rather than taking its parent's.
+// hasDeclaredWorkload reports whether the component states a workload rather
+// than leaving it to its parent. A stated workload must be the parent's.
 func (c *ComponentDefinition) hasDeclaredWorkload() bool {
 	w := c.workload
 	return w.autodetect || w.apiVersion != "" || w.kind != ""

@@ -17,9 +17,9 @@ limitations under the License.
 // Package inherit renders a definition that extends another.
 //
 // Each level compiles on its own, with its own imports, and hands its result
-// down as a cue.Value. Passing values rather than data lets a child override a
-// field its parent derived from a defaulted parameter, which arrives still a
-// disjunction.
+// down as a cue.Value. Passing values rather than data keeps a field the parent
+// derived from a defaulted parameter a disjunction, so a child's change to it
+// can be told apart from a field the parent left open, and refused.
 //
 // # What a child writes
 //

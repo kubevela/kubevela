@@ -212,6 +212,9 @@ func touches(v cue.Value, p finalPath, cut map[string]bool) (string, bool) {
 			return "", false
 		}
 		for iter.Next() {
+			if !iter.Selector().IsString() {
+				continue
+			}
 			label := iter.Selector().Unquoted()
 			if !globMatch(rest[0], label) {
 				continue

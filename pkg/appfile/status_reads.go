@@ -26,17 +26,21 @@ import (
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 )
 
-// statusLevel is one ancestor's status CUE, by the name the chain reached it.
+// statusLevel is one level of a chain: the name it was reached by, its
+// template and its status CUE.
 type statusLevel struct {
-	name   string
-	status *common.Status
+	name     string
+	template string
+	status   *common.Status
 }
 
-// ancestorStatuses pairs a chain's ancestors, nearest first, with their status.
-func ancestorStatuses(levels []inherit.Level, statusOf func(name string) *common.Status) []statusLevel {
-	out := make([]statusLevel, 0, len(levels))
-	for _, l := range levels {
-		out = append(out, statusLevel{name: l.Name, status: statusOf(l.Name)})
+// chainStatuses is a chain's levels, the definition itself first and then its
+// ancestors nearest first, each with its template and status.
+func chainStatuses(name, template string, own *common.Status, ancestors []inherit.Level, statusOf func(name string) *common.Status) []statusLevel {
+	out := make([]statusLevel, 0, len(ancestors)+1)
+	out = append(out, statusLevel{name: name, template: template, status: own})
+	for _, l := range ancestors {
+		out = append(out, statusLevel{name: l.Name, template: l.Template, status: statusOf(l.Name)})
 	}
 	return out
 }
@@ -73,18 +77,34 @@ var statusConcerns = []statusConcern{
 	},
 }
 
-// checkStatusReads refuses a definition that leaves out one of its parent's
-// outputs while a status it still inherits reads that output. The status was
-// written against the parent's output; evaluated against something else, or
-// nothing, it reports on a resource it no longer describes.
+// checkStatusReads refuses a level that leaves out one of its parent's outputs
+// while a status it still inherits reads that output. The status was written
+// against the parent's output; evaluated against something else, or nothing,
+// it reports on a resource it no longer describes.
 //
-// A level that takes a concern over, at the child or between it and the
+// Every level of the chain is judged, not only the first, since a level in the
+// middle that drops an output breaks the status of everything below it. A level
+// that takes a concern over, at the dropping level or between it and the
 // ancestor, ends the inheritance of that concern from above.
-func checkStatusReads(kind, name, template string, own *common.Status, ancestors []statusLevel) error {
-	dropped, err := inherit.DroppedOutputs(inherit.Level{Name: name, Template: template}, "outputs")
-	if err != nil || len(dropped) == 0 {
-		return err
+func checkStatusReads(kind string, levels []statusLevel) error {
+	for i, lvl := range levels {
+		dropped, err := inherit.DroppedOutputs(inherit.Level{Name: lvl.name, Template: lvl.template}, "outputs")
+		if err != nil {
+			return err
+		}
+		if len(dropped) == 0 {
+			continue
+		}
+		if err := checkDropsAgainst(kind, lvl.name, dropped, lvl.status, levels[i+1:]); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+// checkDropsAgainst judges one level's dropped outputs against the statuses of
+// the levels above it.
+func checkDropsAgainst(kind, name string, dropped map[string]bool, own *common.Status, above []statusLevel) error {
 	drops := make([]string, 0, len(dropped))
 	for k := range dropped {
 		drops = append(drops, k)
@@ -103,7 +123,7 @@ func checkStatusReads(kind, name, template string, own *common.Status, ancestors
 		}
 	}
 	take(own)
-	for _, anc := range ancestors {
+	for _, anc := range above {
 		if anc.status != nil {
 			for _, c := range statusConcerns {
 				if taken[c.field] {

@@ -66,7 +66,7 @@ func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surf
 		}
 		var hit string
 		walkLeaves(cv, nil, func(sels []cue.Selector, leaf cue.Value) bool {
-			if len(sels) > 0 && cut[field+"."+sels[0].Unquoted()] {
+			if len(sels) > 0 && sels[0].IsString() && cut[field+"."+sels[0].Unquoted()] {
 				return true
 			}
 			if !changes(pv.LookupPath(cue.MakePath(sels...)), leaf) {
@@ -199,7 +199,11 @@ func pathString(field string, sels []cue.Selector) string {
 			continue
 		}
 		b.WriteString(".")
-		b.WriteString(sel.Unquoted())
+		if sel.IsString() {
+			b.WriteString(sel.Unquoted())
+		} else {
+			b.WriteString(sel.String())
+		}
 	}
 	return b.String()
 }

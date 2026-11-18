@@ -105,7 +105,7 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 	if !workloadUnset(cd.Spec.Workload) {
 		tmpl.Reference = cd.Spec.Workload
 	}
-	return checkStatusReads("component", cd.Name, childTemplateOf(tmpl, cd), cd.Spec.Status, ancestorStatuses(tmpl.Ancestors, func(name string) *common.Status {
+	return checkStatusReads("component", chainStatuses(cd.Name, childTemplateOf(tmpl, cd), cd.Spec.Status, tmpl.Ancestors, func(name string) *common.Status {
 		return tmpl.AncestorComponentDefinitions[name].Spec.Status
 	}))
 }
@@ -150,7 +150,7 @@ func resolveTraitChain(ctx context.Context, tmpl *Template, td *v1beta1.TraitDef
 		seen = append(seen, name)
 		current = parent
 	}
-	return checkStatusReads("trait", td.Name, traitTemplateOf(tmpl, td), td.Spec.Status, ancestorStatuses(tmpl.Ancestors, func(name string) *common.Status {
+	return checkStatusReads("trait", chainStatuses(td.Name, traitTemplateOf(tmpl, td), td.Spec.Status, tmpl.Ancestors, func(name string) *common.Status {
 		return tmpl.AncestorTraitDefinitions[name].Spec.Status
 	}))
 }
@@ -215,14 +215,15 @@ func inheritanceEnabled(name, extends string) error {
 // parent's output, so the parent's answer is always the right one.
 //
 // Called once per ancestor with the same child, so the nearest ancestor to
-// declare a field wins and a boolean is true if any of them set it. Folding a
+// declare a field wins. Folding a
 // pair at a time instead would let a grandparent answer for a level that had
 // already spoken.
 func inheritComponentAttributes(tmpl *Template, child, parent *v1beta1.ComponentDefinition) {
-	// A child that names the parent's workload by type alone gets the parent's
-	// whole description, so what reads the workload sees a kind.
-	byTypeOnly := child.Spec.Workload.Definition == (common.WorkloadGVK{}) && sameWorkload(child.Spec.Workload, parent.Spec.Workload)
-	if (workloadUnset(child.Spec.Workload) || byTypeOnly) && !workloadUnset(parent.Spec.Workload) {
+	// A child that names the parent's workload only in part, by type or by
+	// apiVersion alone, gets the parent's whole description, so what reads the
+	// workload sees a kind.
+	partial := child.Spec.Workload.Definition.Kind == "" && sameWorkload(child.Spec.Workload, parent.Spec.Workload)
+	if (workloadUnset(child.Spec.Workload) || partial) && !workloadUnset(parent.Spec.Workload) {
 		child.Spec.Workload = parent.Spec.Workload
 	}
 	if child.Spec.PodSpecPath == "" {
@@ -267,16 +268,30 @@ func checkWorkloadsMatch(levels []namedWorkload) error {
 	return nil
 }
 
-// sameWorkload compares two declared workloads by kind where both name one,
-// and by type where both give only a type.
+// sameWorkload reports whether two declared workloads can be the same one.
+// They are compared on what both of them say: the GVK where both name a kind,
+// the apiVersion where both give one, the type where both give one. Where they
+// share nothing to compare, such as a type against a bare GVK, nothing tells
+// them apart, and they are taken to agree.
 func sameWorkload(a, b common.WorkloadTypeDescriptor) bool {
 	if a.Definition.Kind != "" && b.Definition.Kind != "" {
 		return a.Definition == b.Definition
 	}
-	if a.Definition == (common.WorkloadGVK{}) && a.Type != "" && b.Type != "" {
-		return a.Type == b.Type
+	if a.Definition.APIVersion != "" && b.Definition.APIVersion != "" && a.Definition.APIVersion != b.Definition.APIVersion {
+		return false
 	}
-	return false
+	if ta, tb := declaredType(a), declaredType(b); ta != "" && tb != "" {
+		return ta == tb
+	}
+	return true
+}
+
+// declaredType is a workload's type unless it is the webhook's autodetect.
+func declaredType(w common.WorkloadTypeDescriptor) string {
+	if w.Type == types.AutoDetectWorkloadDefinition {
+		return ""
+	}
+	return w.Type
 }
 
 // describeWorkload names a workload as a reader would look for it.
@@ -287,6 +302,9 @@ func describeWorkload(w common.WorkloadTypeDescriptor) string {
 	return w.Type
 }
 
+// workloadUnset reports whether a definition leaves its workload to be found.
+// The webhook stamps autodetect on a definition that declares none, so that
+// counts as silence too.
 func workloadUnset(w common.WorkloadTypeDescriptor) bool {
 	return w.Definition == (common.WorkloadGVK{}) &&
 		(w.Type == "" || w.Type == types.AutoDetectWorkloadDefinition)

@@ -128,4 +128,16 @@ var _ = Describe("$inherit after #7607", func() {
 		_, err := renderComponent(child("$inherit: {spec: false}\n"), base)
 		Expect(err).To(MatchError(ContainSubstring("$inherit in child: unknown field spec")))
 	})
+
+	It("leaves a definition field among the parent's outputs alone when dropping one", func() {
+		withDef := Level{Name: "base", Template: "output: {kind: \"Deployment\"}\noutputs: {\n\t#shared: {apiVersion: \"v1\", kind: \"ConfigMap\"}\n\tsvc: #shared\n\tnetpol: {kind: \"NetworkPolicy\"}\n}\nparameter: {}\n"}
+		res, err := renderComponent(child("$inherit: {outputs: {netpol: false}}\n"), withDef)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(lookup(res.Value, "outputs.svc.kind").String()).To(Equal("ConfigMap"))
+	})
+
+	It("reports a surface field written as a list instead of panicking", func() {
+		_, err := renderComponent(child("outputs: [{kind: \"ConfigMap\"}]\n"), base)
+		Expect(err).To(HaveOccurred())
+	})
 })

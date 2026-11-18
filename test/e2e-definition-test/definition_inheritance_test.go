@@ -209,7 +209,6 @@ var _ = Describe("ComponentDefinition inheritance", Label("core-definitions"), f
 		silent.Spec.Workload = common.WorkloadTypeDescriptor{}
 		Expect(k8sClient.Create(ctx, silent)).Should(Succeed())
 
-
 		app := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{Name: "workload-app", Namespace: namespace},
 			Spec: v1beta1.ApplicationSpec{

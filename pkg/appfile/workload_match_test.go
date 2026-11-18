@@ -94,7 +94,14 @@ var _ = Describe("a child's workload is its parent's", func() {
 		Entry("autodetect", autodetect),
 		Entry("the same, stated again", deployment),
 		Entry("the same, by type only", common.WorkloadTypeDescriptor{Type: "deployments.apps"}),
+		Entry("the same apiVersion, kind left out", common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "apps/v1"}}),
 	)
+
+	It("accepts a child naming by type a workload its parent names by kind", func() {
+		gvkOnly := common.WorkloadTypeDescriptor{Definition: deployment.Definition}
+		_, err := resolve(level("child", "base", common.WorkloadTypeDescriptor{Type: "deployments.apps"}), level("base", "", gvkOnly))
+		Expect(err).NotTo(HaveOccurred())
+	})
 
 	It("passes the root's workload through a silent middle", func() {
 		child := level("leaf", "middle", autodetect)
@@ -108,5 +115,19 @@ var _ = Describe("a child's workload is its parent's", func() {
 		_, err := resolve(child, level("base", "", autodetect))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(child.Spec.Workload).To(Equal(statefulSet))
+	})
+
+	// Three levels, and the leaf states a workload of its own. It renders the
+	// root's output with more on it, so a workload other than the root's could
+	// only ever be a wrong label, and is refused.
+	It("refuses a leaf's own workload when the root declares another", func() {
+		leaf := cdLevel("leaf", "mid", common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}})
+		mid := cdLevel("mid", "root", common.WorkloadTypeDescriptor{})
+		root := cdLevel("root", "", common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{APIVersion: "batch/v1", Kind: "CronJob"}})
+
+		err := resolveComponentChain(context.Background(), &Template{Reference: leaf.Spec.Workload}, leaf, fetcherFor(mid, root))
+		Expect(err).To(MatchError(ContainSubstring("component leaf declares workload apps/v1 Deployment, but root declares batch/v1 CronJob")))
 	})
 })

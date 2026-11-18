@@ -94,6 +94,19 @@ var _ = Describe("a child that leaves out an output its inherited status reads",
 		Expect(resolve(dropsSvc(child), parentWith(parent))).To(MatchError(ContainSubstring("healthPolicy it inherits")))
 	})
 
+	It("refuses it when the status reads the whole of context.outputs", func() {
+		parent := &common.Status{HealthPolicy: "isHealth: len([for k, v in context.outputs if v.status == _|_ {k}]) == 0"}
+		Expect(resolve(dropsSvc(nil), parentWith(parent))).To(MatchError(ContainSubstring("healthPolicy it inherits from base reads")))
+	})
+
+	It("refuses a middle level's drop that the root's status reads", func() {
+		root := parentWith(&common.Status{HealthPolicy: "isHealth: context.outputs.svc != _|_"})
+		middle := compDef("middle", "base", "$super: properties: {}\n$inherit: {outputs: {svc: false}}\n")
+		leaf := compDef("leaf", "middle", "$super: properties: {}\n")
+		Expect(resolve(leaf, root, middle)).To(MatchError(ContainSubstring(
+			"component middle leaves out outputs.svc, which the healthPolicy it inherits from base reads")))
+	})
+
 	It("accepts leaving out an output no status reads", func() {
 		parent := &common.Status{HealthPolicy: "isHealth: context.outputs.netpol != _|_"}
 		Expect(resolve(dropsSvc(nil), parentWith(parent))).To(Succeed())

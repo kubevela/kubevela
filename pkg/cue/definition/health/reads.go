@@ -38,16 +38,24 @@ func OutputsRead(snippet string) (keys map[string]bool, all bool) {
 		// on its own when the status is evaluated.
 		return keys, false
 	}
+	// A `context.outputs` read through a named entry is seen first, as the
+	// parent of the bare `context.outputs` under it, which it then accounts for.
+	named := map[ast.Expr]bool{}
 	ast.Walk(file, func(n ast.Node) bool {
 		switch e := n.(type) {
 		case *ast.SelectorExpr:
 			if isContextOutputs(e.X) {
 				keys[selectorName(e.Sel)] = true
+				named[e.X] = true
+			} else if isContextOutputs(e) && !named[e] {
+				// The whole map: ranged over, bound to a name, or passed on.
+				all = true
 			}
 		case *ast.IndexExpr:
 			if !isContextOutputs(e.X) {
 				return true
 			}
+			named[e.X] = true
 			if lit, ok := e.Index.(*ast.BasicLit); ok && lit.Kind == token.STRING {
 				if s, err := literal.Unquote(lit.Value); err == nil {
 					keys[s] = true

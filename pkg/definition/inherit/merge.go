@@ -25,9 +25,10 @@ import (
 // mergeSurfaces merges the parent's surface fields onto the child's.
 //
 // Unification rather than replacement, so new `outputs` keys join the parent's
-// and `output` is overlaid field by field. A parent value from a defaulted
-// parameter is still a disjunction here, so a child setting it wins; only a
-// concrete one conflicts.
+// and `output` is overlaid field by field. An output the child leaves out with
+// `$inherit` is removed from the parent's first, so the child's own entry of
+// that name stands alone. A child changing a field the parent set has been
+// refused before this, by checkOverride.
 func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d directives, parentLevel Level, at string) (cue.Value, error) {
 	out := child
 	for _, field := range s.Fields {
@@ -80,7 +81,7 @@ func withoutDropped(v cue.Value, field string, d directives) (cue.Value, error) 
 	}
 	out := v.Context().CompileString("{}")
 	for iter.Next() {
-		if d.dropped(field, iter.Selector().Unquoted()) {
+		if sel := iter.Selector(); sel.IsString() && d.dropped(field, sel.Unquoted()) {
 			continue
 		}
 		out = out.FillPath(cue.MakePath(iter.Selector()), iter.Value())
