@@ -108,6 +108,7 @@ type Resource struct {
 	currentIf           *IfBlock  // tracks current If block being built
 	outputCondition     Condition // condition for conditional output (used by OutputsIf)
 	versionConditionals []VersionConditional
+	requiredOutput      bool // emitted as // +required above its outputs key
 }
 
 // NewResource creates a new resource builder with API version and kind.

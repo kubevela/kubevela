@@ -19,6 +19,7 @@ package defkit
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -234,20 +235,38 @@ func (t *Template) Super() *SuperCall {
 	return t.super
 }
 
-// Inherit turns merging onto the parent's output wholly on or off. Off, the
-// child produces only what it writes, and reads the parent through SuperOutput.
-func (t *Template) Inherit(enabled bool) *Template {
-	t.inheritAll = &enabled
+// DropOutput leaves one of the parent's outputs out, so the child may write its
+// own of that name in its place. Rendered as `$inherit: outputs: <name>: false`.
+// A child always merges its parent's output and every other output.
+func (t *Template) DropOutput(name string) *Template { return t.drop("outputs", name) }
+
+// DropPatchOutput is DropOutput for a trait's patchOutputs.
+func (t *Template) DropPatchOutput(name string) *Template { return t.drop("patchOutputs", name) }
+
+func (t *Template) drop(field, name string) *Template {
+	if t.droppedOutputs == nil {
+		t.droppedOutputs = map[string][]string{}
+	}
+	for _, n := range t.droppedOutputs[field] {
+		if n == name {
+			return t
+		}
+	}
+	t.droppedOutputs[field] = append(t.droppedOutputs[field], name)
 	return t
 }
 
-// InheritField turns merging on or off for one surface field, such as
-// "outputs" or "patch".
-func (t *Template) InheritField(field string, enabled bool) *Template {
-	if t.inheritFields == nil {
-		t.inheritFields = map[string]bool{}
+// RequireOutput marks one of this definition's outputs +required: nothing
+// that extends it may leave that output out. It may be called before or after
+// the output is declared.
+func (t *Template) RequireOutput(name string) *Template {
+	if t.requiredOutputs == nil {
+		t.requiredOutputs = map[string]bool{}
 	}
-	t.inheritFields[field] = enabled
+	t.requiredOutputs[name] = true
+	if res, ok := t.outputs[name]; ok {
+		res.requiredOutput = true
+	}
 	return t
 }
 
@@ -281,11 +300,12 @@ func (g *CUEGenerator) writeInheritanceBlock(sb *strings.Builder, tpl *Template,
 			sb.WriteString(fmt.Sprintf("%s}\n", indent))
 		}
 	}
-	if tpl.inheritAll != nil {
-		sb.WriteString(fmt.Sprintf("%s$inherit: %v\n", indent, *tpl.inheritAll))
-	}
-	for _, field := range sortedKeys(tpl.inheritFields) {
-		sb.WriteString(fmt.Sprintf("%s$inherit: %s: %v\n", indent, cueLabel(field), tpl.inheritFields[field]))
+	for _, field := range []string{"outputs", "patchOutputs"} {
+		names := append([]string{}, tpl.droppedOutputs[field]...)
+		sort.Strings(names)
+		for _, name := range names {
+			sb.WriteString(fmt.Sprintf("%s%s: %s: %s: false\n", indent, inherit.InheritField, field, cueLabel(name)))
+		}
 	}
 }
 

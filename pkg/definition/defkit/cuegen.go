@@ -22,6 +22,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 )
 
 // sortedKeys returns the keys of a map[string]V in sorted order.
@@ -1490,6 +1492,9 @@ func (g *CUEGenerator) writeResourceOutput(sb *strings.Builder, name string, res
 	}
 
 	quotedName := cueLabel(name)
+	if res.requiredOutput {
+		sb.WriteString(fmt.Sprintf("%s// %s\n", indent, inherit.RequiredTag))
+	}
 	sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, quotedName))
 	innerIndent := strings.Repeat(g.indent, depth+1)
 

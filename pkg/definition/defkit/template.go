@@ -49,9 +49,9 @@ type Template struct {
 	rawHeaderBlock    string // Raw CUE for let bindings and other pre-output declarations
 
 	// Inheritance: the call to the parent and which surface fields merge onto its
-	super         *SuperCall
-	inheritAll    *bool
-	inheritFields map[string]bool
+	super           *SuperCall
+	droppedOutputs  map[string][]string // per field, the parent's outputs left out
+	requiredOutputs map[string]bool     // this definition's outputs marked +required
 }
 
 // NewTemplate creates a new template context.
@@ -142,6 +142,9 @@ func (t *Template) Output(r ...*Resource) *Resource {
 func (t *Template) Outputs(name string, r ...*Resource) *Resource {
 	if len(r) > 0 {
 		t.outputs[name] = r[0]
+		if t.requiredOutputs[name] {
+			r[0].requiredOutput = true
+		}
 	}
 	return t.outputs[name]
 }
@@ -151,6 +154,9 @@ func (t *Template) Outputs(name string, r ...*Resource) *Resource {
 func (t *Template) OutputsIf(cond Condition, name string, r *Resource) {
 	r.outputCondition = cond
 	t.outputs[name] = r
+	if t.requiredOutputs[name] {
+		r.requiredOutput = true
+	}
 }
 
 // GetOutput returns the primary output resource.
