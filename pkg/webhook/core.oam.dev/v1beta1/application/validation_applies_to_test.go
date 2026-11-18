@@ -47,9 +47,9 @@ import (
 )
 
 func TestAppliesToRuleMatches(t *testing.T) {
-	webservice := appliesToTarget{definition: "webservice", workload: "deployments.apps"}
-	ingress := appliesToTarget{definition: "gateway", workload: "ingresses.networking.k8s.io"}
-	cronTask := appliesToTarget{definition: "cron-task"}
+	webservice := appliesToTarget{workload: "deployments.apps"}
+	ingress := appliesToTarget{workload: "ingresses.networking.k8s.io"}
+	cronTask := appliesToTarget{}
 
 	cases := []struct {
 		name   string
