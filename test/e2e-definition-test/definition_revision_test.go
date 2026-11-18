@@ -506,6 +506,89 @@ var _ = Describe("Test application of the specified definition version", Label("
 		traitLabel := exposeSVC.GetLabels()[oam.TraitTypeLabel]
 		Expect(traitLabel).Should(Equal("expose-v1"))
 	})
+
+	// The pins cross, so a component or a trait rendered against the other
+	// revision shows on whichever Deployment it lands on. A workflow restart at
+	// the same publishVersion renders from the ApplicationRevision rather than
+	// the cluster, which is where each pin must find its own revision.
+	It("Test application pinning different revisions of one definition renders each from its own", func() {
+		appName := "pinned-revisions"
+		app := v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        appName,
+				Namespace:   namespace,
+				Annotations: map[string]string{oam.AnnotationPublishVersion: "alpha"},
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "old",
+						Type:       "webservice@v1",
+						Properties: util.Object2RawExtension(map[string]interface{}{"image": "nginx"}),
+						Traits: []common.ApplicationTrait{{
+							Type:       "label@v2",
+							Properties: util.Object2RawExtension(map[string]interface{}{"labels": map[string]string{"pinned": "old"}}),
+						}},
+					},
+					{
+						Name:       "new",
+						Type:       "webservice@v2",
+						Properties: util.Object2RawExtension(map[string]interface{}{"image": "nginx"}),
+						Traits: []common.ApplicationTrait{{
+							Type:       "label@v1",
+							Properties: util.Object2RawExtension(map[string]interface{}{"labels": map[string]string{"pinned": "new"}}),
+						}},
+					},
+				},
+			},
+		}
+
+		expectEachRevision := func() {
+			Eventually(func(g Gomega) {
+				old := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "old", Namespace: namespace}, old)).Should(Succeed())
+				g.Expect(old.Labels).Should(HaveKeyWithValue("pinned", "old"))
+				g.Expect(old.Labels).Should(HaveKeyWithValue("componentdefinition.oam.dev/version", "v1"), "old is webservice@v1")
+				g.Expect(old.Labels).ShouldNot(HaveKey("traitdefinition.oam.dev/version"), "old carries label@v2")
+
+				newer := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "new", Namespace: namespace}, newer)).Should(Succeed())
+				g.Expect(newer.Labels).Should(HaveKeyWithValue("pinned", "new"))
+				g.Expect(newer.Labels).ShouldNot(HaveKey("componentdefinition.oam.dev/version"), "new is webservice@v2")
+				g.Expect(newer.Labels).Should(HaveKeyWithValue("traitdefinition.oam.dev/version", "v1"), "new carries label@v1")
+			}, 60*time.Second, 2*time.Second).Should(Succeed())
+		}
+
+		By("Deploying the application")
+		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
+		var firstRun metav1.Time
+		Eventually(func(g Gomega) {
+			got := &v1beta1.Application{}
+			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&app), got)).Should(Succeed())
+			g.Expect(got.Status.Phase).Should(Equal(common.ApplicationRunning))
+			g.Expect(got.Status.Workflow).ShouldNot(BeNil())
+			firstRun = got.Status.Workflow.StartTime
+		}, 120*time.Second, 2*time.Second).Should(Succeed())
+		expectEachRevision()
+
+		By("Restarting the workflow at the same publishVersion, so it renders from the revision")
+		Eventually(func() error {
+			got := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(&app), got); err != nil {
+				return err
+			}
+			got.Annotations[oam.AnnotationWorkflowRestart] = "true"
+			return k8sClient.Update(ctx, got)
+		}, 15*time.Second, time.Second).Should(Succeed())
+		Eventually(func(g Gomega) {
+			got := &v1beta1.Application{}
+			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&app), got)).Should(Succeed())
+			g.Expect(got.Status.Workflow).ShouldNot(BeNil())
+			g.Expect(got.Status.Workflow.StartTime.After(firstRun.Time)).Should(BeTrue(), "the workflow has run again")
+			g.Expect(got.Status.Phase).Should(Equal(common.ApplicationRunning))
+		}, 120*time.Second, 2*time.Second).Should(Succeed())
+		expectEachRevision()
+	})
 })
 
 var webServiceWithNoTemplate = &v1beta1.ComponentDefinition{

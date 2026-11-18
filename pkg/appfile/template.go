@@ -322,7 +322,13 @@ func IsNotFoundInAppRevision(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not found in app revision")
 }
 
+// verifyRevisionName returns the key a revision holds capName's definition
+// under: the reference itself when the revision recorded it, or the bare
+// definition name for a revision written before references were recorded.
 func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) string {
+	if revisionCapabilityExists(capName, capType, apprev) {
+		return capName
+	}
 	if strings.Contains(capName, "@") {
 		splitName := capName[0:strings.LastIndex(capName, "@")]
 		ok := false
