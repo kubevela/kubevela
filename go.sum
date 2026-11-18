@@ -574,8 +574,8 @@ github.com/nacos-group/nacos-sdk-go/v2 v2.2.2/go.mod h1:ys/1adWeKXXzbNWfRNbaFlX/
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
-github.com/oam-dev/cluster-gateway v1.9.2-0.20250629203450-2b04dd452b7a h1:DRcSDrLv1en8j5ESR+LR0feGLuyT9M15HJgiMn3sFZs=
-github.com/oam-dev/cluster-gateway v1.9.2-0.20250629203450-2b04dd452b7a/go.mod h1:ZIYRoiy4He22db8XiWTAh7QecIt5QWiQNacCZg1zbbY=
+github.com/oam-dev/cluster-gateway v1.9.2 h1:IdScPNh2kvrIY8nP/yh/Prab4cJISco2mUZWW2bKRRY=
+github.com/oam-dev/cluster-gateway v1.9.2/go.mod h1:ZIYRoiy4He22db8XiWTAh7QecIt5QWiQNacCZg1zbbY=
 github.com/oam-dev/cluster-register v1.0.4-0.20250624042630-618dfa13eb5b h1:9oAzdnBC9rEcwLDpkReoWpZPwqbIC0rqIejFCFkE3Gk=
 github.com/oam-dev/cluster-register v1.0.4-0.20250624042630-618dfa13eb5b/go.mod h1:grVoZB9AM44ssnJH8e+5mUQhp71ku32gKWULkWNGq7g=
 github.com/oam-dev/stern v1.13.3-0.20250828063553-e1dd6271d131 h1:/PqJ2+yzsXNTDddYcmjIlYzZOkTyndnbLmhB2zr/awI=
