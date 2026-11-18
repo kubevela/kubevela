@@ -31,9 +31,6 @@ import (
 func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d directives, parentLevel Level, at string) (cue.Value, error) {
 	out := child
 	for _, field := range s.Fields {
-		if !d.inherits(field) {
-			continue
-		}
 		path := cue.ParsePath(field)
 		fromParent, ok := parent[field]
 		if !ok {

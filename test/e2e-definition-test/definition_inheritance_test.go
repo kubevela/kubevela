@@ -209,23 +209,6 @@ var _ = Describe("ComponentDefinition inheritance", Label("core-definitions"), f
 		silent.Spec.Workload = common.WorkloadTypeDescriptor{}
 		Expect(k8sClient.Create(ctx, silent)).Should(Succeed())
 
-		By("a child that replaces the output renders a Job of its own")
-		job := componentDefinitionIn(namespace, "workload-job", "workload-parent", `
-$inherit: output: false
-$super: properties: {image: "busybox"}
-output: {
-	apiVersion: "batch/v1"
-	kind:       "Job"
-	metadata: name: context.name
-	spec: template: spec: {
-		restartPolicy: "Never"
-		containers: [{name: context.name, image: "busybox", command: ["true"]}]
-	}
-}
-parameter: {}
-`, nil)
-		job.Spec.Workload = common.WorkloadTypeDescriptor{}
-		Expect(k8sClient.Create(ctx, job)).Should(Succeed())
 
 		app := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{Name: "workload-app", Namespace: namespace},
@@ -236,7 +219,6 @@ parameter: {}
 						Type:       "workload-silent",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.27","tenant":"acme"}`)},
 					},
-					{Name: "from-job", Type: "workload-job"},
 				},
 			},
 		}
@@ -250,47 +232,22 @@ parameter: {}
 				workloads[svc.Name] = svc.WorkloadDefinition
 			}
 			g.Expect(workloads).Should(HaveKeyWithValue("from-silent", common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}))
-			g.Expect(workloads).Should(HaveKeyWithValue("from-job", common.WorkloadGVK{}))
 		}, time.Second*60, time.Second*2).Should(Succeed())
 	})
 
-	It("keeps a workload the child declares", func() {
+	It("refuses a child that declares a workload other than its parent's", func() {
 		parent := componentDefinitionIn(namespace, "declared-parent", "", inheritParentTemplate, nil)
 		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
 
-		child := componentDefinitionIn(namespace, "declared-child", "declared-parent", `
-$inherit: output: false
-$super: properties: {image: "busybox"}
-output: {
-	apiVersion: "batch/v1"
-	kind:       "Job"
-	metadata: name: context.name
-	spec: template: spec: {
-		restartPolicy: "Never"
-		containers: [{name: context.name, image: "busybox", command: ["true"]}]
-	}
-}
-parameter: {}
-`, nil)
+		child := componentDefinitionIn(namespace, "declared-child", "declared-parent",
+			"$super: properties: {image: parameter.image}\nparameter: image: string\n", nil)
 		child.Spec.Workload = common.WorkloadTypeDescriptor{
-			Definition: common.WorkloadGVK{APIVersion: "batch/v1", Kind: "Job"},
+			Definition: common.WorkloadGVK{APIVersion: "apps/v1", Kind: "StatefulSet"},
 		}
-		Expect(k8sClient.Create(ctx, child)).Should(Succeed())
-
-		app := &v1beta1.Application{
-			ObjectMeta: metav1.ObjectMeta{Name: "declared-app", Namespace: namespace},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{{Name: "from-declared", Type: "declared-child"}},
-			},
-		}
-		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-
-		Eventually(func(g Gomega) {
-			got := &v1beta1.Application{}
-			g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "declared-app", Namespace: namespace}, got)).Should(Succeed())
-			g.Expect(got.Status.Services).ShouldNot(BeEmpty())
-			g.Expect(got.Status.Services[0].WorkloadDefinition).Should(Equal(common.WorkloadGVK{APIVersion: "batch/v1", Kind: "Job"}))
-		}, time.Second*60, time.Second*2).Should(Succeed())
+		err := k8sClient.Create(ctx, child)
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring(
+			"component declared-child declares workload apps/v1 StatefulSet, but declared-parent declares apps/v1 Deployment"))
 	})
 
 	It("composes health with the policy it extends", func() {

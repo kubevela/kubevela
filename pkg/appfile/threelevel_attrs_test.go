@@ -51,9 +51,10 @@ func fetcherFor(defs ...*v1beta1.ComponentDefinition) componentFetcher {
 	}
 }
 
-// Three levels, and the leaf states its own workload. Whatever the middle level
-// is silent about is the middle level's business; the leaf said what it is.
-func TestALeafsOwnWorkloadSurvivesAThreeLevelChain(t *testing.T) {
+// Three levels, and the leaf states a workload of its own. It renders the
+// root's output with more on it, so a workload other than the root's could
+// only ever be a wrong label, and is refused.
+func TestALeafsOwnWorkloadIsRefusedWhenTheRootDeclaresAnother(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate,
 		features.EnableDefinitionInheritance, true)
 
@@ -64,10 +65,8 @@ func TestALeafsOwnWorkloadSurvivesAThreeLevelChain(t *testing.T) {
 		Definition: common.WorkloadGVK{APIVersion: "batch/v1", Kind: "CronJob"}})
 
 	tmpl := &Template{Reference: leaf.Spec.Workload}
-	require.NoError(t, resolveComponentChain(context.Background(), tmpl, leaf, fetcherFor(mid, root)))
-
-	require.Equal(t, "Deployment", tmpl.Reference.Definition.Kind,
-		"the leaf declared Deployment; the root's CronJob is not its workload")
+	err := resolveComponentChain(context.Background(), tmpl, leaf, fetcherFor(mid, root))
+	require.ErrorContains(t, err, "component leaf declares workload apps/v1 Deployment, but root declares batch/v1 CronJob")
 }
 
 // The leaf is silent and so is the middle level, so the root's workload is what

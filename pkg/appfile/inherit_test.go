@@ -259,12 +259,12 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 		require.Equal(t, deployment, child.Spec.Workload)
 	})
 
-	t.Run("a partial GVK is the child's own", func(t *testing.T) {
-		own := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "batch/v1"}}
+	t.Run("a partial GVK that cannot be the parent's is refused", func(t *testing.T) {
 		child := compDef("child", "base", "")
-		child.Spec.Workload = own
-		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
-		require.Equal(t, own, child.Spec.Workload)
+		child.Spec.Workload = common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "batch/v1"}}
+		err := resolveComponentChain(context.Background(), &Template{}, child,
+			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
+		require.ErrorContains(t, err, "declares workload batch/v1, but base declares apps/v1 Deployment")
 	})
 
 	t.Run("a child without a CUE schematic inherits", func(t *testing.T) {
@@ -292,15 +292,6 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 		require.ErrorContains(t, err, "must be true or false")
 	})
 
-	t.Run("a middle that replaces output is refused", func(t *testing.T) {
-		middle := compDef("middle", "base", "$inherit: output: false\noutput: {}")
-		middle.Spec.Workload = autodetect
-		child := compDef("child", "middle", "")
-		child.Spec.Workload = autodetect
-		err := resolveComponentChain(context.Background(), &Template{}, child,
-			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base, "middle": middle}))
-		require.ErrorContains(t, err, "is not allowed in middle")
-	})
 }
 
 // Status is carried rather than folded into the child, so a health policy can

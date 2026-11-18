@@ -67,10 +67,8 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 
 	seen := []string{cd.Name}
 	current := cd
-	currentTemplate := childTemplateOf(tmpl, cd)
-	// The parent's workload only describes what the child renders while every
-	// level up to it still merges the parent's output.
-	outputMerged := true
+	// What each level declares, before anything is inherited into the child.
+	declared := []namedWorkload{{name: cd.Name, workload: cd.Spec.Workload}}
 	for depth := 0; current.Spec.Extends != ""; depth++ {
 		name := current.Spec.Extends
 		if err := checkChain(seen, name, depth, current.Name); err != nil {
@@ -96,16 +94,16 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 		stored.Status = v1beta1.ComponentDefinitionStatus{}
 		tmpl.AncestorComponentDefinitions[name] = stored
 
-		if outputMerged {
-			outputMerged, err = inherit.Inherits(inherit.Level{Name: current.Name, Template: currentTemplate}, "output")
-			if err != nil {
-				return err
-			}
-		}
-		inheritComponentAttributes(tmpl, cd, parent, outputMerged)
+		declared = append(declared, namedWorkload{name: name, workload: parent.Spec.Workload})
+		inheritComponentAttributes(tmpl, cd, parent)
 		seen = append(seen, name)
 		current = parent
-		currentTemplate = parent.Spec.Schematic.CUE.Template
+	}
+	if err := checkWorkloadsMatch(declared); err != nil {
+		return err
+	}
+	if !workloadUnset(cd.Spec.Workload) {
+		tmpl.Reference = cd.Spec.Workload
 	}
 	return checkStatusReads("component", cd.Name, childTemplateOf(tmpl, cd), cd.Spec.Status, ancestorStatuses(tmpl.Ancestors, func(name string) *common.Status {
 		return tmpl.AncestorComponentDefinitions[name].Spec.Status
@@ -213,33 +211,80 @@ func inheritanceEnabled(name, extends string) error {
 
 // inheritComponentAttributes fills in what the child left empty. Only the
 // template is composed by rendering; the rest of the spec describes the
-// workload, where silence means the parent's answer.
+// workload, where silence means the parent's answer. A child always merges its
+// parent's output, so the parent's answer is always the right one.
 //
 // Called once per ancestor with the same child, so the nearest ancestor to
 // declare a field wins and a boolean is true if any of them set it. Folding a
 // pair at a time instead would let a grandparent answer for a level that had
 // already spoken.
-//
-// The workload and what describes it are taken only while the child still
-// merges the parent's output. The webhook stamps autodetect on a definition
-// that declares none, so that counts as silence too.
-func inheritComponentAttributes(tmpl *Template, child, parent *v1beta1.ComponentDefinition, outputMerged bool) {
-	if outputMerged {
-		if workloadUnset(child.Spec.Workload) && !workloadUnset(parent.Spec.Workload) {
-			child.Spec.Workload = parent.Spec.Workload
-			tmpl.Reference = parent.Spec.Workload
-		}
-		if child.Spec.PodSpecPath == "" {
-			child.Spec.PodSpecPath = parent.Spec.PodSpecPath
-		}
-		if child.Spec.RevisionLabel == "" {
-			child.Spec.RevisionLabel = parent.Spec.RevisionLabel
-		}
-		if len(child.Spec.ChildResourceKinds) == 0 {
-			child.Spec.ChildResourceKinds = parent.Spec.ChildResourceKinds
-		}
+func inheritComponentAttributes(tmpl *Template, child, parent *v1beta1.ComponentDefinition) {
+	// A child that names the parent's workload by type alone gets the parent's
+	// whole description, so what reads the workload sees a kind.
+	byTypeOnly := child.Spec.Workload.Definition == (common.WorkloadGVK{}) && sameWorkload(child.Spec.Workload, parent.Spec.Workload)
+	if (workloadUnset(child.Spec.Workload) || byTypeOnly) && !workloadUnset(parent.Spec.Workload) {
+		child.Spec.Workload = parent.Spec.Workload
+	}
+	if child.Spec.PodSpecPath == "" {
+		child.Spec.PodSpecPath = parent.Spec.PodSpecPath
+	}
+	if child.Spec.RevisionLabel == "" {
+		child.Spec.RevisionLabel = parent.Spec.RevisionLabel
+	}
+	if len(child.Spec.ChildResourceKinds) == 0 {
+		child.Spec.ChildResourceKinds = parent.Spec.ChildResourceKinds
 	}
 	tmpl.AncestorStatus = append(tmpl.AncestorStatus, snippetsOf(parent.Spec.Status))
+}
+
+// namedWorkload is the workload one level of a chain declares.
+type namedWorkload struct {
+	name     string
+	workload common.WorkloadTypeDescriptor
+}
+
+// checkWorkloadsMatch refuses a level whose workload differs from the nearest
+// ancestor that declares one. Every level renders its parent's output with
+// more on it, so a workload of its own could only ever be wrong: a label that
+// says StatefulSet on what is a Deployment. A level that declares nothing, or
+// autodetect, inherits.
+func checkWorkloadsMatch(levels []namedWorkload) error {
+	for i, lvl := range levels {
+		if workloadUnset(lvl.workload) {
+			continue
+		}
+		for _, above := range levels[i+1:] {
+			if workloadUnset(above.workload) {
+				continue
+			}
+			if !sameWorkload(lvl.workload, above.workload) {
+				return fmt.Errorf("component %s declares workload %s, but %s declares %s; leave spec.workload unset to inherit it",
+					lvl.name, describeWorkload(lvl.workload), above.name, describeWorkload(above.workload))
+			}
+			break
+		}
+	}
+	return nil
+}
+
+// sameWorkload compares two declared workloads by kind where both name one,
+// and by type where both give only a type.
+func sameWorkload(a, b common.WorkloadTypeDescriptor) bool {
+	if a.Definition.Kind != "" && b.Definition.Kind != "" {
+		return a.Definition == b.Definition
+	}
+	if a.Definition == (common.WorkloadGVK{}) && a.Type != "" && b.Type != "" {
+		return a.Type == b.Type
+	}
+	return false
+}
+
+// describeWorkload names a workload as a reader would look for it.
+func describeWorkload(w common.WorkloadTypeDescriptor) string {
+	if w.Definition != (common.WorkloadGVK{}) {
+		return strings.TrimSpace(w.Definition.APIVersion + " " + w.Definition.Kind)
+	}
+	return w.Type
 }
 
 func workloadUnset(w common.WorkloadTypeDescriptor) bool {

@@ -47,22 +47,8 @@ type directives struct {
 	drops map[string]map[string]bool
 }
 
-// inherits reports whether a surface field is merged onto the parent's. Every
-// field is: a child may leave out single outputs, never a whole field.
-func (d directives) inherits(string) bool { return true }
-
 // dropped reports whether the child leaves out one entry of a parent's field.
 func (d directives) dropped(field, key string) bool { return d.drops[field][key] }
-
-// Inherits reports whether a level merges a surface field onto its parent's.
-// It always does since #7607; the error is a malformed or refused `$inherit`.
-func Inherits(level Level, field string) (bool, error) {
-	d, err := parseDirectives(level)
-	if err != nil {
-		return false, err
-	}
-	return d.inherits(field), nil
-}
 
 // DroppedOutputs is the entries of a droppable surface field, such as
 // `outputs`, that a level leaves out of its parent's with `$inherit`.
