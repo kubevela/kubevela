@@ -18,6 +18,7 @@ package definitions_test
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -79,6 +80,40 @@ parameter: {
 	image:  string
 	tenant: string
 }
+`
+
+// A parent that renders a Deployment whose pod security context is +final.
+const inheritFinalParentTemplate = `
+output: {
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	metadata: name: context.name
+	spec: {
+		selector: matchLabels: "app.oam.dev/component": context.name
+		template: {
+			metadata: labels: "app.oam.dev/component": context.name
+			spec: {
+				// +final
+				securityContext: {runAsNonRoot: true, runAsUser: 1000}
+				containers: [{
+					name:  context.name
+					image: parameter.image
+				}]
+			}
+		}
+	}
+}
+
+parameter: image: string
+`
+
+// A child that adds to the parent's pod security context.
+const inheritFinalBreakingChildTemplate = `
+$super: properties: {image: parameter.image}
+
+output: spec: template: spec: securityContext: runAsUser: 0
+
+parameter: image: string
 `
 
 func componentDefinitionIn(namespace, name, extends, template string, status *common.Status) *v1beta1.ComponentDefinition {
@@ -359,5 +394,84 @@ parameter: {}
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "the-paved-road", Namespace: namespace}, deploy)
 		}, time.Second*60, time.Second*2).Should(Succeed())
+	})
+	It("refuses a child that adds to a field its parent marks +final", func() {
+		parent := componentDefinitionIn(namespace, "final-parent", "", inheritFinalParentTemplate, nil)
+		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
+
+		By("a child that adds to the final field is refused when it is written")
+		breaking := componentDefinitionIn(namespace, "final-breaking-child", "final-parent",
+			inheritFinalBreakingChildTemplate, nil)
+		err := k8sClient.Create(ctx, breaking)
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring(
+			"component final-breaking-child adds to output.spec.template.spec.securityContext, which final-parent marks +final"))
+
+		By("a child that adds beside it is accepted and renders the parent's field as it is")
+		child := componentDefinitionIn(namespace, "final-child", "final-parent",
+			"$super: properties: {image: parameter.image}\n"+
+				"output: metadata: labels: team: \"payments\"\n"+
+				"parameter: image: string\n", nil)
+		Expect(k8sClient.Create(ctx, child)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "final-app", Namespace: namespace},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name:       "secured",
+					Type:       "final-child",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.27"}`)},
+				}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		deploy := &appsv1.Deployment{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "secured", Namespace: namespace}, deploy)
+		}, time.Second*60, time.Second*2).Should(Succeed())
+		Expect(deploy.Labels["team"]).Should(Equal("payments"))
+		Expect(*deploy.Spec.Template.Spec.SecurityContext.RunAsUser).Should(BeEquivalentTo(1000))
+	})
+
+	It("holds a +final added to a parent after its child was accepted", func() {
+		By("apply a parent without the marker and a child that adds to the field")
+		plain := componentDefinitionIn(namespace, "late-final-parent", "", strings.Replace(
+			inheritFinalParentTemplate, "// +final\n", "", 1), nil)
+		Expect(k8sClient.Create(ctx, plain)).Should(Succeed())
+		child := componentDefinitionIn(namespace, "late-final-child", "late-final-parent",
+			inheritFinalBreakingChildTemplate, nil)
+		Expect(k8sClient.Create(ctx, child)).Should(Succeed())
+
+		By("mark the field +final on the parent")
+		Eventually(func() error {
+			current := &v1beta1.ComponentDefinition{}
+			if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(plain), current); err != nil {
+				return err
+			}
+			current.Spec.Schematic.CUE.Template = inheritFinalParentTemplate
+			return k8sClient.Update(ctx, current)
+		}, time.Second*10, time.Millisecond*500).Should(Succeed())
+
+		By("an application using the child is refused at render")
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "late-final-app", Namespace: namespace},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name:       "late",
+					Type:       "late-final-child",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.27"}`)},
+				}},
+			},
+		}
+		Eventually(func() string {
+			err := k8sClient.Create(ctx, app)
+			if err == nil {
+				_ = k8sClient.Delete(ctx, app)
+				return ""
+			}
+			return err.Error()
+		}, time.Second*30, time.Second*2).Should(ContainSubstring(
+			"adds to output.spec.template.spec.securityContext, which late-final-parent marks +final"))
 	})
 })
