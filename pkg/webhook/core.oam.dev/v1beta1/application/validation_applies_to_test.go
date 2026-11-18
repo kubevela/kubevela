@@ -543,14 +543,14 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 		assert.Contains(t, errs[0].Detail, `trait "tenant-scaler"`)
 	})
 
-	// Child components don't inherit their parent's workload yet
-	// (kubevela/kubevela#7508), so workload entries aren't checked on them. Once
-	// that's fixed, sts-scaler is refused here.
-	t.Run("a child component has no workload type of its own yet", func(t *testing.T) {
+	t.Run("a child component without a workload checks its parent's", func(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, true)
 		app := appliesToApp(component("web", "tenant-web", "sts-scaler"))
 
-		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
+		errs := appliesToErrs(appliesToHandler(definitions...), app)
+
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Detail, `(workload "deployments.apps")`)
 	})
 
 	t.Run("an extending component is left to rendering while inheritance is off", func(t *testing.T) {
