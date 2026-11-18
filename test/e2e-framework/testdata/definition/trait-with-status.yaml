@@ -8,7 +8,7 @@ metadata:
   namespace: vela-system
 spec:
   appliesToWorkloads:
-    - deployment-with-status
+    - deployments.apps
   podDisruptive: false
   schematic:
     cue:
