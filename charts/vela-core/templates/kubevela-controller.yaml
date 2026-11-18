@@ -53,7 +53,7 @@ rules:
     verbs: ["get", "list", "watch"]
   {{- if .Values.multicluster.enabled }}
   # cluster-gateway's admission plugins watch these; until they can, it refuses every request.
-  # The mutating ones are watched from Kubernetes 1.36, where they are on by default (alpha since 1.30).
+  # The mutating ones are watched from Kubernetes 1.36, where they are on by default.
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["validatingadmissionpolicies", "validatingadmissionpolicybindings",
                 "mutatingadmissionpolicies", "mutatingadmissionpolicybindings"]
