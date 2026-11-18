@@ -709,8 +709,8 @@ github.com/nats-io/nuid v1.0.1/go.mod h1:19wcPz3Ph3q0Jbyiqsd0kePYG7A95tJPxeL+1OS
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
-github.com/oam-dev/cluster-gateway v1.9.2-0.20261007161929-f1e00d9a9b07 h1:hLNBF2tqD8cNHwL5/wmMHT8vqINZvrO/6S2TwIodi1I=
-github.com/oam-dev/cluster-gateway v1.9.2-0.20261007161929-f1e00d9a9b07/go.mod h1:do/iYYGPV1eBqIensOCBBAhcCM7A7T5JnN/I2N7G8CM=
+github.com/oam-dev/cluster-gateway v1.10.0-alpha.1 h1:j1+Bokuyb14ZiA52baqapjLKwfe10oJO8Da1TNygxFc=
+github.com/oam-dev/cluster-gateway v1.10.0-alpha.1/go.mod h1:do/iYYGPV1eBqIensOCBBAhcCM7A7T5JnN/I2N7G8CM=
 github.com/oam-dev/cluster-register v1.0.4-0.20261007161948-d674530a63cd h1:1iN9thtzIEy8BzA5O8sErxVyNIviCd/LamGEsykFJRY=
 github.com/oam-dev/cluster-register v1.0.4-0.20261007161948-d674530a63cd/go.mod h1:RzV5QSlVG72q/hpyCfH6jnZb/I3LaQtmtKApwFex1kY=
 github.com/oam-dev/stern v1.13.3-0.20261007155744-2c166cd8b945 h1:SbfBaVxZpqhp0zndqGWd1ZIKR0pomjnFncng8CUWs0M=

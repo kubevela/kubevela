@@ -45,7 +45,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
-	github.com/oam-dev/cluster-gateway v1.9.2-0.20261007161929-f1e00d9a9b07
+	github.com/oam-dev/cluster-gateway v1.10.0-alpha.1
 	github.com/oam-dev/cluster-register v1.0.4-0.20261007161948-d674530a63cd
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20261007155724-d8a4743f5ad5
 	github.com/oam-dev/terraform-controller v0.8.1-0.20261007155713-6804e7b2e5b4
