@@ -152,24 +152,26 @@ func hasFinalTag(f *ast.Field) bool {
 // +final. own is the level's own compiled value, before anything was merged
 // onto it, so whatever it holds under a surface field it wrote itself.
 //
-// A marker holds only while the field is still merged: a level that takes a
-// surface field over with `$inherit` writes its own from then on, and nothing
-// above it reaches the levels below through that field.
+// A marker on an output holds only while that output is still merged: a level
+// that leaves it out with `$inherit` writes its own from then on, and nothing
+// above it reaches the levels below through it.
 func CheckFinal(at string, self Level, own cue.Value, ancestors []Level, s Surface) error {
 	d, err := parseDirectives(self)
 	if err != nil {
 		return err
 	}
-	merged := map[string]bool{}
-	for _, f := range s.Fields {
-		merged[f] = d.inherits(f)
+	cut := map[string]bool{}
+	addCuts := func(d directives) {
+		for field, keys := range d.drops {
+			for key := range keys {
+				cut[field+"."+key] = true
+			}
+		}
 	}
+	addCuts(d)
 	for _, anc := range ancestors {
 		for _, p := range finalPaths(anc, s) {
-			if !merged[p[0]] {
-				continue
-			}
-			if hit, ok := touches(own, p); ok {
+			if hit, ok := touches(own, p, cut); ok {
 				return fmt.Errorf("%s %s adds to %s, which %s marks %s",
 					s.Kind, at, hit, anc.Name, FinalTag)
 			}
@@ -178,19 +180,21 @@ func CheckFinal(at string, self Level, own cue.Value, ancestors []Level, s Surfa
 		if err != nil {
 			return err
 		}
-		for f := range merged {
-			merged[f] = merged[f] && ad.inherits(f)
-		}
+		addCuts(ad)
 	}
 	return nil
 }
 
 // touches reports whether v holds anything at or below p, and the concrete path
-// it found, a pattern element matched against v's own labels.
-func touches(v cue.Value, p finalPath) (string, bool) {
+// it found, a pattern element matched against v's own labels. An output listed
+// in cut was left out on the way up and is the level's own, so it is skipped.
+func touches(v cue.Value, p finalPath, cut map[string]bool) (string, bool) {
 	var walk func(v cue.Value, rest finalPath, seen []string) (string, bool)
 	walk = func(v cue.Value, rest finalPath, seen []string) (string, bool) {
 		if !v.Exists() {
+			return "", false
+		}
+		if len(seen) == 2 && cut[seen[0]+"."+seen[1]] {
 			return "", false
 		}
 		if len(rest) == 0 {

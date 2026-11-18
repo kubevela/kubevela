@@ -136,10 +136,11 @@ parameter: {
 	require.True(t, res.Value.LookupPath(cue.ParsePath("outputs.quota")).Exists(), "child's outputs added")
 }
 
-func TestChildOverridesValueDerivedFromDefaultedParameter(t *testing.T) {
-	// The parent sets spec.replicas from `replicas: *1 | int`. Because its output
-	// crosses as a value rather than as data, that field is still a disjunction
-	// when the child merges onto it, so the child wins.
+// The parent sets spec.replicas from `replicas: *1 | int`. Its output crosses
+// as a value, so the field is still a disjunction when the child merges onto it
+// and the child would win. A child adds to its parent and never changes it, so
+// the value has to go up through `$super: properties` instead.
+func TestChildChangingAValueFromADefaultedParameterIsRefused(t *testing.T) {
 	child := `
 $super: properties: {image: parameter.image}
 
@@ -149,14 +150,14 @@ parameter: {
 	tenant: string
 }
 `
-	res := render(t, child, `parameter: {image: "NGINX", tenant: "acme"}`)
-
-	replicas, err := res.Value.LookupPath(cue.ParsePath("output.spec.replicas")).Int64()
-	require.NoError(t, err)
-	require.EqualValues(t, 5, replicas)
+	_, err := Render(context.Background(),
+		[]Level{{Name: "tenant-webservice", Template: child}, {Name: "webservice", Template: parentTemplate}},
+		`parameter: {image: "NGINX", tenant: "acme"}`, contextFile, ComponentSurface, SameCompiler(testCompile()))
+	require.ErrorContains(t, err, "sets output.spec.replicas, which webservice already sets")
 }
 
-func TestInheritFalseTakesTheSurfaceOver(t *testing.T) {
+// A child cannot take its parent's output over.
+func TestInheritOutputFalseIsRefused(t *testing.T) {
 	child := `
 $inherit: {output: false}
 
@@ -166,6 +167,28 @@ output: {
 	apiVersion: "v1"
 	kind:       "ConfigMap"
 	metadata: name: context.name
+}
+
+parameter: {
+	tenant: string
+}
+`
+	_, err := Render(context.Background(),
+		[]Level{{Name: "tenant-webservice", Template: child}, {Name: "webservice", Template: parentTemplate}},
+		`parameter: {image: "NGINX", tenant: "acme"}`, contextFile, ComponentSurface, SameCompiler(testCompile()))
+	require.ErrorContains(t, err, "`$inherit: {output: false}` is not allowed")
+}
+
+// What the parent rendered stays readable on `$super`, so a child can build an
+// output of its own from a piece of it.
+func TestParentOutputIsReadableForANewOutput(t *testing.T) {
+	child := `
+$super: properties: {image: parameter.image}
+
+outputs: image: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: name: context.name + "-image"
 	data: image: $super.output.spec.template.spec.containers[0].image
 }
 
@@ -175,17 +198,11 @@ parameter: {
 `
 	res := render(t, child, `parameter: {image: "NGINX", tenant: "acme"}`)
 
-	kind, err := res.Value.LookupPath(cue.ParsePath("output.kind")).String()
-	require.NoError(t, err)
-	require.Equal(t, "ConfigMap", kind, "the parent's output was not merged in")
-
-	// but it was still readable, built from a piece of the parent's.
-	image, err := res.Value.LookupPath(cue.ParsePath("output.data.image")).String()
+	image, err := res.Value.LookupPath(cue.ParsePath("outputs.image.data.image")).String()
 	require.NoError(t, err)
 	require.Equal(t, "nginx", image)
-
-	// outputs was not opted out of, so the parent's is still there.
-	require.True(t, res.Value.LookupPath(cue.ParsePath("outputs.svc")).Exists())
+	require.True(t, res.Value.LookupPath(cue.ParsePath("output.kind")).Exists(), "the parent's output was merged")
+	require.True(t, res.Value.LookupPath(cue.ParsePath("outputs.svc")).Exists(), "and its outputs kept")
 }
 
 func TestParentAuthoredErrorsReachTheChild(t *testing.T) {

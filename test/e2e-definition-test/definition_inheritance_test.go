@@ -107,11 +107,11 @@ output: {
 parameter: image: string
 `
 
-// A child that adds to the parent's pod security context.
+// A child that adds a field the parent did not set to its pod security context.
 const inheritFinalBreakingChildTemplate = `
 $super: properties: {image: parameter.image}
 
-output: spec: template: spec: securityContext: runAsUser: 0
+output: spec: template: spec: securityContext: fsGroup: 2000
 
 parameter: image: string
 `

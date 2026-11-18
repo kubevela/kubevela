@@ -155,17 +155,16 @@ var _ = Describe("+final", func() {
 				"component leaf adds to output.metadata, which middle marks +final")))
 		})
 
-		It("does not hold a marker on a field the child took over with $inherit", func() {
-			child := Level{Name: "child", Template: silentMiddle + "$inherit: {outputs: false}\n" +
+		It("does not hold a marker on an output the child left out with $inherit", func() {
+			child := Level{Name: "child", Template: silentMiddle + "$inherit: {outputs: {netpol: false}}\n" +
 				"outputs: netpol: {apiVersion: \"networking.k8s.io/v1\", kind: \"NetworkPolicy\"}\n"}
 			Expect(finalChain(child, base)).To(Succeed())
 		})
 
-		It("does not hold the root's marker past a middle level that took the field over", func() {
-			leaf := Level{Name: "leaf", Template: silentMiddle +
-				"output: spec: template: spec: securityContext: runAsUser: 1000\n"}
-			middle := Level{Name: "middle", Template: silentMiddle + "$inherit: {output: false}\n" +
-				"output: {apiVersion: \"apps/v1\", kind: \"Deployment\"}\n"}
+		It("does not hold the root's marker past a middle level that left the output out", func() {
+			leaf := Level{Name: "leaf", Template: silentMiddle + "outputs: netpol: metadata: name: \"x\"\n"}
+			middle := Level{Name: "middle", Template: silentMiddle + "$inherit: {outputs: {netpol: false}}\n" +
+				"outputs: netpol: {apiVersion: \"networking.k8s.io/v1\", kind: \"NetworkPolicy\"}\n"}
 			Expect(finalChain(leaf, middle, base)).To(Succeed())
 		})
 

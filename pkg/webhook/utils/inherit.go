@@ -47,12 +47,21 @@ func ValidateInheritedTemplate(ctx context.Context, name, template string, ances
 	if err != nil {
 		return nil, err
 	}
+	// The call is checked first: a child that never calls its parent, or calls
+	// it wrongly, has a more basic problem than what it adds.
+	warnings, err := inherit.CheckCall(ctx, chain, surface, admissionCompiler, alsoRead...)
+	if err != nil {
+		return warnings, err
+	}
 	// Refused here rather than left to the first Application that renders it,
 	// so the author of the child hears about it when writing the child.
 	if err := inherit.CheckFinal(name, chain[0], own, ancestors, surface); err != nil {
-		return nil, err
+		return warnings, err
 	}
-	return inherit.CheckCall(ctx, chain, surface, admissionCompiler, alsoRead...)
+	if err := inherit.CheckOverrides(ctx, name, chain[0], own, ancestors, surface, admissionCompiler); err != nil {
+		return warnings, err
+	}
+	return warnings, nil
 }
 
 // validateOwnTemplate checks the child's own CUE, which the call check does

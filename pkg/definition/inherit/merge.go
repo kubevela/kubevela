@@ -39,6 +39,10 @@ func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d di
 		if !ok {
 			continue
 		}
+		fromParent, err := withoutDropped(fromParent, field, d)
+		if err != nil {
+			return cue.Value{}, fmt.Errorf("%s %s: leaving out %s's %s: %w", s.Kind, at, parentLevel.Name, field, err)
+		}
 		fromChild := child.LookupPath(path)
 		if !fromChild.Exists() {
 			// Nothing of the child's to merge: the parent's stands as it is.
@@ -54,9 +58,9 @@ func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d di
 			return cue.Value{}, fmt.Errorf(
 				"%s %s: merging its %s onto %s's: %w\n"+
 					"  a conflict here means %s sets that field to a concrete value. "+
-					"Pass a different parameter to %s, or take the field over with `%s: {%s: false}`",
+					"Pass a different parameter to %s through `%s: properties`",
 				s.Kind, at, field, parentLevel.Name, err,
-				parentLevel.Name, parentLevel.Name, InheritField, field)
+				parentLevel.Name, parentLevel.Name, SuperField)
 		}
 		out = out.FillPath(path, merged)
 		if err := out.Err(); err != nil {
@@ -65,4 +69,24 @@ func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d di
 		}
 	}
 	return out, nil
+}
+
+// withoutDropped is a parent's field with the entries the child leaves out
+// removed, so the child's own entry of that name, if any, stands alone.
+func withoutDropped(v cue.Value, field string, d directives) (cue.Value, error) {
+	if len(d.drops[field]) == 0 {
+		return v, nil
+	}
+	iter, err := v.Fields(cue.Optional(true), cue.Definitions(true))
+	if err != nil {
+		return cue.Value{}, err
+	}
+	out := v.Context().CompileString("{}")
+	for iter.Next() {
+		if d.dropped(field, iter.Selector().Unquoted()) {
+			continue
+		}
+		out = out.FillPath(cue.MakePath(iter.Selector()), iter.Value())
+	}
+	return out, out.Err()
 }
