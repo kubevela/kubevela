@@ -179,7 +179,7 @@ featureGates:
 ## @param multicluster.clusterGateway.replicaCount ClusterGateway replica count
 ## @param multicluster.clusterGateway.port ClusterGateway port
 ## @param multicluster.clusterGateway.image.repository ClusterGateway image repository
-## @param multicluster.clusterGateway.image.tag ClusterGateway image tag
+## @param multicluster.clusterGateway.image.tag ClusterGateway image tag, optionally with an @sha256 digest to pin the image
 ## @param multicluster.clusterGateway.image.pullPolicy ClusterGateway image pull policy
 ## @param multicluster.clusterGateway.resources.requests.cpu ClusterGateway cpu request
 ## @param multicluster.clusterGateway.resources.requests.memory ClusterGateway memory request
@@ -203,7 +203,7 @@ multicluster:
     port: 9443
     image:
       repository: oamdev/cluster-gateway
-      tag: v1.9.0-alpha.2
+      tag: v1.9.2@sha256:7cc34439263689a4d11042db38ce54f5da893d8e533c01917f2450dcf11a0544
       pullPolicy: IfNotPresent
     resources:
       requests:
