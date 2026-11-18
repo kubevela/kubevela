@@ -92,8 +92,10 @@ const (
 // User-defined policies are parsed as a Component without any Traits because their purpose is dispatching some resources
 // Internal policies are NOT parsed as a Component
 type Component struct {
-	Name               string
-	Type               string
+	Name string
+	Type string
+	// Reference is the type as the Application wrote it, such as `webservice@v2`.
+	Reference          string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
 	Traits             []*Trait
@@ -137,7 +139,9 @@ type Trait struct {
 	Name string
 	// TypeLabel is the trait.oam.dev/type value on the objects the trait emits.
 	// It equals Name except for a crate trait, where it is the installed name.
-	TypeLabel          string
+	TypeLabel string
+	// Reference is the type as the Application wrote it, such as `scaler@v2`.
+	Reference          string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
 
