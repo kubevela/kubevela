@@ -203,7 +203,6 @@ optimize:
 ##@param featureGates.enableDefinitionInheritance enable spec.extends on ComponentDefinition and TraitDefinition
 ##@param featureGates.enableModuleComponent enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)
 ##@param featureGates.autoMigrateLegacyConfigs adopt legacy config templates and configs into ConfigTemplate and Config CRs once at controller startup, the same as running vela config-template migrate --all in every namespace; legacy objects are kept (Alpha)
-##@param featureGates.validateTraitAppliesToWorkloads reject a trait its TraitDefinition's appliesToWorkloads doesn't allow; an update keeping an existing trait only warns (Alpha)
 ##@param featureGates.disableWorkflowHTTP disable outbound HTTP from workflow request/webhook steps
 ##@param featureGates.blockPrivateHTTPAddresses block workflow outbound HTTP to RFC-1918 and ULA destinations
 ##@param
@@ -236,7 +235,6 @@ featureGates:
   restrictDefinitionNamespaces: true
   enableDefinitionInheritance: false
   autoMigrateLegacyConfigs: false
-  validateTraitAppliesToWorkloads: false
   disableWorkflowHTTP: false
   blockPrivateHTTPAddresses: false
 

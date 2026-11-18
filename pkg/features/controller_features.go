@@ -210,11 +210,6 @@ const (
 	// startup error. Off by default: the CLI command is the on-demand path, this
 	// gate is for operators who want the upgrade itself to do it.
 	AutoMigrateLegacyConfigs featuregate.Feature = "AutoMigrateLegacyConfigs"
-
-	// ValidateTraitAppliesToWorkloads rejects an Application that attaches a trait
-	// its TraitDefinition's appliesToWorkloads doesn't allow. An update that keeps
-	// an existing trait only warns. Off by default: the field went unenforced for years.
-	ValidateTraitAppliesToWorkloads featuregate.Feature = "ValidateTraitAppliesToWorkloads"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -254,7 +249,6 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableDefinitionInheritance:                   {Default: false, PreRelease: featuregate.Alpha},
 	EnableModuleComponent:                         {Default: false, PreRelease: featuregate.Alpha},
 	AutoMigrateLegacyConfigs:                      {Default: false, PreRelease: featuregate.Alpha},
-	ValidateTraitAppliesToWorkloads:               {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

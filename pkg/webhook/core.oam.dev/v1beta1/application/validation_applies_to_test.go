@@ -150,11 +150,6 @@ func appliesToErrs(h *ValidatingHandler, app *v1beta1.Application) field.ErrorLi
 	return errs
 }
 
-func withAppliesToValidation(t *testing.T) {
-	t.Helper()
-	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.ValidateTraitAppliesToWorkloads, true)
-}
-
 func TestValidateTraitAppliesTo(t *testing.T) {
 	deployment := common.WorkloadTypeDescriptor{Type: "deployments.apps"}
 	autodetect := common.WorkloadTypeDescriptor{Type: types.AutoDetectWorkloadDefinition}
@@ -186,14 +181,7 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		},
 	}
 
-	t.Run("does nothing while the gate is off", func(t *testing.T) {
-		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.ValidateTraitAppliesToWorkloads, false)
-		app := appliesToApp(component("web", "webservice", "sts-only"))
-		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
-	})
-
 	t.Run("rejects a trait whose appliesToWorkloads does not list the workload", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(component("web", "webservice", "anywhere", "sts-only"))
 
 		errs := appliesToErrs(appliesToHandler(definitions...), app)
@@ -205,7 +193,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("allows traits that apply", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(
 			component("web", "webservice", "anywhere", "apps-group"),
 			component("db", "gvk-only", "sts-only", "apps-group"),
@@ -215,7 +202,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("reports every component that breaks the rule", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(
 			component("a", "webservice", "sts-only"),
 			component("b", "webservice", "sts-only"),
@@ -229,7 +215,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("maps a GVK-only workload through the RESTMapper", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(component("db", "gvk-only", "cronjob-scaler"))
 
 		errs := appliesToErrs(appliesToHandler(definitions...), app)
@@ -239,7 +224,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("treats a kind the cluster does not serve as having no workload type", func(t *testing.T) {
-		withAppliesToValidation(t)
 		unserved := appliesToComponentDef("widget", common.WorkloadTypeDescriptor{
 			Definition: common.WorkloadGVK{APIVersion: "example.com/v1", Kind: "Widget"},
 		})
@@ -249,7 +233,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("fails closed when the RESTMapper cannot answer", func(t *testing.T) {
-		withAppliesToValidation(t)
 		cli := fake.NewClientBuilder().WithScheme(readKindsScheme()).
 			WithRESTMapper(unavailableRESTMapper{appliesToRESTMapper()}).WithObjects(definitions...).Build()
 		app := appliesToApp(component("db", "gvk-only", "sts-only"))
@@ -262,7 +245,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("reads the workload from the WorkloadDefinition spec.workload.type names", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(
 			component("web", "wd-backed", "apps-group", "sts-only"),
 			component("db", "wd-missing", "sts-only"),
@@ -277,13 +259,11 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("does not check workload forms on a component with no workload type", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(component("job", "cron-task", "cronjob-scaler", "sts-only", "apps-group"))
 		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 
 	t.Run("skips definitions that do not exist", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(
 			component("web", "webservice", "missing-trait"),
 			component("other", "missing-component", "sts-only"),
@@ -292,7 +272,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("prefers a namespaced TraitDefinition over the system one", func(t *testing.T) {
-		withAppliesToValidation(t)
 		override := appliesToTraitDef("sts-only", "deployments.apps")
 		override.Namespace = "default"
 		app := appliesToApp(component("web", "webservice", "sts-only"))
@@ -301,7 +280,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("reads a pinned definition revision", func(t *testing.T) {
-		withAppliesToValidation(t)
 		rev := &v1beta1.DefinitionRevision{
 			ObjectMeta: metav1.ObjectMeta{Name: "anywhere-v1", Namespace: oam.SystemDefinitionNamespace},
 			Spec: v1beta1.DefinitionRevisionSpec{
@@ -331,7 +309,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	}
 
 	t.Run("leaves a type that cannot be resolved to the abstract-type check", func(t *testing.T) {
-		withAppliesToValidation(t)
 		cli := failingClient(func(obj client.Object) bool {
 			_, ok := obj.(*v1beta1.TraitDefinition)
 			return ok
@@ -345,7 +322,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("reports a failing type once", func(t *testing.T) {
-		withAppliesToValidation(t)
 		calls := 0
 		cli := failingClient(func(obj client.Object) bool {
 			_, ok := obj.(*v1beta1.DefinitionRevision)
@@ -368,13 +344,11 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("does not repeat a malformed type", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(component("web", "webservice", "foo/bar"))
 		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 
 	t.Run("reads a WorkloadDefinition from the ComponentDefinition's namespace", func(t *testing.T) {
-		withAppliesToValidation(t)
 		// Same name as vela-system/my-deploy, in the Application's namespace.
 		shadow := &v1beta1.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: "my-deploy", Namespace: "default"},
@@ -389,7 +363,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("reads a cluster-scoped ComponentDefinition's WorkloadDefinition from vela-system", func(t *testing.T) {
-		withAppliesToValidation(t)
 		legacy := appliesToComponentDef("legacy-wd", common.WorkloadTypeDescriptor{Type: "my-deploy"})
 		legacy.Namespace = ""
 		app := appliesToApp(component("web", "legacy-wd", "sts-only"))
@@ -401,7 +374,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("uses spec.workload.type when a GVK is set as well", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(component("db", "gvk-and-type", "sts-only", "cronjob-scaler"))
 
 		errs := appliesToErrs(appliesToHandler(definitions...), app)
@@ -412,7 +384,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("a WorkloadDefinition without a definitionRef stands for its own name", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(component("web", "wd-noref", "cronjob-scaler"))
 
 		errs := appliesToErrs(appliesToHandler(definitions...), app)
@@ -422,13 +393,11 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("a component that declares no workload has no workload type", func(t *testing.T) {
-		withAppliesToValidation(t)
 		app := appliesToApp(component("x", "no-workload", "sts-only", "cronjob-scaler"))
 		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 
 	t.Run("fails closed when the WorkloadDefinition cannot be read", func(t *testing.T) {
-		withAppliesToValidation(t)
 		cli := failingClient(func(obj client.Object) bool {
 			_, ok := obj.(*v1beta1.WorkloadDefinition)
 			return ok
@@ -443,7 +412,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("fails closed when a definition cannot be read", func(t *testing.T) {
-		withAppliesToValidation(t)
 		cli := failingClient(func(obj client.Object) bool {
 			_, ok := obj.(*v1beta1.DefinitionRevision)
 			return ok
@@ -458,7 +426,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 	})
 
 	t.Run("reads a definition the cache has not caught up with from the API server", func(t *testing.T) {
-		withAppliesToValidation(t)
 		late := appliesToTraitDef("late-sts-only", "statefulsets.apps")
 		h := &ValidatingHandler{
 			Client: appliesToClient(nil, definitions...),
@@ -474,7 +441,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 }
 
 func TestValidateTraitAppliesToOnUpdate(t *testing.T) {
-	withAppliesToValidation(t)
 	h := appliesToHandler(
 		appliesToComponentDef("webservice", common.WorkloadTypeDescriptor{Type: "deployments.apps"}),
 		appliesToComponentDef("worker", common.WorkloadTypeDescriptor{Type: "deployments.apps"}),
@@ -518,8 +484,6 @@ func TestValidateTraitAppliesToOnUpdate(t *testing.T) {
 }
 
 func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
-	withAppliesToValidation(t)
-
 	parentTrait := appliesToTraitDef("sts-scaler", "statefulsets.apps")
 	childTrait := appliesToTraitDef("tenant-scaler")
 	childTrait.Spec.Extends = "sts-scaler"
@@ -642,11 +606,6 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 var _ = Describe("Trait appliesToWorkloads admission", func() {
 	var stsOnly *v1beta1.TraitDefinition
 
-	setGate := func(on bool) {
-		Expect(utilfeature.DefaultMutableFeatureGate.Set(
-			fmt.Sprintf("%s=%t", features.ValidateTraitAppliesToWorkloads, on))).Should(Succeed())
-	}
-
 	BeforeEach(func() {
 		handler = &ValidatingHandler{Client: k8sClient, Decoder: decoder}
 		stsOnly = &v1beta1.TraitDefinition{
@@ -662,9 +621,6 @@ var _ = Describe("Trait appliesToWorkloads admission", func() {
 		DeferCleanup(func() {
 			Expect(k8sClient.Delete(ctx, stsOnly)).Should(Succeed())
 		})
-
-		DeferCleanup(setGate, utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateTraitAppliesToWorkloads))
-		setGate(true)
 	})
 
 	appJSON := func(traitType string) []byte {
@@ -716,11 +672,5 @@ var _ = Describe("Trait appliesToWorkloads admission", func() {
 		resp := handler.Handle(ctx, updateRequest("scaler", "sts-only-scaler"))
 		Expect(resp.Allowed).Should(BeFalse())
 		Expect(resp.Result.Message).Should(ContainSubstring(`trait "sts-only-scaler" cannot apply`))
-	})
-
-	It("admits anything while the gate is off", func() {
-		setGate(false)
-		resp := handler.Handle(ctx, request("sts-only-scaler"))
-		Expect(resp.Allowed).Should(BeTrue(), resp.Result.Message)
 	})
 })

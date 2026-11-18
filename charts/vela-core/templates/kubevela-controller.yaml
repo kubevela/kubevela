@@ -430,7 +430,6 @@ spec:
             - "--feature-gates=ValidateUndeclaredParameters={{- .Values.featureGates.validateUndeclaredParameters | toString -}}"
             - "--feature-gates=EnableDefinitionInheritance={{- .Values.featureGates.enableDefinitionInheritance | toString -}}"
             - "--feature-gates=AutoMigrateLegacyConfigs={{- .Values.featureGates.autoMigrateLegacyConfigs | toString -}}"
-            - "--feature-gates=ValidateTraitAppliesToWorkloads={{- .Values.featureGates.validateTraitAppliesToWorkloads | toString -}}"
             - "--feature-gates=DisableWorkflowHTTP={{- .Values.featureGates.disableWorkflowHTTP | toString -}}"
             - "--feature-gates=BlockPrivateHTTPAddresses={{- .Values.featureGates.blockPrivateHTTPAddresses | toString -}}"
             - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authorization.definitionValidationEnabled | toString -}}"

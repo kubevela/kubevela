@@ -62,9 +62,6 @@ type traitAttachment struct {
 // on update, a trait the Application already had on the same component only
 // warns, so existing Applications stay editable.
 func (h *ValidatingHandler) ValidateTraitAppliesTo(ctx context.Context, app, oldApp *v1beta1.Application) (field.ErrorList, []string) {
-	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateTraitAppliesToWorkloads) {
-		return nil, nil
-	}
 	var errs field.ErrorList
 	var warnings []string
 	defCtx := oamutil.SetNamespaceInCtx(ctx, app.Namespace)
