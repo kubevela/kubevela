@@ -53,6 +53,10 @@ const (
 	FlagNamespace = "namespace"
 	// FlagInteractive command flag to specify the use of interactive process
 	FlagInteractive = "interactive"
+	// FlagComponent command flag to specify the target component, as <app>/<name>
+	FlagComponent = "component"
+	// FlagParam command flag to specify a key=value operation parameter
+	FlagParam = "param"
 	// CUEExtension with the expected extension for a CUE file.
 	CUEExtension = ".cue"
 	// YAMLExtension with the expected extension for a YAML file.

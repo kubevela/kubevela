@@ -1,0 +1,24 @@
+apiVersion: core.oam.dev/v2alpha1
+kind: OperationTemplate
+metadata:
+  name: restart-webservice
+  namespace: vela-system
+spec:
+  description: Restart a webservice Component's Deployment, via the restart-webservice step.
+  attach:
+    scope: Component
+    # restart-webservice assumes context.output is a Deployment.
+    allowedComponentTypes: [webservice]
+  parameters:
+    cue: |
+      parameter: {
+        // +usage=Why this restart is happening; recorded on the Deployment.
+        reason: string
+      }
+  workflow:
+    steps:
+      - name: restart
+        # KEP 2.15 Option 1: step reads context.output/context.namespace itself.
+        type: restart-webservice
+        properties:
+          image: bitnami/kubectl:latest

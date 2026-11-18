@@ -1,0 +1,10 @@
+# ClusterRole allowing the restart Job running in vela-system
+# to act on Deployments in any target namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: restart-webservice
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]

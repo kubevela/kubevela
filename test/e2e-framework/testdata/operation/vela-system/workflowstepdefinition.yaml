@@ -1,0 +1,90 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: restart-webservice
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: Restart a webservice Component's Deployment, used by the restart-webservice OperationTemplate.
+spec:
+  schematic:
+    cue:
+      template: |
+        import (
+        	"vela/kube"
+        	"vela/builtin"
+        	"vela/util"
+        )
+        job: kube.#Apply & {
+        	$params: value: {
+        		apiVersion: "batch/v1"
+        		kind:       "Job"
+        		metadata: {
+        			// Runs in vela-system (not context.namespace) using RBAC packaged with definition
+        			name:      "\(context.name)-\(context.stepName)-\(context.stepSessionID)"
+        			namespace: "vela-system"
+        			labels: "operation.oam.dev/target-namespace": context.namespace
+        		}
+        		spec: {
+        			backoffLimit: 3
+        			// No ownership/GC is done for step-created resources by design
+        			// (see the KEP's "Resource ownership and cleanup" section)
+        			ttlSecondsAfterFinished: 300
+        			template: {
+        				metadata: labels: "workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
+        				spec: {
+        					// One container per command (kubectl image has no shell)
+        					initContainers: [
+        						{
+        							name:  "\(context.name)-\(context.stepName)-\(context.stepSessionID)-restart"
+        							image: parameter.image
+        							command: ["kubectl", "rollout", "restart", "deployment/\(context.output.metadata.name)", "-n", context.namespace]
+        						},
+        					]
+        					containers: [
+        						{
+        							name:  "\(context.name)-\(context.stepName)-\(context.stepSessionID)-annotate"
+        							image: parameter.image
+        							// Exercises reading context.operationParams (supplied per-invocation via Operation.spec.parameters)
+        							command: ["kubectl", "annotate", "deployment/\(context.output.metadata.name)", "-n", context.namespace, "operation.oam.dev/restart-reason=\(context.operationParams.reason)", "--overwrite"]
+        							// Exercises reading status off context.output (not used by the restart itself)
+        							env: [
+        								{name: "READY_REPLICAS", value: "\(context.output.status.readyReplicas)"},
+        							]
+        						},
+        					]
+        					restartPolicy:  "Never"
+        					// Packaged with definition in vela-system (no invoker RBAC needed)
+        					serviceAccount: "restart-webservice"
+        				}
+        			}
+        		}
+        	}
+        }
+
+        log: util.#Log & {
+        	$params: source: resources: [{
+        		namespace:     "vela-system"
+        		labelSelector: "workflow.oam.dev/step-name": "\(context.name)-\(context.stepName)"
+        	}]
+        }
+
+        fail: {
+        	if job.$returns.value.status != _|_ if job.$returns.value.status.failed != _|_ {
+        		if job.$returns.value.status.failed > 2 {
+        			breakWorkflow: builtin.#Fail & {
+        				$params: message: "failed to restart deployment"
+        			}
+        		}
+        	}
+        }
+
+        wait: builtin.#ConditionalWait & {
+        	if job.$returns.value.status != _|_ if job.$returns.value.status.succeeded != _|_ {
+        		$params: continue: job.$returns.value.status.succeeded > 0
+        	}
+        }
+
+        parameter: {
+        	// +usage=Specify the image
+        	image: *"bitnami/kubectl:latest" | string
+        }

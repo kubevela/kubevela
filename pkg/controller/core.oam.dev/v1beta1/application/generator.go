@@ -339,6 +339,15 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 	}
 }
 
+// CheckComponentHealth exposes checkComponentHealth so the
+// core.oam.dev/v2alpha1 Operation controller can reuse the same
+// health-evaluation path an Application's healthPolicy already uses,
+// instead of re-implementing component status/output collection (see
+// the Operations KEP, KEP 2.15).
+func (h *AppHandler) CheckComponentHealth(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentHealthCheck {
+	return h.checkComponentHealth(appParser, af)
+}
+
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentApply {
 	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		t := time.Now()

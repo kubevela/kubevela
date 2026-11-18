@@ -1,0 +1,22 @@
+# Fails unless context.name is the source Application's own name -- proves
+# Application-scope context resolution (compName = app.Name, no
+# component). Pure CUE, no Job (e2e-only; expected to move to envtest).
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: appscope-check
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: Fails unless context.name is the source Application's name.
+spec:
+  schematic:
+    cue:
+      template: |
+        import "vela/builtin"
+        fail: {
+        	if context.name != "operation-app" {
+        		breakWorkflow: builtin.#Fail & {
+        			$params: message: "context.name was \(context.name), want operation-app"
+        		}
+        	}
+        }

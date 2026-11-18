@@ -22,11 +22,12 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v2alpha1"
 )
 
 func init() {
 	// Register the types with the Scheme so the resources can map objects to GroupVersionKinds and back
-	AddToSchemes = append(AddToSchemes, v1alpha1.SchemeBuilder.AddToScheme, v1beta1.SchemeBuilder.AddToScheme)
+	AddToSchemes = append(AddToSchemes, v1alpha1.SchemeBuilder.AddToScheme, v1beta1.SchemeBuilder.AddToScheme, v2alpha1.SchemeBuilder.AddToScheme)
 }
 
 // AddToSchemes may be used to add all resources defined in the project to a Scheme

@@ -96,4 +96,20 @@ const (
 	ContextPolicyRevision = "policyRevision"
 	// ContextPolicyRevisionHash is the template content hash
 	ContextPolicyRevisionHash = "policyRevisionHash"
+	// ContextOperationName is the name of the currently executing Operation
+	// (core.oam.dev/v2alpha1), populated the same way ContextAppName is for
+	// an Application-driven workflow.
+	ContextOperationName = "operationName"
+	// ContextOperationParams is the resolved spec.parameters of the
+	// currently executing Operation.
+	ContextOperationParams = "operationParams"
+	// ContextOperationScope is the attach.scope of the OperationTemplate the
+	// currently executing Operation invoked (e.g. "Component").
+	ContextOperationScope = "scope"
+	// ContextStartTime is the start time of the currently executing
+	// Operation, RFC3339-formatted.
+	ContextStartTime = "startTime"
+	// ContextStatus is the health status of an Operation's target,
+	// evaluated the same way a healthPolicy evaluates a component's status.
+	ContextStatus = "status"
 )

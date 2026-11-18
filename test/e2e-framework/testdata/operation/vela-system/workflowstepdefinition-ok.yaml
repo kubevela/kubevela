@@ -1,0 +1,17 @@
+# Test fixture for KEP-2.15 re-execution. Unconditionally succeeds -- used
+# as a step that shouldn't need retrying, so tests can assert it's left
+# untouched by a --step restart targeting a later step. Pure CUE, no Job
+# (e2e-only for now; expected to move to envtest).
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: ok-step
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: Always succeeds -- a test fixture standing in for a step that shouldn't need retrying.
+spec:
+  schematic:
+    cue:
+      template: |
+        // nop only to make the template not empty, or it's invalid.
+        nop: {}

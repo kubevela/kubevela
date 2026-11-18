@@ -1,0 +1,294 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: operationtemplates.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    categories:
+    - oam
+    kind: OperationTemplate
+    listKind: OperationTemplateList
+    plural: operationtemplates
+    shortNames:
+    - opt
+    - optemplate
+    singular: operationtemplate
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.attach.scope
+      name: SCOPE
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v2alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          OperationTemplate is the Schema for the OperationTemplate API.
+
+          KEP 2.15 permission model: not implemented yet. Any RBAC principal able
+          to create an Operation can invoke any OperationTemplate against any
+          source in its namespace. Do not release or promote this code path
+          until the permission model lands.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: OperationTemplateSpec is the spec of OperationTemplate.
+            properties:
+              attach:
+                description: Attach describes what this template can be invoked against.
+                properties:
+                  allowedComponentTypes:
+                    description: |-
+                      AllowedComponentTypes restricts which ComponentDefinition types this
+                      template may be invoked against. Component scope only. Empty means
+                      any type is allowed.
+                    items:
+                      type: string
+                    type: array
+                  scope:
+                    default: Component
+                    description: Scope is the kind of source this template attaches
+                      to.
+                    enum:
+                    - Component
+                    - Application
+                    - None
+                    type: string
+                  selector:
+                    description: |-
+                      Selector restricts which Applications this template may be invoked
+                      against. Application scope only.
+                    properties:
+                      matchExpressions:
+                        description: |-
+                          CEL rule enforces valid operator values at admission (the vendored
+                          LabelSelectorRequirement type has no such constraint of its own).
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-validations:
+                        - message: operator must be one of In, NotIn, Exists, DoesNotExist
+                          rule: self.all(e, e.operator in ['In','NotIn','Exists','DoesNotExist'])
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      requiredComponentTypes:
+                        description: |-
+                          RequiredComponentTypes: every listed ComponentDefinition type must be
+                          present among the Application's components for a match.
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                type: object
+              description:
+                description: Description is a human-readable summary shown by `vela
+                  operation list`.
+                type: string
+              parameters:
+                description: Parameters declares the parameters accepted by this template.
+                properties:
+                  cue:
+                    description: 'CUE is a `parameter: {...}` definition.'
+                    type: string
+                type: object
+              workflow:
+                description: Workflow is the set of steps run when this template is
+                  invoked.
+                properties:
+                  steps:
+                    items:
+                      description: WorkflowStep defines how to execute a workflow
+                        step.
+                      properties:
+                        dependsOn:
+                          description: DependsOn is the dependency of the step
+                          items:
+                            type: string
+                          type: array
+                        if:
+                          description: If is the if condition of the step
+                          type: string
+                        inputs:
+                          description: Inputs is the inputs of the step
+                          items:
+                            description: InputItem defines an input variable of WorkflowStep
+                            properties:
+                              from:
+                                type: string
+                              parameterKey:
+                                type: string
+                            required:
+                            - from
+                            type: object
+                          type: array
+                        meta:
+                          description: Meta is the meta data of the workflow step.
+                          properties:
+                            alias:
+                              type: string
+                          type: object
+                        mode:
+                          description: Mode is only valid for sub steps, it defines
+                            the mode of the sub steps
+                          nullable: true
+                          type: string
+                        name:
+                          description: Name is the unique name of the workflow step.
+                          type: string
+                        outputs:
+                          description: Outputs is the outputs of the step
+                          items:
+                            description: OutputItem defines an output variable of
+                              WorkflowStep
+                            properties:
+                              name:
+                                type: string
+                              valueFrom:
+                                type: string
+                            required:
+                            - name
+                            - valueFrom
+                            type: object
+                          type: array
+                        properties:
+                          description: Properties is the properties of the step
+                          type: object
+                          x-kubernetes-preserve-unknown-fields: true
+                        subSteps:
+                          items:
+                            description: WorkflowStepBase defines the workflow step
+                              base
+                            properties:
+                              dependsOn:
+                                description: DependsOn is the dependency of the step
+                                items:
+                                  type: string
+                                type: array
+                              if:
+                                description: If is the if condition of the step
+                                type: string
+                              inputs:
+                                description: Inputs is the inputs of the step
+                                items:
+                                  description: InputItem defines an input variable
+                                    of WorkflowStep
+                                  properties:
+                                    from:
+                                      type: string
+                                    parameterKey:
+                                      type: string
+                                  required:
+                                  - from
+                                  type: object
+                                type: array
+                              meta:
+                                description: Meta is the meta data of the workflow
+                                  step.
+                                properties:
+                                  alias:
+                                    type: string
+                                type: object
+                              name:
+                                description: Name is the unique name of the workflow
+                                  step.
+                                type: string
+                              outputs:
+                                description: Outputs is the outputs of the step
+                                items:
+                                  description: OutputItem defines an output variable
+                                    of WorkflowStep
+                                  properties:
+                                    name:
+                                      type: string
+                                    valueFrom:
+                                      type: string
+                                  required:
+                                  - name
+                                  - valueFrom
+                                  type: object
+                                type: array
+                              properties:
+                                description: Properties is the properties of the step
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              timeout:
+                                description: Timeout is the timeout of the step
+                                type: string
+                              type:
+                                description: Type is the type of the workflow step.
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          type: array
+                        timeout:
+                          description: Timeout is the timeout of the step
+                          type: string
+                        type:
+                          description: Type is the type of the workflow step.
+                          type: string
+                      required:
+                      - type
+                      type: object
+                    type: array
+                type: object
+            required:
+            - attach
+            - workflow
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

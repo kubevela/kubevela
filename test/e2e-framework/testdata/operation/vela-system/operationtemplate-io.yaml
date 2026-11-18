@@ -1,0 +1,32 @@
+# Test fixture for KEP-2.15 re-execution: exercises a --step restart's
+# context-backend ConfigMap clearing when a real `outputs`/`inputs` edge
+# exists between steps. Reuses ok-step/flaky-step -- "emit" records its own
+# execution ID (context.stepSessionID) as a named output, which would
+# visibly change if "emit" were ever re-executed; "consume" declares a
+# dependency on that output via `inputs`.
+apiVersion: core.oam.dev/v2alpha1
+kind: OperationTemplate
+metadata:
+  name: io-flaky
+  namespace: vela-system
+spec:
+  description: Test fixture for KEP-2.15 re-execution -- step two consumes step one's output; step two succeeds or fails based on --param shouldFail.
+  attach:
+    scope: Component
+  parameters:
+    cue: |
+      parameter: {
+        // +usage=Set to "true" to make the "consume" step fail, "false" to make it succeed.
+        shouldFail: *"false" | string
+      }
+  workflow:
+    steps:
+      - name: emit
+        type: ok-step
+        outputs:
+          - name: upstream
+            valueFrom: context.stepSessionID
+      - name: consume
+        type: flaky-step
+        inputs:
+          - from: upstream

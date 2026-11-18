@@ -1,0 +1,13 @@
+# ClusterRoleBinding for the restart Job running in vela-system.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: restart-webservice
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: restart-webservice
+subjects:
+  - kind: ServiceAccount
+    name: restart-webservice
+    namespace: vela-system

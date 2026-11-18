@@ -43,6 +43,12 @@ type Args struct {
 	// IgnoreDefinitionWithoutControllerRequirement indicates that trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation.
 	IgnoreDefinitionWithoutControllerRequirement bool
 
+	// DefaultOperationTTLSeconds is how long a terminal core.oam.dev/v2alpha1
+	// Operation (KEP 2.15) is kept before being deleted, when the Operation
+	// itself sets no spec.ttlSecondsAfterFinished. 0 disables the default
+	// (no automatic deletion).
+	DefaultOperationTTLSeconds int
+
 	// UseWebhook mirrors --use-webhook: the admission webhooks are registered and the
 	// manager's webhook server will start. Controllers that want to wait for that
 	// server (through mgr.GetWebhookServer) must check this first: in controller-runtime

@@ -1,0 +1,15 @@
+# Test fixture for KEP-2.15 Application scope: no component, invoked
+# against an Application as a whole.
+apiVersion: core.oam.dev/v2alpha1
+kind: OperationTemplate
+metadata:
+  name: app-scope
+  namespace: vela-system
+spec:
+  description: Test fixture for KEP-2.15 Application scope.
+  attach:
+    scope: Application
+  workflow:
+    steps:
+      - name: check
+        type: appscope-check

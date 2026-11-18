@@ -26,6 +26,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/cue/process"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 )
 
@@ -255,4 +256,94 @@ func TestNewContextNilLabelsAndAnnotations(t *testing.T) {
 	annotations := v.LookupPath(value.FieldPath("context", ContextAppAnnotations))
 	assert.True(t, annotations.Exists(), "context.appAnnotations should exist")
 	assert.NoError(t, annotations.Err(), "context.appAnnotations should not be an error value")
+}
+
+func TestOperationContextFields(t *testing.T) {
+	ctx := NewContext(ContextData{
+		AppName:        "myapp",
+		CompName:       "mycomp",
+		Namespace:      "myns",
+		Cluster:        "local",
+		OperationName:  "restart-op",
+		OperationScope: "Component",
+		StartTime:      "2026-08-19T00:00:00Z",
+		OperationParams: map[string]interface{}{
+			"replicas": float64(3),
+		},
+		Status: &common.ApplicationComponentStatus{
+			Healthy: true,
+			Message: "all good",
+			Details: map[string]string{"reason": "ready"},
+		},
+		Output:  map[string]interface{}{"kind": "Deployment"},
+		Outputs: map[string]interface{}{"config": map[string]interface{}{"kind": "ConfigMap"}},
+	})
+
+	c, err := ctx.BaseContextFile()
+	assert.NoError(t, err)
+	v := cuecontext.New().CompileString(c)
+
+	name, err := v.LookupPath(value.FieldPath("context", ContextOperationName)).String()
+	assert.NoError(t, err)
+	assert.Equal(t, "restart-op", name)
+
+	scope, err := v.LookupPath(value.FieldPath("context", ContextOperationScope)).String()
+	assert.NoError(t, err)
+	assert.Equal(t, "Component", scope)
+
+	startTime, err := v.LookupPath(value.FieldPath("context", ContextStartTime)).String()
+	assert.NoError(t, err)
+	assert.Equal(t, "2026-08-19T00:00:00Z", startTime)
+
+	params, err := v.LookupPath(value.FieldPath("context", ContextOperationParams)).MarshalJSON()
+	assert.NoError(t, err)
+	assert.Equal(t, `{"replicas":3}`, string(params))
+
+	healthy, err := v.LookupPath(value.FieldPath("context", ContextStatus, "healthy")).Bool()
+	assert.NoError(t, err)
+	assert.True(t, healthy)
+
+	message, err := v.LookupPath(value.FieldPath("context", ContextStatus, "message")).String()
+	assert.NoError(t, err)
+	assert.Equal(t, "all good", message)
+
+	output, err := v.LookupPath(value.FieldPath("context", OutputFieldName)).MarshalJSON()
+	assert.NoError(t, err)
+	assert.Equal(t, `{"kind":"Deployment"}`, string(output))
+
+	outputs, err := v.LookupPath(value.FieldPath("context", OutputsFieldName, "config")).MarshalJSON()
+	assert.NoError(t, err)
+	assert.Equal(t, `{"kind":"ConfigMap"}`, string(outputs))
+}
+
+func TestOperationContextParamsDefaultEmpty(t *testing.T) {
+	ctx := NewContext(ContextData{
+		AppName:       "myapp",
+		CompName:      "mycomp",
+		OperationName: "restart-op",
+	})
+
+	c, err := ctx.BaseContextFile()
+	assert.NoError(t, err)
+	v := cuecontext.New().CompileString(c)
+
+	params, err := v.LookupPath(value.FieldPath("context", ContextOperationParams)).MarshalJSON()
+	assert.NoError(t, err)
+	assert.Equal(t, `{}`, string(params))
+}
+
+func TestOperationContextFieldsOmittedWhenUnset(t *testing.T) {
+	// A plain Application-driven workflow context must not gain
+	// Operation-only fields when ContextData leaves them zero-valued.
+	ctx := NewContext(ContextData{
+		AppName:  "myapp",
+		CompName: "mycomp",
+	})
+
+	c, err := ctx.BaseContextFile()
+	assert.NoError(t, err)
+	v := cuecontext.New().CompileString(c)
+
+	assert.False(t, v.LookupPath(value.FieldPath("context", ContextOperationName)).Exists())
+	assert.False(t, v.LookupPath(value.FieldPath("context", ContextStatus)).Exists())
 }

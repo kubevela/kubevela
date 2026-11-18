@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: operation-app
+spec:
+  components:
+    - name: webservice
+      type: webservice
+      properties:
+        image: oamdev/testapp:v1
+        port: 8080
