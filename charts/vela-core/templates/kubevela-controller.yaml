@@ -46,12 +46,14 @@ rules:
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
     verbs: ["get", "list", "watch"]
+  {{- if .Values.multicluster.enabled }}
   # cluster-gateway's admission plugins watch these; until they can, it refuses every request.
-  # The mutating ones exist from Kubernetes 1.36.
+  # The mutating ones are watched from Kubernetes 1.36, where they are on by default (alpha since 1.30).
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["validatingadmissionpolicies", "validatingadmissionpolicybindings",
                 "mutatingadmissionpolicies", "mutatingadmissionpolicybindings"]
     verbs: ["get", "list", "watch"]
+  {{- end }}
   {{- if include "kubevela.webhookRuntimeCerts" . }}
   # vela-core sets the caBundle and failurePolicy of its own webhooks at startup.
   - apiGroups: ["admissionregistration.k8s.io"]
