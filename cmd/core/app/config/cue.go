@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/pflag"
 	"k8s.io/klog/v2"
 
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 )
 
@@ -113,6 +114,9 @@ func (c *CUEConfig) AddFlags(fs *pflag.FlagSet) {
 func (c *CUEConfig) SyncToCUEGlobals(ctx context.Context) {
 	cuex.EnableExternalPackageForDefaultCompiler = c.EnableExternalPackage
 	cuex.EnableExternalPackageWatchForDefaultCompiler = c.EnableExternalPackageWatch
+	// Policy rendering, CUE conversion and the webhook use the upstream default
+	// compiler; give it the guarded vela/http like the vela-core compilers.
+	velacuex.GuardDefaultCompiler()
 	*upgrade.EnableCUEVersionCompatibility = c.EnableCUEVersionCompatibility
 	*wfupgrade.EnableCUEVersionCompatibility = c.EnableCUEVersionCompatibility
 	upgrade.EnableListConcatUpgrade = c.CUEUpgradeListConcatEnabled

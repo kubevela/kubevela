@@ -39,6 +39,8 @@ type PolicyDefinition struct {
 	scope             v1beta1.PolicyScope
 	global            bool
 	priority          *int32
+	ctxSchema         []Param
+	ctxSchemaClosed   bool
 }
 
 // PolicyTemplate provides the building context for policy templates.
@@ -325,8 +327,49 @@ func (g *PolicyCUEGenerator) WithImports(imports ...string) *PolicyCUEGenerator 
 	return g
 }
 
+// addImportIfMissing adds an import if it's not already present.
+func (g *PolicyCUEGenerator) addImportIfMissing(imp string) {
+	for _, existing := range g.imports {
+		if existing == imp {
+			return
+		}
+	}
+	g.imports = append(g.imports, imp)
+}
+
+// detectRequiredImports adds the CUE standard library imports the policy's
+// values declare via the ImportRequirer interface, so that a parameter or
+// context schema field such as String("team").MinLen(3) (strings.MinRunes)
+// pulls "strings" without the policy author calling WithImports. Computed
+// fields are scanned in name order, so the import block is stable.
+func (g *PolicyCUEGenerator) detectRequiredImports(p *PolicyDefinition) {
+	scan := NewCUEGenerator()
+	for _, param := range append(append([]Param{}, p.GetParams()...), p.ctxSchema...) {
+		scan.collectImportsFromValue(param)
+		scan.collectImportsFromParamValidators(param)
+	}
+	if p.policyTemplate != nil {
+		pt := NewPolicyTemplate()
+		p.policyTemplate(pt)
+		fields := pt.GetComputedFields()
+		for _, name := range sortedKeys(fields) {
+			scan.collectImportsFromValue(fields[name])
+		}
+		scan.collectImportsFromValue(pt.enabled)
+		if pt.output != nil {
+			scan.collectImportsFromResource(pt.output.res)
+		}
+	}
+	for _, imp := range scan.imports {
+		g.addImportIfMissing(imp)
+	}
+}
+
 // GenerateFullDefinition generates the complete CUE definition for a policy.
 func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string {
+	// Auto-detect imports needed by parameters and template values.
+	g.detectRequiredImports(p)
+
 	var sb strings.Builder
 
 	// Write imports if any
@@ -423,12 +466,13 @@ func (g *PolicyCUEGenerator) GenerateTemplate(p *PolicyDefinition) string {
 			sb.WriteString(fmt.Sprintf("%s%s: %s\n", g.indent, name, gen.valueToCUE(val)))
 		}
 		if pt.enabled != nil {
-			sb.WriteString(fmt.Sprintf("%sconfig: enabled: %s\n", g.indent, gen.conditionToCUE(pt.enabled)))
+			sb.WriteString(fmt.Sprintf("%sconfig: enabled: %s\n", g.indent, gen.conditionToCUEValue(pt.enabled)))
 		}
 		if pt.output != nil {
 			g.writePolicyOutput(&sb, gen, pt.output)
 		}
 	}
+	g.writeCtxSchema(&sb, gen, p)
 
 	// Generate parameter section
 	sb.WriteString(g.generateParameterBlock(p, 1))

@@ -51,7 +51,7 @@ type scenarioScope struct {
 // addon instead of one imported from the module registry.
 var scenarioIDs = []string{
 	"01", "02", "03", "04", "05", "08", "09", "10", "11", "12", "13", "14", "15", "16", "18",
-	"02i", "03i", "04i", "07i", "10i", "11i", "12i", "13i", "14i", "16i", "19",
+	"02i", "03i", "04i", "07i", "10i", "11i", "12i", "13i", "14i", "16i", "19", "20", "21",
 }
 var scenarioScopes = func() map[string]*scenarioScope {
 	scopes := make(map[string]*scenarioScope, len(scenarioIDs))
@@ -67,6 +67,7 @@ var fixtureModules = []string{"widget-kit-inline", "gadget-kit-inline", "inline-
 var fixtureAddons = []string{
 	"widget-platform-inline", "kit-suite-inline", "broken-imports-inline", "inline-mixed",
 	"widget-platform", "widget-latest", "kit-suite", "import-options", "cache-probe", "broken-imports", "ghost-addon",
+	"placement-import", "placement-plain",
 }
 var fixtureExports = []string{"widget", "gadget", "probe", "labeler", "note", "gauge", "platform-owner", "platform-owner-inline"}
 var fixtureToken = regexp.MustCompile(`[A-Za-z0-9][A-Za-z0-9._/-]*`)

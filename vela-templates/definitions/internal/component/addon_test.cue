@@ -54,3 +54,55 @@ _rendered: $returns: {
 		namespace:           "team-a"
 	}}]
 }
+
+"placement passes through to the render": test.#ComponentRender & {
+	definition: "addon"
+	context: {
+		name:      "platform"
+		namespace: "team-a"
+	}
+	parameter: placement: {
+		clusterLabelSelector: tier: "runtime"
+		allowEmpty: true
+	}
+	mocks: "vela/addon": "#Render": _rendered
+	expect: calls: "vela/addon": "#Render": [{$params: placement: {
+		clusterLabelSelector: tier: "runtime"
+		allowEmpty: true
+	}, ...
+	}]
+}
+
+"no placement leaves the render call unchanged": test.#ComponentRender & {
+	definition: "addon"
+	context: {
+		name:      "fluxcd"
+		namespace: "team-a"
+	}
+	mocks: "vela/addon": "#Render": _rendered
+	expect: calls: "vela/addon": "#Render": [{$params: {
+		addon:    "fluxcd"
+		version:  ""
+		registry: ""
+		properties: {} @exact()
+		skipVersionValidate: false
+		namespace:           "team-a"
+	} @exact()
+	}]
+}
+
+"a cluster list passes through to the render": test.#ComponentRender & {
+	definition: "addon"
+	context: {
+		name:      "platform"
+		namespace: "team-a"
+	}
+	parameter: placement: clusters: ["spoke-a", "spoke-b"]
+	mocks: "vela/addon": "#Render": _rendered
+	expect: calls: "vela/addon": "#Render": [{$params: {
+		placement: {
+			clusters: ["spoke-a", "spoke-b"]
+		} @exact()
+	}, ...
+	}]
+}

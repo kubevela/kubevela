@@ -1,0 +1,9 @@
+# The annotation wins over the hub/ folder, and publish warns about it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placement-store-keep-runtime
+  annotations:
+    resource.oam.dev/placement: runtime
+data:
+  role: keep-runtime

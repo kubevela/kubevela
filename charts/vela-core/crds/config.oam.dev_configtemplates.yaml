@@ -69,7 +69,8 @@ spec:
               sensitive:
                 description: |-
                   Sensitive marks Configs created from this template as not safe to read back
-                  through the API (e.g. CLI/workflow read operations).
+                  through the API (e.g. CLI/workflow read operations). Once true, it cannot be set
+                  back to false.
                 type: boolean
               template:
                 description: |-
@@ -79,6 +80,10 @@ spec:
             required:
             - template
             type: object
+            x-kubernetes-validations:
+            - message: sensitive cannot be changed from true to false
+              rule: '!has(oldSelf.sensitive) || !oldSelf.sensitive || (has(self.sensitive)
+                && self.sensitive)'
           status:
             description: ConfigTemplateStatus defines the observed state of ConfigTemplate.
             properties:

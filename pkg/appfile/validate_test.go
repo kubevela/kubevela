@@ -211,7 +211,7 @@ func TestTrait_EvalContext_OutputNameUniqueness(t *testing.T) {
 				Namespace:       "test-ns",
 				AppRevisionName: "myapp-v1",
 			}, wl.Name)
-			pCtx, err := newValidationProcessContext(wl, ctxData)
+			pCtx, err := newValidationProcessContext(wl, ctxData, "")
 			assert.NoError(t, err)
 
 			var evalErr error

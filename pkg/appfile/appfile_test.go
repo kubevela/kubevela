@@ -2489,3 +2489,14 @@ func TestRenderPolicyKeepsOutputNames(t *testing.T) {
 	assert.Equal(t, "test-ns", outputs["extra"].GetNamespace())
 	assert.Equal(t, "test-app", outputs["extra"].GetLabels()[oam.LabelAppName])
 }
+
+func TestFilteredKeysTrimEachEntry(t *testing.T) {
+	annotations := map[string]string{
+		oam.AnnotationFilterLabelKeys:      "a, b",
+		oam.AnnotationFilterAnnotationKeys: "c, d",
+	}
+	assert.Equal(t, []string{"a", "b"}, FilteredLabelKeys(annotations))
+	got := FilteredAnnotationKeys(annotations)
+	assert.Subset(t, got, []string{"c", "d"})
+	assert.NotContains(t, got, " d")
+}

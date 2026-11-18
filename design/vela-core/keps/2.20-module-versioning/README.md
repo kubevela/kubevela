@@ -693,12 +693,12 @@ imports: [
         sources: [
             {
                 // v1 ships everywhere
-                oci:      { ref: "artifactory.guidewire.com/atmos-helm-release/modules/aws-s3", version: "~1.0.0" }
+                oci:      { ref: "registry.example.com/modules/aws-s3", version: "~1.0.0" }
                 versions: ["v1"]
             },
             {
                 // v2alpha1 only installs in us-east-1 for initial rollout
-                oci:      { ref: "artifactory.guidewire.com/atmos-helm-release/modules/aws-s3", version: "~2.0.0-alpha" }
+                oci:      { ref: "registry.example.com/modules/aws-s3", version: "~2.0.0-alpha" }
                 versions: ["v2alpha1"]
                 enabled:  context.region == "us-east-1"
             },
@@ -882,8 +882,8 @@ enabled: context.provider == "aws"  // or simply: true
 // ordering is now structural (module auxiliary/ before api-line definitions/).
 metadata: {
     departmentCode: 275
-    maintainedBy:   "pod-ajanta"
-    createdBy:      "sgopalani"
+    maintainedBy:   "team-storage"
+    createdBy:      "jdoe"
     stage:          "release"  // "alpha" | "beta" | "release"
 }
 
@@ -892,10 +892,10 @@ metadata: {
 // collisions. Consumed by external tooling; the addon controller passes them
 // through without interpretation.
 labels: {
-    "gwcp.guidewire.com/maintained-by": "pod-ajanta"
-    "gwcp.guidewire.com/created-by":    "sgopalani"
-    "gwcp.guidewire.com/stage":         "release"
-    "gwcp.guidewire.com/dept":          "275"
+    "example.com/maintained-by": "team-storage"
+    "example.com/created-by":    "jdoe"
+    "example.com/stage":         "release"
+    "example.com/dept":          "275"
 }
 ```
 

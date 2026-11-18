@@ -24,6 +24,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/errors"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/stretchr/testify/assert"
@@ -612,4 +613,67 @@ func TestDenyOnInvalidIdentity(t *testing.T) {
 		assert.Contains(t, resp.Result.Message, "spec.module is set but spec.apiVersion is empty")
 		assert.Contains(t, resp.Result.Message, "requestUID=req-2")
 	})
+}
+
+// A policy's template is checked against the compiler that renders its scope:
+// the workload engine's for a default-scope policy, the upstream one for an
+// Application-scoped policy. The two offer different packages.
+func TestCompilePolicyTemplateByScope(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		scope   v1beta1.PolicyScope
+		pkg     string
+		wantErr bool
+	}{
+		"default scope offers vela/helm":     {v1beta1.DefaultScope, "vela/helm", false},
+		"default scope lacks vela/util":      {v1beta1.DefaultScope, "vela/util", true},
+		"Application scope offers vela/util": {v1beta1.ApplicationScope, "vela/util", false},
+		"Application scope lacks vela/helm":  {v1beta1.ApplicationScope, "vela/helm", true},
+		"both offer vela/kube (default)":     {v1beta1.DefaultScope, "vela/kube", false},
+		"both offer vela/kube (Application)": {v1beta1.ApplicationScope, "vela/kube", false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			use := map[string]string{"vela/helm": "helm.#Render", "vela/util": "util.#Truncate", "vela/kube": "kube.#Get"}[tc.pkg]
+			val, err := CompilePolicyTemplate(context.Background(), tc.scope, fmt.Sprintf("import %q\nparameter: {}\n_use: %s\n", tc.pkg, use))
+			if err == nil {
+				err = val.Err()
+			}
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// A template reading context does not compile on its own; opened, its
+// parameters can be read. Opening context excuses nothing else.
+func TestCompileOpenPolicyTemplate(t *testing.T) {
+	t.Parallel()
+	readsContext := "parameter: env: *\"prod\" | string\noutput: labels: {ns: context.namespace, env: parameter.env}\n"
+	for _, scope := range []v1beta1.PolicyScope{v1beta1.DefaultScope, v1beta1.ApplicationScope} {
+		t.Run(string(scope)+" reads context", func(t *testing.T) {
+			plain, err := CompilePolicyTemplate(context.Background(), scope, readsContext)
+			if err == nil {
+				err = plain.Err()
+			}
+			assert.Error(t, err, "the plain compile has no context")
+
+			opened, err := CompileOpenPolicyTemplate(context.Background(), scope, readsContext)
+			require.NoError(t, err)
+			require.NoError(t, opened.Err())
+			assert.True(t, opened.LookupPath(cue.ParsePath("parameter.env")).Exists())
+		})
+		t.Run(string(scope)+" undefined reference beside context", func(t *testing.T) {
+			opened, err := CompileOpenPolicyTemplate(context.Background(), scope,
+				"parameter: {}\noutput: labels: {ns: context.namespace, x: world}\n")
+			if err == nil {
+				err = opened.Err()
+			}
+			assert.Error(t, err)
+		})
+	}
 }

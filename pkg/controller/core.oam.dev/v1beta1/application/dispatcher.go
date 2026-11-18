@@ -177,13 +177,14 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, pre
 
 			// Check if component properties have changed (only for healthy components)
 			// Note: componentPropertiesChanged handles nil comp.Params correctly, so we don't check it here
+			settled := isHealth && err == nil
 			propertiesChanged := false
-			if isHealth && err == nil {
+			if settled {
 				comparisonRev := appRev // Default: use currentAppRev (existing behavior)
 
 				// If autoRevision=true and we have a previous revision, compare against it
 				// This detects policy-driven changes when ApplicationRevisions are created
-				if annotations[oam.AnnotationAutoRevision] == "true" && previousAppRev != nil {
+				if anyPolicySettingEnabled(annotations, settingAutoRevision) && previousAppRev != nil {
 					comparisonRev = previousAppRev // Use previous revision for comparison
 				}
 
@@ -199,12 +200,17 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, pre
 				updating:  autoUpdating,
 				consumes:  consumesSource,
 				trackable: !comp.SkipApplyWorkload && readyWorkload != nil,
-				settled:   isHealth && err == nil,
+				settled:   settled,
 			})
 
+			// Inherited labels and annotations (e.g. from a changed global policy) are not
+			// properties; compare them with what was last recorded.
+			metadataChanged := settled && h.resourceKeeper.ManifestMetadataChanged(dispatchManifests)
+
 			// Dispatch if: unhealthy, health error, properties changed, source
-			// values changed, or a redispatch on every run is asked for
-			requiresDispatch := !isHealth || err != nil || propertiesChanged || sourceValuesChanged || redispatchOnRun(comp, isAutoUpdateEnabled)
+			// values changed, metadata changed, or a redispatch on every run is asked for
+			requiresDispatch := !isHealth || err != nil || propertiesChanged || sourceValuesChanged || metadataChanged ||
+				h.forceRedispatch || redispatchOnRun(comp, isAutoUpdateEnabled)
 
 			if requiresDispatch {
 				// Record the resolved-source hashes so the next reconcile can

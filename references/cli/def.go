@@ -2171,7 +2171,7 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 		Use:   "upgrade DEFINITION_FILE",
 		Short: "Upgrade CUE definition for version compatibility",
 		Long: "Upgrade CUE definition files to be compatible with a specific KubeVela version.\n" +
-			"This command automatically applies all necessary upgrades to ensure your definitions work with the target KubeVela version.\n" +
+			"This command applies the upgrades that are on by default; --enable-all also applies the opt-in passes, such as the default guards for boolean and generic fields.\n" +
 			"If no version is specified, upgrades to the current CLI version.\n\n" +
 			"Currently supported upgrades:\n" +
 			"• List concatenation syntax compatibility\n" +

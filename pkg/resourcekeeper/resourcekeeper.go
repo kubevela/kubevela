@@ -38,6 +38,10 @@ type ResourceKeeper interface {
 	GarbageCollect(context.Context, ...GCOption) (bool, []v1beta1.ManagedResource, error)
 	StateKeep(context.Context) error
 	ContainsResources([]*unstructured.Unstructured) bool
+	ManifestMetadataChanged([]*unstructured.Unstructured) bool
+	RefreshRecordedMetadata(ctx context.Context, labels, annotations map[string]string, removed MetadataRemoval) (bool, error)
+	PolicyContextHash() (string, bool)
+	SetPolicyContextHash(ctx context.Context, hash string) error
 	ComponentResources(component string) []v1beta1.ManagedResource
 	// PruneComponentResources deletes what a component no longer renders. See
 	// the implementation for why this is not part of Dispatch.

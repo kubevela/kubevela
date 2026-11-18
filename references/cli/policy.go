@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sort"
 	"strings"
 
 	"github.com/aryann/difflib"
@@ -30,13 +31,17 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	v1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	controllercommon "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy/ctxschema"
 	velacommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -135,13 +140,15 @@ type policyOutput struct {
 }
 
 type policyOutputWrapper struct {
-	Name                   string       `json:"name"`
-	Namespace              string       `json:"namespace"`
-	Priority               int32        `json:"priority,omitempty"`
-	Output                 policyOutput `json:"output,omitempty"`
-	DefinitionRevisionName string       `json:"definitionRevisionName,omitempty"`
-	Revision               int64        `json:"revision,omitempty"`
-	RevisionHash           string       `json:"revisionHash,omitempty"`
+	Name                   string          `json:"name"`
+	Type                   string          `json:"type,omitempty"`
+	Namespace              string          `json:"namespace"`
+	Settings               map[string]bool `json:"settings,omitempty"`
+	Priority               int32           `json:"priority,omitempty"`
+	Output                 policyOutput    `json:"output,omitempty"`
+	DefinitionRevisionName string          `json:"definitionRevisionName,omitempty"`
+	Revision               int64           `json:"revision,omitempty"`
+	RevisionHash           string          `json:"revisionHash,omitempty"`
 }
 
 type policyInfoRecord struct {
@@ -198,7 +205,7 @@ func buildPolicyDetailsFromConfigMap(cm *corev1.ConfigMap) map[string]map[string
 	}
 	result := map[string]map[string]any{}
 	for key, val := range cm.Data {
-		if key == "info" || key == "rendered_spec" || key == "applied_spec" || key == "metadata" {
+		if key == "info" || key == "rendered_spec" || key == "applied_spec" || key == "metadata" || key == "pending_removals" {
 			continue
 		}
 		var wrapper policyOutputWrapper
@@ -245,8 +252,13 @@ func buildPolicyDetailsFromConfigMap(cm *corev1.ConfigMap) map[string]map[string
 		}
 
 		details := map[string]any{
-			"output":   outputMap,
-			"priority": wrapper.Priority,
+			"output":    outputMap,
+			"priority":  wrapper.Priority,
+			"type":      wrapper.Type,
+			"namespace": wrapper.Namespace,
+		}
+		if wrapper.Settings != nil {
+			details["settings"] = wrapper.Settings
 		}
 		if wrapper.DefinitionRevisionName != "" {
 			details["definitionRevisionName"] = wrapper.DefinitionRevisionName
@@ -256,6 +268,82 @@ func buildPolicyDetailsFromConfigMap(cm *corev1.ConfigMap) map[string]map[string
 		result[wrapper.Name] = details
 	}
 	return result
+}
+
+// addPolicyCtxSchemas adds to each policy's details the context schema its
+// definition declares (ctxSchema), with a note when it was not read from the
+// revision the policy rendered (ctxSchemaNote), or why it could not be read
+// (ctxSchemaError). The schema is not recorded with the rendered output, so it
+// is looked up here.
+func addPolicyCtxSchemas(ctx context.Context, cli client.Reader, policyDetails map[string]map[string]any) {
+	for name, details := range policyDetails {
+		namespace, _ := details["namespace"].(string)
+		// A record without a type names the policy only; a pinned type is name@version.
+		defName, _ := details["type"].(string)
+		if defName == "" {
+			defName = name
+		}
+		defName, _, _ = strings.Cut(defName, "@")
+		revName, _ := details["definitionRevisionName"].(string)
+		schema, note, err := lookupPolicyCtxSchema(ctx, cli, namespace, defName, revName)
+		if err != nil {
+			details["ctxSchemaError"] = err.Error()
+			continue
+		}
+		if schema == "" {
+			continue
+		}
+		details["ctxSchema"] = schema
+		if note != "" {
+			details["ctxSchemaNote"] = note
+		}
+	}
+}
+
+// lookupPolicyCtxSchema returns the `schema: ctx` a policy definition declares,
+// as a self-contained CUE file, or "" when it declares none. It is read from
+// the DefinitionRevision the policy rendered; when that is not recorded or no
+// longer exists, from the live PolicyDefinition, and note says so.
+func lookupPolicyCtxSchema(ctx context.Context, cli client.Reader, namespace, defName, revName string) (schema, note string, err error) {
+	template, note, err := policyTemplateFor(ctx, cli, namespace, defName, revName)
+	if err != nil {
+		return "", "", err
+	}
+	info, err := ctxschema.Read(template)
+	if err != nil {
+		return "", "", errors.Wrap(err, "failed to read the policy template")
+	}
+	return info.Schema, note, nil
+}
+
+func policyTemplateFor(ctx context.Context, cli client.Reader, namespace, defName, revName string) (template, note string, err error) {
+	note = "from the live PolicyDefinition"
+	if revName != "" {
+		name, convErr := oamutil.ConvertDefinitionRevName(revName)
+		if convErr == nil {
+			rev := &v1beta1.DefinitionRevision{}
+			err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, rev)
+			switch {
+			case err == nil:
+				return cueTemplate(rev.Spec.PolicyDefinition.Spec.Schematic), "", nil
+			case !apierrors.IsNotFound(err):
+				return "", "", errors.Wrapf(err, "failed to get DefinitionRevision %s/%s", namespace, name)
+			}
+		}
+		note = fmt.Sprintf("from the live PolicyDefinition; revision %s was not found", revName)
+	}
+	def := &v1beta1.PolicyDefinition{}
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defName}, def); err != nil {
+		return "", "", errors.Wrapf(err, "failed to get PolicyDefinition %s/%s", namespace, defName)
+	}
+	return cueTemplate(def.Spec.Schematic), note, nil
+}
+
+func cueTemplate(schematic *common.Schematic) string {
+	if schematic == nil || schematic.CUE == nil {
+		return ""
+	}
+	return schematic.CUE.Template
 }
 
 // filterPolicies returns only the policies whose names match the given glob pattern.
@@ -274,11 +362,17 @@ func NewPolicyDryRunCommand(c velacommon.Args, ioStreams cmdutil.IOStreams) *cob
 	var outputFormat string
 	var file, policyFilter string
 	var details, outcome bool
+	flags := application.PolicyDryRunFlags{
+		AllowNamespaceGlobalPolicies: controllercommon.AllowNamespaceGlobalPolicies,
+		AllowSkipGlobalPolicies:      controllercommon.AllowSkipGlobalPolicies,
+	}
 
 	cmd := &cobra.Command{
 		Use:   "dry-run [app-name]",
 		Short: "Preview what policies would do to an Application without applying changes.",
-		Long:  "Simulates the full policy application using the same code path as the controller. No changes are made to the cluster.",
+		Long: "Simulates the full policy application using the same code path as the controller. No changes are made to the cluster.\n\n" +
+			"Which policies apply depends on two controller flags. Pass the controller's values with " +
+			"--allow-namespace-global-policies and --allow-skip-global-policies, or the result can differ from the controller's.",
 		Example: `  # Simulate policies for a live Application (fetched from cluster)
   vela policy dry-run my-app
 
@@ -308,6 +402,12 @@ func NewPolicyDryRunCommand(c velacommon.Args, ioStreams cmdutil.IOStreams) *cob
 			if namespace == "" {
 				namespace = "default"
 			}
+			// The policy render reads these from the process, as the controller does from its flags.
+			defer func(ns, skip bool) {
+				controllercommon.AllowNamespaceGlobalPolicies, controllercommon.AllowSkipGlobalPolicies = ns, skip
+			}(controllercommon.AllowNamespaceGlobalPolicies, controllercommon.AllowSkipGlobalPolicies)
+			controllercommon.AllowNamespaceGlobalPolicies = flags.AllowNamespaceGlobalPolicies
+			controllercommon.AllowSkipGlobalPolicies = flags.AllowSkipGlobalPolicies
 			if file != "" {
 				return runPolicyDryRunFile(context.Background(), c, file, namespace, outputFormat, policyFilter, details, outcome, ioStreams)
 			}
@@ -324,6 +424,10 @@ func NewPolicyDryRunCommand(c velacommon.Args, ioStreams cmdutil.IOStreams) *cob
 	cmd.Flags().StringVarP(&policyFilter, "policy", "p", "", "Filter output to policies matching a name or glob pattern (e.g. \"add-env-*\")")
 	cmd.Flags().BoolVar(&details, "details", false, "Include per-policy output details (context, labels, annotations, spec transforms)")
 	cmd.Flags().BoolVar(&outcome, "outcome", false, "Include outcome (final spec, labels, annotations and context) in output")
+	cmd.Flags().BoolVar(&flags.AllowNamespaceGlobalPolicies, "allow-namespace-global-policies", flags.AllowNamespaceGlobalPolicies,
+		"Simulate a controller run with --allow-namespace-global-policies")
+	cmd.Flags().BoolVar(&flags.AllowSkipGlobalPolicies, "allow-skip-global-policies", flags.AllowSkipGlobalPolicies,
+		"Simulate a controller run with --allow-skip-global-policies")
 
 	return cmd
 }
@@ -367,6 +471,7 @@ func runPolicyView(ctx context.Context, c velacommon.Args, appName, namespace, o
 	var policyDetails map[string]map[string]any
 	if details {
 		policyDetails = buildPolicyDetailsFromConfigMap(diffsConfigMap)
+		addPolicyCtxSchemas(ctx, cli, policyDetails)
 	}
 
 	switch outputFormat {
@@ -503,6 +608,8 @@ func printPolicyDetails(policies []common.AppliedApplicationPolicy, policyDetail
 		if pri, ok := details["priority"]; ok {
 			fmt.Fprintf(ioStreams.Out, "  Priority: %v\n", pri)
 		}
+		printPolicySettings(details, ioStreams)
+		printPolicyCtxSchema(details, ioStreams)
 
 		output, _ := details["output"].(map[string]interface{})
 
@@ -540,6 +647,44 @@ func printPolicyDetails(policies []common.AppliedApplicationPolicy, policyDetail
 
 		fmt.Fprintln(ioStreams.Out)
 	}
+}
+
+// printPolicySettings prints the effective rollout settings the controller
+// recorded for a policy, sorted by name.
+func printPolicySettings(details map[string]any, ioStreams cmdutil.IOStreams) {
+	settings, _ := details["settings"].(map[string]bool)
+	if len(settings) == 0 {
+		return
+	}
+	names := make([]string, 0, len(settings))
+	width := 0
+	for name := range settings {
+		names = append(names, name)
+		width = max(width, len(name))
+	}
+	sort.Strings(names)
+	fmt.Fprintf(ioStreams.Out, "  %s\n", color.CyanString("Settings:"))
+	for _, name := range names {
+		fmt.Fprintf(ioStreams.Out, "    %-*s %v\n", width+1, name+":", settings[name])
+	}
+}
+
+// printPolicyCtxSchema prints the context schema a policy's definition
+// declares, or why it could not be read.
+func printPolicyCtxSchema(details map[string]any, ioStreams cmdutil.IOStreams) {
+	if msg, ok := details["ctxSchemaError"].(string); ok {
+		fmt.Fprintf(ioStreams.Out, "  %s unavailable (%s)\n", color.CyanString("Context schema:"), msg)
+		return
+	}
+	schema, _ := details["ctxSchema"].(string)
+	if schema == "" {
+		return
+	}
+	header := "Context schema:"
+	if note, _ := details["ctxSchemaNote"].(string); note != "" {
+		header = fmt.Sprintf("Context schema (%s):", note)
+	}
+	fmt.Fprintf(ioStreams.Out, "  %s\n%s\n", color.CyanString(header), indentLines(strings.TrimRight(schema, "\n"), "    "))
 }
 
 // printOutcomeBlock renders the Outcome section for table output.
@@ -687,6 +832,9 @@ func runPolicyDryRun(ctx context.Context, c velacommon.Args, appName, namespace,
 	if err != nil {
 		return errors.Wrap(err, "simulation failed")
 	}
+	if details {
+		addPolicyCtxSchemas(ctx, cli, result.PolicyDetails)
+	}
 
 	return outputDryRunResult(result, outputFormat, policyFilter, details, outcome, ioStreams)
 }
@@ -718,6 +866,9 @@ func runPolicyDryRunFile(ctx context.Context, c velacommon.Args, filePath, names
 	result, err := application.SimulatePolicyApplication(ctx, cli, app)
 	if err != nil {
 		return errors.Wrap(err, "simulation failed")
+	}
+	if details {
+		addPolicyCtxSchemas(ctx, cli, result.PolicyDetails)
 	}
 
 	return outputDryRunResult(result, outputFormat, policyFilter, details, outcome, ioStreams)
@@ -774,13 +925,15 @@ func outputDryRunTable(result *application.PolicyDryRunResult, details, outcome 
 	}
 
 	fmt.Fprintf(ioStreams.Out, "This is a dry-run. No changes were applied to the cluster.\n")
+	fmt.Fprintf(ioStreams.Out, "Assumed controller flags: %s\n", dryRunFlagsString(result.Flags))
 
 	return nil
 }
 
 func outputDryRunSummary(result *application.PolicyDryRunResult, ioStreams cmdutil.IOStreams) error {
 	applied, skipped := countApplied(result.PolicyResults)
-	fmt.Fprintf(ioStreams.Out, "Policies: %d enabled, %d disabled\n\n", applied, skipped)
+	fmt.Fprintf(ioStreams.Out, "Policies: %d enabled, %d disabled\n", applied, skipped)
+	fmt.Fprintf(ioStreams.Out, "Assumed controller flags: %s\n\n", dryRunFlagsString(result.Flags))
 	printLabelsAnnotations(result.Application.Labels, result.Application.Annotations, ioStreams)
 	return nil
 }
@@ -791,6 +944,7 @@ func outputDryRunJSON(result *application.PolicyDryRunResult, details, outcome b
 		policyDetails = result.PolicyDetails
 	}
 	out := buildPolicyOutput(result.Application.Name, result.Application.Namespace, result.PolicyResults, result.Application.Spec, result.Application.Labels, result.Application.Annotations, result.FinalContext, outcome, result.Errors, policyDetails)
+	out["assumedControllerFlags"] = result.Flags
 	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal JSON")
@@ -805,6 +959,7 @@ func outputDryRunYAML(result *application.PolicyDryRunResult, details, outcome b
 		policyDetails = result.PolicyDetails
 	}
 	out := buildPolicyOutput(result.Application.Name, result.Application.Namespace, result.PolicyResults, result.Application.Spec, result.Application.Labels, result.Application.Annotations, result.FinalContext, outcome, result.Errors, policyDetails)
+	out["assumedControllerFlags"] = result.Flags
 	data, err := yaml.Marshal(out)
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal YAML")
@@ -865,6 +1020,11 @@ func buildPolicyOutput(appName, namespace string, policies []common.AppliedAppli
 			if output, ok := details["output"]; ok {
 				entry["output"] = output
 			}
+			for _, key := range []string{"settings", "ctxSchema", "ctxSchemaNote", "ctxSchemaError"} {
+				if v, ok := details[key]; ok {
+					entry[key] = v
+				}
+			}
 		}
 		merged = append(merged, entry)
 	}
@@ -896,6 +1056,12 @@ func buildPolicyOutput(appName, namespace string, policies []common.AppliedAppli
 		out["errors"] = errs
 	}
 	return out
+}
+
+// dryRunFlagsString renders flags as the controller arguments they stand for.
+func dryRunFlagsString(flags application.PolicyDryRunFlags) string {
+	return fmt.Sprintf("--allow-namespace-global-policies=%t --allow-skip-global-policies=%t",
+		flags.AllowNamespaceGlobalPolicies, flags.AllowSkipGlobalPolicies)
 }
 
 // filterDryRunResult returns a shallow copy of result with PolicyResults and PolicyDetails

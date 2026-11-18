@@ -128,6 +128,11 @@ const (
 	// outputs it records, for that Config on sight, and both remove the mark. Writing it
 	// takes write access to the Secret, which is what makes it a proof.
 	AnnotationConfigAdoptBy = "config.oam.dev/adopt-by"
+	// AnnotationConfigNacosEndpoint set to "true" lets a sensitive config serve as the
+	// Nacos endpoint a ConfigTemplate's nacos block names; without it the Config
+	// controller refuses a sensitive endpoint config. Its owner sets it: on a Config CR,
+	// which the controller carries to the Config's Secret, or on a legacy config Secret.
+	AnnotationConfigNacosEndpoint = "config.oam.dev/nacos-endpoint"
 	// AnnotationConfigPropertiesOf marks the companion Secret that holds a sensitive
 	// Config's properties (spec.propertiesFrom), with the Config's name as value (an
 	// annotation: a Config name may be longer than a label value allows). The CLI, the

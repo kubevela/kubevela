@@ -367,6 +367,25 @@ var _ = Describe("Server Tests", func() {
 		)
 	})
 
+	DescribeTable("resolveControllerNamespace",
+		func(podNamespace, leaderElectionNamespace, want string) {
+			previous, wasSet := os.LookupEnv("POD_NAMESPACE")
+			DeferCleanup(func() {
+				if wasSet {
+					Expect(os.Setenv("POD_NAMESPACE", previous)).To(Succeed())
+				} else {
+					Expect(os.Unsetenv("POD_NAMESPACE")).To(Succeed())
+				}
+			})
+			Expect(os.Setenv("POD_NAMESPACE", podNamespace)).To(Succeed())
+
+			Expect(resolveControllerNamespace(leaderElectionNamespace)).To(Equal(want))
+		},
+		Entry("prefers the pod namespace over the lease namespace", "kubevela", "kube-system", "kubevela"),
+		Entry("falls back to the lease namespace", "", " kube-system ", "kube-system"),
+		Entry("defaults to vela-system", " ", "", "vela-system"),
+	)
+
 	Describe("configureKubernetesClient", func() {
 		Context("when creating Kubernetes config", func() {
 			It("should configure REST config with correct parameters using ENVTEST", func() {

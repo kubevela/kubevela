@@ -32,6 +32,7 @@ const (
 )
 
 // ConfigTemplateSpec defines the desired state of ConfigTemplate.
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.sensitive) || !oldSelf.sensitive || (has(self.sensitive) && self.sensitive)",message="sensitive cannot be changed from true to false"
 type ConfigTemplateSpec struct {
 	// Template is the CUE template. It must define a `template: {parameter: {...}, output: {...}}`
 	// block, matching the format used by the legacy config-template-* ConfigMaps.
@@ -43,7 +44,8 @@ type ConfigTemplateSpec struct {
 	Scope ConfigTemplateScope `json:"scope,omitempty"`
 
 	// Sensitive marks Configs created from this template as not safe to read back
-	// through the API (e.g. CLI/workflow read operations).
+	// through the API (e.g. CLI/workflow read operations). Once true, it cannot be set
+	// back to false.
 	Sensitive bool `json:"sensitive,omitempty"`
 
 	Alias       string `json:"alias,omitempty"`

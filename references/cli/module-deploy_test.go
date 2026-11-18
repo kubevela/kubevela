@@ -38,13 +38,14 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // moduleDeployClient returns a fake client seeded with a module registry
 // ConfigMap holding the named registries, so ResolveRegistry can run without a
 // cluster.
-func moduleDeployClient(t *testing.T, registries ...string) client.Client {
+func moduleDeployClient(t testing.TB, registries ...string) client.Client {
 	t.Helper()
 	data := "{}"
 	if len(registries) > 0 {
@@ -89,7 +90,7 @@ func stubModule() *pkgmodule.Module {
 }
 
 // countApplications returns how many Applications exist on a client.
-func countApplications(t *testing.T, cli client.Client) int {
+func countApplications(t testing.TB, cli client.Client) int {
 	t.Helper()
 	var apps v1beta1.ApplicationList
 	require.NoError(t, cli.List(context.Background(), &apps))
@@ -173,16 +174,20 @@ func TestModuleDeployResolvesDefaultRegistry(t *testing.T) {
 func moduleApps(phase oamcommon.ApplicationPhase, tiers []string, services []oamcommon.ApplicationComponentStatus) []client.Object {
 	deployApp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{Name: "module-s3-deploy", Namespace: velatypes.DefaultKubeVelaNS},
-		Status:     oamcommon.AppStatus{Phase: phase},
+		Status:     oamcommon.AppStatus{Phase: phase, LatestRevision: &oamcommon.Revision{Name: "module-s3-deploy-v1"}},
 	}
 	comps := make([]oamcommon.ApplicationComponent, 0, len(tiers))
 	for _, tier := range tiers {
 		comps = append(comps, oamcommon.ApplicationComponent{Name: tier, Type: "k8s-objects"})
 	}
 	ownedApp := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{Name: "module-s3", Namespace: velatypes.DefaultKubeVelaNS},
-		Spec:       v1beta1.ApplicationSpec{Components: comps},
-		Status:     oamcommon.AppStatus{Services: services},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "module-s3",
+			Namespace: velatypes.DefaultKubeVelaNS,
+			Labels:    map[string]string{oam.LabelAppRevision: "module-s3-deploy-v1"},
+		},
+		Spec:   v1beta1.ApplicationSpec{Components: comps},
+		Status: oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning, Services: services},
 	}
 	return []client.Object{deployApp, ownedApp}
 }
@@ -225,7 +230,7 @@ func TestFirstUnhealthyTier(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			tier, message := firstUnhealthyTier([]string{"s3-xrd", "s3-v1-comp", "s3-v1-defs"}, tc.services)
+			tier, message := firstUnhealthyTier([]string{"s3-xrd", "s3-v1-comp", "s3-v1-defs"}, tc.services, false)
 			assert.Equal(t, tc.wantTier, tier)
 			if tc.wantMessage != "" {
 				assert.Contains(t, message, tc.wantMessage)
@@ -241,7 +246,7 @@ func TestFirstUnhealthyTier(t *testing.T) {
 func TestWaitForModuleReportsResolvedVersion(t *testing.T) {
 	deployApp := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{Name: "module-s3-deploy", Namespace: velatypes.DefaultKubeVelaNS},
-		Status:     oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning},
+		Status:     oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning, LatestRevision: &oamcommon.Revision{Name: "module-s3-deploy-v1"}},
 	}
 	comps := make([]oamcommon.ApplicationComponent, 0, len(moduleTiers))
 	for _, tier := range moduleTiers {
@@ -252,9 +257,10 @@ func TestWaitForModuleReportsResolvedVersion(t *testing.T) {
 			Name:        "module-s3",
 			Namespace:   velatypes.DefaultKubeVelaNS,
 			Annotations: map[string]string{velatypes.AnnoDefinitionModuleVersion: "1.2.0"},
+			Labels:      map[string]string{oam.LabelAppRevision: "module-s3-deploy-v1"},
 		},
 		Spec:   v1beta1.ApplicationSpec{Components: comps},
-		Status: oamcommon.AppStatus{Services: healthyTierServices()},
+		Status: oamcommon.AppStatus{Phase: oamcommon.ApplicationRunning, Services: healthyTierServices()},
 	}
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(deployApp, ownedApp).Build()
 	var out bytes.Buffer

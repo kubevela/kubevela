@@ -533,3 +533,51 @@ func TestHandle_TheGrandfatheredListCanShrinkButNotGrow(t *testing.T) {
 	resp = h.Handle(context.TODO(), newRequest(t, admissionv1.Create, gvr, stored))
 	assert.True(t, resp.Allowed, "a template created with its list, as migration does: %s", resp.Result.Message)
 }
+
+func TestHandle_SensitiveCannotBeTurnedOff(t *testing.T) {
+	gvr := metav1.GroupVersionResource(configTemplateGVR)
+	h := newHandler(t)
+	plain := "template: {parameter: {}\noutput: {apiVersion: \"v1\", kind: \"Secret\"}}"
+	sensitive := templateIn("t", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace, plain)
+	sensitive.Spec.Sensitive = true
+	notSensitive := templateIn("t", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace, plain)
+
+	resp := h.Handle(context.TODO(), newUpdateRequest(t, gvr, sensitive, notSensitive))
+	assert.False(t, resp.Allowed, "true to false")
+	assert.Equal(t, "config template wf-a/t: sensitive cannot be changed from true to false", string(resp.Result.Message))
+
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, notSensitive, sensitive))
+	assert.True(t, resp.Allowed, "false to true: %s", resp.Result.Message)
+
+	relabelled := sensitive.DeepCopy()
+	relabelled.Labels = map[string]string{"team": "a"}
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, sensitive, relabelled))
+	assert.True(t, resp.Allowed, "an edit that keeps it sensitive: %s", resp.Result.Message)
+
+	for _, created := range []*configv1alpha1.ConfigTemplate{sensitive, notSensitive} {
+		resp = h.Handle(context.TODO(), newRequest(t, admissionv1.Create, gvr, created))
+		assert.True(t, resp.Allowed, "create with sensitive %t: %s", created.Spec.Sensitive, resp.Result.Message)
+	}
+
+	now := metav1.Now()
+	withFinalizer := sensitive.DeepCopy()
+	withFinalizer.DeletionTimestamp = &now
+	withFinalizer.Finalizers = []string{"foregroundDeletion"}
+	finalized := withFinalizer.DeepCopy()
+	finalized.Finalizers = nil
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, withFinalizer, finalized))
+	assert.True(t, resp.Allowed, "the GC removing a finalizer from a sensitive template: %s", resp.Result.Message)
+
+	turnedOffWhileDeleting := withFinalizer.DeepCopy()
+	turnedOffWhileDeleting.Spec.Sensitive = false
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, withFinalizer, turnedOffWhileDeleting))
+	assert.False(t, resp.Allowed, "a template being deleted keeps it too")
+	assert.Equal(t, "config template wf-a/t: sensitive cannot be changed from true to false", string(resp.Result.Message))
+
+	h.ControllerUser = "system:serviceaccount:vela-system:kubevela-vela-core"
+	req := newUpdateRequest(t, gvr, sensitive, notSensitive)
+	req.UserInfo = authenticationv1.UserInfo{Username: h.ControllerUser}
+	resp = h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed, "the controller's own request: no exemption")
+	assert.Equal(t, "config template wf-a/t: sensitive cannot be changed from true to false", string(resp.Result.Message))
+}

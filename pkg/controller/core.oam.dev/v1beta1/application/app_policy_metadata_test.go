@@ -41,10 +41,10 @@ var _ = Describe("Test FilterInternalMetadata", func() {
 	It("should filter out internal annotations and labels", func() {
 		metadata := map[string]string{
 			// User metadata - should be kept
-			"user.custom/annotation":   "keep",
-			"my-label":                 "keep",
-			"team":                     "platform",
-			"custom.guidewire.dev/foo": "keep",
+			"user.custom/annotation": "keep",
+			"my-label":               "keep",
+			"team":                   "platform",
+			"custom.example.dev/foo": "keep",
 
 			// Internal metadata - should be filtered out
 			"app.oam.dev/revision":               "filter",
@@ -62,7 +62,7 @@ var _ = Describe("Test FilterInternalMetadata", func() {
 		Expect(filtered).Should(HaveKeyWithValue("user.custom/annotation", "keep"))
 		Expect(filtered).Should(HaveKeyWithValue("my-label", "keep"))
 		Expect(filtered).Should(HaveKeyWithValue("team", "platform"))
-		Expect(filtered).Should(HaveKeyWithValue("custom.guidewire.dev/foo", "keep"))
+		Expect(filtered).Should(HaveKeyWithValue("custom.example.dev/foo", "keep"))
 
 		// Should filter out internal metadata
 		Expect(filtered).ShouldNot(HaveKey("app.oam.dev/revision"))

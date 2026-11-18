@@ -19,6 +19,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -220,6 +221,37 @@ var _ = Describe("Migration parity with the running Config controller", func() {
 		Expect(cfg.Spec.Properties).Should(BeNil())
 		Expect(cfg.Spec.PropertiesFrom.SecretRef.Name).Should(Equal("parity-sensitive-properties"))
 		assertUnchanged(before, &cfg)
+	})
+
+	It("keeps an adopted Secret sensitive when its legacy template has since stopped being sensitive", func() {
+		// The flip trap: the Secret was written under a sensitive template, whose annotation
+		// was later edited to false. The library adopts it with propertiesFrom (the Secret's
+		// own mark decides), and the ConfigTemplate it writes is not sensitive. The first
+		// reconcile must not write "false" over the Secret's "true": the propertiesFrom rule
+		// keeps it, and so would a Secret marked sensitive staying sensitive on its own.
+		before, _ := seed("parity-trap", "parity-trap-cfg", true)
+		Expect(before.Annotations).Should(HaveKeyWithValue(types.AnnotationConfigSensitive, "true"))
+		t, err := fac.ParseTemplate(ctx, "parity-trap", []byte(parityTemplateCUE("parity-trap", false)))
+		Expect(err).Should(Succeed())
+		Expect(fac.CreateOrUpdateConfigTemplate(ctx, ns, t)).Should(Succeed())
+
+		report, err := migrator.MigrateTemplate(ctx, ns, "parity-trap", legacyconfig.MigrationOptions{})
+		Expect(err).Should(Succeed())
+		Expect(report.Count(legacyconfig.MigrationAdopted)).Should(Equal(2))
+		var ct configv1alpha1.ConfigTemplate
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "parity-trap"}, &ct)).Should(Succeed())
+		Expect(ct.Spec.Sensitive).Should(BeFalse())
+
+		var cfg configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKey{Namespace: ns, Name: "parity-trap-cfg"}, configv1alpha1.ConfigPhaseAvailable, &cfg)
+		Expect(cfg.Spec.Properties).Should(BeNil())
+		Expect(cfg.Spec.PropertiesFrom.SecretRef.Name).Should(Equal("parity-trap-cfg-properties"))
+		assertUnchanged(before, &cfg)
+		Consistently(func() string {
+			var after corev1.Secret
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(before), &after)).Should(Succeed())
+			return after.Annotations[types.AnnotationConfigSensitive]
+		}, 3*time.Second, time.Second).Should(Equal("true"))
 	})
 
 	It("reaches Available for a config migrated while its template stays a legacy ConfigMap", func() {

@@ -15,12 +15,13 @@ limitations under the License.
 */
 
 // Package controllers_test is a standalone Ginkgo suite for the module
-// component: "vela module" CLI plumbing (module_publish_test.go) and the full
+// component: "vela module" CLI plumbing (module_publish_test.go), the full
 // scenario suite covering registry management, publish, install, reconciler
 // behaviour, uninstall, namespace isolation, and error paths
-// (module_e2e_test.go). It is separate from the core E2E packages so a failure
-// anywhere else in those larger, longer-running suites cannot prevent this one
-// from running.
+// (module_e2e_test.go), and hub versus runtime placement
+// (module_placement_e2e_test.go). It is separate from the core E2E packages so
+// a failure anywhere else in those larger, longer-running suites cannot
+// prevent this one from running.
 package controllers_test
 
 import (

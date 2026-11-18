@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placement-plain-marker
+  namespace: vela-system
+data:
+  source: resources/marker.yaml

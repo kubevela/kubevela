@@ -98,6 +98,11 @@ func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t
 
 	ct := &configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Name: t.Name, Namespace: ns}}
 	_, err := controllerutil.CreateOrUpdate(ctx, cli, ct, func() error {
+		// ct holds the stored template here, if there is one: the CRD rule and the webhook
+		// refuse turning sensitive off, so the CLI says so before it writes, in their words
+		if ct.Spec.Sensitive && !t.Sensitive {
+			return config.SensitiveTurnedOffError(ns, t.Name)
+		}
 		ct.Spec = configv1alpha1.ConfigTemplateSpec{
 			Template:    string(t.Template),
 			Scope:       scope,

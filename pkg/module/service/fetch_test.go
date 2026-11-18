@@ -85,7 +85,7 @@ func TestFetchModule(t *testing.T) {
 	files := map[string]string{
 		"s3/_module.cue":                "module: \"s3\"\nversion: \"1.0.0\"",
 		"s3/v1/_version.cue":            "apiVersion: \"v1\"",
-		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n",
+		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n",
 	}
 	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("catalog")}}, files)
 
@@ -104,7 +104,7 @@ func TestFetchModule_PullerDecidesVersion(t *testing.T) {
 	files := map[string]string{
 		"s3/_module.cue":                "module: \"s3\"\nversion: \"1.0.0\"",
 		"s3/v1/_version.cue":            "apiVersion: \"v1\"",
-		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n",
+		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n",
 	}
 	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("catalog")}}, files)
 
@@ -118,7 +118,7 @@ func TestFetchModule_EmptyNameResolvesSole(t *testing.T) {
 	files := map[string]string{
 		"s3/_module.cue":                "module: \"s3\"\nversion: \"1.0.0\"",
 		"s3/v1/_version.cue":            "apiVersion: \"v1\"",
-		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n",
+		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n",
 	}
 	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("only")}}, files)
 
@@ -163,7 +163,7 @@ func TestFetchModule_EmptyNameDefaultsToCatalog(t *testing.T) {
 	files := map[string]string{
 		"s3/_module.cue":                "module: \"s3\"\nversion: \"1.0.0\"",
 		"s3/v1/_version.cue":            "apiVersion: \"v1\"",
-		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n",
+		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n",
 	}
 	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("other"), ociRegistry("catalog")}}, files)
 
@@ -219,7 +219,7 @@ func TestFetchModule_OCI_ParsesChartLayout(t *testing.T) {
 	bufs := []*loader.BufferedFile{
 		{Name: "s3/_module.cue", Data: []byte("module: \"s3\"\nversion: \"1.0.0\"")},
 		{Name: "s3/v1/_version.cue", Data: []byte("apiVersion: \"v1\"")},
-		{Name: "s3/v1/definitions/bucket.yaml", Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n")},
+		{Name: "s3/v1/definitions/bucket.yaml", Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n")},
 		{Name: "s3/Chart.yaml", Data: []byte("name: s3\nversion: 1.0.0\n")}, // chart wrapper; parser ignores it
 	}
 
@@ -246,7 +246,7 @@ func TestFetchModule_OCI_PassesRequestedVersion(t *testing.T) {
 	bufs := []*loader.BufferedFile{
 		{Name: "s3/_module.cue", Data: []byte("module: \"s3\"\nversion: \"1.2.0\"")},
 		{Name: "s3/v1/_version.cue", Data: []byte("apiVersion: \"v1\"")},
-		{Name: "s3/v1/definitions/bucket.yaml", Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n")},
+		{Name: "s3/v1/definitions/bucket.yaml", Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n")},
 	}
 
 	var gotVersion string

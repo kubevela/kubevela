@@ -983,7 +983,7 @@ func TestResolveAndRenderAddsModuleComponentForEnabledImport(t *testing.T) {
 		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
 			return []*pkgaddon.WholeAddonPackage{{
 				InstallPackage: pkgaddon.InstallPackage{
-					Meta:        pkgaddon.Meta{Name: "atmos-platform-storage", Version: "1.0.0"},
+					Meta:        pkgaddon.Meta{Name: "platform-storage", Version: "1.0.0"},
 					AppTemplate: &v1beta1.Application{},
 					YAMLTemplates: []pkgaddon.ElementFile{
 						{Name: "crd.yaml", Data: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: crd-stand-in\n"},
@@ -998,7 +998,7 @@ func TestResolveAndRenderAddsModuleComponentForEnabledImport(t *testing.T) {
 	}
 
 	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
-		Name:                "atmos-platform-storage",
+		Name:                "platform-storage",
 		SkipVersionValidate: true,
 	})
 	require.NoError(t, err)
@@ -1016,7 +1016,7 @@ func TestResolveAndRenderAddsModuleComponentForEnabledImport(t *testing.T) {
 		if comp["type"] == "module" {
 			moduleComp = comp
 		}
-		if name, _ := comp["name"].(string); name == "atmos-platform-storage-resources" {
+		if name, _ := comp["name"].(string); name == "platform-storage-resources" {
 			resourcesCompName = name
 		}
 	}
@@ -1045,7 +1045,7 @@ func TestResolveAndRenderModuleDependsOnAddonAuxiliaries(t *testing.T) {
 	apiVersion: "core.oam.dev/v1beta1"
 	kind:       "Application"
 	metadata: {
-		name:      "atmos-platform-storage"
+		name:      "platform-storage"
 		namespace: "vela-system"
 	}
 	spec: components: []
@@ -1063,7 +1063,7 @@ outputs: crossplaneProvider: {
 		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
 			return []*pkgaddon.WholeAddonPackage{{
 				InstallPackage: pkgaddon.InstallPackage{
-					Meta:           pkgaddon.Meta{Name: "atmos-platform-storage", Version: "1.0.0"},
+					Meta:           pkgaddon.Meta{Name: "platform-storage", Version: "1.0.0"},
 					AppCueTemplate: pkgaddon.ElementFile{Data: cueTemplate},
 					Imports: []pkgaddon.ModuleImport{
 						{Module: "aws-s3", Enabled: true},
@@ -1075,7 +1075,7 @@ outputs: crossplaneProvider: {
 	}
 
 	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
-		Name:                "atmos-platform-storage",
+		Name:                "platform-storage",
 		SkipVersionValidate: true,
 	})
 	require.NoError(t, err)

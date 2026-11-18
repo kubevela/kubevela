@@ -34,7 +34,7 @@ import (
 )
 
 // ============================================================================
-// Helmchart Auth -- Secret-referenced authentication tests for GWCP-98771.
+// Helmchart Auth -- Secret-referenced authentication tests
 // Every scenario here assumes the auth-test registries (deployed in BeforeSuite
 // from test/e2e-framework/testdata/auth/manifests/) are running and the test chart
 // has been pushed to each.

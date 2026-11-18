@@ -418,6 +418,8 @@ func (r *sourceResolver) resolve(sourceName string) (map[string]interface{}, err
 	stored, err := r.readSourceCache(cachePolicy.Key, cachePolicy.TTL)
 	if err != nil {
 		klog.Warningf("read source cache failed for %s: %v", sourceName, err)
+		// a refused read is no stored value, so nothing of it is served stale below
+		stored = velaprocess.SourceCacheRead{}
 	} else if stored.Found {
 		// A stored value has been through JSON. Retyping it against the schema
 		// is what makes a cache hit and a fresh resolution mean the same thing

@@ -63,6 +63,32 @@ func TestApplicationPolicyCacheMissesWhenExpressionOptInChanges(t *testing.T) {
 	require.Equal(t, CacheMissExpressionGateChanged, reason)
 }
 
+func TestApplicationPolicyCacheMissesWhenTemplateVisibleMetadataChanges(t *testing.T) {
+	cache := NewApplicationPolicyCache()
+	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "shop", Namespace: "team-a",
+		Labels:      map[string]string{"tier": "gold", "app.oam.dev/name": "shop"},
+		Annotations: map[string]string{oam.AnnotationApplyPolicyUpdates: "false"}}}
+	require.NoError(t, cache.Set(app, []RenderedPolicyResult{{PolicyName: "p"}}))
+
+	app.Labels["app.oam.dev/name"] = "renamed"
+	_, hit, _, err := cache.GetWithReason(app)
+	require.NoError(t, err)
+	require.True(t, hit, "a key policy templates cannot read does not invalidate the entry")
+
+	app.Labels["tier"] = "silver"
+	_, hit, reason, err := cache.GetWithReason(app)
+	require.NoError(t, err)
+	require.False(t, hit, "templates read the label through context.appLabels")
+	require.Equal(t, CacheMissMetadataChanged, reason)
+
+	require.NoError(t, cache.Set(app, []RenderedPolicyResult{{PolicyName: "p"}}))
+	app.Annotations[oam.AnnotationApplyPolicyUpdates] = "true"
+	_, hit, reason, err = cache.GetWithReason(app)
+	require.NoError(t, err)
+	require.False(t, hit, "a rollout annotation decides adoption, so a toggle renders again")
+	require.Equal(t, CacheMissMetadataChanged, reason)
+}
+
 var _ = Describe("Test Global Policy Cache", func() {
 	namespace := "cache-test"
 	var ctx context.Context

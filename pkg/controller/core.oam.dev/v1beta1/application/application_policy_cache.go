@@ -17,6 +17,9 @@ limitations under the License.
 package application
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -25,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -46,6 +50,12 @@ const (
 	// Application was switched on or off, usually by its opt-in annotation,
 	// which the spec hash does not cover.
 	CacheMissExpressionGateChanged = "expression_gate_changed"
+	// CacheMissPublishVersionChanged means the publishVersion pin moved. The new pin cuts a
+	// revision that must render the live global policies, not the previous pin's results.
+	CacheMissPublishVersionChanged = "publish_version_changed"
+	// CacheMissMetadataChanged means a label or annotation policy templates read changed: one in
+	// context.appLabels or context.appAnnotations, which include the rollout annotations.
+	CacheMissMetadataChanged = "metadata_changed"
 )
 
 // RenderedPolicyResult stores the output of a rendered policy CUE template.
@@ -72,18 +82,37 @@ type RenderedPolicyResult struct {
 	RevisionHash           string
 	PolicyDefinitionUsed   *v1beta1.PolicyDefinition
 
+	// UpdatePending is set when a newer live version of this policy is held back, by the app's
+	// rollout settings, a publishVersion pin, a render failure or a spec rewrite; it applies at
+	// the app's next revision.
+	UpdatePending bool
+	// UpdateFailsToRender is set on a pending update whose newer version fails to render.
+	UpdateFailsToRender bool
+	// UpdateRewritesSpec is set on a pending update whose newer version rewrites the spec.
+	UpdateRewritesSpec bool
+	// DataPending is set when this policy's output changed with apply-data-changes off: it
+	// contributes the output last applied, and the change applies at the app's next revision.
+	DataPending bool
+
+	// Settings are the rollout settings the rendered template sets under config, and
+	// SettingWarnings describes any it set that were ignored.
+	Settings        policySettings
+	SettingWarnings []string
+
 	// Per-policy spec snapshots for ConfigMap audit trail; nil when spec was not modified.
 	SpecBefore *v1beta1.ApplicationSpec
 	SpecAfter  *v1beta1.ApplicationSpec
 }
 
-// ApplicationPolicyCacheEntry holds rendered results for one Application.
-// Invalidated when spec hash changes, ApplicationRevision changes, expression
-// handling changes, or TTL expires.
+// ApplicationPolicyCacheEntry holds rendered results for one Application. It is invalidated
+// when the spec, the ApplicationRevision, expression handling, the publishVersion pin or the
+// metadata policy templates read changes, or when the TTL expires.
 type ApplicationPolicyCacheEntry struct {
 	appSpecHash        string
 	appRevisionHash    string
 	expressionsEnabled bool
+	publishVersion     string
+	metadataHash       string
 	renderedResults    []RenderedPolicyResult
 	timestamp          time.Time
 }
@@ -104,6 +133,17 @@ func computeApplicationPolicyCacheKey(app *v1beta1.Application) string {
 	return fmt.Sprintf("%s/%s", app.Namespace, app.Name)
 }
 
+// templateMetadataHash hashes the labels and annotations policy templates read, as
+// context.appLabels and context.appAnnotations present them.
+func templateMetadataHash(app *v1beta1.Application) string {
+	raw, _ := json.Marshal([]map[string]string{ // map keys marshal sorted, so the hash is stable
+		oam.FilterInternalMetadata(app.Labels),
+		oam.FilterInternalMetadata(app.Annotations),
+	})
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+
 func computeApplicationSpecHash(app *v1beta1.Application) (string, error) {
 	return apply.ComputeSpecHash(app.Spec)
 }
@@ -116,7 +156,8 @@ func (c *ApplicationPolicyCache) Get(app *v1beta1.Application) ([]RenderedPolicy
 
 // GetWithReason retrieves cached results with a miss reason for diagnostics.
 // missReason: CacheMissNotFound | CacheMissSpecChanged | CacheMissRevisionChanged |
-// CacheMissExpressionGateChanged | CacheMissTTLExpired | "" (hit)
+// CacheMissExpressionGateChanged | CacheMissPublishVersionChanged | CacheMissMetadataChanged |
+// CacheMissTTLExpired | "" (hit)
 func (c *ApplicationPolicyCache) GetWithReason(app *v1beta1.Application) ([]RenderedPolicyResult, bool, string, error) {
 	cacheKey := computeApplicationPolicyCacheKey(app)
 	appSpecHash, err := computeApplicationSpecHash(app)
@@ -146,6 +187,12 @@ func (c *ApplicationPolicyCache) GetWithReason(app *v1beta1.Application) ([]Rend
 	if entry.expressionsEnabled != sources.ExpressionsEnabledFor(app.GetAnnotations()) {
 		return nil, false, CacheMissExpressionGateChanged, nil
 	}
+	if entry.publishVersion != oam.GetPublishVersion(app) {
+		return nil, false, CacheMissPublishVersionChanged, nil
+	}
+	if entry.metadataHash != templateMetadataHash(app) {
+		return nil, false, CacheMissMetadataChanged, nil
+	}
 	if time.Since(entry.timestamp) > ApplicationPolicyCacheTTL {
 		return nil, false, CacheMissTTLExpired, nil
 	}
@@ -173,6 +220,8 @@ func (c *ApplicationPolicyCache) Set(app *v1beta1.Application, results []Rendere
 		appSpecHash:        appSpecHash,
 		appRevisionHash:    appRevisionHash,
 		expressionsEnabled: sources.ExpressionsEnabledFor(app.GetAnnotations()),
+		publishVersion:     oam.GetPublishVersion(app),
+		metadataHash:       templateMetadataHash(app),
 		renderedResults:    results,
 		timestamp:          time.Now(),
 	}

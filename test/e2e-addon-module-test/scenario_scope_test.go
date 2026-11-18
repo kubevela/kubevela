@@ -93,7 +93,7 @@ func TestScopedModuleFixturesPreserveTopologyAndResolution(t *testing.T) {
 		if mod.Name != "widget-kit-s"+id+"-abcdef0123456789" || mod.Version != "1.0.0" || len(mod.Lines) != 3 {
 			t.Fatalf("fixture identity/version/line topology changed: %+v", mod)
 		}
-		app, err := moduleservice.RenderApplication(mod, "vela-system")
+		app, err := moduleservice.RenderApplication(mod, "vela-system", nil)
 		if err != nil {
 			t.Fatal(err)
 		}

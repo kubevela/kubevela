@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
+	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -155,6 +156,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 		// cannot generate appfile, no need to validate further
 		return componentErrs
 	}
+	af.PolicyContext = h.policyContextView(ctx, app, af)
 	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, conciseSchematicError(err)))
 	}
@@ -537,6 +539,17 @@ func getWorkflowStepFieldPath(loc workflowStepLocation) *field.Path {
 // ValidateAnnotations validates whether the application has both autoupdate and publish version annotations
 func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
 	var annotationsErrs field.ErrorList
+
+	// Only adding the opt-out is refused, and only while global policies apply at all. An app
+	// that already carries it stays updatable; the controller ignores the annotation there.
+	carriedForward := oldApp != nil && oldApp.Annotations[oam.AnnotationSkipGlobalPolicies] == "true"
+	globalsApply := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) &&
+		utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies)
+	if app.Annotations[oam.AnnotationSkipGlobalPolicies] == "true" && !carriedForward && globalsApply && !commonconfig.AllowSkipGlobalPolicies {
+		annotationsErrs = append(annotationsErrs, field.Forbidden(
+			field.NewPath("metadata", "annotations").Key(oam.AnnotationSkipGlobalPolicies),
+			"global platform policies are mandatory; applications cannot opt out of them"))
+	}
 
 	hasPublishVersion := app.Annotations[oam.AnnotationPublishVersion]
 	hasAutoUpdate := app.Annotations[oam.AnnotationAutoUpdate]

@@ -29,10 +29,12 @@ import (
 	"github.com/kubevela/pkg/util/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	v1alpha1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/module/service/api"
+	"github.com/oam-dev/kubevela/pkg/policy/placement"
 )
 
 // ProviderName is the CUE #provider value.
@@ -49,6 +51,9 @@ type RenderVars struct {
 	// Version selects the module package version (the OCI/ECR tag); empty means
 	// latest. Not the API line.
 	Version string `json:"version"`
+	// Placement is the installer's cluster request. Nil means they did not ask.
+	// Objects marked runtime follow it. Unmarked objects stay on the hub.
+	Placement *v1alpha1.Placement `json:"placement,omitempty"`
 }
 
 // ResultVars is the $returns shape.
@@ -74,6 +79,11 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 		return nil, fmt.Errorf("module-as-component is disabled; enable the EnableModuleComponent feature gate to use type: module components")
 	}
 	p := params.Params
+	// Checked before the validation-only return, so admission rejects a bad
+	// placement with the same message a render would give.
+	if err := placement.Validate(p.Placement); err != nil {
+		return nil, err
+	}
 	if validation.IsValidationOnly(ctx) {
 		return placeholderReturns(p), nil
 	}
@@ -86,6 +96,7 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 		Registry:  p.Registry,
 		Namespace: p.Namespace,
 		Version:   p.Version,
+		Placement: p.Placement,
 	})
 	if err != nil {
 		return nil, err

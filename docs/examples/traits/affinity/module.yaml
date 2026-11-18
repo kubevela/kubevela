@@ -1,0 +1,40 @@
+# Declarative module with affinity trait (EnableModuleComponent).
+# Trait overlays PodSpec fields on auxiliary controllers in the owned Application
+# (e.g. Crossplane provider Deployments), not on definitions-only objects.
+#
+# Prerequisites:
+# - Enable the feature gate (off by default):
+#     --set featureGates.enableModuleComponent=true
+#   or controller flag --feature-gates=EnableModuleComponent=true
+# - An OCI module registry that publishes `widget-kit` (this example uses a local
+#   registry named `local-modules`). Module resolution expects an OCI endpoint,
+#   not a plain HTTP Helm chart repo. Register it with `vela module registry add`
+#   (or the equivalent ConfigMap) before applying.
+# Replace `registry` / `module` / `version` for your environment.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: affinity-module-example
+  namespace: vela-system
+spec:
+  components:
+    - name: widget-kit
+      type: module
+      properties:
+        module: widget-kit
+        registry: local-modules
+        version: "1.1.0"
+      traits:
+        - type: affinity
+          properties:
+            nodeSelector:
+              disktype: ssd
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: node-type
+                          operator: In
+                          values:
+                            - infra

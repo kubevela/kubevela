@@ -122,6 +122,10 @@ jobs:
           k8s-version: ${{ matrix.k8s-version }}
           load-image: 'false'
 
+      - name: Start Nacos
+        if: matrix.suite == 'core-config'
+        uses: ./.github/actions/start-nacos
+
       # ========================================================================
       # E2E Test Execution
       # ========================================================================

@@ -42,6 +42,7 @@ func cacheSecret(name string, props map[string]interface{}, created time.Time, a
 			Name:              name,
 			Namespace:         CacheNamespace(),
 			CreationTimestamp: metav1.NewTime(created),
+			Labels:            map[string]string{apitypes.LabelSourceDefinitionName: "http-get"},
 			Annotations:       anns,
 		},
 		Data: map[string][]byte{sourceCacheDataKey: raw},
@@ -72,20 +73,51 @@ func TestSecretStoreReadMisses(t *testing.T) {
 	})
 	t.Run("an entry with no payload", func(t *testing.T) {
 		s := secretStore(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-			Name: "empty", Namespace: CacheNamespace()}})
+			Name: "empty", Namespace: CacheNamespace(),
+			Labels: map[string]string{apitypes.LabelSourceDefinitionName: "http-get"}}})
 		entry, err := s.Read(context.Background(), "empty", time.Minute)
 		require.NoError(t, err)
 		require.False(t, entry.Found, "an entry with nothing in it cannot be served")
 	})
 	t.Run("a corrupt payload is an error, not a silent miss", func(t *testing.T) {
 		bad := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "bad", Namespace: CacheNamespace()},
-			Data:       map[string][]byte{sourceCacheDataKey: []byte("{not json")},
+			ObjectMeta: metav1.ObjectMeta{Name: "bad", Namespace: CacheNamespace(),
+				Labels: map[string]string{apitypes.LabelSourceDefinitionName: "http-get"}},
+			Data: map[string][]byte{sourceCacheDataKey: []byte("{not json")},
 		}
 		entry, err := secretStore(bad).Read(context.Background(), "bad", time.Minute)
 		require.Error(t, err, "silently re-fetching would hide a corrupted entry forever")
 		require.False(t, entry.Found)
 	})
+	t.Run("a Secret of the name the cache did not write is an error", func(t *testing.T) {
+		planted := cacheSecret("planted", map[string]interface{}{"image": "evil"}, time.Now(), nil)
+		planted.Labels = nil
+		entry, err := secretStore(planted).Read(context.Background(), "planted", time.Minute)
+		require.EqualError(t, err, "secret "+CacheNamespace()+"/planted is not a source cache entry: no sourcedefinition.oam.dev/name label")
+		require.False(t, entry.Found)
+		require.Nil(t, entry.Data)
+	})
+	t.Run("an empty label value is no mark", func(t *testing.T) {
+		planted := cacheSecret("planted", map[string]interface{}{"image": "evil"}, time.Now(), nil)
+		planted.Labels[apitypes.LabelSourceDefinitionName] = ""
+		_, err := secretStore(planted).Read(context.Background(), "planted", time.Minute)
+		require.Error(t, err)
+	})
+}
+
+// Write leaves a Secret of the key's name the cache did not write alone: it neither
+// overwrites its data nor stamps the mark that would make the next read trust it.
+func TestSecretStoreWriteRefusesASecretItDidNotWrite(t *testing.T) {
+	planted := cacheSecret("planted", map[string]interface{}{"image": "evil"}, time.Now(), nil)
+	planted.Labels = nil
+	cli := fake.NewClientBuilder().WithObjects(planted).Build()
+	err := NewSecretSourceCacheStore(cli).Write(context.Background(), "planted", "http-get",
+		map[string]interface{}{"image": "nginx"}, velaprocess.SourceCacheWriteMeta{SourceDefName: "http-get"})
+	require.EqualError(t, err, "secret "+CacheNamespace()+"/planted is not a source cache entry: no sourcedefinition.oam.dev/name label")
+	var got corev1.Secret
+	require.NoError(t, cli.Get(context.Background(), client.ObjectKeyFromObject(planted), &got))
+	require.JSONEq(t, `{"image":"evil"}`, string(got.Data[sourceCacheDataKey]))
+	require.Empty(t, got.Labels)
 }
 
 func TestSecretStoreReadFreshness(t *testing.T) {
@@ -160,7 +192,7 @@ func TestSecretStoreWriteCreatesAndUpdates(t *testing.T) {
 
 	t.Run("updates in place, keeping labels other things set", func(t *testing.T) {
 		existing := cacheSecret("k", map[string]interface{}{"body": "old"}, time.Now(), nil)
-		existing.Labels = map[string]string{"someone.else/owns": "this"}
+		existing.Labels = map[string]string{"someone.else/owns": "this", apitypes.LabelSourceDefinitionName: "http-get"}
 		cli := fake.NewClientBuilder().WithObjects(existing).Build()
 
 		require.NoError(t, NewSecretSourceCacheStore(cli).Write(ctx, "k", "http-get",
@@ -174,7 +206,8 @@ func TestSecretStoreWriteCreatesAndUpdates(t *testing.T) {
 
 	t.Run("an entry with nil maps is filled in rather than panicking", func(t *testing.T) {
 		bare := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-			Name: "k", Namespace: CacheNamespace()}}
+			Name: "k", Namespace: CacheNamespace(),
+			Labels: map[string]string{apitypes.LabelSourceDefinitionName: "http-get"}}}
 		cli := fake.NewClientBuilder().WithObjects(bare).Build()
 		require.NoError(t, NewSecretSourceCacheStore(cli).Write(ctx, "k", "http-get",
 			map[string]interface{}{"body": "hi"}, velaprocess.SourceCacheWriteMeta{}))

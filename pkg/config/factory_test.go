@@ -171,6 +171,22 @@ var _ = Describe("test config factory", func() {
 		Expect(err).Should(BeNil())
 		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(BeNil())
 	})
+	It("does not let a template's output mark the Secret it renders for use as a Nacos endpoint", func() {
+		t, err := fac.ParseTemplate(context.Background(), "", []byte(`
+metadata: name: "self-marking"
+template: {
+	output: metadata: annotations: "config.oam.dev/nacos-endpoint": "true"
+	parameter: servers?: [...{ipAddr: string, port: int}]
+}
+`))
+		Expect(err).Should(BeNil())
+		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(BeNil())
+		DeferCleanup(func() { Expect(fac.DeleteTemplate(context.TODO(), "default", "self-marking")).Should(Succeed()) }) // the template list specs count "default"
+		cfg, err := fac.ParseConfig(context.TODO(), NamespacedName{Name: "self-marking", Namespace: "default"}, Metadata{NamespacedName: NamespacedName{Name: "self-marked", Namespace: "default"}})
+		Expect(err).Should(BeNil())
+		Expect(cfg.Secret.Annotations).ShouldNot(HaveKey(types.AnnotationConfigNacosEndpoint))
+	})
+
 	It("apply a config to the nacos server", func() {
 
 		By("create a nacos server config")
@@ -225,6 +241,10 @@ var _ = Describe("test config factory", func() {
 		Expect(err).Should(BeNil())
 		Expect(fac.CreateOrUpdateConfig(context.Background(), db, "default")).Should(BeNil())
 
+		By("a publish the server refuses fails the write; the Secret is applied first, so a rerun is safe")
+		nacosClient.EXPECT().PublishConfig(gomock.Any()).Return(false, nil)
+		err = fac.CreateOrUpdateConfig(context.Background(), db, "default")
+		Expect(err).Should(MatchError(ContainSubstring("fail to publish the config DEFAULT_GROUP/dbconfig: the nacos server refused it")))
 	})
 
 	It("list all templates", func() {
@@ -529,6 +549,15 @@ template: {
 	r.Equal("system", cm.Labels[types.LabelConfigScope])
 }
 
+// Only the exact value marks a config for use as a Nacos endpoint.
+func TestNacosEndpointMarked(t *testing.T) {
+	for value, want := range map[string]bool{"true": true, "True": false, "false": false, "1": false, "": false} {
+		secret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{types.AnnotationConfigNacosEndpoint: value}}}
+		require.Equal(t, want, NacosEndpointMarked(secret), "value %q", value)
+	}
+	require.False(t, NacosEndpointMarked(&v1.Secret{}), "no annotation")
+}
+
 // Same contract as Template.Labels, on the config side. The source cache stamps
 // identity and lifetime metadata so a context-free sweep can reason about an
 // entry; it should not have to reach into Config.Secret to do it.
@@ -632,4 +661,40 @@ template: {
 	r.NoError(k8sClient.Get(context.Background(),
 		pkgtypes.NamespacedName{Namespace: "vela-system", Name: "atlas-schema"}, &ct))
 	r.Equal("vela-system", ct.Labels["sourcedefinition.oam.dev/namespace"])
+}
+
+// A template marked sensitive after it was written stays sensitive when the writer
+// rewrites it: the SourceDefinition controller rewrites its generated templates on
+// every reconcile with sensitive false, which the CRD rule would refuse.
+func TestCreateOrUpdateConfigTemplateCRKeepsAStoredSensitive(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	k8sClient := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	f := NewConfigFactory(k8sClient)
+	tmpl, err := f.ParseTemplate(ctx, "atlas-schema", []byte(`
+metadata: {name: "atlas-schema", scope: "system"}
+template: {
+	parameter: {host: string}
+	output: {}
+}
+`))
+	r.NoError(err)
+	r.False(tmpl.Sensitive)
+	key := pkgtypes.NamespacedName{Namespace: "vela-system", Name: "atlas-schema"}
+
+	r.NoError(f.CreateOrUpdateConfigTemplateCR(ctx, "vela-system", tmpl))
+	var ct configv1alpha1.ConfigTemplate
+	r.NoError(k8sClient.Get(ctx, key, &ct))
+	r.False(ct.Spec.Sensitive, "created as the template says")
+
+	ct.Spec.Sensitive = true
+	r.NoError(k8sClient.Update(ctx, &ct))
+	r.NoError(f.CreateOrUpdateConfigTemplateCR(ctx, "vela-system", tmpl))
+	r.NoError(k8sClient.Get(ctx, key, &ct))
+	r.True(ct.Spec.Sensitive, "a stored true is kept")
+
+	tmpl.Sensitive = true
+	r.NoError(f.CreateOrUpdateConfigTemplateCR(ctx, "other", tmpl))
+	r.NoError(k8sClient.Get(ctx, pkgtypes.NamespacedName{Namespace: "other", Name: "atlas-schema"}, &ct))
+	r.True(ct.Spec.Sensitive, "a sensitive template is written sensitive")
 }

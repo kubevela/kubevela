@@ -203,7 +203,7 @@ func IsCRDTypeMissing(err error) bool {
 // A config may still be legacy (a plain Secret created by an older CLI), and the
 // cluster may not serve the Config type at all, so a missing Config CR here is
 // expected and not an error - there's just no owner to attach.
-func SetDistributionOwner(ctx context.Context, cli client.Client, ns, configName, distributionName string) error {
+func SetDistributionOwner(ctx context.Context, cli client.Client, ns, configName, distributionName string, opts ...client.UpdateOption) error {
 	cfg := &configv1alpha1.Config{}
 	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: configName}, cfg); err != nil {
 		if apierrors.IsNotFound(err) || IsCRDTypeMissing(err) {
@@ -224,7 +224,7 @@ func SetDistributionOwner(ctx context.Context, cli client.Client, ns, configName
 		if err := controllerutil.SetControllerReference(cfg, app, cli.Scheme()); err != nil {
 			return err
 		}
-		return cli.Update(ctx, app)
+		return cli.Update(ctx, app, opts...)
 	})
 	if err != nil {
 		return fmt.Errorf("failed to set owner reference on distribution %s: %w", distributionName, err)

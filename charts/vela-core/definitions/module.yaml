@@ -40,12 +40,19 @@ spec:
         	_namespace: "namespace is no longer accepted: a module's definitions install into the namespace of the Application that installs it"
         }
 
+        // The module provider checks placement: a set placement names clusters or
+        // a clusterLabelSelector, not both. It runs during admission too, so the
+        // check is not repeated here, where CUE can only report it as a type
+        // conflict.
         _render: module.#Render & {
         	$params: {
         		module:    parameter.module
         		registry:  parameter.registry
         		namespace: _namespace
         		version:   parameter.version
+        		if parameter.placement != _|_ {
+        			placement: parameter.placement
+        		}
         	}
         }
 
@@ -60,6 +67,13 @@ spec:
         	// _module.cue's version field). Empty means the latest published version.
         	// This is not the API line (apiVersion v1/v2), which is unaffected.
         	version: *"" | string
+        	// Where objects marked runtime are installed. Unmarked objects and
+        	// definitions stay on the hub. Set clusters or clusterLabelSelector.
+        	placement?: {
+        		clusters?: [...string]
+        		clusterLabelSelector?: [string]: string
+        		allowEmpty?: bool
+        	}
         }
   status:
     customStatus: |-

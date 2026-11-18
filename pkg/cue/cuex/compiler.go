@@ -18,18 +18,21 @@ package cuex
 
 import (
 	"context"
+	"sync"
 
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/cue/cuex/providers/base64"
 	cueext "github.com/kubevela/pkg/cue/cuex/providers/cue"
-	"github.com/kubevela/pkg/cue/cuex/providers/http"
 	"github.com/kubevela/pkg/cue/cuex/providers/kube"
+	cuexutil "github.com/kubevela/pkg/cue/cuex/providers/util"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/singleton"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/addon"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/guardedhttp"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/kuberead"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/module"
@@ -67,7 +70,7 @@ func SourcePackages() []cuexruntime.Package {
 		// enough: kube carries reads and writes under one name, so a source could
 		// otherwise apply arbitrary resources on every cache miss.
 		kuberead.Package,
-		http.Package,
+		guardedhttp.Package,
 		base64.Package,
 		registry.Package,
 		velaconfig.Package,
@@ -104,7 +107,7 @@ func WorkloadPackages() []cuexruntime.Package {
 		config.Package,
 		helm.Package,
 		base64.Package,
-		http.Package,
+		guardedhttp.Package,
 		kube.Package,
 		cueext.Package,
 		addon.Package,
@@ -138,3 +141,47 @@ var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compi
 	}
 	return compiler
 })
+
+// DefaultPackages are the packages of the upstream cuex.DefaultCompiler, with
+// vela/http replaced by the guarded variant.
+func DefaultPackages() []cuexruntime.Package {
+	return []cuexruntime.Package{
+		base64.Package,
+		guardedhttp.Package,
+		kube.Package,
+		cueext.Package,
+		cuexutil.Package,
+	}
+}
+
+// GuardDefaultCompiler replaces the upstream cuex.DefaultCompiler, which policy
+// rendering, CUE conversion and the webhook use, with one built from
+// DefaultPackages, so a vela/http call there goes through the outbound HTTP
+// guard too. It loads external packages the way the upstream compiler does.
+// It runs once; later calls do nothing, so a repeated configuration sync
+// does not start a second external-package watcher.
+func GuardDefaultCompiler() {
+	guardDefaultCompilerOnce.Do(guardDefaultCompiler)
+}
+
+var guardDefaultCompilerOnce sync.Once
+
+// guardDefaultCompiler builds and installs the guarded default compiler.
+func guardDefaultCompiler() {
+	compiler := cuex.NewCompilerWithInternalPackages(DefaultPackages()...)
+	if cuex.EnableExternalPackageForDefaultCompiler || cuex.EnableExternalPackageWatchForDefaultCompiler {
+		if err := kubeconfig.CheckFor("external CUE packages for the default compiler"); err != nil {
+			cuex.DefaultCompiler.Set(compiler)
+			return
+		}
+	}
+	if cuex.EnableExternalPackageForDefaultCompiler {
+		if err := compiler.LoadExternalPackages(context.Background()); err != nil && !kerrors.IsNotFound(err) {
+			klog.Errorf("failed to load external packages for cuex default compiler: %s", err.Error())
+		}
+	}
+	if cuex.EnableExternalPackageWatchForDefaultCompiler {
+		go compiler.ListenExternalPackages(nil)
+	}
+	cuex.DefaultCompiler.Set(compiler)
+}

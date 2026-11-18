@@ -812,8 +812,8 @@ func TestHandleValidatesIdentityFields(t *testing.T) {
 // check, nothing about whether the apiserver actually persists the fields.
 // These specs go through testEnv's real envtest apiserver instead, loaded
 // with the real shipped CRDs (charts/vela-core/crds), so they are the only
-// place that proves GWCP-106678's actual claim: declaring module/apiVersion
-// as schema properties is what stops the apiserver from pruning them.
+// place that proves declaring module/apiVersion as schema properties is what
+// stops the apiserver from pruning them.
 var _ = Describe("Identity fields survive a real apiserver apply", func() {
 	var identityCli client.Client
 
@@ -894,7 +894,7 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 			},
 		}
 
-		app, err := modulerender.RenderApplication(mod, "vela-system")
+		app, err := modulerender.RenderApplication(mod, "vela-system", nil)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		spec, ok := app["spec"].(map[string]interface{})

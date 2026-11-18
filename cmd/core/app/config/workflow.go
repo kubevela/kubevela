@@ -24,19 +24,26 @@ import (
 
 // WorkflowConfig contains workflow engine configuration.
 type WorkflowConfig struct {
-	MaxWaitBackoffTime     int
-	MaxFailedBackoffTime   int
-	MaxStepErrorRetryTimes int
-	MaxForEachItems        int
+	MaxWaitBackoffTime         int
+	MaxFailedBackoffTime       int
+	MaxStepErrorRetryTimes     int
+	MaxForEachItems            int
+	HTTPDenyConfigTemplateName string
 }
+
+// VelaCoreHTTPDenyConfigTemplate is the vela-core chart ConfigTemplate name and
+// discovery label (config.oam.dev/type). Distinct from workflow's
+// httpguard.WorkflowHTTPDenyConfigTemplate so dual install owns separate templates.
+const VelaCoreHTTPDenyConfigTemplate = "vela-core-http-deny"
 
 // NewWorkflowConfig creates a new WorkflowConfig with defaults.
 func NewWorkflowConfig() *WorkflowConfig {
 	return &WorkflowConfig{
-		MaxWaitBackoffTime:     60,
-		MaxFailedBackoffTime:   300,
-		MaxStepErrorRetryTimes: 10,
-		MaxForEachItems:        50,
+		MaxWaitBackoffTime:         60,
+		MaxFailedBackoffTime:       300,
+		MaxStepErrorRetryTimes:     10,
+		MaxForEachItems:            50,
+		HTTPDenyConfigTemplateName: VelaCoreHTTPDenyConfigTemplate,
 	}
 }
 
@@ -58,6 +65,10 @@ func (c *WorkflowConfig) AddFlags(fs *pflag.FlagSet) {
 		"max-for-each-items",
 		c.MaxForEachItems,
 		"Set the max number of items a forEach step may iterate, each of which is recorded in the Application's status, default is 50")
+	fs.StringVar(&c.HTTPDenyConfigTemplateName,
+		"workflow-http-deny-config-template-name",
+		c.HTTPDenyConfigTemplateName,
+		"Discover and merge ConfigMaps produced by this ConfigTemplate in the controller namespace")
 }
 
 // SyncToWorkflowGlobals syncs the parsed configuration values to workflow package global variables.

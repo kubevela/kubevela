@@ -143,6 +143,10 @@ func (s *scenarioScope) publishInitialFixtures() {
 		addons = []string{"kit-suite-1.0.0", "kit-suite-2.0.0"}
 	case "05":
 		addons = []string{"import-options-1.0.0"}
+	case "20":
+		addons = []string{"placement-import-1.0.0"}
+	case "21":
+		addons = []string{"placement-plain-1.0.0", "placement-import-1.0.0"}
 	// Inline modules ship inside the addon, so these publish no module.
 	case "02i", "04i", "11i", "12i", "16i":
 		modules, addons = nil, []string{"widget-platform-inline-1.0.0"}

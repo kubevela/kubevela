@@ -52,6 +52,11 @@ func (s *secretSourceCacheStore) Read(ctx context.Context, cacheKey string, ttl 
 		}
 		return velaprocess.SourceCacheRead{}, err
 	}
+	// an error, not a quiet miss: the resolver logs it, fetches the source, and serves no
+	// stale value from a Secret the cache did not write
+	if !IsSourceCacheEntry(secret) {
+		return velaprocess.SourceCacheRead{}, NotSourceCacheEntry(secret)
+	}
 	if secret.Data == nil || len(secret.Data[sourceCacheDataKey]) == 0 {
 		return velaprocess.SourceCacheRead{}, nil
 	}
@@ -102,6 +107,10 @@ func (s *secretSourceCacheStore) Write(ctx context.Context, cacheKey, sourceType
 		secret.Annotations[sourceCacheSyncAtKey] = now
 		secret.Data[sourceCacheDataKey] = raw
 		return s.client.Create(ctx, secret)
+	}
+	// a Secret of the name the cache did not write is left alone, not taken over
+	if !IsSourceCacheEntry(secret) {
+		return NotSourceCacheEntry(secret)
 	}
 	if secret.Annotations == nil {
 		secret.Annotations = map[string]string{}
