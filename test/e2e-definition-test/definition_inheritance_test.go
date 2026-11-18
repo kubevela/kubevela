@@ -431,4 +431,82 @@ var _ = Describe("ComponentDefinition inheritance", Label("core-definitions"), f
 		}, time.Second*30, time.Second*2).Should(ContainSubstring(
 			"adds to output.spec.template.spec.securityContext, which late-final-parent marks +final"))
 	})
+	It("refuses a child that replaces or changes what its parent renders", func() {
+		parent := componentDefinitionIn(namespace, "road-parent", "", inheritParentTemplate+`
+outputs: {
+	// +required
+	svc: {
+		apiVersion: "v1"
+		kind:       "Service"
+		metadata: name: context.name
+		spec: {
+			selector: "app.oam.dev/component": context.name
+			ports: [{port: 80}]
+		}
+	}
+}
+`, nil)
+		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
+
+		for name, c := range map[string]struct{ template, want string }{
+			"road-replaces": {
+				template: "$super: properties: {image: parameter.image}\n$inherit: {output: false}\noutput: {apiVersion: \"batch/v1\", kind: \"Job\"}\nparameter: image: string\n",
+				want:     "`$inherit: {output: false}` is not allowed in road-replaces",
+			},
+			"road-overrides": {
+				template: "$super: properties: {image: parameter.image}\noutput: spec: replicas: 5\nparameter: image: string\n",
+				want:     "component road-overrides sets output.spec.replicas, which road-parent already sets",
+			},
+			"road-drops": {
+				template: "$super: properties: {image: parameter.image}\n$inherit: {outputs: {svc: false}}\nparameter: image: string\n",
+				want:     "component road-drops leaves out outputs.svc, which road-parent marks +required",
+			},
+		} {
+			err := k8sClient.Create(ctx, componentDefinitionIn(namespace, name, "road-parent", c.template, nil))
+			Expect(err).Should(HaveOccurred(), name)
+			Expect(err.Error()).Should(ContainSubstring(c.want), name)
+		}
+	})
+
+	It("renders a child that leaves out an optional output and writes its own", func() {
+		parent := componentDefinitionIn(namespace, "drop-parent", "", inheritParentTemplate+`
+outputs: cfg: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: name: context.name + "-cfg"
+	data: from: "parent"
+}
+`, nil)
+		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
+		child := componentDefinitionIn(namespace, "drop-child", "drop-parent", `
+$super: properties: {image: parameter.image}
+$inherit: {outputs: {cfg: false}}
+outputs: cfg: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: name: context.name + "-cfg"
+	data: from: "child"
+}
+parameter: image: string
+`, nil)
+		Expect(k8sClient.Create(ctx, child)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "drop-app", Namespace: namespace},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name:       "dropped",
+					Type:       "drop-child",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.27"}`)},
+				}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		cm := &corev1.ConfigMap{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "dropped-cfg", Namespace: namespace}, cm)
+		}, time.Second*60, time.Second*2).Should(Succeed())
+		Expect(cm.Data).Should(Equal(map[string]string{"from": "child"}), "only the child's own, not merged with the parent's")
+	})
 })

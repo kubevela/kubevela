@@ -28,14 +28,24 @@ limitations under the License.
 //
 //	$super: properties: {image: parameter.image}
 //
-// The child's `output`, `outputs` and, for traits, `patch`, `patchOutputs` and
-// `processing` merge onto the parent's, so adding a label reads as if the parent
-// were not there:
+// A definition that extends another is the parent with more on it, never
+// something else. The child's `output`, `outputs` and, for traits, `patch`,
+// `patchOutputs` and `processing` merge onto the parent's, so adding a label
+// reads as if the parent were not there:
 //
 //	output: metadata: labels: "tenant.oam.dev/name": parameter.tenant
 //
-// `$inherit` turns merging off, wholly (`$inherit: false`) or per field
-// (`$inherit: {output: false}`).
+// A child adds fields the parent did not set and fills a field the parent left
+// open. It does not change a field the parent set, even one from a defaulted
+// parameter: that goes up through `$super.properties` instead.
+//
+// `$inherit` leaves one of the parent's outputs out, and the child may write its
+// own of that name in its place:
+//
+//	$inherit: {outputs: {ingress: false}}
+//
+// It cannot turn the merge off wholly or for `output`, `patch` or the whole of
+// `outputs`.
 //
 // What the parent produced is readable on `$super` as `output`, `outputs`,
 // `patch` and `patchOutputs`.
@@ -44,6 +54,15 @@ limitations under the License.
 // parent's: the parameters it publishes are the ones an application is
 // validated against, and taking a parent's whole set publishes fields that
 // reach nothing unless they are also forwarded.
+//
+// # What a parent marks
+//
+// A doc comment on a field of the parent's results guards it for every level
+// below:
+//
+//	// +final       nothing extending this adds to the field, at any depth
+//	// +required    nothing extending this leaves this output out; on the
+//	//              `outputs` block it covers every output in it
 //
 // # The one constraint
 //
