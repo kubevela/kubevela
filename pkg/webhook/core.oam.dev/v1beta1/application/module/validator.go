@@ -23,6 +23,8 @@ package module
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"slices"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -38,20 +40,15 @@ import (
 // feature: an Application component of this type installs a module.
 const ComponentType = "module"
 
-// registryGitKindLister reports which configured module registries are Git
-// backed, keyed by name. A seam for tests; production uses
-// listClusterRegistryGitKinds.
-type registryGitKindLister func(context.Context, client.Client) (map[string]string, error)
+// registryLister reads what the validator needs to know about the configured
+// module registries: every name, and which of those names are Git backed. A
+// seam for tests; production uses listClusterRegistries.
+type registryLister func(context.Context, client.Client) (names []string, gitKinds map[string]string, err error)
 
-// listClusterRegistryGitKinds is the production registryGitKindLister. It reads
-// the module registry ConfigMap and no token Secret.
-//
-// Only the Git kinds are asked for. An unknown registry name is
-// module.ResolveRegistry's to report, with the list of what is configured, and
-// duplicating that here would give the author two different messages for one
-// mistake -- so the sorted name list is not built.
-func listClusterRegistryGitKinds(ctx context.Context, cli client.Client) (map[string]string, error) {
-	return component.ListRegistryGitKindsIn(ctx, cli, pkgmodule.ModuleRegistryConfigMap)
+// listClusterRegistries is the production registryLister. It reads the
+// module registry ConfigMap and no token Secret.
+func listClusterRegistries(ctx context.Context, cli client.Client) ([]string, map[string]string, error) {
+	return component.ListRegistrySourcesIn(ctx, cli, pkgmodule.ModuleRegistryConfigMap)
 }
 
 // Validator validates module-specific Application components.
@@ -71,7 +68,7 @@ type Validator struct {
 	// initializes that singleton.
 	Client client.Client
 
-	listRegistryGitKinds registryGitKindLister
+	listRegistries registryLister
 }
 
 // NewValidator creates a Validator reading registry records through cli.
@@ -105,16 +102,14 @@ const namespaceRemovedDetail = "namespace is no longer accepted: a module's defi
 
 // ValidateComponents rejects type: module components that cannot resolve for a
 // reason visible locally: properties that do not decode, a namespace property,
-// or a named registry that is Git backed.
+// a registry that is not configured on this cluster, or a named registry that
+// is Git backed.
 //
 // A component that names no registry is not checked for its source. Resolving
 // which registry an empty name selects is module.ResolveRegistry's policy --
 // the sole configured registry, or the one named "catalog" -- and duplicating
 // that policy here is how the two would drift apart. ResolveRegistry applies it,
 // and refuses Git, when the module is fetched.
-//
-// Unknown registry names are likewise left to ResolveRegistry, which already
-// reports them with the list of what is configured.
 func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Application) field.ErrorList {
 	startTime := time.Now()
 	logger := logging.WithContext(ctx).WithStep("validate-module-components")
@@ -122,12 +117,13 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 
 	moduleComponentCount := 0
 	var errs field.ErrorList
+	var registryNames []string
 	var gitKinds map[string]string
-	// Tracked separately from gitKinds: a cluster with no Git registry yields an
-	// empty map, which must reject nothing, whereas a failed read must also
-	// reject nothing -- but must not be mistaken for the first case on a later
-	// component.
-	kindsRead, kindsKnown := false, false
+	// Tracked separately from registryNames: a cluster with no registries
+	// configured yields an empty list, which must still reject a named
+	// registry, whereas a failed read must not reject anything -- but must not
+	// be mistaken for the first case on a later component.
+	registriesRead, registriesKnown := false, false
 
 	for i, comp := range app.Spec.Components {
 		if comp.Type != ComponentType {
@@ -168,20 +164,29 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 		if properties.Registry == "" {
 			continue
 		}
-		if !kindsRead {
-			kinds, err := v.readRegistryGitKinds(ctx)
+		if !registriesRead {
+			names, kinds, err := v.readRegistries(ctx)
 			if err != nil {
 				// Fail open, and stop asking. The registry may well be fine and
 				// this webhook runs with failurePolicy: Fail, so a ConfigMap
 				// read that failed for its own reasons must not block the apply.
-				// ResolveRegistry refuses a Git registry at reconcile time.
-				logger.Info("Skipping module registry source check", "reason", "registry-list-failed", "error", err)
+				// ResolveRegistry reports an unknown registry, and refuses a
+				// Git one, at reconcile time.
+				logger.Info("Skipping module registry checks", "reason", "registry-list-failed", "error", err)
 			} else {
-				gitKinds, kindsKnown = kinds, true
+				registryNames, gitKinds, registriesKnown = names, kinds, true
 			}
-			kindsRead = true
+			registriesRead = true
 		}
-		if !kindsKnown {
+		if !registriesKnown {
+			continue
+		}
+		if !slices.Contains(registryNames, properties.Registry) {
+			// field.NotFound would render as `Not found: "typo"`, which leaves
+			// the author guessing what the right value was. Registry names are
+			// not sensitive, and the list is exactly what they need to see.
+			errs = append(errs, field.Invalid(path.Child("registry"), properties.Registry,
+				fmt.Sprintf("is not a configured module registry; configured: %v", registryNames)))
 			continue
 		}
 		if kind := gitKinds[properties.Registry]; kind != "" {
@@ -198,10 +203,10 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 	return errs
 }
 
-func (v *Validator) readRegistryGitKinds(ctx context.Context) (map[string]string, error) {
-	list := v.listRegistryGitKinds
+func (v *Validator) readRegistries(ctx context.Context) ([]string, map[string]string, error) {
+	list := v.listRegistries
 	if list == nil {
-		list = listClusterRegistryGitKinds
+		list = listClusterRegistries
 	}
 	return list(ctx, v.Client)
 }

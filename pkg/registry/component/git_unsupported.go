@@ -114,14 +114,22 @@ func ListRegistryGitKindsIn(ctx context.Context, cli client.Client, cmName strin
 // ListRegistrySources reports the configured addon registries: every name in
 // sorted order, and the Git kinds as ListRegistryGitKinds returns them.
 //
-// Both come from one read, because the two answers have to agree. Read
-// separately, a registry created between the calls appears in names but not in
-// gitKinds, and a caller would treat it as non-Git.
-//
 // Prefer ListRegistryGitKinds when the names are not needed: this one also
 // builds and sorts a slice.
 func ListRegistrySources(ctx context.Context, cli client.Client) (names []string, gitKinds map[string]string, err error) {
-	registries, err := listRegistryRecordsFrom(ctx, cli, registryConfigMapName)
+	return ListRegistrySourcesIn(ctx, cli, registryConfigMapName)
+}
+
+// ListRegistrySourcesIn is ListRegistrySources over a named ConfigMap, so the
+// module registry can be inspected the same way. Module registries live in
+// their own ConfigMap but share the record format, and therefore the
+// question.
+//
+// Both answers come from one read, because they have to agree. Read
+// separately, a registry created between the calls appears in names but not in
+// gitKinds, and a caller would treat it as non-Git.
+func ListRegistrySourcesIn(ctx context.Context, cli client.Client, cmName string) (names []string, gitKinds map[string]string, err error) {
+	registries, err := listRegistryRecordsFrom(ctx, cli, cmName)
 	if err != nil {
 		return nil, nil, err
 	}
