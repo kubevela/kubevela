@@ -246,7 +246,7 @@ builtinDefinitions:
 ## @param multicluster.clusterGateway.replicaCount ClusterGateway replica count
 ## @param multicluster.clusterGateway.port ClusterGateway port
 ## @param multicluster.clusterGateway.image.repository ClusterGateway image repository
-## @param multicluster.clusterGateway.image.tag ClusterGateway image tag
+## @param multicluster.clusterGateway.image.tag ClusterGateway image tag, optionally with an @sha256 digest to pin the image
 ## @param multicluster.clusterGateway.image.pullPolicy ClusterGateway image pull policy
 ## @param multicluster.clusterGateway.resources.requests.cpu ClusterGateway cpu request
 ## @param multicluster.clusterGateway.resources.requests.memory ClusterGateway memory request
