@@ -1,0 +1,44 @@
+# A trait and a child of it. platform-expose adds an Ingress for a component;
+# internal-expose is the same Ingress with the internal class and an allowlist.
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: platform-expose
+  namespace: vela-system
+spec:
+  appliesToWorkloads: ["deployments.apps"]
+  schematic:
+    cue:
+      template: |
+        outputs: ingress: {
+        	apiVersion: "networking.k8s.io/v1"
+        	kind:       "Ingress"
+        	metadata: name: context.name
+        	spec: rules: [{
+        		host: parameter.host
+        		http: paths: [{
+        			path:     "/"
+        			pathType: "Prefix"
+        			backend: service: {name: context.name, port: number: 80}
+        		}]
+        	}]
+        }
+        parameter: host: string
+---
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: internal-expose
+  namespace: vela-system
+spec:
+  extends: platform-expose
+  appliesToWorkloads: ["deployments.apps"]
+  schematic:
+    cue:
+      template: |
+        parameter: host: string
+        $super: properties: host: parameter.host
+        outputs: ingress: {
+        	metadata: annotations: "nginx.ingress.kubernetes.io/whitelist-source-range": "10.0.0.0/8"
+        	spec: ingressClassName: "internal"
+        }

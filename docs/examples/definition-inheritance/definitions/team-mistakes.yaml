@@ -1,0 +1,82 @@
+# Five ways a team might try to bend platform-web. Each is refused when it is
+# applied; the README shows the message for each.
+#
+# 1. Swap the workload for a Job.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: nightly-job
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        $inherit: output: false
+        output: {apiVersion: "batch/v1", kind: "Job"}
+---
+# 2. Set replicas on the Deployment instead of passing them to platform-web.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: big-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        output: spec: replicas: 10
+---
+# 3. Run as root by adding to the security context.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: root-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        output: spec: template: spec: securityContext: runAsUser: 0
+---
+# 4. Leave out the Service.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: headless-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        $inherit: outputs: service: false
+---
+# 5. Call the result a StatefulSet.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: stateful-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: StatefulSet
+    type: statefulsets.apps
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image

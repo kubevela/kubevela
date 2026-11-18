@@ -1,0 +1,17 @@
+# A grandchild: the payments checkout service. It extends payments-web, so it is
+# platform-web two levels up, and every rule above still holds for it.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: checkout-web
+  namespace: vela-system
+spec:
+  extends: payments-web
+  schematic:
+    cue:
+      template: |
+        parameter: tenant: string
+        $super: properties: tenant: parameter.tenant
+        output: spec: template: spec: containers: [{
+        	env: [{name: "CHECKOUT_MODE", value: "live"}]
+        }]

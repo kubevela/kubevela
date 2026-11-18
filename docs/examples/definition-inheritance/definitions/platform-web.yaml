@@ -1,0 +1,76 @@
+# The platform team's paved road for web services.
+#
+# - The Deployment runs as non-root, and that is +final: nothing that extends
+#   platform-web may add to or loosen the pod security context.
+# - Every service gets a Service, and it is +required: no team may leave it out.
+# - A default-deny NetworkPolicy ships too. A team that needs inbound traffic
+#   may leave it out and write its own.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: platform-web
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: Hardened web service published by the platform team
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+    type: deployments.apps
+  status:
+    healthPolicy: |
+      isHealth: context.output.status.readyReplicas == context.output.spec.replicas
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				// +final
+        				securityContext: {
+        					runAsNonRoot: true
+        					seccompProfile: type: "RuntimeDefault"
+        				}
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        					ports: [{containerPort: parameter.port}]
+        				}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	// +required
+        	service: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 80, targetPort: parameter.port}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: name: context.name
+        		spec: {
+        			podSelector: matchLabels: "app.oam.dev/component": context.name
+        			policyTypes: ["Ingress"]
+        		}
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *2 | int
+        	port:     *8080 | int
+        }

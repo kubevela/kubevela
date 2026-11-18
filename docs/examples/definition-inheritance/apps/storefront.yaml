@@ -1,0 +1,15 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: storefront
+  namespace: default
+spec:
+  components:
+    - name: shop
+      type: public-web
+      properties:
+        image: nginxinc/nginx-unprivileged:stable
+      traits:
+        - type: platform-expose
+          properties:
+            host: shop.example.com
