@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"sigs.k8s.io/yaml"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -143,7 +144,7 @@ var _ = Describe("what the tools return", func() {
 			out.Handles.Window.To, explained.Handles.Window.To = out.Handles.Window.From, explained.Handles.Window.From
 			Expect(out.Handles).To(Equal(explained.Handles))
 			Expect(out.Handles.Pods).To(HaveLen(2))
-			Expect(out.Handles.LabelSelector).To(Equal("app.oam.dev/name=web,app.oam.dev/namespace=team-a"))
+			Expect(out.Handles.LabelSelector).To(Equal("app.oam.dev/name=web"))
 		})
 
 		It("under an allowlist does not read nodes for a NodePort address and says so", func() {
@@ -238,6 +239,47 @@ var _ = Describe("what the tools return", func() {
 			Expect(out.Unknowns).To(ContainElement(ContainSubstring("Ingress team-a/web sets no host")))
 			Expect(out.Unknowns).NotTo(ContainElement(SatisfyAll(ContainSubstring("Ingress"), ContainSubstring("NodePort"))))
 		})
+
+		It("names the kind of an unstructured object it refused or could not read", func() {
+			seldon := schema.GroupVersionKind{Group: "machinelearning.seldon.io", Version: "v1", Kind: "SeldonDeployment"}
+			forbid := &interceptor.Funcs{Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+				return apierrors.NewForbidden(schema.GroupResource{Group: seldon.Group, Resource: "seldondeployments"}, "model", errors.New("denied"))
+			}}
+			h = startHarnessIntercepted(Options{}, nil, forbid)
+			reader := &endpointReader{Client: h.srv.deps.f.Client(), allowed: func(ns string) bool { return ns == "team-a" }}
+			for _, ns := range []string{"team-a", "team-b"} {
+				obj := &unstructured.Unstructured{}
+				obj.SetGroupVersionKind(seldon)
+				Expect(reader.Get(h.ctx, client.ObjectKey{Namespace: ns, Name: "model"}, obj)).NotTo(Succeed())
+			}
+			Expect(sortedKeys(reader.failed)).To(ConsistOf(HavePrefix("SeldonDeployment team-a/model: ")))
+			Expect(sortedKeys(reader.refused)).To(ConsistOf("SeldonDeployment team-b/model"))
+		})
+
+		It("names an HTTPRoute without hostnames as an unknown instead of dropping it", func() {
+			objs := endpointFixtures()
+			for _, o := range objs {
+				if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+					rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+						ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{
+							APIVersion: gatewayv1beta1.GroupVersion.String(), Kind: "HTTPRoute", Namespace: "team-a", Name: "web-route"}},
+						OAMObjectReference: oamcommon.OAMObjectReference{Component: "web"},
+					})
+				}
+			}
+			prefix := gatewayv1beta1.PathMatchPathPrefix
+			root := "/"
+			objs = append(objs, &gatewayv1beta1.HTTPRoute{
+				TypeMeta:   metav1.TypeMeta{APIVersion: gatewayv1beta1.GroupVersion.String(), Kind: "HTTPRoute"},
+				ObjectMeta: metav1.ObjectMeta{Name: "web-route", Namespace: "team-a"},
+				Spec: gatewayv1beta1.HTTPRouteSpec{Rules: []gatewayv1beta1.HTTPRouteRule{{
+					Matches: []gatewayv1beta1.HTTPRouteMatch{{Path: &gatewayv1beta1.HTTPPathMatch{Type: &prefix, Value: &root}}},
+				}}},
+			})
+			h = startHarness(Options{}, objs...)
+			out := getApp("web", "team-a")
+			Expect(out.Unknowns).To(ContainElement(ContainSubstring("HTTPRoute team-a/web-route sets no host")))
+		})
 	})
 
 	Context("get_logs", func() {
@@ -295,6 +337,58 @@ var _ = Describe("what the tools return", func() {
 			Expect(out.Pods).NotTo(BeEmpty(), "pods in the traced scope are still read")
 			Expect(out.Meta.Truncated).To(BeTrue())
 			Expect(out.Meta.Warnings).To(ContainElement(SatisfyAll(ContainSubstring("not traced"), ContainSubstring("Narrow by cluster or component"))))
+		})
+
+		It("does not deny pods exist when the allowlist withheld the filtered resources", func() {
+			objs := managedFixtures()
+			for _, o := range objs {
+				if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+					rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+						ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "team-b", Name: "worker"}},
+						OAMObjectReference:     oamcommon.OAMObjectReference{Component: "worker"},
+					})
+				}
+			}
+			reads := 0
+			logs := func(context.Context, *rest.Config, string, string, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
+				reads++
+				return io.NopCloser(strings.NewReader("ready\n")), nil
+			}
+			h = startHarness(Options{PodLogs: logs, Namespaces: []string{"team-a"}}, objs...)
+			res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "component": "worker"}, nil)
+			text := errorText(res)
+			Expect(text).NotTo(ContainSubstring("has no pods matching"))
+			Expect(text).To(SatisfyAll(ContainSubstring("may belong to a recorded resource"), ContainSubstring("1 resources are outside this server's allowed namespaces and were withheld")))
+			Expect(reads).To(BeZero(), "no log was read")
+		})
+
+		It("does not call a named pod unmanaged when some resources were not traced", func() {
+			objs := managedFixtures()
+			allowed := []string{"team-a"}
+			for i := 0; i < maxTreeScopes; i++ {
+				ns := fmt.Sprintf("extra-%d", i)
+				allowed = append(allowed, ns)
+				for _, o := range objs {
+					if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+						rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+							ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "v1", Kind: "ConfigMap", Namespace: ns, Name: "cfg"}},
+							OAMObjectReference:     oamcommon.OAMObjectReference{Component: "web"},
+						})
+					}
+				}
+				objs = append(objs, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: ns}})
+			}
+			reads := 0
+			logs := func(context.Context, *rest.Config, string, string, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
+				reads++
+				return io.NopCloser(strings.NewReader("ready\n")), nil
+			}
+			h = startHarness(Options{PodLogs: logs, Namespaces: allowed}, objs...)
+			res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "worker-0"}, nil)
+			text := errorText(res)
+			Expect(text).NotTo(ContainSubstring("not managed"))
+			Expect(text).To(SatisfyAll(ContainSubstring(`pod "worker-0"`), ContainSubstring("may belong to a recorded resource"), ContainSubstring("not traced"), ContainSubstring("narrow the request by component")))
+			Expect(reads).To(BeZero(), "no log was read")
 		})
 	})
 
@@ -388,6 +482,23 @@ var _ = Describe("what the tools return", func() {
 				var ph []string
 				Expect(exampleValue(c.sch, "n", &ph, 0)).To(Equal(c.want))
 			}
+		})
+
+		It("names the root, never an empty path, when minProperties asks for more than the schema names", func() {
+			sch := openapi3.NewObjectSchema().WithProperty("a", openapi3.NewStringSchema())
+			sch.MinProps = 2
+			ex, err := definitionExample(DefinitionTypeTrait, "t", sch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ex.Placeholders).NotTo(ContainElement(""))
+			Expect(ex.Placeholders).To(ContainElement("properties"))
+		})
+
+		It("emits no element for an array whose maxItems is zero", func() {
+			sch := openapi3.NewObjectSchema().WithProperty("none", openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema()).WithMaxItems(0))
+			sch.Required = []string{"none"}
+			var ph []string
+			out := exampleObject(sch, "", &ph, 0)
+			Expect(out["none"]).To(BeEmpty())
 		})
 
 		It("caps a large minItems and marks the array as a placeholder", func() {

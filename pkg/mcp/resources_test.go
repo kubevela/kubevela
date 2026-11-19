@@ -18,14 +18,20 @@ package mcp
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
@@ -100,6 +106,55 @@ func managedFixtures() []client.Object {
 	return append(platformFixtures(), app, rt, deploy, rs, pod("web-abc-1"), pod("web-abc-2"), secret, rogue)
 }
 
+// forbidDeploymentWeb refuses the tree pass's read of the managed
+// Deployment, as RBAC would, so it is recorded but not read.
+var forbidDeploymentWeb = &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if u, ok := obj.(*unstructured.Unstructured); ok && u.GetKind() == "Deployment" && key.Name == "web" {
+		return apierrors.NewForbidden(schema.GroupResource{Group: "apps", Resource: "deployments"}, key.Name, errors.New("denied"))
+	}
+	return c.Get(ctx, key, obj, opts...)
+}}
+
+// jobFixtures adds to managedFixtures a Job the web component manages, with
+// one pod that failed and was retried and one that is still running.
+func jobFixtures() []client.Object {
+	return jobFixturesWith(corev1.PodFailed, corev1.PodRunning)
+}
+
+// jobFixturesWith is jobFixtures with the phases of its two pods.
+func jobFixturesWith(first, second corev1.PodPhase) []client.Object {
+	objs := managedFixtures()
+	for _, o := range objs {
+		if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+			rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+				ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "batch/v1", Kind: "Job", Namespace: "team-a", Name: "migrate"}},
+				OAMObjectReference:     oamcommon.OAMObjectReference{Component: "web"},
+			})
+		}
+	}
+	labels := map[string]string{"batch.kubernetes.io/controller-uid": "job-uid"}
+	owner := metav1.OwnerReference{APIVersion: "batch/v1", Kind: "Job", Name: "migrate", UID: "job-uid", Controller: ptr.To(true)}
+	pod := func(name string, phase corev1.PodPhase) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "team-a", UID: apitypes.UID("pod-" + name), Labels: labels, OwnerReferences: []metav1.OwnerReference{owner}},
+			Spec:       corev1.PodSpec{RestartPolicy: corev1.RestartPolicyNever, Containers: []corev1.Container{{Name: "migrate", Image: "migrate"}}},
+			Status:     corev1.PodStatus{Phase: phase},
+		}
+	}
+	return append(objs,
+		&batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{Name: "migrate", Namespace: "team-a", UID: "job-uid"},
+			Spec: batchv1.JobSpec{
+				Selector: &metav1.LabelSelector{MatchLabels: labels},
+				Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: labels}, Spec: corev1.PodSpec{RestartPolicy: corev1.RestartPolicyNever}},
+			},
+			Status: batchv1.JobStatus{Active: 1, Failed: 1},
+		},
+		pod("migrate-1", first),
+		pod("migrate-2", second),
+	)
+}
+
 var _ = Describe("get_managed_resource", func() {
 	var h *harness
 
@@ -151,35 +206,110 @@ var _ = Describe("get_managed_resource", func() {
 	})
 
 	It("returns the live object for a single selection, redacted", func() {
-		h = startHarness(Options{}, managedFixtures()...)
+		objs := managedFixtures()
+		for _, o := range objs {
+			if d, ok := o.(*appsv1.Deployment); ok && d.Name == "web" {
+				d.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{Name: "DB_PASSWORD", Value: "hunter2"}}
+			}
+		}
+		// The fake client drops managedFields on create, so the live read
+		// adds them the way an API server returns them.
+		served := false
+		withManagedFields := &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if err := c.Get(ctx, key, obj, opts...); err != nil {
+				return err
+			}
+			if u, ok := obj.(*unstructured.Unstructured); ok && u.GetKind() == "Deployment" && key.Name == "web" {
+				u.SetManagedFields([]metav1.ManagedFieldsEntry{{Manager: "kubevela", Operation: metav1.ManagedFieldsOperationApply, APIVersion: "apps/v1", FieldsType: "FieldsV1", FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:spec":{}}`)}}})
+				served = true
+			}
+			return nil
+		}}
+		h = startHarnessIntercepted(Options{}, nil, withManagedFields, objs...)
 		var out GetManagedResourceOutput
 		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Deployment", "resourceName": "web"}, &out)
 		Expect(out.Resources).To(HaveLen(1))
+		Expect(served).To(BeTrue(), "the live object carried managedFields, so their absence below is redaction")
 		obj := out.Resources[0].Object
 		Expect(obj).To(HaveKeyWithValue("kind", "Deployment"))
 		meta := obj["metadata"].(map[string]any)
 		Expect(meta).NotTo(HaveKey("managedFields"))
+		Expect(toJSON(obj)).NotTo(ContainSubstring("hunter2"))
+		Expect(toJSON(obj)).To(ContainSubstring(`"name":"DB_PASSWORD","value":"` + redactedValue + `"`))
 		Expect(out.Evidence).To(ContainElement(ContainSubstring("Deployment team-a/web in cluster local resourceVersion 77")))
+	})
+
+	It("says a recorded resource it could not read is recorded, not unmanaged", func() {
+		h = startHarnessIntercepted(Options{}, nil, forbidDeploymentWeb, managedFixtures()...)
+		res := h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Deployment", "resourceName": "web"}, nil)
+		text := errorText(res)
+		Expect(text).NotTo(ContainSubstring("not managed"))
+		Expect(text).To(SatisfyAll(ContainSubstring("recorded"), ContainSubstring("could not be read"), ContainSubstring("Deployment team-a/web")))
+	})
+
+	It("does not turn a Job unhealthy because of its finished or running pods", func() {
+		h = startHarness(Options{}, jobFixtures()...)
+		var out GetManagedResourceOutput
+		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Job"}, &out)
+		Expect(out.Resources).To(HaveLen(1))
+		tree := out.Resources[0].Tree
+		Expect(len(tree)).To(BeNumerically(">", 1), "the Job's pods are in its tree: %s", toJSON(tree))
+		Expect(tree[0].Kind).To(Equal("Job"))
+		Expect(tree[0].Health.Derived).To(BeFalse(), toJSON(tree[0]))
+		Expect(tree[0].Health.Status).To(Equal("Healthy"))
+	})
+
+	It("marks a Job unhealthy when every one of its pods failed", func() {
+		h = startHarness(Options{}, jobFixturesWith(corev1.PodFailed, corev1.PodFailed)...)
+		var out GetManagedResourceOutput
+		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Job"}, &out)
+		Expect(out.Resources).To(HaveLen(1))
+		root := out.Resources[0].Tree[0]
+		Expect(root.Kind).To(Equal("Job"))
+		Expect(root.Health.Status).To(Equal("UnHealthy"), toJSON(root))
+		Expect(root.Health.Derived).To(BeTrue())
+		Expect(root.Health.Reason).To(Equal("2 of 2 pods are not healthy"))
+
+		var explained ExplainApplicationOutput
+		res := h.call("explain_application", map[string]any{"name": "web", "namespace": "team-a"}, &explained)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		messages := []string{}
+		for _, f := range explained.Findings {
+			messages = append(messages, f.Severity+": "+f.Message)
+		}
+		Expect(messages).To(ContainElement(`error: component "web": Job migrate is UnHealthy`))
 	})
 
 	It("returns only metadata for a Secret, read through the metadata API", func() {
 		metadataReads := 0
+		var fullReads []string
 		funcs := &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 			if pm, partial := obj.(*metav1.PartialObjectMetadata); partial && pm.GetObjectKind().GroupVersionKind().Kind == "Secret" {
 				metadataReads++
+			} else if isSecretObject(obj) {
+				fullReads = append(fullReads, key.String())
+				return fmt.Errorf("full read of Secret %s", key)
 			}
 			return c.Get(ctx, key, obj, opts...)
+		}, List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if isSecretList(list) {
+				fullReads = append(fullReads, "list")
+				return fmt.Errorf("full list of Secrets")
+			}
+			return c.List(ctx, list, opts...)
 		}}
 		h = startHarnessIntercepted(Options{}, nil, funcs, managedFixtures()...)
 		var out GetManagedResourceOutput
 		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Secret", "resourceName": "web-creds"}, &out)
+		Expect(fullReads).To(BeEmpty(), "no read of the Secret, the resource tree pass included, returns its data")
 		Expect(out.Resources).To(HaveLen(1))
 		obj := out.Resources[0].Object
 		Expect(obj).To(HaveKey("metadata"))
 		Expect(obj).NotTo(HaveKey("data"))
 		Expect(obj).NotTo(HaveKey("stringData"))
 		Expect(out.Resources[0].ObjectNote).To(ContainSubstring("metadata only"))
-		Expect(metadataReads).To(Equal(1), "the live read of the Secret asks for metadata only")
+		Expect(metadataReads).To(Equal(3), "the tree pass reads the root twice (children lookup, then the root itself) and the live read once, all as metadata")
+		Expect(out.Resources[0].Tree).NotTo(BeEmpty(), "the Secret keeps its tree node")
 		Expect(toJSON(out)).NotTo(ContainSubstring("hunter2"), "no Secret value appears anywhere in the result")
 	})
 
@@ -258,6 +388,39 @@ var _ = Describe("get_logs", func() {
 		Expect(out.Pods[0].Lines).To(Equal([]string{"crashed: panic"}))
 	})
 
+	It("stops reading a log stream at the byte cap and says so", func() {
+		saved := maxLogStreamBytes
+		maxLogStreamBytes = 2 * maxLogBytesPerPod
+		DeferCleanup(func() { maxLogStreamBytes = saved })
+		stream := &longLog{size: 4 * maxLogStreamBytes}
+		logs := func(context.Context, *rest.Config, string, string, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
+			return io.NopCloser(stream), nil
+		}
+		h = startHarness(Options{PodLogs: logs}, managedFixtures()...)
+		var out GetLogsOutput
+		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "web-abc-1"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(stream.read).To(Equal(maxLogStreamBytes+1), "reading stops one byte past the cap, the byte that proves the stream goes on")
+		Expect(out.Pods).To(HaveLen(1))
+		p := out.Pods[0]
+		Expect(p.Truncated).To(BeTrue())
+		Expect(p.Error).To(BeEmpty())
+		Expect(p.Note).To(ContainSubstring("newer lines"))
+		Expect(p.Lines).NotTo(BeEmpty())
+		Expect(p.Lines[len(p.Lines)-1]).To(Equal("0123456789abcde"), "the last whole line read is kept, the probe byte is not")
+		Expect(out.Meta.Truncated).To(BeTrue())
+
+		stream = &longLog{size: maxLogStreamBytes}
+		out = GetLogsOutput{}
+		res = h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "web-abc-1"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(stream.read).To(Equal(maxLogStreamBytes))
+		p = out.Pods[0]
+		Expect(p.Note).To(BeEmpty(), "a stream exactly at the cap was read to its end")
+		Expect(p.Truncated).To(BeTrue(), "only because the stream is longer than the per-pod budget")
+		Expect(p.Lines[len(p.Lines)-1]).To(Equal("0123456789abcde"))
+	})
+
 	It("refuses pods the application does not manage and reports empty matches", func() {
 		h = startHarness(Options{PodLogs: fakeLogs}, managedFixtures()...)
 		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "other"}, nil)
@@ -265,4 +428,35 @@ var _ = Describe("get_logs", func() {
 		res = h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "component": "db"}, nil)
 		Expect(errorText(res)).To(ContainSubstring("no pods matching"))
 	})
+
+	It("says pods may be under a recorded resource it could not read instead of denying they exist", func() {
+		h = startHarnessIntercepted(Options{PodLogs: fakeLogs}, nil, forbidDeploymentWeb, managedFixtures()...)
+		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a"}, nil)
+		text := errorText(res)
+		Expect(text).NotTo(ContainSubstring("has no pods"))
+		Expect(text).To(SatisfyAll(ContainSubstring("could not be read"), ContainSubstring("Deployment team-a/web")))
+
+		res = h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "web-abc-1"}, nil)
+		text = errorText(res)
+		Expect(text).NotTo(ContainSubstring("not managed"))
+		Expect(text).To(SatisfyAll(ContainSubstring("could not be read"), ContainSubstring("Deployment team-a/web")))
+		Expect(requests).To(BeEmpty())
+	})
 })
+
+// longLog is a log stream of 16-byte lines, size bytes long, that counts
+// the bytes read from it.
+type longLog struct{ size, read int }
+
+func (l *longLog) Read(p []byte) (int, error) {
+	if l.read >= l.size {
+		return 0, io.EOF
+	}
+	n := min(len(p), l.size-l.read)
+	const line = "0123456789abcde\n"
+	for i := 0; i < n; i++ {
+		p[i] = line[(l.read+i)%len(line)]
+	}
+	l.read += n
+	return n, nil
+}

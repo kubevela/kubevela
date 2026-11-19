@@ -131,6 +131,34 @@ var _ = Describe("delivery practice", func() {
 		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("delivery style is unknown")))
 	})
 
+	It("reports the style as unknown, not a tool error, when the Application list fails", func() {
+		funcs := &interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if _, ok := list.(*v1beta1.ApplicationList); ok {
+				return errors.New("applications forbidden")
+			}
+			return c.List(ctx, list, opts...)
+		}}
+		h = startHarnessIntercepted(Options{AccessReview: allowAll(true)}, nil, funcs, practiceFixtures()...)
+		var out GetPlatformInfoOutput
+		res := h.call("get_platform_info", map[string]any{"namespace": "plain"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.VelaCore).To(Equal("1.11.0"), "what was already read is still returned")
+		Expect(out.Practice).NotTo(BeNil())
+		Expect(out.Practice.Style).To(Equal(StyleUnknown))
+		Expect(out.Practice.Workloads).To(Equal(2))
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("Application count unavailable: applications forbidden")))
+	})
+
+	It("does not count a workload another object owns as unmanaged", func() {
+		owned := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: "pg-1", Namespace: "vela",
+			OwnerReferences: []metav1.OwnerReference{{APIVersion: "postgresql.cnpg.io/v1", Kind: "Cluster", Name: "pg", UID: "pg-uid"}}}}
+		h = startHarness(Options{AccessReview: allowAll(true)}, append(practiceFixtures(), owned)...)
+		var out GetPlatformInfoOutput
+		h.call("get_platform_info", map[string]any{"namespace": "vela"}, &out)
+		Expect(out.Practice.Workloads).To(Equal(1), "the operator-owned StatefulSet is not a plain workload")
+		Expect(out.Practice.Style).To(Equal(StyleKubeVela))
+	})
+
 	It("omits the report without a namespace and reports a denied access review", func() {
 		h = startHarness(Options{AccessReview: allowAll(false)}, practiceFixtures()...)
 		var out GetPlatformInfoOutput

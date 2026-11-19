@@ -19,6 +19,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -48,6 +49,16 @@ const (
 	podKind    = "Pod"
 )
 
+// errLogStreamCapped reports that a log stream reached maxLogStreamBytes and
+// was not read to its end.
+var errLogStreamCapped = errors.New("log stream exceeded the read cap")
+
+// maxLogStreamBytes caps the bytes read from one log stream. tailLines
+// bounds the lines the API server returns but not their length, so without
+// this cap a stream of very long lines would be read in full. It is a
+// variable so tests can lower it.
+var maxLogStreamBytes = 16 * maxLogBytesPerPod
+
 // PodLogsFunc opens a log stream for one pod. Options.PodLogs lets tests
 // supply one without an API server.
 type PodLogsFunc func(ctx context.Context, cfg *rest.Config, cluster, namespace, pod string, opts *corev1.PodLogOptions) (io.ReadCloser, error)
@@ -75,6 +86,7 @@ type PodLogs struct {
 	Phase      string   `json:"phase,omitempty"`
 	Lines      []string `json:"lines"`
 	Truncated  bool     `json:"truncated"`
+	Note       string   `json:"note,omitempty" jsonschema:"Set when reading stopped at the per-stream byte cap: the lines shown are the newest of what was read, and lines written after the cap were not read."`
 	Error      string   `json:"error,omitempty"`
 }
 
@@ -113,6 +125,8 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	if in.Pod != "" {
 		targets = selectPod(targets, in.Pod)
 		switch {
+		case len(targets) == 0 && (len(info.unread) > 0 || len(info.untraced) > 0 || info.withheld > 0):
+			return nil, out, fmt.Errorf("pod %q was not found under the resources of application %s/%s whose trees were read; it may belong to a recorded resource whose tree was not read: %s", in.Pod, app.Namespace, app.Name, strings.Join(incompleteInventory(info), "; "))
 		case len(targets) == 0:
 			return nil, out, fmt.Errorf("pod %q is not managed by application %s/%s", in.Pod, app.Namespace, app.Name)
 		case len(targets) > 1:
@@ -124,8 +138,8 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		}
 	}
 	if len(targets) == 0 {
-		if len(info.untraced) > 0 {
-			return nil, out, fmt.Errorf("no pods were found in the cluster and namespace pairs this server traced; %d resources of %s/%s were not traced: %s", len(info.untraced), app.Namespace, app.Name, strings.Join(info.notes, "; "))
+		if incomplete := incompleteInventory(info); len(incomplete) > 0 {
+			return nil, out, fmt.Errorf("no pods matching the filter were found under the resources of application %s/%s whose trees were read; they may belong to a recorded resource whose tree was not read: %s", app.Namespace, app.Name, strings.Join(incomplete, "; "))
 		}
 		return nil, out, fmt.Errorf("application %s/%s has no pods matching the filter", app.Namespace, app.Name)
 	}
@@ -160,7 +174,9 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		out.Pods = append(out.Pods, pl)
 		out.Evidence = append(out.Evidence, fmt.Sprintf("Pod %s/%s container %s in cluster %s", t.namespace, t.name, pl.Container, t.cluster))
 	}
-	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, d.f.Client(), app, applied, time.Now().UTC())
+	// The handles' pod-cap note is dropped: the pods below replace the
+	// handle list, and the per-call cap above already says what was cut.
+	handles, handleEvidence, handleUnknowns, _ := d.buildHandles(ctx, d.f.Client(), app, applied, time.Now().UTC())
 	// The handles describe the pods this call read, after the pod filter and
 	// the per-call cap, not every pod the Application runs.
 	handles.Pods = make([]PodHandle, 0, len(targets))
@@ -175,6 +191,37 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	meta.Warnings = append(meta.Warnings, handleUnknowns...)
 	out.Meta = meta
 	return nil, out, nil
+}
+
+// incompleteInventory says which recorded resources had no tree read, by
+// reason, so an answer about a missing pod does not claim it is unmanaged.
+func incompleteInventory(info appliedInfo) []string {
+	var parts []string
+	if n := len(info.untraced); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d resources were not traced because the Application spans more cluster and namespace pairs than this server traces; narrow the request by component or cluster to trace them", n))
+	}
+	if info.withheld > 0 {
+		parts = append(parts, fmt.Sprintf("%d resources are outside this server's allowed namespaces and were withheld", info.withheld))
+	}
+	if len(info.unread) > 0 {
+		parts = append(parts, unreadList(info.unread))
+	}
+	return parts
+}
+
+// unreadList names recorded resources the tree pass could not read, for an
+// error that must not claim their pods do not exist.
+func unreadList(unread []querytypes.AppliedResource) string {
+	names := make([]string, 0, len(unread))
+	for _, r := range unread {
+		names = append(names, r.Kind+" "+objectName(r.Namespace, r.Name)+" in cluster "+clusterName(r.Cluster))
+	}
+	sort.Strings(names)
+	more := ""
+	if len(names) > maxUnreadListed {
+		names, more = names[:maxUnreadListed], fmt.Sprintf(" and %d more", len(names)-maxUnreadListed)
+	}
+	return fmt.Sprintf("%d recorded resources that could not be read, or were deleted after they were recorded: %s%s", len(unread), strings.Join(names, ", "), more)
 }
 
 func logOptions(in GetLogsInput) corev1.PodLogOptions {
@@ -219,22 +266,41 @@ func (d *deps) readPodLogs(ctx context.Context, t podTarget, container string, o
 	}
 	defer func() { _ = rc.Close() }()
 	pl.Lines, pl.Truncated, err = readLines(rc, maxLogBytesPerPod)
-	if err != nil {
+	switch {
+	case errors.Is(err, errLogStreamCapped):
+		pl.Note = fmt.Sprintf("the log stream exceeded the %d byte read cap, so reading stopped there; the lines shown are the newest of what was read, and newer lines beyond the cap were not read. Lower tailLines or set sinceSeconds to reach them", maxLogStreamBytes)
+	case err != nil:
 		pl.Error = redactLine(err.Error())
 	}
 	return pl
 }
 
-// readLines reads up to budget bytes of newline-separated text, redacting
-// each line. Truncated is set only when the stream had more than the
-// budget; a line cut by the budget is dropped rather than returned partial.
+// readLines reads newline-separated text and keeps at most the last budget
+// bytes of it, redacting each line. The API server has already selected the
+// requested tail, and its newest lines usually explain a failure, so the
+// budget drops the oldest bytes. Truncated is set only when the stream had
+// more than the budget; a line cut by the budget is dropped rather than
+// returned partial.
+//
+// At most maxLogStreamBytes are read, plus one byte that shows whether the
+// stream goes on. Only when that byte arrives is the cap reported: reading
+// stops, the newest whole lines read are kept (the extra byte and any line
+// it or the cap cut are dropped), Truncated is set, and the error is
+// errLogStreamCapped. A stream exactly at the cap is read to its end.
 func readLines(r io.Reader, budget int) ([]string, bool, error) {
-	data, err := io.ReadAll(&io.LimitedReader{R: r, N: int64(budget) + 1})
-	truncated := len(data) > budget
-	if truncated {
-		data = data[:budget]
+	lr := &io.LimitedReader{R: r, N: int64(maxLogStreamBytes) + 1}
+	data, truncated, err := readTail(lr, budget)
+	capped := err == nil && lr.N == 0
+	if capped {
 		if i := bytes.LastIndexByte(data, '\n'); i >= 0 {
-			data = data[:i]
+			data = data[:i+1]
+		} else {
+			data = nil
+		}
+	}
+	if truncated {
+		if i := bytes.IndexByte(data, '\n'); i >= 0 {
+			data = data[i+1:]
 		} else {
 			data = nil
 		}
@@ -245,7 +311,42 @@ func readLines(r io.Reader, budget int) ([]string, bool, error) {
 			lines = append(lines, redactLine(strings.TrimSuffix(line, "\r")))
 		}
 	}
+	if capped {
+		truncated, err = true, errLogStreamCapped
+	}
 	return lines, truncated, err
+}
+
+// readTail reads r to the end and returns its last bytes, holding at most
+// twice budget+1 bytes at a time. Truncated reports that the stream was
+// longer than budget. In that case the result is budget+1 bytes long: its
+// first byte is the one just before the budget window, so a caller that
+// drops everything up to and including the first newline keeps exactly the
+// whole lines that fit the budget.
+func readTail(r io.Reader, budget int) ([]byte, bool, error) {
+	keep := budget + 1
+	chunk := min(32<<10, keep)
+	// The buffer holds two windows, so the tail is moved to the front only
+	// once per keep bytes read, not after every read.
+	buf := make([]byte, 0, 2*keep)
+	total := 0
+	var err error
+	for err == nil {
+		if cap(buf)-len(buf) < chunk {
+			buf = append(buf[:0], buf[len(buf)-keep:]...)
+		}
+		var n int
+		n, err = r.Read(buf[len(buf) : len(buf)+chunk])
+		buf = buf[:len(buf)+n]
+		total += n
+	}
+	if len(buf) > keep {
+		buf = buf[len(buf)-keep:]
+	}
+	if err == io.EOF {
+		err = nil
+	}
+	return buf, total > budget, err
 }
 
 // collectPods walks every tree for Pod nodes. The collector already holds

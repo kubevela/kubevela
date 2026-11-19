@@ -22,10 +22,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -101,6 +103,16 @@ type diffRecord struct {
 	localDefinitions int
 	// targetNamespaces are the namespaces the target render writes into.
 	targetNamespaces []string
+	// clusterScoped names the cluster-scoped objects the target render
+	// writes, as "Kind name". They belong to no namespace, so no namespace
+	// allowlist covers them.
+	clusterScoped []string
+	// unresolvedScope names rendered kinds whose scope the cluster could
+	// not say, so no namespace allowlist can vouch for them.
+	unresolvedScope []string
+	// placement is where the target's topology policies and deploy steps
+	// send its resources, which the dry-run render does not show.
+	placement placement
 	// opaqueSteps are workflow step types whose writes the render does not
 	// show, such as apply-object or webhook steps.
 	opaqueSteps []string
@@ -213,7 +225,7 @@ func (d *deps) diffApplication(ctx context.Context, _ *sdk.CallToolRequest, in D
 
 	out.ChangeSet = buildChangeSet(base, target)
 	out.Risk = classify(out.ChangeSet)
-	out.Token, out.ExpiresAt = d.issueToken(app, in.Application, baseName, live, out.ChangeSet, out.Risk, len(defs), renderedNamespaces(target))
+	out.Token, out.ExpiresAt = d.issueToken(app, in.Application, baseName, live, out.ChangeSet, out.Risk, len(defs), target)
 	warnings := out.Meta.Warnings
 	out.Meta = d.meta(ctx)
 	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
@@ -244,7 +256,7 @@ func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.App
 		case live.Status.LatestRevision == nil:
 			// Exists but was never rendered: compare with its current spec so
 			// the reader sees what changes relative to what was submitted.
-			return live, "spec of " + live.Name + " (no revision yet)", nil, live, nil
+			return live, liveBaseName(live), nil, live, nil
 		}
 		revision = live.Status.LatestRevision.Name
 	}
@@ -260,6 +272,16 @@ func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.App
 		return nil, "", nil, nil, fmt.Errorf("read definitions recorded in ApplicationRevision %s/%s: %w", app.Namespace, revision, err)
 	}
 	return baseFromRevision(rev, app), rev.Name, defs, live, nil
+}
+
+// liveBaseName is the base a diff without an explicit revision uses for
+// a live Application: its latest revision, or its current spec when it has
+// none yet.
+func liveBaseName(live *v1beta1.Application) string {
+	if live.Status.LatestRevision == nil {
+		return "spec of " + live.Name + " (no revision yet)"
+	}
+	return live.Status.LatestRevision.Name
 }
 
 // renderedSteps are the workflow step types whose effects the dry-run
@@ -303,13 +325,147 @@ func renderedNamespaces(r *rendered) []string {
 	return out
 }
 
+// clusterScopedObjects lists the objects a render writes that carry no
+// namespace, as "Kind name".
+func clusterScopedObjects(r *rendered) []string {
+	var out []string
+	for _, rr := range append(append([]RenderedResource{}, r.resources...), r.policyResources...) {
+		if rr.Namespace == "" {
+			out = append(out, rr.Kind+" "+rr.Name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// placement records what an Application's topology policies and deploy
+// steps say about where its resources go.
+type placement struct {
+	// namespaces are the namespaces topology policies and workflow steps
+	// set, as pairs of the source ("topology policy x", "workflow step y")
+	// and the namespace.
+	namespaces [][2]string
+	// clusters says which policies and steps reach beyond the local
+	// cluster, one description each.
+	clusters []string
+	// unknown says why the placement cannot be determined, one reason each.
+	unknown []string
+}
+
+// placementOf reads the placement an Application declares: topology
+// policies, and the cluster and namespace of apply-component steps. A
+// topology policy or step whose properties do not parse, a policy of the
+// deprecated env-binding type, a workflow that refers to an external
+// Workflow object, and a deploy step that names a policy the Application
+// does not declare (an external Policy object) make the placement unknown.
+func placementOf(app *v1beta1.Application) placement {
+	var p placement
+	declared := map[string]bool{}
+	for _, pol := range app.Spec.Policies {
+		declared[pol.Name] = true
+		if pol.Type == "env-binding" {
+			// The deprecated env-binding type places resources per
+			// environment; its placement is not read here, so it is unknown.
+			p.unknown = append(p.unknown, fmt.Sprintf("policy %s is of the deprecated type env-binding", pol.Name))
+			continue
+		}
+		if pol.Type != "topology" {
+			continue
+		}
+		props := map[string]any{}
+		if pol.Properties != nil && len(pol.Properties.Raw) > 0 {
+			if err := json.Unmarshal(pol.Properties.Raw, &props); err != nil {
+				p.unknown = append(p.unknown, fmt.Sprintf("topology policy %s has properties that do not parse", pol.Name))
+				continue
+			}
+		}
+		for _, key := range []string{"clusters", "clusterLabelSelector", "clusterSelector"} {
+			if _, ok := props[key]; ok {
+				p.clusters = append(p.clusters, fmt.Sprintf("topology policy %s selects clusters", pol.Name))
+				break
+			}
+		}
+		if v, ok := props["namespace"]; ok {
+			ns, isString := v.(string)
+			if !isString {
+				p.unknown = append(p.unknown, fmt.Sprintf("topology policy %s sets a namespace that is not a string", pol.Name))
+				continue
+			}
+			if ns != "" {
+				p.namespaces = append(p.namespaces, [2]string{"topology policy " + pol.Name, ns})
+			}
+		}
+	}
+	if app.Spec.Workflow == nil {
+		return p
+	}
+	if ref := app.Spec.Workflow.Ref; ref != "" {
+		// The steps live in the external Workflow object, so neither its
+		// deploy policies nor its opaque steps are visible here.
+		p.unknown = append(p.unknown, fmt.Sprintf("the workflow refers to Workflow %s, whose steps this diff does not read", ref))
+	}
+	steps := []wfTypesv1alpha1.WorkflowStepBase{}
+	for _, s := range app.Spec.Workflow.Steps {
+		steps = append(steps, s.WorkflowStepBase)
+		steps = append(steps, s.SubSteps...)
+	}
+	for _, s := range steps {
+		if s.Properties == nil || len(s.Properties.Raw) == 0 {
+			continue
+		}
+		switch s.Type {
+		case "deploy":
+			var props struct {
+				Policies []string `json:"policies"`
+			}
+			if err := json.Unmarshal(s.Properties.Raw, &props); err != nil {
+				p.unknown = append(p.unknown, fmt.Sprintf("deploy step %s has properties that do not parse", s.Name))
+				continue
+			}
+			for _, name := range props.Policies {
+				if !declared[name] {
+					p.unknown = append(p.unknown, fmt.Sprintf("deploy step %s uses policy %s, which the Application does not declare", s.Name, name))
+				}
+			}
+		case "apply-component", "builtin-apply-component":
+			// These steps place one component like a topology does.
+			var props struct {
+				Cluster   string `json:"cluster"`
+				Namespace string `json:"namespace"`
+			}
+			if err := json.Unmarshal(s.Properties.Raw, &props); err != nil {
+				p.unknown = append(p.unknown, fmt.Sprintf("workflow step %s has properties that do not parse", s.Name))
+				continue
+			}
+			if props.Cluster != "" && props.Cluster != "local" {
+				p.clusters = append(p.clusters, fmt.Sprintf("workflow step %s targets cluster %s", s.Name, props.Cluster))
+			}
+			if props.Namespace != "" {
+				p.namespaces = append(p.namespaces, [2]string{"workflow step " + s.Name, props.Namespace})
+			}
+		}
+	}
+	return p
+}
+
 // revisionOf reports whether a revision records the named Application: by
 // the label the controller sets, else by the <name>-v<N> naming it uses.
+// N must be all digits, so the revision of an Application whose name only
+// starts with this one, such as <name>-victim-v1, does not match.
 func revisionOf(rev *v1beta1.ApplicationRevision, name string) bool {
 	if owner, ok := rev.Labels[oam.LabelAppName]; ok {
 		return owner == name
 	}
-	return strings.HasPrefix(rev.Name, name+"-v")
+	n, ok := strings.CutPrefix(rev.Name, name+"-v")
+	if !ok || n == "" {
+		return false
+	}
+	for _, c := range n {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // revisionDefinitions returns the definition snapshots a revision recorded,
@@ -408,7 +564,7 @@ func baseFromRevision(rev *v1beta1.ApplicationRevision, target *v1beta1.Applicat
 // object's resourceVersion and the exact submitted document. The document is
 // hashed as bytes, so an edit after the diff, however small, invalidates the
 // token, and so does any change to the live Application.
-func (d *deps) issueToken(app *v1beta1.Application, document, base string, live *v1beta1.Application, cs ChangeSet, risk Risk, localDefs int, namespaces []string) (string, time.Time) {
+func (d *deps) issueToken(app *v1beta1.Application, document, base string, live *v1beta1.Application, cs ChangeSet, risk Risk, localDefs int, target *rendered) (string, time.Time) {
 	specHash := sha256.Sum256([]byte(document))
 	liveRV, liveUID := "", ""
 	if live != nil {
@@ -438,7 +594,10 @@ func (d *deps) issueToken(app *v1beta1.Application, document, base string, live 
 		createdAt:  time.Now(),
 
 		localDefinitions: localDefs,
-		targetNamespaces: namespaces,
+		targetNamespaces: renderedNamespaces(target),
+		clusterScoped:    clusterScopedObjects(target),
+		unresolvedScope:  slices.Sorted(slices.Values(target.unresolvedScope)),
+		placement:        placementOf(app),
 		opaqueSteps:      opaqueSteps(app),
 	}
 	if live != nil {

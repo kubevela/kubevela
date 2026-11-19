@@ -31,14 +31,20 @@ import (
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const (
 	maxRevisionsListed = 10
+	maxConsumersListed = 20
+)
+
+// Scan bounds. They are variables so tests can lower them; nothing else
+// assigns them.
+var (
 	// maxRevisionsScanned bounds the revisions read to find the newest.
 	maxRevisionsScanned = 2000
-	maxConsumersListed  = 20
 	// maxConsumerScan bounds the Applications read per namespace when
 	// counting consumers; the count says when it hit the bound.
 	maxConsumerScan = 2000
@@ -87,8 +93,9 @@ type ConsumerSummary struct {
 	Count int `json:"count"`
 	// Applications lists up to maxConsumersListed consumers as namespace/name.
 	Applications []string `json:"applications"`
-	// NamespacesScanned says what the count covers: the allowed namespaces,
-	// or "all" when the server has no restriction.
+	// NamespacesScanned says what the count covers: the allowed namespaces
+	// that were read, or "all" when the server has no restriction; empty
+	// when no namespace could be read.
 	NamespacesScanned []string `json:"namespacesScanned"`
 	Error             string   `json:"error,omitempty"`
 }
@@ -126,8 +133,10 @@ type ExplainDefinitionOutput struct {
 
 // definitionFacts is the type-independent view of one definition object.
 type definitionFacts struct {
-	summary     DefinitionSummary
-	template    string
+	summary  DefinitionSummary
+	template string
+	// schematic names a schematic that is set but is not CUE.
+	schematic   string
 	labels      map[string]string
 	annotations map[string]string
 	extends     string
@@ -161,6 +170,7 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 		return nil, out, err
 	}
 	out.DefinitionSummary = facts.summary
+	out.Default = defaultIn(out.DefaultFor, in.Namespace)
 	out.Alias = text(facts.annotations[types.AnnoDefinitionAlias])
 	out.Deprecated = facts.labels[types.LabelDefinitionDeprecated] == "true"
 	out.Hidden = facts.labels[types.LabelDefinitionHidden] == "true"
@@ -185,6 +195,9 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 		out.Meta.Warnings = append(out.Meta.Warnings, "the template computes top-level fields, so it may emit or patch objects that produces does not list; render it with dryrun_application to see them")
 	}
 
+	if facts.schematic != "" {
+		out.Meta.Warnings = append(out.Meta.Warnings, nonCUESchemaWarning(facts.schematic))
+	}
 	out.Parameters, out.Required, _, err = parameterSchema(ctx, facts.template)
 	if err != nil {
 		inherited := facts.extends != "" || refersToParent(facts.template)
@@ -202,12 +215,15 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 		}
 	}
 
-	var revsCut bool
-	out.Revisions, revsCut, err = listDefinitionRevisions(ctx, cli, facts)
+	var revsCut, revsStopped bool
+	out.Revisions, revsCut, revsStopped, err = listDefinitionRevisions(ctx, cli, facts)
 	if err != nil {
 		out.Meta.Warnings = append(out.Meta.Warnings, "revision history unavailable: "+redactLine(err.Error()))
 	} else {
-		if revsCut {
+		switch {
+		case revsStopped:
+			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("revision scan stopped after %d entries; the listed revisions are the newest of those read, not necessarily the newest overall", maxRevisionsScanned))
+		case revsCut:
 			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("revision history has more entries than the %d newest listed", maxRevisionsListed))
 		}
 		out.Evidence = append(out.Evidence, fmt.Sprintf("%d DefinitionRevision objects labelled %s=%s", len(out.Revisions), facts.revLabel, facts.summary.Name))
@@ -218,6 +234,12 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 	out.Meta = d.meta(ctx)
 	out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
 	out.Meta.Truncated = out.Meta.Truncated || revsCut
+	if out.Consumers.Error != "" {
+		// The scan stopped early or failed, so the count does not cover
+		// every namespace it names.
+		out.Meta.Truncated = true
+		out.Meta.Warnings = append(out.Meta.Warnings, "consumer scan incomplete: "+out.Consumers.Error)
+	}
 	return nil, out, nil
 }
 
@@ -257,6 +279,7 @@ func loadDefinitionFacts(ctx context.Context, cli client.Client, defType, ns, na
 		f := &definitionFacts{
 			summary:     summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision),
 			template:    cueTemplate(o.Spec.Schematic),
+			schematic:   nonCUESchematic(o.Spec.Schematic),
 			labels:      o.Labels,
 			annotations: o.Annotations,
 			extends:     o.Spec.Extends,
@@ -268,7 +291,7 @@ func loadDefinitionFacts(ctx context.Context, cli client.Client, defType, ns, na
 		if o.Spec.Workload.Type != "" || o.Spec.Workload.Definition.Kind != "" {
 			f.workload = &WorkloadInfo{Type: o.Spec.Workload.Type, APIVersion: o.Spec.Workload.Definition.APIVersion, Kind: o.Spec.Workload.Definition.Kind}
 		}
-		f.restricted, f.selector = restrictionsOf(o.Spec.Restrictions)
+		f.restricted, f.selector = restrictionsOf(nsrestrict.Of(&o))
 		return f, nil
 	case DefinitionTypeTrait:
 		var o v1beta1.TraitDefinition
@@ -278,6 +301,7 @@ func loadDefinitionFacts(ctx context.Context, cli client.Client, defType, ns, na
 		f := &definitionFacts{
 			summary:     summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision),
 			template:    cueTemplate(o.Spec.Schematic),
+			schematic:   nonCUESchematic(o.Spec.Schematic),
 			labels:      o.Labels,
 			annotations: o.Annotations,
 			extends:     o.Spec.Extends,
@@ -295,7 +319,7 @@ func loadDefinitionFacts(ctx context.Context, cli client.Client, defType, ns, na
 				WorkloadRefPath:    o.Spec.WorkloadRefPath,
 			},
 		}
-		f.restricted, f.selector = restrictionsOf(o.Spec.Restrictions)
+		f.restricted, f.selector = restrictionsOf(nsrestrict.Of(&o))
 		return f, nil
 	case DefinitionTypePolicy:
 		var o v1beta1.PolicyDefinition
@@ -305,12 +329,13 @@ func loadDefinitionFacts(ctx context.Context, cli client.Client, defType, ns, na
 		f := &definitionFacts{
 			summary:     summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision),
 			template:    cueTemplate(o.Spec.Schematic),
+			schematic:   nonCUESchematic(o.Spec.Schematic),
 			labels:      o.Labels,
 			annotations: o.Annotations,
 			revLabel:    oam.LabelPolicyDefinitionName,
 			resourceVer: o.ResourceVersion,
 		}
-		f.restricted, f.selector = restrictionsOf(o.Spec.Restrictions)
+		f.restricted, f.selector = restrictionsOf(nsrestrict.Of(&o))
 		return f, nil
 	case DefinitionTypeWorkflowStep:
 		var o v1beta1.WorkflowStepDefinition
@@ -320,12 +345,13 @@ func loadDefinitionFacts(ctx context.Context, cli client.Client, defType, ns, na
 		f := &definitionFacts{
 			summary:     summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision),
 			template:    cueTemplate(o.Spec.Schematic),
+			schematic:   nonCUESchematic(o.Spec.Schematic),
 			labels:      o.Labels,
 			annotations: o.Annotations,
 			revLabel:    oam.LabelWorkflowStepDefinitionName,
 			resourceVer: o.ResourceVersion,
 		}
-		f.restricted, f.selector = restrictionsOf(o.Spec.Restrictions)
+		f.restricted, f.selector = restrictionsOf(nsrestrict.Of(&o))
 		return f, nil
 	}
 	return nil, fmt.Errorf("unknown definition type %q", defType)
@@ -351,13 +377,13 @@ func healthRules(s *oamcommon.Status) HealthRules {
 	return HealthRules{HealthPolicy: redactLine(s.HealthPolicy), CustomStatus: redactLine(s.CustomStatus), Details: redactLine(s.Details)}
 }
 
-// listDefinitionRevisions returns the newest revisions first, capped, and
-// whether any were left out.
-func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *definitionFacts) ([]RevisionSummary, bool, error) {
+// listDefinitionRevisions returns the newest revisions first, capped, whether
+// any were left out, and whether the scan stopped at its bound, in which case
+// the newest of those read may not be the newest overall.
+func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *definitionFacts) (revs []RevisionSummary, cut, stopped bool, err error) {
 	// The API returns revisions in no useful order, so every page up to the
 	// scan bound is read before the newest are chosen.
-	var revs []RevisionSummary
-	cut, next := false, ""
+	next := ""
 	for {
 		var list v1beta1.DefinitionRevisionList
 		opts := []client.ListOption{client.InNamespace(facts.summary.Namespace), client.MatchingLabels{facts.revLabel: facts.summary.Name}, client.Limit(int64(maxListItems))}
@@ -365,18 +391,27 @@ func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *defi
 			opts = append(opts, client.Continue(next))
 		}
 		if err := cli.List(ctx, &list, opts...); err != nil {
-			return nil, false, err
+			return nil, false, false, err
 		}
+		// The bound is enforced per item, so the scan stops at exactly
+		// maxRevisionsScanned entries, as the warning says.
 		for i := range list.Items {
+			if len(revs) == maxRevisionsScanned {
+				stopped = true
+				break
+			}
 			r := &list.Items[i]
 			revs = append(revs, RevisionSummary{Name: r.Name, Revision: r.Spec.Revision, Hash: r.Spec.RevisionHash, CreatedAt: timePtr(r.CreationTimestamp.Time)})
 		}
 		next = list.Continue
-		if next == "" {
+		if !stopped && next != "" && len(revs) >= maxRevisionsScanned {
+			stopped = true
+		}
+		if stopped {
+			cut = true
 			break
 		}
-		if len(revs) >= maxRevisionsScanned {
-			cut = true
+		if next == "" {
 			break
 		}
 	}
@@ -384,7 +419,7 @@ func listDefinitionRevisions(ctx context.Context, cli client.Client, facts *defi
 	if len(revs) > maxRevisionsListed {
 		revs, cut = revs[:maxRevisionsListed], true
 	}
-	return revs, cut, nil
+	return revs, cut, stopped, nil
 }
 
 // countConsumers scans Applications in the allowed namespaces for uses of

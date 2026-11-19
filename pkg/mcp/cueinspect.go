@@ -70,15 +70,16 @@ func inspectTemplate(template string) templateFacts {
 		facts.Err = err.Error()
 		return facts
 	}
-	for _, decl := range f.Decls {
-		if _, ok := decl.(*ast.EmbedDecl); ok {
-			facts.Dynamic = true
-		}
-	}
 	usage := map[string]map[string]bool{}
 	var path []string
 	ast.Walk(f, func(n ast.Node) bool {
 		switch x := n.(type) {
+		case *ast.EmbedDecl:
+			// An embed outside any field, at the top level or in the body of
+			// a top-level if or for, adds top-level fields such as patch.
+			if len(path) == 0 {
+				facts.Dynamic = true
+			}
 		case *ast.Field:
 			name, _, err := ast.LabelName(x.Label)
 			if err != nil || name == "" {

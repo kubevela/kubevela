@@ -85,7 +85,7 @@ func NewModuleRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 // NewAddModuleRegistryCommand returns the vela module registry add command.
 func NewAddModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "add",
+		Use:   "add NAME OCI_URL",
 		Short: "Add a module registry.",
 		Long:  "Add a named OCI registry that modules are published to and fetched from.",
 		Example: `  Add an OCI registry:
@@ -114,7 +114,7 @@ func NewAddModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Comm
 // NewUpdateModuleRegistryCommand returns the vela module registry update command.
 func NewUpdateModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "update",
+		Use:   "update NAME OCI_URL",
 		Short: "Update a module registry.",
 		Long:  "Update an existing OCI module registry. Unlike \"add\", this fails if the registry does not already exist.",
 		Example: `  Update a registry's URL:
@@ -449,7 +449,7 @@ func NewListModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Com
 // NewGetModuleRegistryCommand returns the vela module registry get command.
 func NewGetModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
-		Use:     "get",
+		Use:     "get NAME",
 		Short:   "Get a module registry.",
 		Long:    "Show one module registry by name.",
 		Example: "vela module registry get catalog",
@@ -466,7 +466,7 @@ func NewGetModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Comm
 // NewDeleteModuleRegistryCommand returns the vela module registry delete command.
 func NewDeleteModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 	return &cobra.Command{
-		Use:     "delete",
+		Use:     "delete NAME",
 		Short:   "Delete a module registry.",
 		Long:    "Remove one module registry and its token secret.",
 		Example: "vela module registry delete catalog",
