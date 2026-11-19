@@ -25,6 +25,7 @@ import (
 	"unicode"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 )
 
 // A child adds to what its parent renders and never changes it. A field the
@@ -57,7 +58,7 @@ func cutsOf(d directives, into map[string]bool) {
 // fixedFunc reports which ancestor writes a value at a path into its template
 // as a constant, and that value. A value an ancestor computes from a parameter
 // is not fixed: a child changes it through `$super: properties`.
-type fixedFunc func(path cue.Path) (owner, value string, ok bool)
+type fixedFunc func(path cue.Path) (owner, value string, isDefault, ok bool)
 
 // checkOverride refuses a field of own that changes one parent set. parent maps
 // each surface field to what the parent produced for it.
@@ -91,18 +92,29 @@ func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surf
 			continue
 		}
 		if fixed != nil {
-			if owner, value, ok := fixed(hitPath); ok {
+			if owner, value, isDefault, ok := fixed(hitPath); ok {
+				// A default written in the template with no parameter behind it
+				// is as fixed for a child as a constant: there is nothing to pass
+				// through $super.
+				how := fmt.Sprintf("fixes it to %s", value)
+				if isDefault {
+					how = fmt.Sprintf("sets it to the default %s and has no parameter for it", value)
+				}
 				// An entry of outputs or patchOutputs can be left out and written
 				// again, which is a smaller step than a new definition, unless an
 				// ancestor requires it.
 				if droppable[field] && key != "" && !requiredBy(ancestors, s, field+"."+key) {
-					return fmt.Errorf("%s %s sets %s, but %s fixes it to %s; to write your own %s, "+
+					return fmt.Errorf("%s %s sets %s, but %s %s; to write your own %s, "+
 						"leave %s's out with `%s: {%s: {%s: false}}` and build it from `%s.%s.%s`",
-						s.Kind, at, hit, owner, value, key, owner, InheritField, field, cueKey(key), SuperField, field, cueKey(key))
+						s.Kind, at, hit, owner, how, key, owner, InheritField, field, cueKey(key), SuperField, field, cueKey(key))
 				}
-				return fmt.Errorf("%s %s sets %s, but %s fixes it to %s and a child cannot change it; "+
+				if isDefault {
+					return fmt.Errorf("%s %s sets %s, but %s %s; to use another value, write a definition that does not extend %s",
+						s.Kind, at, hit, owner, how, owner)
+				}
+				return fmt.Errorf("%s %s sets %s, but %s %s and a child cannot change it; "+
 					"to use another value, write a definition that does not extend %s",
-					s.Kind, at, hit, owner, value, owner)
+					s.Kind, at, hit, owner, how, owner)
 			}
 		}
 		return fmt.Errorf("%s %s sets %s, which %s already sets; pass a value to %s through `%s: properties` instead",
@@ -185,46 +197,82 @@ func cueKey(key string) string {
 // fixedIn reads fixed values from one ancestor compiled with nothing bound,
 // where a value from a parameter is still a default or left open.
 func fixedIn(name string, unbound cue.Value) fixedFunc {
-	return func(path cue.Path) (string, string, bool) {
-		value, ok := fixedValue(unbound.LookupPath(path))
-		return name, value, ok
+	return func(path cue.Path) (string, string, bool, bool) {
+		value, isDefault, ok := fixedValue(unbound.LookupPath(path))
+		return name, value, isDefault, ok
 	}
 }
 
 // fixedAmong compiles each ancestor with nothing bound, only when a refusal
 // needs it, and reports the nearest one that writes the value as a constant.
 func fixedAmong(ctx context.Context, ancestors []Level, compile CompileFunc) fixedFunc {
-	return func(path cue.Path) (string, string, bool) {
+	return func(path cue.Path) (string, string, bool, bool) {
 		for _, anc := range ancestors {
 			val, _ := compile(ctx, anc.Template+"\n"+SuperField+": _\n")
 			if !val.Exists() {
 				continue
 			}
-			if value, ok := fixedValue(val.LookupPath(path)); ok {
-				return anc.Name, value, true
+			if value, isDefault, ok := fixedValue(val.LookupPath(path)); ok {
+				return anc.Name, value, isDefault, true
 			}
 		}
-		return "", "", false
+		return "", "", false, false
 	}
 }
 
-// fixedValue is the JSON of a value written as a constant: concrete with no
-// default, and not a struct or list.
-func fixedValue(v cue.Value) (string, bool) {
-	if !v.Exists() || !v.IsConcrete() {
-		return "", false
+// fixedValue is the JSON of a value a child cannot change by passing a
+// parameter: a constant, or a default written in the template that refers to
+// nothing, such as `*"RollingUpdate" | string`. isDefault tells the two apart.
+// A struct or list is compared leaf by leaf instead.
+func fixedValue(v cue.Value) (value string, isDefault, ok bool) {
+	if !v.Exists() {
+		return "", false, false
 	}
-	if _, ok := v.Default(); ok {
-		return "", false
+	if d, has := v.Default(); has {
+		if refersToAnything(v) {
+			return "", false, false
+		}
+		v, isDefault = d, true
+	}
+	if !v.IsConcrete() {
+		return "", false, false
 	}
 	if k := v.Kind(); k == cue.StructKind || k == cue.ListKind {
-		return "", false
+		return "", false, false
 	}
 	j, err := v.MarshalJSON()
 	if err != nil {
-		return "", false
+		return "", false, false
 	}
-	return string(j), true
+	return string(j), isDefault, true
+}
+
+// refersToAnything reports whether a value's source names anything other than
+// a built-in type, such as `parameter.replicas` or `context.name`. Such a
+// default is the parent's to set from what it is given.
+func refersToAnything(v cue.Value) bool {
+	src := v.Source()
+	if f, ok := src.(*ast.Field); ok {
+		// The source of a field's value is the whole field; its label is not
+		// a reference.
+		src = f.Value
+	}
+	if src == nil {
+		return true
+	}
+	found := false
+	ast.Walk(src, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && !builtinType[id.Name] {
+			found = true
+		}
+		return !found
+	}, nil)
+	return found
+}
+
+var builtinType = map[string]bool{
+	"string": true, "int": true, "float": true, "number": true, "bool": true,
+	"bytes": true, "null": true, "_": true, "uint": true,
 }
 
 // FixedOutputKind reads the apiVersion and kind a template writes on its output
@@ -246,7 +294,7 @@ func FixedOutputKind(unbound cue.Value) (apiVersion, kind string, ok bool) {
 
 // fixedString is a string field written as a constant.
 func fixedString(v cue.Value) (string, bool) {
-	if _, ok := fixedValue(v); !ok || v.Kind() != cue.StringKind {
+	if _, isDefault, ok := fixedValue(v); !ok || isDefault || v.Kind() != cue.StringKind {
 		return "", false
 	}
 	s, err := v.String()

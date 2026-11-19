@@ -149,6 +149,13 @@ var _ = Describe("a child only adds to what its parent set", func() {
 	It("refuses a trait that changes its parent's patch", func() {
 		traitBase := Level{Name: "base-trait", Template: "patch: spec: replicas: *2 | int\nparameter: {}\n"}
 		_, err := renderTrait(Level{Name: "child-trait", Template: silentMiddle + "patch: spec: replicas: 3\n"}, traitBase)
+		Expect(err).To(MatchError(ContainSubstring(
+			"trait child-trait sets patch.spec.replicas, but base-trait sets it to the default 2 and has no parameter for it")))
+	})
+
+	It("points a trait at $super for a patch field from a defaulted parameter", func() {
+		traitBase := Level{Name: "base-trait", Template: "patch: spec: replicas: parameter.replicas\nparameter: replicas: *2 | int\n"}
+		_, err := renderTrait(Level{Name: "child-trait", Template: silentMiddle + "patch: spec: replicas: 3\n"}, traitBase)
 		Expect(err).To(MatchError(ContainSubstring("trait child-trait sets patch.spec.replicas, which base-trait already sets")))
 	})
 
@@ -193,3 +200,43 @@ func admissionCompile() CompileFunc {
 		return v, v.Err()
 	}
 }
+
+var _ = Describe("a default the parent writes with no parameter behind it", func() {
+	child := func(tpl string) Level { return Level{Name: "child", Template: silentMiddle + tpl} }
+	base := Level{Name: "base", Template: `
+output: {
+	kind: "Deployment"
+	spec: strategy: type: *"RollingUpdate" | string
+}
+outputs: cm: {kind: "ConfigMap", data: mode: *"safe" | string}
+parameter: {}
+`}
+
+	It("says the parent has no parameter for it, instead of pointing at $super", func() {
+		_, err := renderComponent(child("output: spec: strategy: type: \"Recreate\"\n"), base)
+		Expect(err).To(MatchError(ContainSubstring(
+			"component child sets output.spec.strategy.type, but base sets it to the default \"RollingUpdate\" " +
+				"and has no parameter for it; to use another value, write a definition that does not extend base")))
+	})
+
+	It("points at leaving the output out when the default is inside one", func() {
+		_, err := renderComponent(child("outputs: cm: data: mode: \"fast\"\n"), base)
+		Expect(err).To(MatchError(ContainSubstring(
+			"component child sets outputs.cm.data.mode, but base sets it to the default \"safe\" and has no parameter for it; " +
+				"to write your own cm, leave base's out with `$inherit: {outputs: {cm: false}}` and build it from `$super.outputs.cm`")))
+	})
+
+	It("says the same when the definition is written", func() {
+		self := Level{Name: "child", Template: silentMiddle + "output: spec: strategy: type: \"Recreate\"\n"}
+		own := cuecontext.New().CompileString("output: spec: strategy: type: \"Recreate\"\n$super: _\nparameter: _\ncontext: _\n")
+		Expect(CheckOverrides(context.Background(), "child", self, own, []Level{base}, ComponentSurface, admissionCompile())).To(
+			MatchError(ContainSubstring("but base sets it to the default \"RollingUpdate\" and has no parameter for it")))
+	})
+
+	It("keeps pointing at $super for a default that comes from a parameter", func() {
+		fromParam := Level{Name: "base", Template: "output: {kind: \"Deployment\", spec: replicas: parameter.replicas}\nparameter: replicas: *1 | int\n"}
+		_, err := renderComponent(child("output: spec: replicas: 5\n"), fromParam)
+		Expect(err).To(MatchError(ContainSubstring(
+			"component child sets output.spec.replicas, which base already sets; pass a value to base through `$super: properties` instead")))
+	})
+})
