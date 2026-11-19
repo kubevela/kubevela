@@ -75,7 +75,7 @@ var providerFamilies = map[string][]provisionerFamily{
 			display:  "ACK",
 			suffixes: []string{".services.k8s.aws"},
 			install:  "the ACK %[1]s controller, chart oci://public.ecr.aws/aws-controllers-k8s/%[1]s-chart",
-			health:   "condition ACK.ResourceSynced is True; status.ackResourceMetadata.arn identifies the AWS resource",
+			health:   "condition ACK.ResourceSynced is True, ACK.Terminal is absent or not True, and ACK.ReferencesResolved is True when present; status.ackResourceMetadata.arn identifies the AWS resource",
 		},
 		{
 			name:    ProvisionerCrossplane,
@@ -431,11 +431,20 @@ func storageVersion(crd *crdv1.CustomResourceDefinition) *crdv1.CustomResourceDe
 	return &crdv1.CustomResourceDefinitionVersion{}
 }
 
+// dropDescriptions removes the description annotation from every schema
+// object under v. The values of a properties map are schemas, but its keys
+// are field names, so a field named description is kept.
 func dropDescriptions(v any) {
 	switch t := v.(type) {
 	case map[string]any:
 		delete(t, "description")
-		for _, c := range t {
+		for k, c := range t {
+			if props, ok := c.(map[string]any); ok && k == "properties" {
+				for _, p := range props {
+					dropDescriptions(p)
+				}
+				continue
+			}
 			dropDescriptions(c)
 		}
 	case []any:
@@ -552,7 +561,13 @@ func ackControllerEndpoint(ctx context.Context, cli client.Client, service strin
 	ref := fmt.Sprintf("Deployment %s/%s resourceVersion %s", d.Namespace, d.Name, d.ResourceVersion)
 	unresolvable := ""
 	for _, c := range d.Spec.Template.Spec.Containers {
-		if len(c.EnvFrom) > 0 && unresolvable == "" {
+		// An entry in env, even an empty literal, takes precedence over
+		// envFrom, so envFrom only matters when the container declares none.
+		declared := false
+		for _, env := range c.Env {
+			declared = declared || env.Name == "AWS_ENDPOINT_URL"
+		}
+		if len(c.EnvFrom) > 0 && unresolvable == "" && !declared {
 			unresolvable = ref + " loads env via envFrom; AWS_ENDPOINT_URL cannot be resolved from the Deployment alone"
 		}
 		for _, env := range c.Env {
@@ -562,7 +577,9 @@ func ackControllerEndpoint(ctx context.Context, cli client.Client, service strin
 			if env.Value != "" {
 				return ackEndpointResult{status: ackEndpointStatusOverride, url: env.Value, evidence: ref + " env AWS_ENDPOINT_URL=" + env.Value, namespace: d.Namespace, name: d.Name}
 			}
-			unresolvable = ref + " sets AWS_ENDPOINT_URL via valueFrom; it cannot be resolved from the Deployment alone"
+			if env.ValueFrom != nil {
+				unresolvable = ref + " sets AWS_ENDPOINT_URL via valueFrom; it cannot be resolved from the Deployment alone"
+			}
 		}
 	}
 	if unresolvable != "" {

@@ -35,6 +35,7 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"sigs.k8s.io/yaml"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -254,6 +255,31 @@ var _ = Describe("what the tools return", func() {
 			Expect(sortedKeys(reader.failed)).To(ConsistOf(HavePrefix("SeldonDeployment team-a/model: ")))
 			Expect(sortedKeys(reader.refused)).To(ConsistOf("SeldonDeployment team-b/model"))
 		})
+
+		It("names an HTTPRoute without hostnames as an unknown instead of dropping it", func() {
+			objs := endpointFixtures()
+			for _, o := range objs {
+				if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+					rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+						ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{
+							APIVersion: gatewayv1beta1.GroupVersion.String(), Kind: "HTTPRoute", Namespace: "team-a", Name: "web-route"}},
+						OAMObjectReference: oamcommon.OAMObjectReference{Component: "web"},
+					})
+				}
+			}
+			prefix := gatewayv1beta1.PathMatchPathPrefix
+			root := "/"
+			objs = append(objs, &gatewayv1beta1.HTTPRoute{
+				TypeMeta:   metav1.TypeMeta{APIVersion: gatewayv1beta1.GroupVersion.String(), Kind: "HTTPRoute"},
+				ObjectMeta: metav1.ObjectMeta{Name: "web-route", Namespace: "team-a"},
+				Spec: gatewayv1beta1.HTTPRouteSpec{Rules: []gatewayv1beta1.HTTPRouteRule{{
+					Matches: []gatewayv1beta1.HTTPRouteMatch{{Path: &gatewayv1beta1.HTTPPathMatch{Type: &prefix, Value: &root}}},
+				}}},
+			})
+			h = startHarness(Options{}, objs...)
+			out := getApp("web", "team-a")
+			Expect(out.Unknowns).To(ContainElement(ContainSubstring("HTTPRoute team-a/web-route sets no host")))
+		})
 	})
 
 	Context("get_logs", func() {
@@ -456,6 +482,23 @@ var _ = Describe("what the tools return", func() {
 				var ph []string
 				Expect(exampleValue(c.sch, "n", &ph, 0)).To(Equal(c.want))
 			}
+		})
+
+		It("names the root, never an empty path, when minProperties asks for more than the schema names", func() {
+			sch := openapi3.NewObjectSchema().WithProperty("a", openapi3.NewStringSchema())
+			sch.MinProps = 2
+			ex, err := definitionExample(DefinitionTypeTrait, "t", sch)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ex.Placeholders).NotTo(ContainElement(""))
+			Expect(ex.Placeholders).To(ContainElement("properties"))
+		})
+
+		It("emits no element for an array whose maxItems is zero", func() {
+			sch := openapi3.NewObjectSchema().WithProperty("none", openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema()).WithMaxItems(0))
+			sch.Required = []string{"none"}
+			var ph []string
+			out := exampleObject(sch, "", &ph, 0)
+			Expect(out["none"]).To(BeEmpty())
 		})
 
 		It("caps a large minItems and marks the array as a placeholder", func() {

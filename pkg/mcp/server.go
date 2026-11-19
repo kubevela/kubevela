@@ -232,7 +232,8 @@ func registerTools(s *Server, d *deps) {
 		Name: "diagnose_application",
 		Description: "Root-cause an unhealthy Application: reads family-owned resources live, a bounded number " +
 			"per call, and interprets their conditions by the conventions of the controller family that owns " +
-			"their API group — ACK (ResourceSynced and Terminal, including the convergence-loop signature of a " +
+			"their API group — ACK (Terminal, then ReferencesResolved ahead of a possibly stale ResourceSynced, " +
+			"including the convergence-loop signature of a " +
 			"field the cloud service computes differently), Config Connector (Ready with reason UpToDate), " +
 			"Crossplane (Ready and Synced), and standard-conditions for any other custom resource whose status " +
 			"carries conditions (Ready True is ready; no Ready condition is unknown, never healthy). Plain " +

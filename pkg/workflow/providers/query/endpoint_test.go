@@ -19,6 +19,7 @@ package query
 import (
 	"context"
 	"fmt"
+	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,7 +30,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -408,3 +412,23 @@ spec:
             port:
               number: 80
 `
+
+// TestGeneratorFromHTTPRouteWithoutHostnames covers a route that omits
+// hostnames, which serves on every listener hostname: it still yields an
+// endpoint, with no host, instead of none.
+func TestGeneratorFromHTTPRouteWithoutHostnames(t *testing.T) {
+	prefix := gatewayv1beta1.PathMatchPathPrefix
+	route := gatewayv1beta1.HTTPRoute{
+		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "default"},
+		Spec: gatewayv1beta1.HTTPRouteSpec{Rules: []gatewayv1beta1.HTTPRouteRule{{
+			Matches: []gatewayv1beta1.HTTPRouteMatch{{Path: &gatewayv1beta1.HTTPPathMatch{Type: &prefix, Value: ptr.To("/api")}}},
+		}}},
+	}
+	got := generatorFromHTTPRoute(context.Background(), fake.NewClientBuilder().Build(), route, "local", "web")
+	if len(got) != 1 {
+		t.Fatalf("got %d endpoints, want 1: %+v", len(got), got)
+	}
+	if got[0].Endpoint.Host != "" || got[0].Endpoint.Path != "/api" || got[0].Ref.Name != "web" || got[0].Ref.Kind != "HTTPRoute" {
+		t.Fatalf("unexpected endpoint %+v", got[0])
+	}
+}

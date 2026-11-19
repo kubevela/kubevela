@@ -90,12 +90,15 @@ func (d *deps) deliveryPractice(ctx context.Context, namespace string) (*Deliver
 	var warnings []string
 	opts := []client.ListOption{client.InNamespace(namespace), client.Limit(int64(maxListItems))}
 
+	incomplete := false
 	var apps v1beta1.ApplicationList
 	if err := cli.List(ctx, &apps, opts...); err != nil {
-		return nil, nil, fmt.Errorf("list applications in %s: %w", namespace, err)
+		warnings = append(warnings, "Application count unavailable: "+redactLine(err.Error()))
+		incomplete = true
+	} else {
+		p.Applications = len(apps.Items)
+		p.Truncated = apps.Continue != ""
 	}
-	p.Applications = len(apps.Items)
-	p.Truncated = apps.Continue != ""
 
 	workloads := []struct {
 		kind string
@@ -107,7 +110,6 @@ func (d *deps) deliveryPractice(ctx context.Context, namespace string) (*Deliver
 		{"CronJob", &batchv1.CronJobList{}},
 		{"Job", &batchv1.JobList{}},
 	}
-	incomplete := false
 	for _, w := range workloads {
 		if err := cli.List(ctx, w.list, opts...); err != nil {
 			warnings = append(warnings, fmt.Sprintf("%s count unavailable: %s", w.kind, redactLine(err.Error())))
@@ -145,14 +147,20 @@ func (d *deps) deliveryPractice(ctx context.Context, namespace string) (*Deliver
 }
 
 // countManaged counts items and those carrying the label KubeVela stamps on
-// every object an Application renders.
+// every object an Application renders. An item another object owns, such as
+// a StatefulSet an operator created, is left out unless an Application
+// rendered it.
 func countManaged(list client.ObjectList) (total, managed int, more bool) {
 	// KubeVela stamps the Application's name and namespace and the
 	// component on everything it renders; one label alone can be a copy.
 	visit := func(m metav1.Object) {
-		total++
 		l := m.GetLabels()
-		if l[oam.LabelAppName] != "" && l[oam.LabelAppNamespace] != "" && l[oam.LabelAppComponent] != "" {
+		rendered := l[oam.LabelAppName] != "" && l[oam.LabelAppNamespace] != "" && l[oam.LabelAppComponent] != ""
+		if len(m.GetOwnerReferences()) > 0 && !rendered {
+			return
+		}
+		total++
+		if rendered {
 			managed++
 		}
 	}
