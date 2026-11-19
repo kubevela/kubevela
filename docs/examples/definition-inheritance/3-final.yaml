@@ -1,0 +1,369 @@
+# C00: parent with a +final securityContext
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-base"
+  namespace: "vela-system"
+spec:
+  workload:
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+    type: "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				// +final
+        				securityContext: {runAsNonRoot: true}
+        				containers: [{name: context.name, image: parameter.image}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	svc: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 8080}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: name: context.name
+        		spec: podSelector: matchLabels: "app.oam.dev/component": context.name
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *1 | int
+        }
+---
+# C01: child adds fsGroup to securityContext
+# expect: refused, with: component c-adds adds to output.spec.template.spec.securityContext, which c-base marks +final
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-adds"
+  namespace: "vela-system"
+spec:
+  extends: "c-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        output: spec: template: spec: securityContext: fsGroup: 2000
+---
+# C02: child restates runAsNonRoot
+# expect: refused, with: which c-base marks +final
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-restates"
+  namespace: "vela-system"
+spec:
+  extends: "c-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        output: spec: template: spec: securityContext: runAsNonRoot: true
+---
+# C02b: child changes runAsNonRoot to false
+# expect: refused, with: c-flips adds to output.spec.template.spec.securityContext, which c-base marks +final
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-flips"
+  namespace: "vela-system"
+spec:
+  extends: "c-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        output: spec: template: spec: securityContext: runAsNonRoot: false
+---
+# C03: child adds a label next to it
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-label"
+  namespace: "vela-system"
+spec:
+  extends: "c-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        output: metadata: labels: team: "c"
+---
+# C04: grandchild adds to it through a silent middle
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-middle"
+  namespace: "vela-system"
+spec:
+  extends: "c-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+---
+# C04: grandchild adds to it through a silent middle
+# expect: refused, with: which c-base marks +final
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-leaf"
+  namespace: "vela-system"
+spec:
+  extends: "c-middle"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        output: spec: template: spec: securityContext: fsGroup: 2000
+---
+# C05: middle marks its own field +final, the leaf adds to it
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-mid-final"
+  namespace: "vela-system"
+spec:
+  extends: "c-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        output: metadata: {
+        	// +final
+        	annotations: {owner: "platform"}
+        }
+---
+# C05: middle marks its own field +final, the leaf adds to it
+# expect: refused, with: which c-mid-final marks +final
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-mid-leaf"
+  namespace: "vela-system"
+spec:
+  extends: "c-mid-final"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        output: metadata: annotations: extra: "x"
+---
+# C06: trait parent marks patch replicas +final, the child changes it
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "TraitDefinition"
+metadata:
+  name: "c-fixed"
+  namespace: "vela-system"
+spec:
+  appliesToWorkloads:
+    - "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        patch: spec: {
+        	// +final
+        	replicas: 2
+        }
+        parameter: {}
+---
+# C06: trait parent marks patch replicas +final, the child changes it
+# expect: refused, with: trait c-more adds to patch.spec.replicas, which c-fixed marks +final
+apiVersion: "core.oam.dev/v1beta1"
+kind: "TraitDefinition"
+metadata:
+  name: "c-more"
+  namespace: "vela-system"
+spec:
+  appliesToWorkloads:
+    - "deployments.apps"
+  extends: "c-fixed"
+  schematic:
+    cue:
+      template: |
+        $super: properties: {}
+        patch: spec: replicas: 5
+---
+# C07: late +final: parent marks the field after a child added to it
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-late-base"
+  namespace: "vela-system"
+spec:
+  workload:
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+    type: "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				securityContext: {runAsNonRoot: true}
+        				containers: [{name: context.name, image: parameter.image}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	svc: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 8080}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: name: context.name
+        		spec: podSelector: matchLabels: "app.oam.dev/component": context.name
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *1 | int
+        }
+---
+# C07: late +final: parent marks the field after a child added to it
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-late-child"
+  namespace: "vela-system"
+spec:
+  extends: "c-late-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        output: spec: template: spec: securityContext: fsGroup: 2000
+---
+# C07: late +final: parent marks the field after a child added to it
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "c-late-base"
+  namespace: "vela-system"
+spec:
+  workload:
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+    type: "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				// +final
+        				securityContext: {runAsNonRoot: true}
+        				containers: [{name: context.name, image: parameter.image}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	svc: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 8080}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: name: context.name
+        		spec: podSelector: matchLabels: "app.oam.dev/component": context.name
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *1 | int
+        }
+---
+# C07: late +final: parent marks the field after a child added to it
+# expect: refused, with: adds to output.spec.template.spec.securityContext, which c-late-base marks +final
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "c-late-app"
+  namespace: "default"
+spec:
+  components:
+    - name: "c-late"
+      type: "c-late-child"
+---
+# C08: app: the accepted child renders the parent's securityContext
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "c-app"
+  namespace: "default"
+spec:
+  components:
+    - name: "c-labelled"
+      type: "c-label"

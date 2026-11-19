@@ -1,0 +1,189 @@
+# A00: parent with svc and netpol outputs
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "a-base"
+  namespace: "vela-system"
+spec:
+  workload:
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+    type: "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				securityContext: {runAsNonRoot: true}
+        				containers: [{name: context.name, image: parameter.image}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	svc: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 8080}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: name: context.name
+        		spec: podSelector: matchLabels: "app.oam.dev/component": context.name
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *1 | int
+        }
+---
+# A01: $inherit: false
+# expect: refused, with: `$inherit: false` is not allowed in a-all-off
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "a-all-off"
+  namespace: "vela-system"
+spec:
+  extends: "a-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        $inherit: false
+---
+# A02: $inherit: {output: false} with its own Job
+# expect: refused, with: `$inherit: {output: false}` is not allowed in a-own-output
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "a-own-output"
+  namespace: "vela-system"
+spec:
+  extends: "a-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        $inherit: {output: false}
+        output: {apiVersion: "batch/v1", kind: "Job"}
+---
+# A03: $inherit: {outputs: false}
+# expect: refused, with: leave out one output at a time
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "a-no-outputs"
+  namespace: "vela-system"
+spec:
+  extends: "a-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        $inherit: {outputs: false}
+---
+# A04: unknown field in $inherit
+# expect: refused, with: unknown field spec
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "a-unknown"
+  namespace: "vela-system"
+spec:
+  extends: "a-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        $inherit: {spec: false}
+---
+# A05: per-output drop that is not a boolean
+# expect: refused, with: outputs.svc must be true or false
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "a-not-bool"
+  namespace: "vela-system"
+spec:
+  extends: "a-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        $inherit: {outputs: {svc: "no"}}
+---
+# A06: drops netpol, writes its own
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "a-own-netpol"
+  namespace: "vela-system"
+spec:
+  extends: "a-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        $inherit: {outputs: {netpol: false}}
+        outputs: netpol: {
+        	apiVersion: "networking.k8s.io/v1"
+        	kind:       "NetworkPolicy"
+        	metadata: name: context.name
+        	spec: {
+        		podSelector: matchLabels: "app.oam.dev/component": context.name
+        		ingress: [{}]
+        	}
+        }
+---
+# A07: drops netpol, writes nothing in its place
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "a-no-netpol"
+  namespace: "vela-system"
+spec:
+  extends: "a-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+        $inherit: {outputs: {netpol: false}}
+---
+# A08: app: the accepted children render
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "a-app"
+  namespace: "default"
+spec:
+  components:
+    - name: "a-own"
+      type: "a-own-netpol"
+    - name: "a-none"
+      type: "a-no-netpol"

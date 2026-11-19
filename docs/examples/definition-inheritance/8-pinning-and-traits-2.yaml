@@ -1,0 +1,144 @@
+# H00: pinned parent: child extends hp-base@v1, parent then gains a label (created once: the chart keeps 2 revisions)
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "hp-base"
+  namespace: "vela-system"
+spec:
+  workload:
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+    type: "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: {name: context.name, labels: rev: "v2"}
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				securityContext: {runAsNonRoot: true}
+        				containers: [{name: context.name, image: parameter.image}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	svc: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 8080}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: name: context.name
+        		spec: podSelector: matchLabels: "app.oam.dev/component": context.name
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *1 | int
+        }
+---
+# H00: pinned parent: child extends hp-base@v1, parent then gains a label (created once: the chart keeps 2 revisions)
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "hp-pinned"
+  namespace: "vela-system"
+spec:
+  extends: "hp-base@v1"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+---
+# H00: pinned parent: child extends hp-base@v1, parent then gains a label (created once: the chart keeps 2 revisions)
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "hp-floating"
+  namespace: "vela-system"
+spec:
+  extends: "hp-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+---
+# H00: pinned parent: child extends hp-base@v1, parent then gains a label (created once: the chart keeps 2 revisions)
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "hp-app"
+  namespace: "default"
+spec:
+  components:
+    - name: "hp-p"
+      type: "hp-pinned"
+    - name: "hp-f"
+      type: "hp-floating"
+---
+# H01: trait chain: child trait adds a label to the parent's patch
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "TraitDefinition"
+metadata:
+  name: "h-labels"
+  namespace: "vela-system"
+spec:
+  appliesToWorkloads:
+    - "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        patch: metadata: labels: managed: "true"
+        parameter: {}
+---
+# H01: trait chain: child trait adds a label to the parent's patch
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "TraitDefinition"
+metadata:
+  name: "h-labels-team"
+  namespace: "vela-system"
+spec:
+  appliesToWorkloads:
+    - "deployments.apps"
+  extends: "h-labels"
+  schematic:
+    cue:
+      template: |
+        $super: properties: {}
+        patch: metadata: labels: team: "h"
+---
+# H01: trait chain: child trait adds a label to the parent's patch
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "h-trait-app"
+  namespace: "default"
+spec:
+  components:
+    - name: "h-t"
+      type: "hp-floating"
+      traits:
+        - type: "h-labels-team"

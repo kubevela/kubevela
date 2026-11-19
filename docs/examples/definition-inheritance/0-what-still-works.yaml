@@ -1,0 +1,349 @@
+# N00: platform parent: Deployment, Service, NetworkPolicy, a health policy and a status message
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-base"
+  namespace: "vela-system"
+spec:
+  workload:
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+    type: "deployments.apps"
+  status:
+    healthPolicy: |
+      isHealth: context.output.status.readyReplicas == context.output.spec.replicas
+    customStatus: |
+      message: "replicas: \(context.output.spec.replicas)"
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				securityContext: {runAsNonRoot: true}
+        				containers: [{name: context.name, image: parameter.image}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	svc: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 8080}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: name: context.name
+        		spec: podSelector: matchLabels: "app.oam.dev/component": context.name
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *1 | int
+        }
+---
+# N01: team child: own parameters, passes image and replicas up, adds labels, env, and a ConfigMap that reads $super.output
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-team"
+  namespace: "vela-system"
+spec:
+  extends: "n-base"
+  schematic:
+    cue:
+      template: |
+        parameter: {
+        	image:  *"nginxinc/nginx-unprivileged:stable" | string
+        	tenant: string
+        }
+        $super: properties: {image: parameter.image, replicas: 2}
+        output: metadata: labels: team: "payments"
+        output: spec: template: metadata: labels: tenant: parameter.tenant
+        output: spec: template: spec: containers: [{env: [{name: "TENANT", value: parameter.tenant}]}]
+        outputs: info: {
+        	apiVersion: "v1"
+        	kind:       "ConfigMap"
+        	metadata: name: context.name + "-info"
+        	data: image: $super.output.spec.template.spec.containers[0].image
+        }
+---
+# N02: grandchild: a three-level chain, adds an annotation and forwards tenant
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-leaf"
+  namespace: "vela-system"
+spec:
+  extends: "n-team"
+  schematic:
+    cue:
+      template: |
+        parameter: tenant: string
+        $super: properties: {tenant: parameter.tenant}
+        output: metadata: annotations: "example.com/owner": "checkout"
+---
+# N03: child adds its own health policy, combined with the parent's
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-health"
+  namespace: "vela-system"
+spec:
+  extends: "n-base"
+  status:
+    healthPolicy: |
+      isHealth: context.outputs.svc.metadata.name != ""
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+---
+# N04: app: every level shows up in what renders, health and status compose, the revision records the ancestors
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "n-app"
+  namespace: "default"
+spec:
+  components:
+    - name: "n-t"
+      type: "n-team"
+      properties:
+        tenant: "acme"
+    - name: "n-l"
+      type: "n-leaf"
+      properties:
+        tenant: "globex"
+    - name: "n-h"
+      type: "n-health"
+---
+# N05: child that never calls $super
+# expect: refused, with: never calls it
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-lonely"
+  namespace: "vela-system"
+spec:
+  extends: "n-base"
+  schematic:
+    cue:
+      template: |
+        parameter: {}
+        output: metadata: labels: x: "y"
+---
+# N06: child in namespace default extends n-base in vela-system
+# expect: refused, with: its own namespace
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-reach"
+  namespace: "default"
+spec:
+  extends: "n-base"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+---
+# N07: abstract base: an app may not name it, only what extends it
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-abstract"
+  namespace: "vela-system"
+spec:
+  abstract: true
+  workload:
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+    type: "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				securityContext: {runAsNonRoot: true}
+        				containers: [{name: context.name, image: parameter.image}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	svc: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 8080}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: name: context.name
+        		spec: podSelector: matchLabels: "app.oam.dev/component": context.name
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *1 | int
+        }
+---
+# N07: abstract base: an app may not name it, only what extends it
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-paved"
+  namespace: "vela-system"
+spec:
+  extends: "n-abstract"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+---
+# N07: abstract base: an app may not name it, only what extends it
+# expect: refused, with: abstract and cannot be used directly
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "n-direct"
+  namespace: "default"
+spec:
+  components:
+    - name: "n-straight"
+      type: "n-abstract"
+      properties:
+        image: "nginxinc/nginx-unprivileged:stable"
+---
+# N07: abstract base: an app may not name it, only what extends it
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "n-paved-app"
+  namespace: "default"
+spec:
+  components:
+    - name: "n-road"
+      type: "n-paved"
+---
+# N08: cycle: a parent made to extend its own child
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-loop-a"
+  namespace: "vela-system"
+spec:
+  workload:
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+    type: "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				securityContext: {runAsNonRoot: true}
+        				containers: [{name: context.name, image: parameter.image}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	svc: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 8080}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: name: context.name
+        		spec: podSelector: matchLabels: "app.oam.dev/component": context.name
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *1 | int
+        }
+---
+# N08: cycle: a parent made to extend its own child
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-loop-b"
+  namespace: "vela-system"
+spec:
+  extends: "n-loop-a"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}
+---
+# N08: cycle: a parent made to extend its own child
+# expect: refused, with: already in its own inheritance chain
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "n-loop-a"
+  namespace: "vela-system"
+spec:
+  extends: "n-loop-b"
+  schematic:
+    cue:
+      template: |
+        parameter: image: *"nginxinc/nginx-unprivileged:stable" | string
+        $super: properties: {image: parameter.image}

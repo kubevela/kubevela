@@ -1,0 +1,144 @@
+# G00: parent volume, child forwards, child renames, child fixes
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "g-volume"
+  namespace: "vela-system"
+spec:
+  workload:
+    definition:
+      apiVersion: "v1"
+      kind: "PersistentVolumeClaim"
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "v1"
+        	kind:       "PersistentVolumeClaim"
+        	metadata: name: context.name
+        	spec: {
+        		accessModes: ["ReadWriteOnce"]
+        		storageClassName: parameter.storageClass
+        		resources: requests: storage: parameter.size
+        	}
+        }
+        parameter: {
+        	// +immutable
+        	storageClass: string
+        	size:         *"1Gi" | string
+        }
+---
+# G00: parent volume, child forwards, child renames, child fixes
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "g-forward"
+  namespace: "vela-system"
+spec:
+  extends: "g-volume"
+  schematic:
+    cue:
+      template: |
+        $super: properties: parameter
+        parameter: {storageClass: string, size: *"1Gi" | string}
+---
+# G00: parent volume, child forwards, child renames, child fixes
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "g-tiered"
+  namespace: "vela-system"
+spec:
+  extends: "g-volume"
+  schematic:
+    cue:
+      template: |
+        $super: properties: {storageClass: parameter.tier, size: parameter.size}
+        parameter: {tier: "fast" | "slow", size: *"1Gi" | string}
+---
+# G00: parent volume, child forwards, child renames, child fixes
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "g-fixed"
+  namespace: "vela-system"
+spec:
+  extends: "g-volume"
+  schematic:
+    cue:
+      template: |
+        $super: properties: {storageClass: "standard", size: parameter.size}
+        parameter: size: *"1Gi" | string
+---
+# G00: parent volume, child forwards, child renames, child fixes
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "g-app"
+  namespace: "default"
+spec:
+  components:
+    - name: "g-f"
+      type: "g-forward"
+      properties:
+        storageClass: "fast"
+    - name: "g-t"
+      type: "g-tiered"
+      properties:
+        tier: "fast"
+    - name: "g-x"
+      type: "g-fixed"
+---
+# G05: a parent +immutable default set for the first time through a child
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "g-replicated"
+  namespace: "vela-system"
+spec:
+  workload:
+    definition:
+      apiVersion: "apps/v1"
+      kind: "Deployment"
+    type: "deployments.apps"
+  schematic:
+    cue:
+      template: |
+        output: {apiVersion: "apps/v1", kind: "Deployment", metadata: name: context.name, spec: {replicas: parameter.replicas, selector: matchLabels: app: context.name, template: {metadata: labels: app: context.name, spec: containers: [{name: "c", image: "nginxinc/nginx-unprivileged:stable"}]}}}
+        parameter: {
+        	// +immutable
+        	replicas: *1 | int
+        }
+---
+# G05: a parent +immutable default set for the first time through a child
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "ComponentDefinition"
+metadata:
+  name: "g-replicated-child"
+  namespace: "vela-system"
+spec:
+  extends: "g-replicated"
+  schematic:
+    cue:
+      template: |
+        $super: properties: {replicas: parameter.replicas}
+        parameter: replicas: *1 | int
+---
+# G05: a parent +immutable default set for the first time through a child
+# expect: accepted
+apiVersion: "core.oam.dev/v1beta1"
+kind: "Application"
+metadata:
+  name: "g-rep-app"
+  namespace: "default"
+spec:
+  components:
+    - name: "g-r"
+      type: "g-replicated-child"
