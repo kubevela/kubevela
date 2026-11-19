@@ -295,11 +295,14 @@ func checkRenderedWorkload(ctx context.Context, levels []namedWorkload, ancestor
 		return nil
 	}
 	root := ancestors[len(ancestors)-1]
-	unbound, err := compileSchemaLevel(ctx, root.Template)
-	if err != nil || unbound.Err() != nil {
-		return nil
+	// A root that does not compile is reported by the checks that compile it
+	// for real; here it only means there is nothing to compare with.
+	unbound, compileErr := compileSchemaLevel(ctx, root.Template)
+	compiled := compileErr == nil && unbound.Err() == nil
+	apiVersion, kind, ok := "", "", false
+	if compiled {
+		apiVersion, kind, ok = inherit.FixedOutputKind(unbound)
 	}
-	apiVersion, kind, ok := inherit.FixedOutputKind(unbound)
 	if !ok {
 		return nil
 	}
