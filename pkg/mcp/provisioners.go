@@ -516,6 +516,9 @@ type ackEndpointResult struct {
 	status   string
 	url      string // set only when status is override
 	evidence string
+	// namespace and name identify the single controller Deployment the
+	// result was read from; empty when none or more than one was found.
+	namespace, name string
 }
 
 // ackControllerEndpoint reports whether the installed ACK controller for
@@ -557,13 +560,13 @@ func ackControllerEndpoint(ctx context.Context, cli client.Client, service strin
 				continue
 			}
 			if env.Value != "" {
-				return ackEndpointResult{status: ackEndpointStatusOverride, url: env.Value, evidence: ref + " env AWS_ENDPOINT_URL=" + env.Value}
+				return ackEndpointResult{status: ackEndpointStatusOverride, url: env.Value, evidence: ref + " env AWS_ENDPOINT_URL=" + env.Value, namespace: d.Namespace, name: d.Name}
 			}
 			unresolvable = ref + " sets AWS_ENDPOINT_URL via valueFrom; it cannot be resolved from the Deployment alone"
 		}
 	}
 	if unresolvable != "" {
-		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: unresolvable}
+		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: unresolvable, namespace: d.Namespace, name: d.Name}
 	}
-	return ackEndpointResult{status: ackEndpointStatusCloud, evidence: ref + " sets no AWS_ENDPOINT_URL; the controller calls the AWS API"}
+	return ackEndpointResult{status: ackEndpointStatusCloud, evidence: ref + " sets no AWS_ENDPOINT_URL; the controller calls the AWS API", namespace: d.Namespace, name: d.Name}
 }

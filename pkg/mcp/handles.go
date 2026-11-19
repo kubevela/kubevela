@@ -55,10 +55,10 @@ type PodHandle struct {
 
 // TimeWindow is the span downstream queries should cover.
 type TimeWindow struct {
-	From time.Time `json:"from" jsonschema:"Start of the window, UTC: shortly before the running revision was applied."`
+	From time.Time `json:"from" jsonschema:"Start of the window, UTC: shortly before the running revision was applied, or the condition transition a cause was read from."`
 	To   time.Time `json:"to" jsonschema:"End of the window, UTC: when this answer was read."`
 	// Basis says what From was computed from.
-	Basis string `json:"basis" jsonschema:"What the window start was computed from: workflow start, revision creation, or a fallback when neither is known."`
+	Basis string `json:"basis" jsonschema:"What the window start was computed from: workflow start, revision creation, condition transition, or a fallback when none is known."`
 }
 
 // Handles are the exact identifiers an agent passes to other tools, such

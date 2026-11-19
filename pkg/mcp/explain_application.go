@@ -102,13 +102,14 @@ type ComponentExplanation struct {
 // EventSummary is a Kubernetes event about the application or one of its
 // managed resources.
 type EventSummary struct {
-	Cluster string     `json:"cluster,omitempty" jsonschema:"Cluster the event was recorded in."`
-	Object  string     `json:"object"`
-	Type    string     `json:"type"`
-	Reason  string     `json:"reason"`
-	Message string     `json:"message"`
-	Count   int32      `json:"count"`
-	Last    *time.Time `json:"last,omitempty"`
+	Cluster   string     `json:"cluster,omitempty" jsonschema:"Cluster the event was recorded in."`
+	Namespace string     `json:"namespace,omitempty" jsonschema:"Namespace of the object the event is about; empty for a cluster-scoped object."`
+	Object    string     `json:"object"`
+	Type      string     `json:"type"`
+	Reason    string     `json:"reason"`
+	Message   string     `json:"message"`
+	Count     int32      `json:"count"`
+	Last      *time.Time `json:"last,omitempty"`
 }
 
 // Finding is one deterministic observation with the object it came from.
@@ -484,7 +485,7 @@ func summarizeEvent(e *corev1.Event, cluster string, involved map[string]bool) *
 	if count == 0 && e.Series != nil {
 		count = e.Series.Count
 	}
-	return &EventSummary{Cluster: cluster, Object: key, Type: e.Type, Reason: text(e.Reason), Message: text(e.Message), Count: count, Last: timePtr(last)}
+	return &EventSummary{Cluster: cluster, Namespace: e.InvolvedObject.Namespace, Object: key, Type: e.Type, Reason: text(e.Reason), Message: text(e.Message), Count: count, Last: timePtr(last)}
 }
 
 // intValue reads a number that may have crossed a JSON boundary.
