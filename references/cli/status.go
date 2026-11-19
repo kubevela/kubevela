@@ -46,13 +46,14 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgappfile "github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	types2 "github.com/oam-dev/kubevela/pkg/utils/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
+	"github.com/oam-dev/kubevela/references/cli/resourcetree"
 	references "github.com/oam-dev/kubevela/references/common"
 )
 
@@ -161,6 +162,20 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				return printMetrics(newClient, restConf, appName, namespace)
 			}
 
+			if showSources, err := cmd.Flags().GetBool("sources"); showSources && err == nil {
+				component, _ := cmd.Flags().GetString("component")
+				cluster, _ := cmd.Flags().GetString("cluster")
+				return printAppSources(newClient, namespace, appName, Filter{
+					Component: component,
+					Cluster:   cluster,
+				}, outputFormat, cmd.OutOrStdout())
+			}
+
+			if showDeps, err := cmd.Flags().GetBool("dependencies"); showDeps && err == nil {
+				component, _ := cmd.Flags().GetString("component")
+				return printAppDependencies(newClient, namespace, appName, Filter{Component: component}, outputFormat, cmd.OutOrStdout())
+			}
+
 			if outputFormat != "" {
 				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
@@ -179,8 +194,10 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().BoolP("pod", "", false, "show pod list of the application")
 	cmd.Flags().BoolVarP(&detail, "detail", "d", false, "display more details in the application like input/output data in context. Note that if you want to show the realtime details of application resources, please use it with --tree")
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "raw Application output format. One of: (json, yaml, jsonpath)")
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "output format, also applies to --sources. One of: (json, yaml, jsonpath)")
 	cmd.Flags().BoolP("metrics", "m", false, "show resource quota and consumption metrics of the application")
+	cmd.Flags().BoolP("dependencies", "", false, "show what each component depends on: dependsOn, inputs, and the components its property expressions read")
+	cmd.Flags().BoolP("sources", "", false, "show what the application read from its declared sources, and which component, trait or workflow step used each value")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -206,7 +223,13 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	if err := printWorkflowStatus(c, ioStreams, appName, namespace, detail); err != nil {
 		return err
 	}
-	return loopCheckStatus(c, ioStreams, appName, namespace)
+	if err := loopCheckStatus(c, ioStreams, appName, namespace); err != nil {
+		return err
+	}
+	// After Services: a source feeds components, so it reads as context for what
+	// is above it rather than as a preamble to the workflow.
+	printSourcesOverview(ioStreams, app)
+	return nil
 }
 
 func formatEndpoints(endpoints []types2.ServiceEndpoint) [][]string {
@@ -493,6 +516,45 @@ func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
 }
 
 func getAppHealth(app *v1beta1.Application) bool {
+	// Terminal and unhealthy phases must never report as healthy, including when
+	// no component services were recorded - a CUE parameter error fails the
+	// workflow before any service status is written, and an empty Services list
+	// would otherwise be vacuously healthy.
+	switch app.Status.Phase {
+	case commontypes.ApplicationWorkflowFailed,
+		commontypes.ApplicationWorkflowTerminated,
+		commontypes.ApplicationUnhealthy,
+		commontypes.ApplicationDeleting:
+		return false
+	default:
+		// Other phases (starting/rendering/runningWorkflow/running/...) continue
+		// with service and workflow-step health checks below.
+	}
+
+	// A failed workflow step (or substep in a step-group) means the app is not
+	// healthy, even while the controller is still retrying (phase may still be
+	// runningWorkflow).
+	if app.Status.Workflow != nil {
+		for i := range app.Status.Workflow.Steps {
+			step := &app.Status.Workflow.Steps[i]
+			if step.Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+				return false
+			}
+			for j := range step.SubStepsStatus {
+				if step.SubStepsStatus[j].Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+					return false
+				}
+			}
+		}
+	}
+
+	// No service status yet: cannot claim the application is healthy.
+	// This covers intermediate phases and edge cases where phase is running
+	// but services were never populated.
+	if len(app.Status.Services) == 0 {
+		return false
+	}
+
 	for _, s := range app.Status.Services {
 		if !s.Healthy {
 			return false
@@ -522,7 +584,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 		return err
 	}
 	ctx := context.Background()
-	_, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, cli, app)
+	_, currentRT, historyRTs, _, err := appkeeper.ListApplicationResourceTrackers(ctx, cli, app)
 	if err != nil {
 		return err
 	}
@@ -542,10 +604,10 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if w, _, err := term.GetSize(0); err == nil && w > 0 {
 		maxWidth = ptr.To(w)
 	}
-	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
+	options := resourcetree.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
 	printDetails, _ := cmd.Flags().GetBool("detail")
 	if printDetails {
-		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(config)
+		msgRetriever, err := resourcetree.RetrieveKubeCtlGetMessageGenerator(config)
 		if err != nil {
 			return err
 		}

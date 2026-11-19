@@ -18,6 +18,7 @@ package helm
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 
@@ -80,6 +81,10 @@ metadata:
 				Expect(labels["app.oam.dev/name"]).To(Equal("my-app"))
 				Expect(labels["app.oam.dev/namespace"]).To(Equal("my-app-ns"))
 				Expect(labels["app.oam.dev/component"]).To(Equal("my-component"))
+				// owner.oam.dev/*, as every resource an Application owns carries
+				Expect(labels["owner.oam.dev/kind"]).To(Equal("Application"))
+				Expect(labels["owner.oam.dev/name"]).To(Equal("my-app"))
+				Expect(labels["owner.oam.dev/namespace"]).To(Equal("my-app-ns"))
 
 				annotations := obj.GetAnnotations()
 				Expect(annotations["app.oam.dev/owner"]).To(Equal("helm-provider"))
@@ -107,7 +112,7 @@ metadata:
 		It("should not panic without a real cluster", func() {
 			p := NewProviderWithConfig(nil)
 			// Without a real cluster, Init will fail — we just verify no panic
-			_, err := p.getActionConfig("test-namespace")
+			_, err := p.getActionConfig(context.Background(), "test-namespace")
 			_ = err // error is expected
 		})
 	})
@@ -123,6 +128,9 @@ metadata:
 			Expect(labels["app.oam.dev/name"]).To(Equal("my-app"))
 			Expect(labels["app.oam.dev/namespace"]).To(Equal("my-ns"))
 			Expect(labels["app.oam.dev/component"]).To(Equal("my-component"))
+			Expect(labels["owner.oam.dev/kind"]).To(Equal("Application"))
+			Expect(labels["owner.oam.dev/name"]).To(Equal("my-app"))
+			Expect(labels["owner.oam.dev/namespace"]).To(Equal("my-ns"))
 		})
 
 		It("should return nil for nil context", func() {

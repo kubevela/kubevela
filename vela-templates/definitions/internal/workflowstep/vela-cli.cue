@@ -47,7 +47,10 @@ template: {
 		if parameter.storage != _|_ && parameter.storage.hostPath != _|_ for v in parameter.storage.hostPath {
 			{
 				name: "hostpath-" + v.name
-				path: v.path
+				hostPath: {
+					path: v.path
+					type: v.type
+				}
 			}
 		},
 	]

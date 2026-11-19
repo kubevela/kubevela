@@ -23,7 +23,7 @@ spec:
         properties:
           containerName: "busybox-runner"
           httpGet:
-            host: "www.guidewire.comm"
+            host: "www.example.comm"
             scheme: "HTTPS"
             port: 443
           periodSeconds: 4
@@ -33,7 +33,7 @@ spec:
         properties:
           containerName: nginx
           httpGet:
-            host: "www.guidewire.com"
+            host: "www.example.com"
             scheme: "HTTPS"
             port: 443
           periodSeconds: 5

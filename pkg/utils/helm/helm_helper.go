@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kubevela/pkg/cache"
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -68,7 +69,7 @@ type ChartValues struct {
 
 // Helper provides helper functions for common Helm operations
 type Helper struct {
-	cache *utils.MemoryCacheStore
+	cache cache.Cache[string]
 }
 
 // NewHelper creates a Helper
@@ -79,7 +80,7 @@ func NewHelper() *Helper {
 // NewHelperWithCache creates a Helper with cache usually used by apiserver
 func NewHelperWithCache() *Helper {
 	return &Helper{
-		cache: utils.NewMemoryCacheStore(context.Background()),
+		cache: cache.NewMemoryCacheStore[string](context.Background()),
 	}
 }
 
@@ -212,7 +213,7 @@ func (h *Helper) ListVersions(repoURL string, chartName string, skipCache bool, 
 func (h *Helper) GetIndexInfo(repoURL string, skipCache bool, opts *common.HTTPOption) (*repo.IndexFile, error) {
 	repoURL = utils.Sanitize(repoURL)
 	if h.cache != nil && !skipCache {
-		if i := h.cache.Get(fmt.Sprintf(repoPatten, repoURL)); i != nil {
+		if i, ok := h.cache.Get(fmt.Sprintf(repoPatten, repoURL)); ok && i != nil {
 			return i.(*repo.IndexFile), nil
 		}
 	}
@@ -321,7 +322,7 @@ func (h *Helper) ListChartsFromRepo(repoURL string, skipCache bool, opts *common
 // GetValuesFromChart will extract the parameter from a helm chart
 func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version string, skipCache bool, repoType string, opts *common.HTTPOption) (*ChartValues, error) {
 	if h.cache != nil && !skipCache {
-		if v := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); v != nil {
+		if v, ok := h.cache.Get(fmt.Sprintf(valuesPatten, repoURL, chartName, version)); ok && v != nil {
 			return v.(*ChartValues), nil
 		}
 	}

@@ -1,0 +1,7 @@
+# hub/ is not recursed. This object is not installed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placement-store-nested
+data:
+  role: nested

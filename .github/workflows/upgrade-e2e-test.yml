@@ -28,11 +28,15 @@ on:
   # Allow manual workflow execution
   workflow_dispatch: {}
 
+  # Weekly, for the config upgrade job: changes outside its paths can break that path too
+  schedule:
+    - cron: '0 4 * * 1'
+
 # =============================================================================
 # Environment Variables
 # =============================================================================
 env:
-  GO_VERSION: '1.23.8'
+  GO_VERSION: '1.27.1'
 
 # =============================================================================
 # Security Configuration
@@ -56,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false  # Continue testing other versions if one fails
       matrix:
-        k8s-version: ['v1.31.9']
+        k8s-version: ['v1.37.0']
 
     # ==========================================================================
     # Concurrency Control - Prevent overlapping runs
@@ -100,3 +104,116 @@ jobs:
       # ========================================================================
       - name: Run upgrade e2e tests
         uses: ./.github/actions/e2e-test
+
+  # ==========================================================================
+  # Config upgrade from 1.11 and rollback (#7410's verification plan). A paths
+  # filter here rather than on the trigger, which would also gate the job above.
+  # ==========================================================================
+  detect-config:
+    name: Detect config changes
+    runs-on: ubuntu-22.04
+    permissions:
+      actions: write
+    outputs:
+      skip: ${{ steps.paths.outputs.should_skip }}
+    steps:
+      - name: Detect config changes
+        id: paths
+        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          paths: '["apis/config.oam.dev/**", "pkg/config/**", "pkg/controller/config.oam.dev/**", "pkg/webhook/config.oam.dev/**", "pkg/workflow/providers/config/**", "references/cli/config*.go", "charts/vela-core/crds/config.oam.dev_*", "charts/vela-core/templates/admission-webhooks/validatingWebhookConfiguration.yaml", "charts/vela-core/templates/kubevela-controller.yaml", "test/e2e-config-upgrade-test/**", ".github/actions/start-nacos/**", ".github/actions/deploy-current-branch/**", ".github/workflows/upgrade-e2e-test.yml"]'
+          do_not_skip: '["workflow_dispatch", "schedule"]'
+        continue-on-error: true
+
+  config-upgrade:
+    name: Config upgrade from 1.11
+    runs-on: ubuntu-22.04
+    needs: [ detect-config ]
+    if: needs.detect-config.outputs.skip != 'true'
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      OLD_VERSION: '1.11.0'
+      VELA_OLD_CLI: ${{ github.workspace }}/bin/vela-1.11
+      VELA_NEW_CLI: ${{ github.workspace }}/bin/vela
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-config-upgrade
+      cancel-in-progress: true
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      - name: Setup environment
+        uses: ./.github/actions/env-setup
+
+      - name: Setup KinD
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          load-image: 'false'
+
+      - name: Start Nacos
+        uses: ./.github/actions/start-nacos
+
+      # The 1.11 CLI publishes to Nacos from the runner and the controller from a pod: the
+      # container's address on the kind network serves both.
+      - name: Find the Nacos address
+        run: echo "NACOS_CLI_HOST=$(docker inspect -f '{{ .NetworkSettings.Networks.kind.IPAddress }}' nacos)" >> "$GITHUB_ENV"
+
+      - name: Build the branch CLI, fetch the ${{ env.OLD_VERSION }} CLI
+        run: |
+          make vela-cli
+          curl -sSfL "https://github.com/kubevela/kubevela/releases/download/v$OLD_VERSION/vela-v$OLD_VERSION-linux-amd64.tar.gz" \
+            | tar -xzO linux-amd64/vela > "$VELA_OLD_CLI"
+          chmod +x "$VELA_OLD_CLI"
+
+      - name: Install ${{ env.OLD_VERSION }}
+        run: |
+          helm repo add kubevela https://kubevela.github.io/charts
+          helm repo update
+          # as deploy-latest-release: the released chart can't finish a fresh install on
+          # Kubernetes 1.36+ with secure TLS for cluster-gateway (#7452)
+          helm install --create-namespace -n vela-system kubevela kubevela/vela-core --version "$OLD_VERSION" \
+            --set multicluster.clusterGateway.secureTLS.enabled=false --timeout 10m --wait
+
+      - name: Seed legacy objects
+        run: go test ./test/e2e-config-upgrade-test -count=1 -timeout 15m -ginkgo.v -ginkgo.label-filter=seed
+
+      - name: Upgrade to the current branch
+        uses: ./.github/actions/deploy-current-branch
+
+      - name: Checks after the upgrade, migration, the gate, Nacos
+        run: |
+          for phase in after-upgrade migrate gate nacos; do
+            go test ./test/e2e-config-upgrade-test -count=1 -timeout 15m -ginkgo.v -ginkgo.label-filter="$phase"
+          done
+
+      # The chart no longer ships definitions as Helm objects, so the first rollback fails on
+      # them ("no ComponentDefinition with the name ...") and records the old manifest. Helm's
+      # diff then no longer sees the webhook entries the branch added: deleting the configuration
+      # lets the second rollback recreate it as 1.11.0 has it.
+      - name: Roll back to ${{ env.OLD_VERSION }}
+        run: |
+          if ! out=$(helm rollback kubevela 1 -n vela-system --wait --timeout 6m 2>&1); then
+            echo "$out"
+            echo "$out" | grep -q "no ComponentDefinition with the name"
+          fi
+          kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission
+          helm rollback kubevela 1 -n vela-system --wait --timeout 6m
+          kubectl -n vela-system rollout status deploy/kubevela-vela-core --timeout=240s
+
+      - name: Checks after the rollback
+        run: go test ./test/e2e-config-upgrade-test -count=1 -timeout 15m -ginkgo.v -ginkgo.label-filter=after-rollback
+
+      - name: Collect state on failure
+        if: ${{ failure() }}
+        run: |
+          kubectl -n vela-system logs deploy/kubevela-vela-core --tail=200 || true
+          kubectl -n vela-system get pods || true
+          kubectl -n up-seed get secret,application || true
+          kubectl -n up-seed get config,configtemplate || true
+          kubectl get events -A --sort-by=.lastTimestamp | tail -40 || true
+          docker logs --tail 50 nacos || true
+          helm -n vela-system history kubevela || true

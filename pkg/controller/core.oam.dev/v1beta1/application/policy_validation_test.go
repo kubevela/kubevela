@@ -17,8 +17,10 @@ limitations under the License.
 package application
 
 import (
+	"context"
 	"fmt"
 
+	"cuelang.org/go/cue"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -26,7 +28,25 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
+	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
+
+// validatePolicy mirrors what the webhook handler does: compile the template
+// once and hand the result to ValidatePolicyDefinition, rather than each spec
+// re-deriving that plumbing. A compile failure short-circuits here exactly as
+// it does in the handler, which never reaches ValidatePolicyDefinition either.
+func validatePolicy(policy *v1beta1.PolicyDefinition) *PolicyValidationResult {
+	ctx := context.TODO()
+	if policy.Spec.Schematic == nil || policy.Spec.Schematic.CUE == nil {
+		return ValidatePolicyDefinition(ctx, policy, "", cue.Value{})
+	}
+	cueTemplate := policy.Spec.Schematic.CUE.Template
+	val, err := webhookutils.CompilePolicyTemplate(ctx, policy.Spec.Scope, cueTemplate)
+	if err != nil {
+		return &PolicyValidationResult{Errors: []string{err.Error()}}
+	}
+	return ValidatePolicyDefinition(ctx, policy, cueTemplate, val)
+}
 
 var _ = Describe("Test PolicyDefinition Validation", func() {
 
@@ -54,7 +74,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -83,7 +103,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(HaveLen(1))
 		Expect(result.Errors[0]).Should(ContainSubstring("without default values"))
@@ -114,7 +134,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(HaveLen(1))
 		Expect(result.Errors[0]).Should(ContainSubstring("without default values"))
@@ -147,7 +167,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -174,7 +194,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -195,7 +215,7 @@ parameter: {}
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("scope='Application'")))
 	})
@@ -218,7 +238,7 @@ parameter: {}
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(HaveLen(1))
 		Expect(result.Warnings[0]).Should(ContainSubstring("explicit priority"))
@@ -238,7 +258,7 @@ parameter: {}
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(ContainElement(ContainSubstring("unusually high")))
 	})
@@ -261,7 +281,7 @@ parameter: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("expected label")))
 	})
@@ -282,7 +302,7 @@ enabled: "true"  // Invalid! Should be bool, not string
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("'enabled' field must be of type bool")))
 	})
@@ -311,7 +331,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -330,7 +350,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(ContainElement(ContainSubstring("EnableApplicationScopedPolicies feature gate is disabled")))
 	})
@@ -351,7 +371,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(ContainElement(ContainSubstring("EnableGlobalPolicies feature gate is disabled")))
 	})
@@ -366,9 +386,310 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("must have a CUE schematic")))
 	})
 
+	It("Test policy importing a cuex provider package passes validation", func() {
+		// Plain CUE has no "vela/base64", so this only passes when the template
+		// is checked with the cuex compiler that renders it.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+import "vela/base64"
+
+encoded: base64.#Encode & {
+	$params: "hello"
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeTrue())
+		Expect(result.Errors).Should(BeEmpty())
+	})
+
+	It("Test global policy with required parameter and a context reference fails validation", func() {
+		// The reference to context leaves the plain compile in error. The
+		// parameters are read with context opened instead, so the missing
+		// default is still found rather than the policy being waved through.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Scope:    v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {
+	envName: string  // Required field - no default!
+}
+
+output: {
+	labels: {
+		"env": parameter.envName
+		"app": context.appName
+	}
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeFalse())
+		Expect(result.Errors).Should(HaveLen(1))
+		Expect(result.Errors[0]).Should(ContainSubstring("without default values"))
+		Expect(result.Errors[0]).Should(ContainSubstring("envName"))
+	})
+
+	It("Test global policy reading a context field a render does not supply fails validation", func() {
+		// context is opened as a render supplies it, not to any value: a
+		// misspelt field would fail the render of every Application the policy
+		// applies to, so it is refused here instead.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Scope:    v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {
+	envName: *"production" | string
+}
+
+output: {
+	labels: {
+		"app": context.appNmae
+	}
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeFalse())
+		Expect(result.Errors).Should(ContainElement(ContainSubstring("appNmae")))
+	})
+
+	It("Test global policy reading the context fields a render supplies passes validation", func() {
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Scope:    v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {}
+
+output: {
+	labels: {
+		"app":    context.appName
+		"ns":     context.namespace
+		"team":   context.appLabels["team"]
+		"policy": context.policyName
+	}
+	annotations: "rev": context.appRevision
+	if len(context.appComponents) > 0 {
+		labels: "first": context.appComponents[0].name
+	}
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.Errors).Should(BeEmpty())
+	})
+
+	It("Test default-scope global policy reading context is still refused for its scope", func() {
+		// The opened-compile fallback runs only for global policies, and a global
+		// must be Application-scoped: reading its parameters with context opened
+		// never admits a default-scope (component) policy.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {
+	envName: *"production" | string
+}
+
+output: {
+	labels: {
+		"app": context.appName
+	}
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeFalse())
+		Expect(result.Errors).Should(ContainElement(ContainSubstring("global policies must have scope='Application'")))
+		Expect(result.Errors).ShouldNot(ContainElement(ContainSubstring("without default values")))
+	})
+
+	It("Test global policy with defaulted parameters and a context reference passes validation", func() {
+		// context only exists at render, so a template reading it does not
+		// compile on its own. That must not stop its parameters being checked.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Scope:    v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {
+	envName: *"production" | string
+}
+
+output: {
+	labels: {
+		"env": parameter.envName
+		"app": context.appName
+	}
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeTrue())
+		Expect(result.Errors).Should(BeEmpty())
+	})
+
+	It("Test global policy with an unresolvable reference fails validation", func() {
+		// Opening context does not excuse any other unresolved reference.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Scope:    v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {
+	envName: *"production" | string
+}
+
+output: {
+	labels: {
+		"env": parameterr.envName
+	}
+}
+`,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeFalse())
+		Expect(result.Errors).Should(ContainElement(ContainSubstring("failed to compile CUE template")))
+	})
+
+	It("Test Application-scoped policy importing a package of its render compiler passes validation", func() {
+		// Application-scoped policies render with the upstream default compiler,
+		// which has "vela/util" and the workload compiler does not.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Scope: v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: utilImportTemplate,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeTrue())
+		Expect(result.Errors).Should(BeEmpty())
+	})
+
+	It("Test Application-scoped policy importing a package its render compiler lacks fails validation", func() {
+		// "vela/helm" is only in the workload compiler, so this would pass
+		// admission and then fail every render.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Scope: v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: helmImportTemplate,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeFalse())
+		Expect(result.Errors).Should(ContainElement(ContainSubstring(`builtin package "vela/helm" undefined`)))
+	})
+
+	It("Test default-scope policy importing a workload compiler package passes validation", func() {
+		// A default-scope policy renders as a component, with the workload
+		// compiler, so "vela/helm" is available to it.
+		policy := &v1beta1.PolicyDefinition{
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: helmImportTemplate,
+					},
+				},
+			},
+		}
+
+		result := validatePolicy(policy)
+		Expect(result.IsValid()).Should(BeTrue())
+		Expect(result.Errors).Should(BeEmpty())
+	})
+
 })
+
+// utilImportTemplate calls a provider only the upstream default compiler,
+// which renders Application-scoped policies, registers.
+const utilImportTemplate = `
+import "vela/util"
+
+parameter: {
+	name: *"my-app" | string
+}
+
+shortName: util.#Truncate & {
+	$params: {
+		value:     parameter.name
+		maxLength: 20
+	}
+}
+`
+
+// helmImportTemplate calls a provider only the workload compiler, which
+// renders default-scope policies, registers.
+const helmImportTemplate = `
+import "vela/helm"
+
+chart: helm.#Render & {
+	$params: chart: source: "nginx"
+}
+`

@@ -36,6 +36,24 @@ type WorkflowStepDefinitionSpec struct {
 
 	// +optional
 	Version string `json:"version,omitempty"`
+
+	// Module names the module this definition was published in, for example
+	// "s3". It identifies a versioned definition on the spec itself, not only
+	// through labels. Set it together with apiVersion, or leave both empty.
+	// +optional
+	Module string `json:"module,omitempty"`
+
+	// APIVersion is the API line of the module this definition belongs to, for
+	// example "v1" or "v1beta2". Set it together with module, or leave both empty.
+	// +kubebuilder:validation:Pattern=`^v\d+(alpha\d+|beta\d+)?$`
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
+	// Restrictions limits where this definition may be used. Absent or empty means
+	// usable anywhere. A non-empty block overrides the
+	// definition.oam.dev/restrict-namespaces annotation.
+	// +optional
+	Restrictions *common.DefinitionRestrictions `json:"restrictions,omitempty"`
 }
 
 // WorkflowStepDefinitionStatus is the status of WorkflowStepDefinition
@@ -74,6 +92,10 @@ type WorkflowStepDefinition struct {
 	Spec   WorkflowStepDefinitionSpec   `json:"spec,omitempty"`
 	Status WorkflowStepDefinitionStatus `json:"status,omitempty"`
 }
+
+// GetModule returns the module this definition was published in, or "" for a
+// legacy, non-module definition.
+func (wd *WorkflowStepDefinition) GetModule() string { return wd.Spec.Module }
 
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

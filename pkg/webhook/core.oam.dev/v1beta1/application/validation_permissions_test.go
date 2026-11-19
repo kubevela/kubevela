@@ -28,6 +28,7 @@ import (
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
@@ -57,6 +58,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 		userInfo            authenticationv1.UserInfo
 		allowedDefinitions  map[string]bool // resource/namespace/name -> allowed
 		existingDefinitions map[string]bool // namespace/name -> exists
+		moduleBackedDefs    map[string]string
 		expectedErrorCount  int
 		expectedErrorFields []string
 		expectedErrorMsgs   []string
@@ -69,6 +71,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 					Namespace: "test-ns",
 				},
 				Spec: v1beta1.ApplicationSpec{
+					Sources: []v1beta1.ApplicationSource{
+						{Name: "cluster-info", Type: "cluster-config-reader"},
+					},
 					Components: []common.ApplicationComponent{
 						{
 							Name: "comp1",
@@ -98,18 +103,87 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				Groups:   []string{"test-group"},
 			},
 			allowedDefinitions: map[string]bool{
-				"componentdefinitions/vela-system/webservice": true,
-				"traitdefinitions/vela-system/scaler":         true,
-				"policydefinitions/vela-system/topology":      true,
-				"workflowstepdefinitions/vela-system/deploy":  true,
+				"componentdefinitions/vela-system/webservice":         true,
+				"traitdefinitions/vela-system/scaler":                 true,
+				"policydefinitions/vela-system/topology":              true,
+				"workflowstepdefinitions/vela-system/deploy":          true,
+				"sourcedefinitions/vela-system/cluster-config-reader": true,
 			},
 			existingDefinitions: map[string]bool{
-				"vela-system/webservice": true,
-				"vela-system/scaler":     true,
-				"vela-system/topology":   true,
-				"vela-system/deploy":     true,
+				"vela-system/webservice":            true,
+				"vela-system/scaler":                true,
+				"vela-system/topology":              true,
+				"vela-system/deploy":                true,
+				"vela-system/cluster-config-reader": true,
 			},
 			expectedErrorCount: 0,
+		},
+		{
+			// A pinned type - webservice@v1, atlas@v2 - names a definition and
+			// the revision to render it from. The permission check asked for an
+			// object called "webservice@v1", which never exists, so every pinned
+			// binding was denied.
+			name: "a version-pinned type is checked against its definition",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test-ns",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Sources: []v1beta1.ApplicationSource{
+						{Name: "cluster-info", Type: "cluster-config-reader@v1"},
+					},
+					Components: []common.ApplicationComponent{
+						{Name: "comp1", Type: "webservice@v2"},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "test-user",
+				Groups:   []string{"test-group"},
+			},
+			allowedDefinitions: map[string]bool{
+				"componentdefinitions/vela-system/webservice":         true,
+				"sourcedefinitions/vela-system/cluster-config-reader": true,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice":            true,
+				"vela-system/cluster-config-reader": true,
+			},
+			expectedErrorCount: 0,
+		},
+		{
+			name: "form1 module-backed component type is rejected with guidance",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test-ns",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name: "comp1",
+							Type: "bucket",
+						},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "test-user",
+				Groups:   []string{"test-group"},
+			},
+			allowedDefinitions: map[string]bool{
+				"componentdefinitions/vela-system/bucket": true,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/bucket": true,
+			},
+			moduleBackedDefs: map[string]string{
+				"vela-system/bucket": "s3",
+			},
+			expectedErrorCount:  1,
+			expectedErrorFields: []string{"spec.components[0].type"},
+			expectedErrorMsgs:   []string{"use {module}/{apiVersion}/{name} (Form 3)"},
 		},
 		{
 			name: "user lacks ComponentDefinition permission",
@@ -711,6 +785,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				Client:              fake.NewClientBuilder().WithScheme(scheme).Build(),
 				allowedDefinitions:  tc.allowedDefinitions,
 				existingDefinitions: tc.existingDefinitions,
+				moduleBackedDefs:    tc.moduleBackedDefs,
 			}
 
 			handler := &ValidatingHandler{
@@ -775,6 +850,9 @@ func TestValidateDefinitionPermissions_FeatureDisabled(t *testing.T) {
 			Namespace: "test-ns",
 		},
 		Spec: v1beta1.ApplicationSpec{
+			Sources: []v1beta1.ApplicationSource{
+				{Name: "source1", Type: "cluster-config-reader"},
+			},
 			Components: []common.ApplicationComponent{
 				{
 					Name: "comp1",
@@ -883,6 +961,9 @@ func TestCollectDefinitionUsage(t *testing.T) {
 				{Name: "policy2", Type: "override"},
 				{Name: "policy3", Type: "topology"}, // Duplicate
 			},
+			Sources: []v1beta1.ApplicationSource{
+				{Name: "cluster-info", Type: "cluster-config-reader"},
+			},
 			Workflow: &v1beta1.Workflow{
 				Steps: []wfTypesv1alpha1.WorkflowStep{
 					{
@@ -924,6 +1005,7 @@ func TestCollectDefinitionUsage(t *testing.T) {
 	// Check workflow step types
 	assert.Equal(t, 2, len(usage.workflowStepTypes["deploy"]))
 	assert.Equal(t, 1, len(usage.workflowStepTypes["suspend"]))
+	assert.Equal(t, 1, len(usage.sourceTypes["cluster-config-reader"]))
 
 	// Check that substeps are properly marked
 	for _, loc := range usage.workflowStepTypes["suspend"] {
@@ -1009,6 +1091,7 @@ type mockSARClient struct {
 	client.Client
 	allowedDefinitions  map[string]bool
 	existingDefinitions map[string]bool // namespace/name -> exists
+	moduleBackedDefs    map[string]string
 }
 
 func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
@@ -1049,6 +1132,8 @@ func (m *mockSARClient) Get(ctx context.Context, key client.ObjectKey, obj clien
 		resource = "policydefinitions"
 	case *v1beta1.WorkflowStepDefinition:
 		resource = "workflowstepdefinitions"
+	case *unstructured.Unstructured:
+		resource = "sourcedefinitions"
 	default:
 		return m.Client.Get(ctx, key, obj, opts...)
 	}
@@ -1056,10 +1141,26 @@ func (m *mockSARClient) Get(ctx context.Context, key client.ObjectKey, obj clien
 	defKey := fmt.Sprintf("%s/%s", key.Namespace, key.Name)
 	if m.existingDefinitions != nil {
 		if exists, ok := m.existingDefinitions[defKey]; ok && exists {
-			// Definition exists - return success
+			setModuleField(obj, m.moduleBackedDefs[defKey])
 			return nil
 		}
 	}
 	// Definition not found - use correct resource type in error
 	return errors.NewNotFound(v1beta1.SchemeGroupVersion.WithResource(resource).GroupResource(), key.Name)
+}
+
+func setModuleField(obj client.Object, module string) {
+	if module == "" {
+		return
+	}
+	switch d := obj.(type) {
+	case *v1beta1.ComponentDefinition:
+		d.Spec.Module = module
+	case *v1beta1.TraitDefinition:
+		d.Spec.Module = module
+	case *v1beta1.PolicyDefinition:
+		d.Spec.Module = module
+	case *v1beta1.WorkflowStepDefinition:
+		d.Spec.Module = module
+	}
 }

@@ -1048,3 +1048,20 @@ required: string | *"default"
 		})
 	}
 }
+
+// TestGetStatus_PropagatesHealthEvalError is the regression test from issue #7141:
+// GetStatus must not silently discard a CUE health-policy evaluation error.
+func TestGetStatus_PropagatesHealthEvalError(t *testing.T) {
+	templateContext := map[string]interface{}{
+		"output": map[string]interface{}{
+			"spec":   map[string]interface{}{"replicas": int64(1)},
+			"status": map[string]interface{}{"readyReplicas": int64(1)},
+		},
+	}
+	brokenPolicy := `isHealth: context.output.spec.replicas + "not-a-number" > 0`
+
+	result, err := GetStatus(templateContext, &StatusRequest{Health: brokenPolicy})
+	assert.Error(t, err, "GetStatus must surface the health policy evaluation error")
+	assert.NotNil(t, result, "GetStatus should still return a best-effort result")
+	assert.False(t, result.Healthy)
+}

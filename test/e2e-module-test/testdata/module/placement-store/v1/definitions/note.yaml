@@ -1,0 +1,23 @@
+# A placement annotation on a definition is accepted and kept. The definition
+# still installs with the hub tiers.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: note
+  annotations:
+    resource.oam.dev/placement: runtime
+spec:
+  workload:
+    type: autodetects.core.oam.dev
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "v1"
+          kind:       "ConfigMap"
+          metadata: name: context.name
+          data: note: parameter.message
+        }
+        parameter: {
+          message: *"v1" | string
+        }

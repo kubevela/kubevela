@@ -8,7 +8,7 @@ import (
 		"category": "Config Management"
 	}
 	labels: {}
-	description: "Read a config"
+	description: "Read a config, whichever holds it: a Config's Secret or a legacy one"
 }
 template: {
 	output: config.#ReadConfig & {

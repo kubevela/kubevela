@@ -73,12 +73,12 @@ func computeReleaseFingerprint(ch *chart.Chart, values map[string]interface{}) s
 // Returns the release manifest string, notes, release version, and any error.
 func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, int, error) {
 	fingerprint := computeReleaseFingerprint(ch, values)
-	cacheKey := releaseCacheKey(releaseNamespace, releaseName)
+	cacheKey := releaseCacheKey(clusterFrom(ctx), releaseNamespace, releaseName)
 
 	p.releaseMu.Lock()
 	defer p.releaseMu.Unlock()
 
-	actionConfig, err := p.actionConfigFactory(releaseNamespace)
+	actionConfig, err := p.actionConfigFactory(ctx, releaseNamespace)
 	if err != nil {
 		return "", "", 0, err
 	}
@@ -147,7 +147,7 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 			klog.Infof("Helm provider [%s]: Release %s exists but was not installed by KubeVela (missing ownership labels), forcing upgrade to adopt", velaContextStr(velaCtx), releaseName)
 			// Label all existing release secrets with KubeVela ownership so they
 			// can be tracked by the ResourceTracker and cleaned up on App deletion.
-			p.labelReleaseSecrets(releaseNamespace, releaseName, velaCtx)
+			p.labelReleaseSecrets(ctx, releaseNamespace, releaseName, velaCtx)
 		}
 
 		// publishVersion pin short-circuit: when the App is at a stable
@@ -188,7 +188,7 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 				p.releaseVersions[cacheKey] = existingRelease.Version
 				// Run health validation in the background to detect corrupted
 				// or missing release secrets early, without blocking this call.
-				go p.validateReleaseHealth(releaseName, releaseNamespace)
+				go p.validateReleaseHealth(context.WithoutCancel(ctx), releaseName, releaseNamespace)
 				return existingRelease.Manifest, existingRelease.Info.Notes, existingRelease.Version, nil
 			}
 		}

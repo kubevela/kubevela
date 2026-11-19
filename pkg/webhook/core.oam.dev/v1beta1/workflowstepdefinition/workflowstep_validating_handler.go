@@ -31,6 +31,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -69,7 +71,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "WorkflowStepDefinitionValidator")
 
-	logger.WithStep("start").Info("Starting admission validation for WorkflowStepDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
+	logger.WithStep("start").Debug("Starting admission validation for WorkflowStepDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	// Validate resource type
 	if req.Resource.String() != workflowStepDefGVR.String() {
@@ -83,7 +85,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	// Only validate create and update operations
 	if req.Operation != admissionv1.Create && req.Operation != admissionv1.Update {
-		logger.WithStep("skip-validation").Info("Skipping WorkflowStepDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
+		logger.WithStep("skip-validation").Debug("Skipping WorkflowStepDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 		return admission.ValidationResponse(true, "Operation does not require validation")
 	}
 
@@ -97,20 +99,40 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	if obj.Spec.Version != "" {
 		logger = logger.WithValues("version", obj.Spec.Version)
 	}
-	logger.WithStep("decode").Info("Successfully decoded WorkflowStepDefinition from admission request",
+	logger.WithStep("decode").Debug("Successfully decoded WorkflowStepDefinition from admission request",
 		"definitionName", obj.Name,
 		"namespace", obj.Namespace,
 		"hasSchematic", obj.Spec.Schematic != nil,
 		"version", obj.Spec.Version)
 
-	// Validate output resources
+	// Validate CUE template and output resources
+	var warnings []string
 	if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-		logger.WithStep("validate-output-resources").Info("Validating output resources referenced in WorkflowStepDefinition CUE template")
-		if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper(), obj); err != nil {
-			logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
+		logger.WithStep("validate-cue").Debug("Validating CUE template for WorkflowStepDefinition schematic")
+
+		cueTemplate := obj.Spec.Schematic.CUE.Template
+		if *upgrade.EnableCUEVersionCompatibility {
+			upgraded, wasUpgraded := upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.WorkflowStepKind, upgrade.TemplateAreaMain)
+			if wasUpgraded {
+				warnings = append(warnings, "CUE template uses legacy syntax that will be auto-upgraded at render time. Run `vela def compat definitions` to scan all definitions for legacy syntax.")
+				cueTemplate = upgraded
+			}
+		}
+
+		// Compile the template that will actually be used at render time, i.e.
+		// post-upgrade, so legacy syntax the compat engine already knows how to
+		// fix doesn't get rejected here as though it were unfixable.
+		if err := webhookutils.ValidateWorkflowStepCuexTemplate(ctx, cueTemplate); err != nil {
+			logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+		logger.WithStep("validate-cue").WithSuccess(true).Debug("CUE template validation completed successfully - template is syntactically correct")
+
+		if err := webhookutils.ValidateOutputResourcesExist(cueTemplate, h.Client.RESTMapper(), obj); err != nil {
+			logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 			return admission.Denied(fmt.Sprintf("output resource validation failed: %s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.WithStep("validate-output-resources").WithSuccess(true).Info("Output resources validation completed successfully - all referenced resources exist in cluster")
+		logger.WithStep("validate-cue").WithSuccess(true).Debug("CUE template validation completed successfully - all referenced resources exist in cluster")
 	}
 
 	// Validate semantic version
@@ -119,7 +141,19 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("validate-version").WithError(err).Error(err, "WorkflowStepDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
 			return admission.Denied(fmt.Sprintf("semantic version validation failed: %s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.WithStep("validate-version").Info("WorkflowStepDefinition version follows semantic versioning format", "version", obj.Spec.Version)
+		logger.WithStep("validate-version").Debug("WorkflowStepDefinition version follows semantic versioning format", "version", obj.Spec.Version)
+	}
+
+	// Validate identity fields: module and apiVersion are set together or not at all.
+	if resp, denied := webhookutils.DenyOnInvalidIdentity(logger, "WorkflowStepDefinition", obj.Spec.Module, obj.Spec.APIVersion, req.UID); denied {
+		return resp
+	}
+
+	// Validate namespace restrictions. A malformed glob would otherwise deny
+	// silently at render time, far from where it was written.
+	if err := nsrestrict.ValidateObject(obj); err != nil {
+		logger.WithStep("validate-namespace-restrictions").WithError(err).Error(err, "WorkflowStepDefinition namespace restriction is not a valid list of namespace names or globs")
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	// Validate version conflicts
@@ -129,7 +163,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Denied(fmt.Sprintf("definition version conflict: %s (requestUID=%s)", err.Error(), req.UID))
 	}
 
-	logger.WithStep("complete").WithSuccess(true, startTime).Info("WorkflowStepDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+	logger.WithStep("complete").WithSuccess(true, startTime).Debug("WorkflowStepDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+	if len(warnings) > 0 {
+		return admission.ValidationResponse(true, "").WithWarnings(warnings...)
+	}
 	return admission.ValidationResponse(true, "Validation passed")
 }
 

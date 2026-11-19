@@ -158,11 +158,11 @@ func (mr *MockIConfigClientMockRecorder) SearchConfig(params interface{}) *gomoc
 // CloseClient Close the GRPC client
 func (m *MockIConfigClient) CloseClient() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SearchConfig")
+	m.ctrl.Call(m, "CloseClient")
 }
 
 // CloseClient indicates an expected call of CloseClient
-func (mr *MockIConfigClientMockRecorder) CloseClient(params interface{}) *gomock.Call {
+func (mr *MockIConfigClientMockRecorder) CloseClient() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseClient", reflect.TypeOf((*MockIConfigClient)(nil).CloseClient), params)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseClient", reflect.TypeOf((*MockIConfigClient)(nil).CloseClient))
 }

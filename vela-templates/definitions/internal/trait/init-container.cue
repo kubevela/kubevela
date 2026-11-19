@@ -1,3 +1,5 @@
+import "list"
+
 "init-container": {
 	type: "trait"
 	annotations: {}
@@ -8,13 +10,15 @@
 	}
 }
 template: {
+	// The patcher matches entries on a concrete name and does not resolve
+	// defaults, so mountName is interpolated wherever it is a patch key.
 	patch: spec: template: spec: {
 		// +patchKey=name
 		containers: [{
 			name: context.name
 			// +patchKey=name
 			volumeMounts: [{
-				name:      parameter.mountName
+				name:      "\(parameter.mountName)"
 				mountPath: parameter.appMountPath
 			}]
 		}]
@@ -34,14 +38,14 @@ template: {
 			}
 
 			// +patchKey=name
-			volumeMounts: [{
-				name:      parameter.mountName
+			volumeMounts: list.Concat([[{
+				name:      "\(parameter.mountName)"
 				mountPath: parameter.initMountPath
-			}] + parameter.extraVolumeMounts
+			}], parameter.extraVolumeMounts])
 		}]
 		// +patchKey=name
 		volumes: [{
-			name: parameter.mountName
+			name: "\(parameter.mountName)"
 			emptyDir: {}
 		}]
 	}

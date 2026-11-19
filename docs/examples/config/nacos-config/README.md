@@ -29,7 +29,7 @@ $ vela config create nacos --template nacos-server servers[0].ipAddr=127.0.0.1 s
 $ vela config create db-config --template nacos-config dataId=db group="DEFAULT_GROUP" contentType="properties" content.host=127.0.0.1 content.port=3306 content.username=root 
 ```
 
-Then, the content will be written to the Nacos server.
+Then, the content will be written to the Nacos server. The command returns once the `Config` is created; the controller publishes the content when it reconciles the `Config` and reports the outcome in its `NacosSynced` condition (`kubectl get config db-config -n vela-system -o yaml`).
 
 ```properties
 host = 127.0.0.1

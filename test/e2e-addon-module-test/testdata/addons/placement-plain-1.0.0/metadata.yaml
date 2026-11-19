@@ -1,0 +1,7 @@
+name: placement-plain
+version: 1.0.0
+description: "Test addon with no topology policy of its own, importing widget-kit with no placement. Placed by the type: addon component's placement."
+tags:
+  - test
+  - module-import
+dependencies: []

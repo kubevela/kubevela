@@ -1,0 +1,11 @@
+# The addon name is taken from `name` (vela addon push builds Chart.yaml from
+# this file, and the OCI repository is <registry-prefix>/<name>). The folder
+# name does not matter, which is why versions can live in 1.0.0/, 1.1.0/ ...
+name: widget-platform
+version: 1.1.0
+description: Test addon that installs the widget-kit module through modules/_imports.cue, plus its own resources, outputs, parameters and one addon-level trait.
+tags:
+  - test
+  - module-import
+# No dependencies and no system requirements: nothing outside this repo.
+dependencies: []

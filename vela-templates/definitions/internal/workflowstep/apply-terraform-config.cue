@@ -15,6 +15,12 @@ import (
 }
 
 template: {
+	// source is required, but a missing one is unresolved rather than absent, so test both of its forms
+	if parameter.source.hcl == _|_ && parameter.source.remote == _|_ {
+		validateParams: builtin.#Fail & {
+			$params: message: "source is required: set source.hcl, or source.remote with an optional source.path"
+		}
+	}
 	apply: kube.#Apply & {
 		$params: {
 			value: {

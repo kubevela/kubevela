@@ -42,6 +42,16 @@ const (
 	// LabelAppUID records the uid of Application
 	LabelAppUID = "app.oam.dev/uid"
 
+	// LabelOwnerKind records the kind of a non-Application owner (e.g. Component) of a
+	// ResourceTracker or of a resource it dispatched
+	LabelOwnerKind = "owner.oam.dev/kind"
+	// LabelOwnerName records the name of a non-Application owner
+	LabelOwnerName = "owner.oam.dev/name"
+	// LabelOwnerNamespace records the namespace of a non-Application owner
+	LabelOwnerNamespace = "owner.oam.dev/namespace"
+	// LabelOwnerUID records the uid of a non-Application owner
+	LabelOwnerUID = "owner.oam.dev/uid"
+
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"
 	// TraitTypeLabel indicates the type of the traitDefinition
@@ -51,6 +61,9 @@ const (
 
 	// LabelComponentDefinitionName records the name of ComponentDefinition
 	LabelComponentDefinitionName = "componentdefinition.oam.dev/name"
+
+	// LabelSourceDefinitionName records the name of SourceDefinition
+	LabelSourceDefinitionName = "sourcedefinition.oam.dev/name"
 	// LabelTraitDefinitionName records the name of TraitDefinition
 	LabelTraitDefinitionName = "trait.oam.dev/name"
 	// LabelManageWorkloadTrait indicates if the trait will manage the lifecycle of the workload
@@ -149,6 +162,25 @@ const (
 	// AnnotationDefinitionRevisionName is used to specify the name of DefinitionRevision in component/trait definition
 	AnnotationDefinitionRevisionName = "definitionrevision.oam.dev/name"
 
+	// AnnotationRestrictNamespaces limits the namespaces whose Applications may use a
+	// definition, as a comma-separated list of namespace names or globs. It is the
+	// channel for definitions whose spec you do not own, such as the builtins helm
+	// installs. A label cannot carry this: label values reject "*" and ",".
+	//
+	// Names only. Restricting by namespace label is spec.restrictions.namespaceSelector
+	// and nothing else, so the annotation stays a flat list with no parsing to get
+	// wrong.
+	AnnotationRestrictNamespaces = "definition.oam.dev/restrict-namespaces"
+
+	// AnnotationQuotaExempt, set to "true" on a Namespace, lifts every definition
+	// quota for that namespace. It is for getting out of the way of an incident,
+	// not for carving out a permanent exception, so each use is logged.
+	//
+	// Namespaces are cluster scoped, so setting this needs cluster level RBAC. It
+	// lifts quotas only; which definitions a namespace may use at all is not
+	// something a namespace gets to decide about itself.
+	AnnotationQuotaExempt = "definition.oam.dev/quota-exempt"
+
 	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
 	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
 
@@ -161,10 +193,54 @@ const (
 	// AnnotationAutoUpdate is annotation that let application auto update when it finds definition changes
 	AnnotationAutoUpdate = "app.oam.dev/autoUpdate"
 
+	// AnnotationCelExpressions opts one Application in to $( ) property
+	// expressions while RequireCelExpressionOptIn is on. Any value other than
+	// "true" leaves the Application as it was.
+	//
+	// Per-Application rather than per-namespace because the thing being opted in
+	// to is a reading of the Application's own property values: a $(VAR) that used
+	// to reach the container verbatim now has to be written $$(VAR). Whoever owns
+	// the Application is who can answer for that.
+	//
+	// Named for the expressions and not for sources: $(context.appName) needs no
+	// SourceDefinition, and what an Application opts in to here is having its
+	// properties read for $( ) at all. Sources are the first thing expressions
+	// made worth having, not the boundary of what they will be used for.
+	AnnotationCelExpressions = "app.oam.dev/cel-expressions"
+
 	// AnnotationAutoRevision controls whether policy-rendered spec changes create new ApplicationRevisions.
 	// When set to "true", policies can modify Application.Spec and trigger new revisions.
 	// This is orthogonal to AnnotationAutoUpdate which controls definition version updates.
+	// Like the other policy rollout annotations it takes "true", "false" or a comma-separated
+	// list of PolicyDefinition names; without it the controller default applies.
 	AnnotationAutoRevision = "policy.oam.dev/auto-revision"
+
+	// AnnotationApplyPolicyUpdates controls whether an Application adopts new versions of the
+	// Application-scoped policies it runs ("true", "false" or a list of PolicyDefinition names).
+	AnnotationApplyPolicyUpdates = "policy.oam.dev/apply-policy-updates"
+
+	// AnnotationApplyDataChanges controls whether an Application takes changed output from an
+	// unchanged policy version, such as values the policy reads from the cluster ("true",
+	// "false" or a list of PolicyDefinition names).
+	AnnotationApplyDataChanges = "policy.oam.dev/apply-data-changes"
+
+	// AnnotationPolicyContextHash records, on an Application's current ResourceTracker, a hash of
+	// each policy instance's context output when its components were last applied: a
+	// JSON map from policy instance (global:<name>, or the spec.policies name) to hash. A change for
+	// a policy with apply-data-changes on re-applies the components without a new revision.
+	AnnotationPolicyContextHash = "app.oam.dev/policy-context-hash"
+
+	// AnnotationAppGeneration records, on an ApplicationRevision, the generation of the Application
+	// it was last written for. A revision stores the spec after policy transforms, so this tells an
+	// author edit apart from a spec-rewriting policy.
+	AnnotationAppGeneration = "app.oam.dev/application-generation"
+
+	// AnnotationSourceResolvedHash records per-source hashes of the source
+	// values a component consumed at dispatch time (JSON map of source name ->
+	// hash). It is stamped on the dispatched workload so a later reconcile can
+	// detect that a source re-resolved to a different value (which the raw spec
+	// comparison cannot see) and re-dispatch.
+	AnnotationSourceResolvedHash = "source.oam.dev/resolved-hash"
 
 	// AnnotationSkipGlobalPolicies controls whether global (vela-system) policies are skipped for an Application.
 	// When set to "true", only explicitly declared spec.policies are evaluated.
@@ -218,6 +294,14 @@ const (
 	// AnnotationAddonDefinitionBondCompKey indicates the definition in addon bond component.
 	AnnotationAddonDefinitionBondCompKey = "addon.oam.dev/bind-component"
 
+	// AnnotationModuleInstallNamespace is set by the addon renderer on an owned
+	// addon Application to the namespace of the Application that installed the
+	// addon. The owned Application itself always lives in vela-system, so a
+	// type: module component inside it installs its definitions here instead.
+	// The module definition honors it only on Applications carrying
+	// LabelAddonName.
+	AnnotationModuleInstallNamespace = "modules.oam.dev/install-namespace"
+
 	// AnnotationSkipResume annotation indicates that the resource does not need to be resumed.
 	AnnotationSkipResume = "controller.core.oam.dev/skip-resume"
 
@@ -254,12 +338,14 @@ const PolicyAdditionalContextKey policyContextKeyType = "kubevela.oam.dev/policy
 // reading internal platform metadata.
 var internalMetadataPrefixes = map[string]struct{}{
 	"app.oam.dev/":           {},
+	"owner.oam.dev/":         {},
 	"oam.dev/":               {},
 	"kubectl.kubernetes.io/": {},
 	"kubernetes.io/":         {},
 	"k8s.io/":                {},
 	"helm.sh/":               {},
 	"app.kubernetes.io/":     {},
+	"modules.oam.dev/":       {},
 }
 
 // FilterInternalMetadata returns a copy of metadata with internal platform keys removed.

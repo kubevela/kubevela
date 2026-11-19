@@ -19,47 +19,77 @@ package apply
 import (
 	"strings"
 
-	"k8s.io/utils/strings/slices"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"k8s.io/utils/strings/slices"
 )
 
 const (
 	sharedBySep = ","
 )
 
-// AddSharer add sharer
-func AddSharer(sharedBy string, app *v1beta1.Application) string {
-	key := GetAppKey(app)
-	sharers := strings.Split(sharedBy, sharedBySep)
-	existing := slices.Contains(sharers, key)
-	if !existing {
-		sharers = append(slices.Filter(nil, sharers, func(s string) bool {
-			return s != ""
-		}), key)
+// CanonicalOwnerKey returns an owner key as <kind>/<namespace>/<name>. A key without a kind
+// (<namespace>/<name>, or <name> in the default namespace) was written before owner kinds
+// existed and belongs to Config.DefaultOwnerKind; with no default kind it is returned as is.
+func CanonicalOwnerKey(key string) string {
+	kind := current().DefaultOwnerKind
+	if kind == "" || key == "" {
+		return key
 	}
-	return strings.Join(sharers, sharedBySep)
+	switch parts := strings.Split(key, "/"); len(parts) {
+	case 1:
+		return kind + "/" + metav1.NamespaceDefault + "/" + key
+	case 2:
+		return kind + "/" + key
+	default:
+		return key
+	}
 }
 
-// ContainsSharer check if the shared-by annotation contains the target application
-func ContainsSharer(sharedBy string, app *v1beta1.Application) bool {
-	key := GetAppKey(app)
-	sharers := strings.Split(sharedBy, sharedBySep)
-	return slices.Contains(sharers, key)
+func sameOwner(a, b string) bool {
+	return a == b || CanonicalOwnerKey(a) == CanonicalOwnerKey(b) // usually written the same way
 }
 
-// FirstSharer get the first sharer of the application
+// AddSharer adds the owner key to a shared-by list, unless the owner is already there in
+// either form. The key is written as given.
+func AddSharer(sharedBy string, key string) string {
+	sharers := slices.Filter(nil, strings.Split(sharedBy, sharedBySep), func(s string) bool {
+		return s != ""
+	})
+	for _, s := range sharers {
+		if sameOwner(s, key) {
+			return strings.Join(sharers, sharedBySep)
+		}
+	}
+	return strings.Join(append(sharers, key), sharedBySep)
+}
+
+// ContainsSharer reports whether a shared-by list contains the owner, in either key form
+func ContainsSharer(sharedBy string, key string) bool {
+	for _, s := range strings.Split(sharedBy, sharedBySep) {
+		if s != "" && sameOwner(s, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// FirstSharer is the owner key that controls a shared resource: the first in the list, skipping
+// empty entries, which a hand-written or legacy annotation can hold. "" if there is no sharer.
 func FirstSharer(sharedBy string) string {
-	sharers := strings.Split(sharedBy, sharedBySep)
-	return sharers[0]
+	for _, s := range strings.Split(sharedBy, sharedBySep) {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
-// RemoveSharer remove sharer
-func RemoveSharer(sharedBy string, app *v1beta1.Application) string {
-	key := GetAppKey(app)
+// RemoveSharer removes the owner, in every key form, from a shared-by list
+func RemoveSharer(sharedBy string, key string) string {
 	sharers := strings.Split(sharedBy, sharedBySep)
 	sharers = slices.Filter(nil, sharers, func(s string) bool {
-		return s != key
+		return s != "" && !sameOwner(s, key)
 	})
 	return strings.Join(sharers, sharedBySep)
 }

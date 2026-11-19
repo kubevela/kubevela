@@ -1,0 +1,13 @@
+# Inline-module mirror of consumer-v2-contract.yaml. The v2 widget has no
+# "color" and requires "size".
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: v2-contract-inline
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit-inline/v2/widget
+      properties:
+        color: blue

@@ -96,6 +96,26 @@ func (c Condition) Validate() error {
 type Style struct {
 	// ColSpan the width of a responsive layout
 	ColSpan int `json:"colSpan"`
+	// Format is how a list of structs is laid out: `table` for one row each.
+	Format string `json:"format,omitempty"`
+	// RowKey names the field that identifies a row of a list: unique, and the
+	// row's title.
+	RowKey string `json:"rowKey,omitempty"`
+	// ItemLabel names the field that titles each item of a list.
+	ItemLabel string `json:"itemLabel,omitempty"`
+	// Placeholder is shown in an empty input.
+	Placeholder string `json:"placeholder,omitempty"`
+	// Advanced puts the parameter behind the Advanced toggle. Once any
+	// parameter of a form sets it, only those that do are hidden.
+	Advanced bool `json:"advanced,omitempty"`
+	// Section names the collapsible section the parameter is shown in.
+	Section string `json:"section,omitempty"`
+	// OptionsFrom names where the parameter's choices are read when the form
+	// opens: configs:<template>, clusters or envs.
+	OptionsFrom string `json:"optionsFrom,omitempty"`
+	// Expression is `never` for a parameter that must be written as a
+	// literal rather than a $( ) expression.
+	Expression string `json:"expression,omitempty"`
 }
 
 // GroupOption define multiple data structure composition options.
@@ -114,6 +134,9 @@ type Validate struct {
 	Pattern      string      `json:"pattern,omitempty"`
 	Options      []Option    `json:"options,omitempty"`
 	DefaultValue interface{} `json:"defaultValue,omitempty"`
+	// Message is shown when a value fails a constraint other than being
+	// required.
+	Message string `json:"message,omitempty"`
 	// the parameter cannot be changed twice.
 	Immutable bool `json:"immutable"`
 }

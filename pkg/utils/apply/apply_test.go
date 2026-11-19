@@ -20,7 +20,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -370,7 +370,7 @@ func TestMustBeControllableBy(t *testing.T) {
 
 func TestMustBeControlledByApp(t *testing.T) {
 	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app"}}
-	ao := MustBeControlledByApp(app)
+	ao := mustBeControlledByApp(app)
 	testCases := map[string]struct {
 		existing client.Object
 		hasError bool
@@ -443,7 +443,7 @@ func TestMustBeControlledByApp(t *testing.T) {
 
 func TestSharedByApp(t *testing.T) {
 	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app"}}
-	ao := SharedByApp(app)
+	ao := sharedByApp(app)
 	testCases := map[string]struct {
 		existing       client.Object
 		desired        client.Object
@@ -646,8 +646,8 @@ func TestSharedByApp(t *testing.T) {
 
 				// Legacy check: When a resource is shared by another app, updateAnnotation should be false
 				if tc.existing != nil && tc.existing.GetAnnotations() != nil && tc.existing.GetAnnotations()[oam.AnnotationAppSharedBy] != "" {
-					existingController := GetControlledBy(tc.existing)
-					if existingController != "" && existingController != GetAppKey(app) {
+					existingController := appControlledBy(tc.existing)
+					if existingController != "" && existingController != appKey(app) {
 						r.False(act.updateAnnotation, "updateAnnotation should be false when sharing resource controlled by another app")
 					}
 				}
@@ -672,4 +672,16 @@ func TestFilterSpecialAnn(t *testing.T) {
 	assert.Equal(t, false, trimLastAppliedConfigurationForSpecialResources(dp))
 	dp.Annotations = map[string]string{oam.AnnotationLastAppliedConfig: "xxx"}
 	assert.Equal(t, true, trimLastAppliedConfigurationForSpecialResources(dp))
+}
+
+func TestTakeOverIf(t *testing.T) {
+	r := require.New(t)
+	accept := TakeOverIf(func(existing client.Object) bool { return existing.GetLabels()["made-by"] == "migration" })
+	act := &applyAction{}
+	r.NoError(accept(act, nil, nil))
+	r.False(act.takeOver, "nothing existing: nothing to take")
+	r.NoError(accept(act, &appsv1.Deployment{}, nil))
+	r.False(act.takeOver, "an existing object the predicate rejects is left to the refusal")
+	r.NoError(accept(act, &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"made-by": "migration"}}}, nil))
+	r.True(act.takeOver)
 }

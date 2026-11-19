@@ -131,7 +131,7 @@ spec:
 				Controller:         ptr.To(true),
 				BlockOwnerDeletion: ptr.To(true),
 			}}
-			_, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, typeTraitDefinition, nil, nil, []byte(""), ownerReference)
+			_, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, typeTraitDefinition, nil, nil, []byte(""), nil, ownerReference)
 			Expect(err).Should(BeNil())
 		})
 	})

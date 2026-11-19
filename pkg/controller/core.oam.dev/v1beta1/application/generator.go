@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -35,6 +36,7 @@ import (
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/slices"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/process"
 	"github.com/kubevela/workflow/pkg/executor"
 	"github.com/kubevela/workflow/pkg/generator"
 	providertypes "github.com/kubevela/workflow/pkg/providers/types"
@@ -46,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/config"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application/assemble"
 	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
@@ -54,7 +57,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/workflow"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
@@ -82,7 +87,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		oam.LabelAppName:      app.Name,
 		oam.LabelAppNamespace: app.Namespace,
 	}
-	pCtx := velaprocess.NewContext(generateContextDataFromApp(ctx.GetContext(), app, appRev.Name))
+	pCtx := velaprocess.NewContext(appfile.WorkflowContextData(ctx.GetContext(), app, appRev.Name))
 	ctxWithRuntimeParams := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
 		ComponentApply:       h.applyComponentFunc(appParser, af),
 		ComponentRender:      h.renderComponentFunc(appParser, af),
@@ -106,9 +111,15 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		KubeClient: h.Client,
 	})
 	ctx.SetContext(ctxWithRuntimeParams)
-	instance := generateWorkflowInstance(af, app)
+	instance := generateWorkflowInstance(af, app, af.StepsWithReadDependencies(af.WorkflowSteps))
+	h.stepReads = af.StepReadDependencies(af.WorkflowSteps)
 	executor.InitializeWorkflowInstance(instance)
 	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
+		Expressions: workflowStepExpressions(af, func(name, stepType string, resolved map[string]sources.SourceResolutionStatus) {
+			// Cluster and namespace are empty: a workflow step is not placed the way
+			// a component is, so its reads are not per-placement.
+			h.recordSourceResolution(sourceKindWorkflowStep, name, stepType, "", "", resolved)
+		}),
 		Compiler:       providers.DefaultCompiler.Get(),
 		ProcessCtx:     pCtx,
 		TemplateLoader: template.NewWorkflowStepTemplateRevisionLoader(appRev, h.Client.RESTMapper()),
@@ -146,6 +157,7 @@ func copyWorkflowStatusToInstance(app *v1beta1.Application, mode *wfTypesv1alpha
 		status.Finished = wfStatus.Finished
 		status.ContextBackend = wfStatus.ContextBackend
 		status.Steps = wfStatus.Steps
+		status.Dependencies = workflow.StepDependencies(wfStatus.Dependencies)
 		status.StartTime = wfStatus.StartTime
 		status.EndTime = wfStatus.EndTime
 	}
@@ -153,7 +165,21 @@ func copyWorkflowStatusToInstance(app *v1beta1.Application, mode *wfTypesv1alpha
 	return status
 }
 
-func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wfTypes.WorkflowInstance {
+// workflowStepExpressions turns on $( ) expressions in the workflow's steps for an
+// Application that opts in. The workflow resolves them when each step runs, and
+// KubeVela answers context and source as that step's render would.
+func workflowStepExpressions(af *appfile.Appfile,
+	record func(step, stepType string, resolved map[string]sources.SourceResolutionStatus)) *wfTypes.ExpressionOptions {
+	if !sources.ExpressionsEnabledFor(af.AppAnnotations) {
+		return nil
+	}
+	opts := sources.StepExpressions(func(step, _ string) process.Context {
+		return velaprocess.NewContext(appfile.GenerateContextDataFromAppFile(af, step))
+	}, record)
+	return &opts
+}
+
+func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application, steps []wfTypesv1alpha1.WorkflowStep) *wfTypes.WorkflowInstance {
 	instance := &wfTypes.WorkflowInstance{
 		WorkflowMeta: wfTypes.WorkflowMeta{
 			Name:        af.Name,
@@ -172,7 +198,7 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wf
 			},
 		},
 		Debug: af.Debug,
-		Steps: af.WorkflowSteps,
+		Steps: steps,
 		Mode:  af.WorkflowMode,
 	}
 	instance.Status = copyWorkflowStatusToInstance(app, af.WorkflowMode)
@@ -259,9 +285,15 @@ func checkDependsOnValidComponent(dependsOnComponentNames, allComponentNames []s
 func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentRender {
 	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
+		ctx = contextWithReadPlacement(ctx, overrideNamespace, comp.ReplicaKey)
 
-		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
+		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
+		if sources.IsComponentReadNotReady(err) {
+			// A render has no way to report "not yet", unlike an apply.
+			return nil, nil, errors.WithMessagef(err, "component %q cannot be rendered until what it reads is ready", comp.Name)
+		}
 		if err != nil {
+			h.recordRenderFailureSourceReads(wl, clusterName, overrideNamespace)
 			return nil, nil, err
 		}
 		return renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
@@ -275,10 +307,14 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
+		if sources.IsComponentReadNotReady(err) {
+			return false, &common.ApplicationComponentStatus{Name: comp.Name, Healthy: false, Message: err.Error()}, nil, nil, nil
+		}
 		if err != nil {
+			h.recordRenderFailureSourceReads(wl, clusterName, overrideNamespace)
 			return false, nil, nil, nil, err
 		}
-		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
+		h.renderAsRequester(ctx, wl)
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
 		if err != nil {
@@ -304,7 +340,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 }
 
 func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.Appfile) oamprovidertypes.ComponentApply {
-	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	return func(baseCtx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		t := time.Now()
 		appRev := h.currentAppRev
 		defer func() { metrics.ApplyComponentTimeHistogram.WithLabelValues("-").Observe(time.Since(t).Seconds()) }()
@@ -314,27 +350,36 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 		ctx = contextWithReplicaKey(ctx, comp.ReplicaKey)
 
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
-		if err != nil {
-			return nil, nil, false, err
+		if sources.IsComponentReadNotReady(err) {
+			// Not applied until what it reads is there.
+			klog.V(common2.LogDebug).InfoS("component waits on a read", "app", klog.KObj(h.app), "component", comp.Name,
+				"cluster", clusterName, "reason", err.Error())
+			h.recordWaiting(comp, clusterName, overrideNamespace, err)
+			return nil, nil, false, err.Error(), nil
 		}
-		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
+		if err != nil {
+			h.recordRenderFailureSourceReads(wl, clusterName, overrideNamespace)
+			return nil, nil, false, "", err
+		}
+		h.renderAsRequester(ctx, wl)
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
-			return nil, nil, false, err
+			return nil, nil, false, "", err
 		}
 		checkSkipApplyWorkload(wl)
 
 		isHealth := true
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
-			manifestDispatchers, err := h.generateDispatcher(appRev, h.latestAppRev, readyWorkload, readyTraits, overrideNamespace, af.AppAnnotations)
+			manifestDispatchers, err := h.generateDispatcher(appRev, h.latestAppRev, readyWorkload, readyTraits, overrideNamespace, af.AppAnnotations,
+				autoUpdatingSources(af.Sources, sourceAutoUpdateDefault(), metav1.HasAnnotation(h.app.ObjectMeta, oam.AnnotationPublishVersion)))
 			if err != nil {
-				return nil, nil, false, errors.WithMessage(err, "generateDispatcher")
+				return nil, nil, false, "", errors.WithMessage(err, "generateDispatcher")
 			}
 
 			for _, dispatcher := range manifestDispatchers {
 				if isHealth, err := dispatcher.run(ctx, wl, appRev, clusterName); !isHealth || err != nil {
-					return nil, nil, false, err
+					return nil, nil, false, "", err
 				}
 			}
 		} else {
@@ -344,32 +389,30 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 			}
 
 			if err := h.Dispatch(ctx, h.Client, clusterName, common.WorkflowResourceCreator, dispatchResources...); err != nil {
-				return nil, nil, false, errors.WithMessage(err, "Dispatch")
+				return nil, nil, false, "", errors.WithMessage(err, "Dispatch")
 			}
 			_, _, _, isHealth, err = h.collectHealthStatus(ctx, wl, overrideNamespace, false)
 			if err != nil {
-				return nil, nil, false, errors.WithMessage(err, "CollectHealthStatus")
+				return nil, nil, false, "", errors.WithMessage(err, "CollectHealthStatus")
 			}
 		}
 
 		if DisableResourceApplyDoubleCheck {
-			return readyWorkload, readyTraits, isHealth, nil
+			return readyWorkload, readyTraits, isHealth, "", nil
 		}
 		workload, traits, err := getComponentResources(auth.ContextWithUserInfo(ctx, h.app), manifest, wl.SkipApplyWorkload, h.Client)
-		return workload, traits, isHealth, err
+		return workload, traits, isHealth, "", err
 	}
 }
 
 // redirectTraitToLocalIfNeed will override cluster field to be local for traits which are control plane only
 func redirectTraitToLocalIfNeed(appRev *v1beta1.ApplicationRevision, readyTraits []*unstructured.Unstructured) []*unstructured.Unstructured {
 	traits := readyTraits
+	controlPlaneOnly := controlPlaneOnlyTraits(appRev)
 	for index, readyTrait := range readyTraits {
-		for _, trait := range appRev.Spec.TraitDefinitions {
-			if trait.Spec.ControlPlaneOnly && trait.Name == readyTrait.GetLabels()[oam.TraitTypeLabel] {
-				oam.SetCluster(traits[index], multicluster.ClusterLocalName)
-				traits[index].SetNamespace(appRev.GetNamespace())
-				break
-			}
+		if controlPlaneOnly[readyTrait.GetLabels()[oam.TraitTypeLabel]] {
+			oam.SetCluster(traits[index], multicluster.ClusterLocalName)
+			traits[index].SetNamespace(appRev.GetNamespace())
 		}
 	}
 	return traits
@@ -385,6 +428,7 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		return nil, nil, errors.WithMessage(err, "ParseWorkload")
 	}
 	wl.Patch = patcher
+	allTraits := wl.Traits
 
 	// Add all traits to the workload if MultiStageComponentApply is disabled
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
@@ -412,7 +456,19 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		}
 	}
 
+	readNamespace, _ := readPlacementFrom(ctx)
+	scope, err := h.componentReads().deliver(ctx, withRenderedTraits(comp, allTraits, wl.Traits), af.Components,
+		multicluster.ClusterNameInContext(ctx), readNamespace)
+	if sources.IsComponentReadNotReady(err) {
+		// Unwrapped: its reason is what the component's status shows.
+		return nil, nil, err
+	}
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "deliver component reads")
+	}
+
 	manifest, err := af.GenerateComponentManifest(wl, func(ctxData *velaprocess.ContextData) {
+		withComponentScope(ctxData, scope)
 		if ns := componentNamespaceFromContext(ctx); ns != "" {
 			ctxData.Namespace = ns
 		}
@@ -454,10 +510,12 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		}
 	})
 	if err != nil {
-		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
+		// wl, not nil, here and below: it holds the source statuses the render
+		// collected before giving up, and its callers report them.
+		return wl, nil, errors.WithMessage(err, "GenerateComponentManifest")
 	}
 	if err := af.SetOAMContract(manifest); err != nil {
-		return nil, nil, errors.WithMessage(err, "SetOAMContract")
+		return wl, nil, errors.WithMessage(err, "SetOAMContract")
 	}
 	return wl, manifest, nil
 }
@@ -539,28 +597,4 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 		traits = append(traits, v)
 	}
 	return workload, traits, nil
-}
-
-// generateContextDataFromApp builds the process context for workflow (non-component) execution.
-// The goCtx parameter should contain any policy additionalContext stored by ApplyApplicationScopeTransforms.
-func generateContextDataFromApp(goCtx context.Context, app *v1beta1.Application, appRev string) velaprocess.ContextData {
-	data := velaprocess.ContextData{
-		Namespace:       app.Namespace,
-		AppName:         app.Name,
-		CompName:        app.Name,
-		AppRevisionName: appRev,
-		Ctx:             goCtx,
-	}
-	if app.Annotations != nil {
-		data.WorkflowName = app.Annotations[oam.AnnotationWorkflowName]
-		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
-	}
-	// pass labels and annotations to workflow context
-	if len(app.Labels) > 0 {
-		data.AppLabels = app.Labels
-	}
-	if len(app.Annotations) > 0 {
-		data.AppAnnotations = app.Annotations
-	}
-	return data
 }

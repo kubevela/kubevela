@@ -200,6 +200,161 @@ type ApplicationTraitStatus struct {
 	Message string            `json:"message,omitempty"`
 }
 
+// ComponentDependencySource is where a component's dependency is declared.
+type ComponentDependencySource string
+
+const (
+	// DependencySourceDependsOn is a component named in dependsOn.
+	DependencySourceDependsOn ComponentDependencySource = "dependsOn"
+	// DependencySourceInputs is a component whose outputs the inputs read.
+	DependencySourceInputs ComponentDependencySource = "inputs"
+	// DependencySourceExpression is a component a property expression reads.
+	DependencySourceExpression ComponentDependencySource = "expression"
+)
+
+// ComponentDependency is one component another depends on. A dependency on a
+// component beside the dependent, in its own cluster and namespace, orders the
+// dependent after it. One from an expression that names a cluster or namespace
+// is read there, and is ordered by the workflow instead.
+type ComponentDependency struct {
+	// Component is the component that depends.
+	Component string `json:"component"`
+	// DependsOn is the component depended on.
+	DependsOn string `json:"dependsOn"`
+	// Source is where the dependency is declared.
+	Source ComponentDependencySource `json:"source"`
+	// Cluster is the cluster an expression reads the component in, when it names one.
+	// +optional
+	Cluster string `json:"cluster,omitempty"`
+	// Namespace is the namespace an expression reads the component in, when it names one.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// ApplicationSourceStatus records source resolution status.
+type ApplicationSourceStatus struct {
+	// Name is the spec.sources[] binding this reports on.
+	Name string `json:"name"`
+	// Type is the SourceDefinition that resolved it, carrying the pinned revision
+	// where one was requested, e.g. "configmap@v2".
+	Type string `json:"type,omitempty"`
+	// Phase is Resolved, Stale, Failed or Unused. Stale means a refresh failed and
+	// the previous value is still being served, which is a working Application
+	// with data that has stopped moving - the case a bare healthy/unhealthy cannot
+	// express.
+	Phase string `json:"phase,omitempty"`
+	// Resolutions are the cache entries backing this binding.
+	//
+	// More than one when the binding's cache key varies by something that varies -
+	// most often the cluster, since a source keying on context.cluster resolves
+	// separately in each. Collapsing them into a single config and expiry meant
+	// status named one entry when there were three, and named it arbitrarily.
+	// +optional
+	Resolutions []SourceResolution `json:"resolutions,omitempty"`
+	// AutoUpdate reports whether a change to this binding re-dispatches the
+	// components reading it, after the feature gate, the binding's own setting and
+	// any publishVersion pin have all been resolved. When it is false and the
+	// binding asked for true, Message says which of them won.
+	// +optional
+	AutoUpdate *bool `json:"autoUpdate,omitempty"`
+	// Message explains a result about the binding as a whole - most often why
+	// AutoUpdate is false on a binding that asked for true. A failure to resolve
+	// belongs to the entry that failed, and is reported on that Resolution.
+	Message string `json:"message,omitempty"`
+	// ConsumedBy records who read this source and what each of them got.
+	//
+	// Consumption hangs off the source rather than off each consumer because the
+	// consumers do not all have somewhere to put it: a workflow step's status is
+	// workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, which
+	// resolves a step's expressions through KubeVela's resolvers without knowing
+	// what a source is.
+	// +optional
+	ConsumedBy []SourceConsumer `json:"consumedBy,omitempty"`
+}
+
+// SourceConsumer records one reader of a source and the values it received.
+type SourceConsumer struct {
+	// DefinitionKind is the kind of definition that read it: component, trait,
+	// workflowstep or policy.
+	DefinitionKind string `json:"definitionKind"`
+	// Name identifies the reader within its kind - the component, the step, the
+	// policy. A trait is named "<component>/<trait>", since a trait has no
+	// identity apart from the component it is attached to.
+	Name string `json:"name"`
+	// Type is the reader's own definition type, e.g. "webservice", so a reader can
+	// be understood without cross-referencing the spec.
+	// +optional
+	Type string `json:"type,omitempty"`
+	// Cluster and Namespace place the read. The same binding resolves separately
+	// per cluster when its cache key varies by one, so two entries here may
+	// legitimately hold different values, and an override policy can put the same
+	// component in two namespaces of one cluster.
+	// +optional
+	Cluster string `json:"cluster,omitempty"`
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+	// Values are what this reader took, each saying which source attribute was
+	// read and which of the reader's properties received it. A list rather than a
+	// map because one source attribute can feed several properties, and one
+	// property can be assembled from several attributes -
+	// "host: $(source.db.addr):$(source.db.port)" is two values into one
+	// property, which a map cannot express.
+	//
+	// Attributes the definition marks sensitive, and any the binding's
+	// statusPolicy masks, are redacted here exactly as they are elsewhere.
+	// +optional
+	Values []SourceValue `json:"values,omitempty"`
+}
+
+// SourceResolution is one stored entry backing a binding, and the state of it.
+//
+// Keyed by the storage key rather than by cluster because the key is what a
+// resolution is. A source keyed on the cluster has an entry per cluster; one
+// keyed on the component has an entry per component within a single cluster; one
+// keyed on nothing has a single entry serving everything. Cluster is only ever
+// one of the things a key may vary by.
+type SourceResolution struct {
+	// StorageKey identifies the entry, and is the name of the object holding it -
+	// inspect that directly to see when it last synced. Named for the storage.key
+	// a SourceDefinition author writes and vela def show reports, rather than for
+	// the store it happens to live in.
+	StorageKey string `json:"storageKey,omitempty"`
+	// Clusters this entry served, as context. Not the identity: a cache key may
+	// vary by namespace, appName, componentName or a label just as readily as by
+	// cluster, so two entries can serve one cluster and one entry can serve
+	// several.
+	// +optional
+	Clusters []string `json:"clusters,omitempty"`
+	// Phase is Resolved, Stale or Failed for this entry specifically. The binding's
+	// own Phase is the worst of these.
+	Phase string `json:"phase,omitempty"`
+	// ExpiresAt is the RFC3339 timestamp when this entry's value expires.
+	// +optional
+	ExpiresAt string `json:"expiresAt,omitempty"`
+	// Message carries the failure when this entry is Failed or Stale.
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+// SourceValue is one value taken from a source: what was read and where it went.
+type SourceValue struct {
+	// SourceAttr is the attribute of the source that was read, e.g. "data.image".
+	SourceAttr string `json:"sourceAttr"`
+	// Property is the reader's property that received it, e.g. "image" or
+	// "env[0].value".
+	// +optional
+	Property string `json:"property,omitempty"`
+	// Value is what was read, redacted where the attribute is sensitive or masked.
+	//
+	// Schemaless because a source value is whatever the source returns - a string,
+	// a number, a list, a struct. RawExtension alone generates "type: object",
+	// which rejects every scalar and takes the whole status write down with it.
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +optional
+	Value *runtime.RawExtension `json:"value,omitempty"`
+}
+
 // Revision has name and revision number
 type Revision struct {
 	Name     string `json:"name"`
@@ -287,6 +442,21 @@ type AppStatus struct {
 	// +optional
 	ApplicationPoliciesConfigMap string `json:"applicationPoliciesConfigMap,omitempty"`
 
+	// Sources reports each spec.sources[] binding: whether it resolved, what
+	// backs it, when that expires, whether it auto-updates, and who read it.
+	//
+	// Application-level because a binding is declared once for the whole
+	// Application. The per-component list under Services says only what that
+	// component consumed.
+	// +optional
+	Sources []ApplicationSourceStatus `json:"sources,omitempty"`
+
+	// Dependencies is what each component depends on: the components named in
+	// its dependsOn, those whose outputs its inputs read, and those its property
+	// expressions read.
+	// +optional
+	Dependencies []ComponentDependency `json:"dependencies,omitempty"`
+
 	// PolicyStatus records the status of policy
 	// Deprecated This field is only used by EnvBinding Policy which is deprecated.
 	PolicyStatus []PolicyStatus `json:"policy,omitempty"`
@@ -299,6 +469,17 @@ type PolicyStatus struct {
 	Type string `json:"type"`
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Status *runtime.RawExtension `json:"status,omitempty"`
+}
+
+// WorkflowStepDependency is one step a workflow step waits on before it starts,
+// and why. Its own type rather than the workflow engine's, so that this API does
+// not change with the engine's version.
+type WorkflowStepDependency struct {
+	Step      string `json:"step"`
+	DependsOn string `json:"dependsOn"`
+	// Source says why the step waits on DependsOn: dependsOn when the step names
+	// it in its dependsOn, expression when one of the step's expressions reads it.
+	Source string `json:"source"`
 }
 
 // WorkflowStatus record the status of workflow
@@ -316,6 +497,9 @@ type WorkflowStatus struct {
 
 	ContextBackend *corev1.ObjectReference               `json:"contextBackend,omitempty"`
 	Steps          []workflowv1alpha1.WorkflowStepStatus `json:"steps,omitempty"`
+	// Dependencies is what each workflow step waits on before it starts, whether
+	// named in its dependsOn or read by its expressions.
+	Dependencies []WorkflowStepDependency `json:"dependencies,omitempty"`
 
 	StartTime metav1.Time `json:"startTime,omitempty"`
 	// +nullable
@@ -323,7 +507,7 @@ type WorkflowStatus struct {
 }
 
 // DefinitionType describes the type of DefinitionRevision.
-// +kubebuilder:validation:Enum=Component;Trait;Policy;WorkflowStep
+// +kubebuilder:validation:Enum=Component;Trait;Policy;WorkflowStep;Source
 type DefinitionType string
 
 const (
@@ -338,6 +522,8 @@ const (
 
 	// WorkflowStepType represents DefinitionRevision refer to type WorkflowStepDefinition
 	WorkflowStepType DefinitionType = "WorkflowStep"
+	// SourceType represents DefinitionRevision refer to type SourceDefinition
+	SourceType DefinitionType = "Source"
 )
 
 // ApplicationTrait defines the trait of application
@@ -545,4 +731,70 @@ func ContainerStateToString(state corev1.ContainerState) string {
 	default:
 		return "Unknown"
 	}
+}
+
+// DefinitionRestrictions limits where a definition may be used. Absent or empty
+// means it is usable anywhere.
+//
+// The fields are alternatives: a namespace is allowed if it matches Namespaces or
+// NamespaceSelector.
+type DefinitionRestrictions struct {
+	// Namespaces are the namespaces whose Applications may use this definition, as
+	// names or globs ("tenant-*", matched with path.Match).
+	// +optional
+	Namespaces []string `json:"namespaces,omitempty"`
+
+	// NamespaceSelector selects those namespaces by label instead, for membership
+	// that is not a naming convention. An empty selector matches every namespace;
+	// leave the field unset to express no opinion.
+	//
+	// Anyone who can label a namespace can bring it into scope, which a name glob
+	// does not allow without the right to create namespaces.
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+
+	// Quota limits how many uses of this definition one namespace may contain. The
+	// first entry matching the namespace applies, so an entry with no matcher reads
+	// as the default and belongs last. Absent or empty means unlimited.
+	//
+	// Only ComponentDefinition and TraitDefinition are counted, and a quota on any
+	// other kind is rejected when the definition is written. A namespace
+	// accumulates components and the traits on them; a policy, workflow step or
+	// source is part of how one Application is assembled.
+	//
+	// The system namespace is never subject to a quota: addons install their own
+	// Applications there using these definitions.
+	// +optional
+	Quota []NamespaceQuota `json:"quota,omitempty"`
+}
+
+// NamespaceQuota caps how many uses of a definition the namespaces it matches may
+// contain. Its matcher fields carry the same meaning as the ones on
+// DefinitionRestrictions, and an entry with neither matches every namespace.
+//
+// Warn and Limit are both optional, and at least one must be set. Warn alone never
+// refuses, which is how a quota is introduced before it is enforced.
+type NamespaceQuota struct {
+	// Namespaces are the namespaces this entry applies to, as names or globs
+	// ("tenant-*", matched with path.Match). Leave both matchers unset to make the
+	// entry the default.
+	// +optional
+	Namespaces []string `json:"namespaces,omitempty"`
+
+	// NamespaceSelector selects those namespaces by label instead. It and
+	// Namespaces are alternatives, so either one matching selects the entry.
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+
+	// Warn is the count at or above which the Application is admitted with a
+	// warning.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	Warn *int32 `json:"warn,omitempty"`
+
+	// Limit is the most uses of this definition the namespace may contain. Omit to
+	// warn without ever refusing; zero forbids the type outright.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	Limit *int32 `json:"limit,omitempty"`
 }

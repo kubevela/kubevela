@@ -21,13 +21,14 @@ import (
 					if len(_criteria) > 0 {
 						_criteriaResults: [ for criterion in _criteria {
 							_targetKind: criterion.resource.kind
-							_targetName: criterion.resource.name
+							// an empty name matches any resource of the kind
+							_targetName: [if criterion.resource.name != _|_ {criterion.resource.name}, ""][0]
 							_conditionType: criterion.condition.type
 							_conditionStatus: *"True" | criterion.condition.status
 							// Search through all outputs for matching resource
 							_matchingResources: [ for outputKey, resource in context.outputs 
 								if resource.kind == _targetKind && 
-									(_targetName == _|_ || resource.metadata.name == _targetName) { 
+									(_targetName == "" || resource.metadata.name == _targetName) { 
 									resource 
 								} 
 							]
@@ -198,9 +199,12 @@ template: {
 				// TTL for this specific chart (overrides automatic detection)
 				// Examples: "24h", "5m", "30s", "0" (disable cache)
 				ttl?: string
-				// Or specify different TTLs for immutable vs mutable versions
-				immutableTTL?: string | *"24h" // TTL for semantic versions (1.2.3, v2.0.0)
-				mutableTTL?:   string | *"5m"  // TTL for mutable tags (latest, dev, main)
+				// Or specify different TTLs for immutable vs mutable versions.
+				// When omitted, the controller's cluster-wide defaults apply
+				// (--helm-cache-immutable-ttl default "24h",
+				// --helm-cache-mutable-ttl default "5m").
+				immutableTTL?: string // TTL for semantic versions (1.2.3, v2.0.0)
+				mutableTTL?:   string // TTL for mutable tags (latest, dev, main)
 			}
 
 			// Post-rendering - Future enhancement
@@ -219,6 +223,9 @@ template: {
 		if parameter.release != _|_ {
 			parameter.release
 		}
+		if parameter.release != _|_ && parameter.release.name != _|_ && parameter.release.namespace == _|_ {
+			namespace: context.namespace
+		}
 		if parameter.release == _|_ {
 			name:      context.name
 			namespace: context.namespace
@@ -229,6 +236,11 @@ template: {
 	_options: {
 		if parameter.options != _|_ {
 			parameter.options
+		}
+		if parameter.options != _|_ && parameter.options.cache == _|_ {
+			cache: {
+				key: "\(context.appName)-\(context.name)"
+			}
 		}
 		if parameter.options == _|_ {
 			cache: {
@@ -252,6 +264,9 @@ template: {
 		appNamespace: context.namespace
 		name:         context.name
 		namespace:    context.namespace
+		if context.cluster != _|_ {
+			cluster: context.cluster
+		}
 	}
 
 	// Render the Helm chart using the provider

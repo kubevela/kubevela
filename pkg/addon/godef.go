@@ -202,9 +202,17 @@ func DetectDefinitionConflicts(cueDefinitions, goDefinitions []ElementFile) []st
 // For CUE files, it looks for the definition name in the file content
 // For compiled Go definitions, the name is typically in the format "type-name.cue"
 func extractDefinitionName(def ElementFile) string {
+	// filepath.Base first: def.Name can carry a directory prefix (e.g. a CUE
+	// file under "definitions/"), while a compiled Go definition is a bare
+	// filename. Without this, "definitions/webservice.cue" extracted as
+	// "definitions/webservice" and could never collide with the compiled
+	// "component-webservice.cue", so an override of a definition kept in a
+	// subdirectory went undetected.
+	name := filepath.Base(def.Name)
+
 	// For compiled Go definitions, the filename format is "type-name.cue"
 	// e.g., "component-my-webservice.cue" -> "my-webservice"
-	name := strings.TrimSuffix(def.Name, ".cue")
+	name = strings.TrimSuffix(name, ".cue")
 	name = strings.TrimSuffix(name, ".yaml")
 	name = strings.TrimSuffix(name, ".yml")
 

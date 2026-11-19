@@ -27,13 +27,22 @@ template: {
 				if parameter.header != _|_ {
 					header: parameter.header
 				}
+				if parameter.timeout != _|_ {
+					timeout: parameter.timeout
+				}
+				if parameter.headersFromSecret != _|_ {
+					headersFromSecret: parameter.headersFromSecret
+				}
+				if parameter.ratelimiter != _|_ {
+					ratelimiter: parameter.ratelimiter
+				}
 			}
 		}
 	}
 
 	wait: op.#ConditionalWait & {
 		continue: req.$returns != _|_
-		message?: "Waiting for response from \(parameter.url)"
+		message:  "Waiting for response from \(parameter.url)"
 	}
 
 	fail: op.#Steps & {
@@ -51,5 +60,23 @@ template: {
 		method: *"GET" | "POST" | "PUT" | "DELETE"
 		body?: {...}
 		header?: [string]: string
+		// +usage=The timeout of this request (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted. Invalid values fail when the step runs.
+		timeout?: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
+		// +usage=Headers whose values are sourced from Kubernetes Secrets
+		headersFromSecret?: [...{
+			// +usage=The HTTP header name to set
+			header: string
+			// +usage=The name of the Kubernetes Secret
+			secret: string
+			// +usage=The key within Secret.Data whose value becomes the header value
+			key: string
+		}]
+		// +usage=The rate limiter of the request
+		ratelimiter?: {
+			// +usage=The maximum number of requests allowed within the period. Must be greater than 0.
+			limit: int & >0
+			// +usage=The time window for rate limiting (Go duration string, e.g. "1s", "100ms"). 
+			period: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
+		}
 	}
 }

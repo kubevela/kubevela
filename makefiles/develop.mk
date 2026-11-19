@@ -51,6 +51,10 @@ webhook-help:
 	@echo "  make k3d-delete               # Delete k3d cluster"
 	@echo "  make webhook-setup            # Setup webhook (certs + config)"
 	@echo "  make webhook-clean            # Clean up webhook setup"
+	@echo ""
+	@echo "These targets are for a vela-core running on your host. An in-cluster"
+	@echo "vela-core that runs with --webhook-tls-secret (the chart default when"
+	@echo "cert-manager is off) makes its own webhook certificate at startup."
 
 ## k3d-create: Create a k3d cluster for debugging
 .PHONY: k3d-create
@@ -101,4 +105,5 @@ webhook-clean:
 	@rm -rf k8s-webhook-server/
 	@kubectl delete secret webhook-server-cert -n vela-system --ignore-not-found
 	@kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission --ignore-not-found
+	@kubectl delete mutatingwebhookconfiguration kubevela-vela-core-admission --ignore-not-found
 	@echo "Webhook debug environment cleaned"

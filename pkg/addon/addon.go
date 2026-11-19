@@ -21,26 +21,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/Masterminds/semver/v3"
-	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
-	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"go.uber.org/multierr"
-	"golang.org/x/oauth2"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	appsv1 "k8s.io/api/apps/v1"
@@ -72,7 +65,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/velaql"
 	version2 "github.com/oam-dev/kubevela/version"
 )
@@ -83,9 +75,6 @@ const (
 
 	// LegacyReadmeFileName is the addon readme lower case file name
 	LegacyReadmeFileName string = "readme.md"
-
-	// MetadataFileName is the addon meatadata.yaml file name
-	MetadataFileName string = "metadata.yaml"
 
 	// TemplateFileName is the addon template.yaml file name
 	TemplateFileName string = "template.yaml"
@@ -123,11 +112,17 @@ const (
 	// GoDefModuleFileName is the module.yaml file name in godef/
 	GoDefModuleFileName string = "module.yaml"
 
+	// ModulesDirName is the addon's modules/ directory. Everything under it
+	// except ModulesImportsFileName (claimed by its own, more specific
+	// pattern) is a candidate inline module, read by readInlineModulesDir.
+	ModulesDirName string = "modules"
+
+	// ModulesImportsFileName is the addon's modules/_imports.cue file name:
+	// the external-module-import declaration read by GetInstallPackageFromReader.
+	ModulesImportsFileName string = ModulesDirName + "/_imports.cue"
+
 	// AddonParameterDataKey is the key of parameter in addon args secrets
 	AddonParameterDataKey string = "addonParameterDataKey"
-
-	// DefaultGiteeURL is the addon repository of gitee api
-	DefaultGiteeURL string = "https://gitee.com/api/v5/"
 
 	// InstallerRuntimeOption inject install runtime info into addon options
 	InstallerRuntimeOption string = "installerRuntimeOption"
@@ -182,6 +177,12 @@ var Patterns = []Pattern{
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
 	// parameter in resource directory
 	{Value: ParameterFileName},
+	// external module imports -- exact-path, so it must be checked before the
+	// broader modules/ directory pattern below (GetPatternFromItem returns on
+	// first match)
+	{Value: ModulesImportsFileName},
+	// inline modules: everything else under modules/
+	{IsDir: true, Value: ModulesDirName},
 	// directory files
 	{IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName},
 	// Go-based definitions directory
@@ -194,12 +195,14 @@ var Patterns = []Pattern{
 // AsyncReader is needed to calculate relative path
 func GetPatternFromItem(it Item, r AsyncReader, rootPath string) string {
 	relativePath := r.RelativePath(it)
+	normalized := filepath.ToSlash(relativePath)
 	for _, p := range Patterns {
-		if strings.HasPrefix(relativePath, strings.Join([]string{rootPath, p.Value}, "/")) {
+		patternPath := path.Join(rootPath, p.Value)
+		if normalized == patternPath || strings.HasPrefix(normalized, patternPath+"/") {
 			return p.Value
 		}
-		if strings.HasPrefix(relativePath, filepath.Join(rootPath, p.Value)) {
-			// for enable addon by load dir, compatible with linux or windows os
+		if strings.HasPrefix(relativePath, filepath.Join(rootPath, p.Value)+string(filepath.Separator)) {
+			// Compatible with local directory reads on windows path separators.
 			return p.Value
 		}
 	}
@@ -315,6 +318,7 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 		ViewDirName:            readViewFile,
 		AppTemplateCueFileName: readAppCueTemplate,
 		NotesCUEFileName:       readNotesFile,
+		ModulesImportsFileName: readModuleImportsFile,
 	}
 	ptItems := ClassifyItemByPattern(meta, r)
 
@@ -335,6 +339,13 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 				return nil, fmt.Errorf("fail to read addon %s file %s: %w", meta.Name, r.RelativePath(it), err)
 			}
 		}
+	}
+
+	// Inline modules are grouped by name before they can be parsed, so unlike
+	// every other content type above, this one is not a per-item dispatch
+	// entry: it reads the whole modules/ bucket at once.
+	if err := readInlineModulesDir(addon, r, ptItems[ModulesDirName], meta.Name); err != nil {
+		return nil, fmt.Errorf("fail to read addon %s inline modules: %w", meta.Name, err)
 	}
 
 	return addon, nil
@@ -505,102 +516,19 @@ func readReadme(a *UIData, reader AsyncReader, readPath string) error {
 	return nil
 }
 
-func createGitHelper(content *utils.Content, token string) *gitHelper {
-	var ts oauth2.TokenSource
-	if token != "" {
-		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	}
-	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 20
-	cli := github.NewClient(tc)
-	return &gitHelper{
-		Client: cli,
-		Meta:   content,
-	}
-}
-
-func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
-	var ts oauth2.TokenSource
-	if token != "" {
-		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	}
-	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 20
-	cli := NewGiteeClient(tc, nil)
-	return &giteeHelper{
-		Client: cli,
-		Meta:   content,
-	}
-}
-
-func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, error) {
-	newClient, err := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
-
-	return &gitlabHelper{
-		Client: newClient,
-		Meta:   content,
-	}, err
-}
-
-// readRepo will read relative path (relative to Meta.Path)
-func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), nil)
-	if err != nil {
-		return nil, nil, WrapErrRateLimit(err)
-	}
-	return file, items, nil
-}
-
-// readRepo will read relative path (relative to Meta.Path)
-func (h *giteeHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	file, items, err := h.Client.GetGiteeContents(context.Background(), h.Meta.GiteeContent.Owner, h.Meta.GiteeContent.Repo, path.Join(h.Meta.GiteeContent.Path, relativePath), h.Meta.GiteeContent.Ref)
-	if err != nil {
-		return nil, nil, WrapErrRateLimit(err)
-	}
-	return file, items, nil
-}
-
-// GetGiteeContents can return either the metadata and content of a single file
-func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref string) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
-	escapedPath := (&url.URL{Path: path}).String()
-	u := fmt.Sprintf(c.BaseURL.String()+"repos/%s/%s/contents/%s", owner, repo, escapedPath)
-	if ref != "" {
-		u = fmt.Sprintf(u+"?ref=%s", ref)
-	}
-
-	req, err := http.NewRequest("GET", u, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	response, err := c.Client.Do(req.WithContext(ctx))
-	if err != nil {
-		return nil, nil, err
-	}
-	//nolint:errcheck
-	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, nil, err
-	}
-	return unmarshalToContent(body)
-}
-
-func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
-	fileUnmarshalError := json.Unmarshal(content, &fileContent)
-	if fileUnmarshalError == nil {
-		return fileContent, nil, nil
-	}
-	directoryUnmarshalError := json.Unmarshal(content, &directoryContent)
-	if directoryUnmarshalError == nil {
-		return nil, directoryContent, nil
-	}
-	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %w", fileUnmarshalError.Error(), directoryUnmarshalError)
-}
-
+// genAddonAPISchema generates the addon's parameter schemas. A parameter the
+// generator cannot read gets the CUE encoder's OpenAPI and no UI schema; one
+// neither can read is reported with the generator's error.
 func genAddonAPISchema(addonRes *UIData) error {
+	ps, genErr := schema.GenerateParameterSchemas(context.Background(), addonRes.Parameters)
+	if genErr == nil {
+		addonRes.APISchema, addonRes.DefaultUISchema = ps.OpenAPI, ps.UI
+		return nil
+	}
+	klog.Warningf("addon %s: falling back to the CUE OpenAPI encoder, no default UI schema: %v", addonRes.Name, genErr)
 	s, err := schema.ParsePropertiesToSchema(context.Background(), addonRes.Parameters)
 	if err != nil {
-		return err
+		return genErr
 	}
 	addonRes.APISchema = s
 	return nil
@@ -907,6 +835,8 @@ type Installer struct {
 	dryRunBuff *bytes.Buffer
 
 	installerRuntime map[string]interface{}
+	scheduling       SchedulingProperties
+	schedulingErr    error
 
 	registries []Registry
 }
@@ -937,6 +867,13 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 	// clean injected data from runtime option
 	delete(args, InstallerRuntimeOption)
 
+	sched, err := ExtractSchedulingFromArgs(args)
+	if err != nil {
+		i.schedulingErr = err
+	} else {
+		i.scheduling = sched
+	}
+
 	for _, opt := range opts {
 		opt(&i)
 	}
@@ -946,6 +883,9 @@ func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *
 func (h *Installer) enableAddon(ctx context.Context, addon *InstallPackage) (string, error) {
 	var err error
 	h.addon = addon
+	if h.schedulingErr != nil {
+		return "", errors.Wrap(h.schedulingErr, "invalid addon scheduling args")
+	}
 	if !h.skipVersionValidate {
 		err = checkAddonVersionMeetRequired(h.ctx, addon.SystemRequirements, h.cli, h.dc)
 		if err != nil {
@@ -977,7 +917,16 @@ func (h *Installer) enableAddon(ctx context.Context, addon *InstallPackage) (str
 func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, error) {
 	var installPackage *InstallPackage
 	var err error
-	if !IsVersionRegistry(*h.r) {
+	if IsVersionRegistry(*h.r) {
+		versionedRegistry, convertErr := ToVersionedRegistry(*h.r)
+		if convertErr != nil {
+			return nil, convertErr
+		}
+		installPackage, err = versionedRegistry.GetAddonInstallPackage(h.ctx, name, version)
+		if err != nil {
+			return nil, err
+		}
+	} else {
 		metas, err := h.getAddonMeta()
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to get addon meta")
@@ -993,19 +942,9 @@ func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, e
 			return nil, err
 		}
 		// enable this addon if it's invisible
-		installPackage, err = h.r.GetInstallPackage(&meta, uiData)
+		installPackage, err = GetInstallPackage(h.r, &meta, uiData)
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
-		}
-	} else {
-		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
-			Username:        h.r.Helm.Username,
-			Password:        h.r.Helm.Password,
-			InsecureSkipTLS: h.r.Helm.InsecureSkipTLS,
-		})
-		installPackage, err = versionedRegistry.GetAddonInstallPackage(context.Background(), name, version)
-		if err != nil {
-			return nil, err
 		}
 	}
 
@@ -1016,7 +955,7 @@ func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 	var err error
 	if h.registryMeta == nil {
 		if h.registryMeta, err = h.cache.ListAddonMeta(*h.r); err != nil {
-			return nil, err
+			return nil, errors.Wrapf(ErrFetch, "registry %s: %v", h.r.Name, err)
 		}
 	}
 	return h.registryMeta, nil
@@ -1024,16 +963,20 @@ func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 
 // installDependency checks if addon's dependency and install it
 func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage) error {
+	if len(addon.Dependencies) == 0 {
+		return nil
+	}
+
 	installedAddons, err := listInstalledAddons(h.ctx, h.cli)
 	if err != nil {
 		return err
 	}
 
 	var registries []ItemInfoLister
-	registries = append(registries, h.r)
+	registries = append(registries, registryLister{h.r})
 	for _, registry := range h.registries {
 		r := registry
-		registries = append(registries, &r)
+		registries = append(registries, registryLister{&r})
 	}
 	availableAddons, err := listAvailableAddons(registries)
 	if err != nil {
@@ -1086,7 +1029,7 @@ func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage
 			}
 			return nil
 		}
-		if !errors.Is(err, ErrNotExist) {
+		if !isSkippableRegistryError(err) {
 			return err
 		}
 		for _, registry := range h.registries {
@@ -1098,7 +1041,7 @@ func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage
 			if err == nil {
 				break
 			}
-			if errors.Is(err, ErrNotExist) {
+			if isSkippableRegistryError(err) {
 				continue
 			}
 			return err
@@ -1226,15 +1169,40 @@ type ItemInfoLister interface {
 	ListAddonInfo() (map[string]ItemInfo, error)
 }
 
-// listAvailableAddons fetches a collection of addons available in a list of
-// registries. Returns a map of ItemInfo grouped by addon name.
+// isSkippableRegistryError reports whether err means a specific registry
+// could not provide an addon (missing there, or unreachable/misconfigured),
+// as opposed to a fatal, addon-specific failure that should stop dependency
+// resolution outright.
+func isSkippableRegistryError(err error) bool {
+	// ErrOCICatalogAbsent belongs here: an OCI registry that has not had its first
+	// addon pushed yet simply has nothing to offer, which is the same situation as
+	// ErrNotExist for the other registry kinds.
+	return errors.Is(err, ErrNotExist) || errors.Is(err, ErrFetch) || errors.Is(err, ErrOCICatalogAbsent)
+}
+
+// listAvailableAddons aggregates addon info across registries, grouped by addon
+// name.
+//
+// A registry that merely cannot serve an addon -- missing, unreachable, anything
+// isSkippableRegistryError recognises -- is skipped and logged, so one broken
+// registry does not break the whole listing. Any other failure (bad credentials,
+// a malformed registry record) is returned, because swallowing it would surface
+// later as a misleading "addon ... cannot be found" instead of the real cause.
 func listAvailableAddons(registries []ItemInfoLister) (itemInfoMap, error) {
 	availableAddons := make(itemInfoMap)
 
 	for _, registry := range registries {
 		addons, err := registry.ListAddonInfo()
 		if err != nil {
-			return nil, err
+			name := "unknown"
+			if l, ok := registry.(registryLister); ok {
+				name = l.r.Name
+			}
+			if !isSkippableRegistryError(err) {
+				return nil, errors.Wrapf(err, "failed to list addons in registry %s", name)
+			}
+			klog.Warningf("skip registry %s: failed to list addons: %v", name, err)
+			continue
 		}
 		availableAddons = mergeAddonInfoMaps(availableAddons, addons)
 	}
@@ -1504,6 +1472,9 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 	if err != nil {
 		return errors.Wrap(err, "render addon application fail")
 	}
+	if err := AttachSchedulingTrait(app, h.scheduling); err != nil {
+		return errors.Wrap(err, "attach affinity scheduling traits")
+	}
 	appName, err := determineAddonAppName(h.ctx, h.cli, h.addon.Name)
 	if err != nil {
 		return err
@@ -1600,6 +1571,7 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 		return nil
 	}
 
+	InjectSchedulingIntoArgs(h.args, h.scheduling)
 	if len(h.args) > 0 {
 		sec := RenderArgsSecret(addon, h.args)
 		addOwner(sec, app)
@@ -1688,22 +1660,41 @@ func (h *Installer) continueOrRestartWorkflow() error {
 	return nil
 }
 
+// versionRequirementAware is implemented by a versioned registry that can say
+// whether its version list carries system-requirement metadata at all.
+type versionRequirementAware interface {
+	supportsVersionRequirements() bool
+}
+
 // getAddonVersionMeetSystemRequirement return the addon's latest version which meet the system requirements
 func (h *Installer) getAddonVersionMeetSystemRequirement(addonName string) string {
-	if h.r != nil && IsVersionRegistry(*h.r) {
-		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
-			Username: h.r.Helm.Username,
-			Password: h.r.Helm.Password,
-		})
-		versions, err := versionedRegistry.GetAddonAvailableVersion(addonName)
-		if err != nil {
-			return ""
-		}
-		for _, version := range versions {
-			req := LoadSystemRequirements(version.Annotations)
-			if checkAddonVersionMeetRequired(h.ctx, req, h.cli, h.dc) == nil {
-				return version.Version
-			}
+	if h.r == nil || !IsVersionRegistry(*h.r) {
+		return ""
+	}
+	versionedRegistry, err := ToVersionedRegistry(*h.r)
+	if err != nil {
+		return ""
+	}
+	return h.compatibleVersionFrom(versionedRegistry, addonName)
+}
+
+// compatibleVersionFrom picks the newest version the running environment
+// satisfies, or an empty string when it cannot answer.
+func (h *Installer) compatibleVersionFrom(versionedRegistry VersionedRegistry, addonName string) string {
+	// A transport whose versions carry no requirement annotations would report
+	// every version as meeting every requirement, because LoadSystemRequirements
+	// reads nil and a nil requirement passes. No suggestion beats a wrong one.
+	if aware, ok := versionedRegistry.(versionRequirementAware); ok && !aware.supportsVersionRequirements() {
+		return ""
+	}
+	versions, err := versionedRegistry.GetAddonAvailableVersion(addonName)
+	if err != nil {
+		return ""
+	}
+	for _, version := range versions {
+		req := LoadSystemRequirements(version.Annotations)
+		if checkAddonVersionMeetRequired(h.ctx, req, h.cli, h.dc) == nil {
+			return version.Version
 		}
 	}
 	return ""
@@ -1758,7 +1749,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("vela cli/ux version: %s  require: %s", version2.VelaVersion, require.VelaVersion)
+			return fmt.Errorf("%w: vela cli/ux version: %s  require: %s", ErrVersionMismatch, version2.VelaVersion, require.VelaVersion)
 		}
 	}
 
@@ -1775,7 +1766,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("the vela core controller: %s require: %s", imageVersion, require.VelaVersion)
+			return fmt.Errorf("%w: the vela core controller: %s require: %s", ErrVersionMismatch, imageVersion, require.VelaVersion)
 		}
 	}
 
@@ -1796,7 +1787,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		}
 
 		if !res {
-			return fmt.Errorf("the kubernetes version %s require: %s", k8sVersion.GitVersion, require.KubernetesVersion)
+			return fmt.Errorf("%w: the kubernetes version %s require: %s", ErrVersionMismatch, k8sVersion.GitVersion, require.KubernetesVersion)
 		}
 	}
 

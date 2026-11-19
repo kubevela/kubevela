@@ -1,0 +1,22 @@
+# Line-level auxiliary for v2: two documents in one file.
+apiVersion: kitinline.example.com/v1alpha1
+kind: WidgetClass
+metadata:
+  name: widget-kit-inline-v2-premium
+  labels:
+    kitinline.example.com/tier: line
+    kitinline.example.com/line: v2
+spec:
+  line: v2
+  sizes: ["S", "M", "L"]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: widget-kit-inline-v2-line-config
+  labels:
+    kitinline.example.com/tier: line
+    kitinline.example.com/line: v2
+data:
+  line: v2
+  defaultClass: widget-kit-inline-v2-premium

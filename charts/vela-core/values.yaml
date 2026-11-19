@@ -17,8 +17,18 @@ definitionRevisionLimit: 2
 concurrentReconciles: 4
 
 ## @param controllerArgs.reSyncPeriod The period for resync the applications
+## @param controllerArgs.defaultAutoRevision Default for autoRevision when neither the auto-revision annotation nor the policy template sets it
+## @param controllerArgs.defaultApplyPolicyUpdates Default for applyPolicyUpdates when neither the apply-policy-updates annotation nor the policy template sets it
+## @param controllerArgs.defaultApplyDataChanges Default for applyDataChanges when neither the apply-data-changes annotation nor the policy template sets it
+## @param controllerArgs.allowNamespaceGlobalPolicies Whether global policies outside vela-system apply to the applications in their namespace
+## @param controllerArgs.allowSkipGlobalPolicies Whether applications may opt out of global policies with the policy.oam.dev/skip-global annotation
 controllerArgs:
   reSyncPeriod: 5m
+  defaultAutoRevision: false
+  defaultApplyPolicyUpdates: false
+  defaultApplyDataChanges: false
+  allowNamespaceGlobalPolicies: false
+  allowSkipGlobalPolicies: false
 
 
 ## @section KubeVela workflow parameters
@@ -26,19 +36,71 @@ controllerArgs:
 ## @param workflow.enableSuspendOnFailure Enable suspend on workflow failure
 ## @param workflow.enableExternalPackageForDefaultCompiler Enable external package for default cuex compiler
 ## @param workflow.enableExternalPackageWatchForDefaultCompiler Enable external package watch for default cuex compiler
+## @param workflow.enableCUEVersionCompatibility Automatically rewrite legacy CUE syntax in stored definitions at render time
+## @param workflow.cueCompatibilityCacheSize Maximum number of CUE templates to cache after version compatibility rewriting (0 disables caching)
+## @param workflow.cueUpgradeListConcatEnabled Enable list concat/list arithmetic compatibility rewrite pass
+## @param workflow.cueUpgradeErrorFieldLabelEnabled Enable error field-label compatibility rewrite pass
+## @param workflow.cueUpgradeBoolDefaultGuardEnabled Enable bool default-guard hazard compatibility rewrite pass
+## @param workflow.cueUpgradeGenericDefaultGuardEnabled Enable generic default-guard hazard compatibility rewrite pass
+## @param workflow.cueUpgradeKeepValidatorsSingletonEnabled Enable keepvalidators singleton concretization compatibility pass
+## @param workflow.cueUpgradeEvalv3SelfRefGuardEnabled Enable evalv3 self-reference default-guard compatibility rewrite pass
 ## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
+## @param workflow.step.forEachMaxItems The max number of items a forEach step may iterate
+## @param workflow.httpDeny.configTemplateName ConfigTemplate name and discovery label value. The chart templates the controller flag, the ConfigTemplate and the CUE labels from this one value. Discovery only reads ConfigMaps in the controller namespace. Must be a string of dot-separated parts made of lowercase letters, digits and -, each starting and ending with a letter or digit, at most 63 characters in total; quote a name that YAML would read as a number, a boolean or null. Empty disables discovery and skips installing the template/default ConfigMap.
+## @param workflow.httpDeny.installConfigTemplate Install the workflow-http-deny ConfigTemplate into the release namespace
+## @param workflow.httpDeny.defaultConfig.enabled Install a labeled default denylist ConfigMap
+## @param workflow.httpDeny.defaultConfig.name Name of the shipped default denylist ConfigMap (unique per chart)
+## @param workflow.httpDeny.defaultConfig.denyHosts Default deny hostnames
+## @param workflow.httpDeny.defaultConfig.denyCIDRs Default deny CIDRs and addresses
 workflow:
   enableSuspendOnFailure: false
   enableExternalPackageForDefaultCompiler: true
   enableExternalPackageWatchForDefaultCompiler: false
+  enableCUEVersionCompatibility: true
+  cueCompatibilityCacheSize: 512
+  cueUpgradeListConcatEnabled: true
+  cueUpgradeErrorFieldLabelEnabled: true
+  cueUpgradeBoolDefaultGuardEnabled: false
+  cueUpgradeGenericDefaultGuardEnabled: false
+  cueUpgradeKeepValidatorsSingletonEnabled: false
+  cueUpgradeEvalv3SelfRefGuardEnabled: false
   backoff:
     maxTime:
       waitState: 60
       failedState: 300
   step:
     errorRetryTimes: 10
+    forEachMaxItems: 50
+  httpDeny:
+    # Prefixed per chart so dual-install with vela-workflow owns distinct ConfigTemplates
+    # and default ConfigMaps. The controller flag is templated from this value.
+    configTemplateName: vela-core-http-deny
+    installConfigTemplate: true
+    defaultConfig:
+      enabled: true
+      name: vela-core-http-deny-default
+      denyHosts:
+        - metadata.google.internal
+      denyCIDRs:
+        - 169.254.0.0/16
+        - fe80::/10
+        - fd00:ec2::254
+        - 100.100.100.200
+
+
+## @section KubeVela Helm cache parameters
+
+## @param helmCache.maxBytes Maximum number of bytes to keep in the Helm chart cache. Tune this down on memory-constrained deployments (the default 256MiB can be a quarter of a 1Gi container). Set to 0 to use the built-in default.
+## @param helmCache.sweepInterval How often the Helm chart cache sweeps expired entries (e.g. "60s"). The sweep shares the lock with Get and Put, so a very small interval raises lock contention. Set to 0 to use the built-in default.
+## @param helmCache.immutableTTL Cluster-wide default cache TTL for immutable (semver) chart versions. Used only when a component does not set options.cache.immutableTTL. Set to 0 to use the built-in default (24h).
+## @param helmCache.mutableTTL Cluster-wide default cache TTL for mutable chart tags. Used only when a component does not set options.cache.mutableTTL. Set to 0 to use the built-in default (5m).
+helmCache:
+  maxBytes: 268435456
+  sweepInterval: "60s"
+  immutableTTL: "24h"
+  mutableTTL: "5m"
 
 
 ## @section KubeVela controller parameters
@@ -67,6 +129,9 @@ resources:
   requests:
     cpu: 50m
     memory: 20Mi
+
+## @param extraEnvs Extra environment variables to inject into the KubeVela controller container
+extraEnvs: []
 
 ## @param webhookService.type KubeVela webhook service type
 ## @param webhookService.port KubeVela webhook service port
@@ -128,6 +193,18 @@ optimize:
 ##@param featureGates.validateResourcesExist enable webhook validation to check if resource types referenced in definition templates exist in the cluster
 ##@param featureGates.enableApplicationScopedPolicies enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)
 ##@param featureGates.enableGlobalPolicies enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)
+##@param featureGates.enableSourceAutoUpdate default for spec.sources[].autoUpdate - re-dispatch components when a value they read from a SourceDefinition changes, for bindings that express no preference (Alpha)
+##@param featureGates.enableCelExpressions read $( ) property expressions, and with them SourceDefinition. Off by default because $(VAR_NAME) is Kubernetes' own env-var syntax and would be read as an expression (Alpha)
+##@param featureGates.requireCelExpressionOptIn while enableCelExpressions is on, read expressions only in Applications annotated app.oam.dev/cel-expressions=true, so enabling the feature is not a fleet-wide change (Alpha)
+##@param featureGates.validateUndeclaredParameters reject Application properties that the definition's parameter stanza does not declare (Alpha)
+##@param featureGates.enableCueExpVariable inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window
+##@param featureGates.enableAddonComponent enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)
+##@param featureGates.restrictDefinitionNamespaces enforce a definition's spec.restrictions or definition.oam.dev/restrict-namespaces annotation when an Application is created or updated (Beta, on by default; a no-op until a definition declares a restriction)
+##@param featureGates.enableDefinitionInheritance enable spec.extends on ComponentDefinition and TraitDefinition
+##@param featureGates.enableModuleComponent enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)
+##@param featureGates.autoMigrateLegacyConfigs adopt legacy config templates and configs into ConfigTemplate and Config CRs once at controller startup, the same as running vela config-template migrate --all in every namespace; legacy objects are kept (Alpha)
+##@param featureGates.disableWorkflowHTTP disable outbound HTTP from workflow request/webhook steps
+##@param featureGates.blockPrivateHTTPAddresses block workflow outbound HTTP to RFC-1918 and ULA destinations
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -148,6 +225,85 @@ featureGates:
   validateResourcesExist: false
   enableApplicationScopedPolicies: false
   enableGlobalPolicies: false
+  enableSourceAutoUpdate: false
+  enableCelExpressions: false
+  requireCelExpressionOptIn: true
+  validateUndeclaredParameters: false
+  enableCueExpVariable: true
+  enableAddonComponent: false
+  enableModuleComponent: false
+  restrictDefinitionNamespaces: true
+  enableDefinitionInheritance: false
+  autoMigrateLegacyConfigs: false
+  disableWorkflowHTTP: false
+  blockPrivateHTTPAddresses: false
+
+## @section Definition restriction parameters
+
+## Restrictions stamped onto the builtin definitions this chart installs.
+##
+## These definitions are regenerated on every upgrade, so declare a restriction
+## here rather than editing one in the cluster. Empty by default.
+##
+## `default` applies to every builtin; `overrides` replaces it for one definition,
+## keyed by name. Both take the same shape as spec.restrictions: `namespaces`
+## (names or globs) and `namespaceSelector` (a label selector) for who may use the
+## definition, and `quota` for how much they may use it.
+##
+## `quota` counts components and traits only. The builtins include policies,
+## workflow steps and sources, which reject a quota outright, so a quota belongs
+## under `overrides` and has to name a component or trait. Naming anything else,
+## or putting a quota in `default` where it reaches every builtin, fails the
+## install at template time rather than part way through applying definitions.
+##
+## Addons install their own Applications into vela-system using these
+## definitions, so a `default` that excludes vela-system breaks them. A quota
+## never applies to vela-system, for the same reason.
+##
+##   definitionRestrictions:
+##     default:
+##       namespaces: ["vela-system", "tenant-*"]
+##     overrides:
+##       k8s-objects:
+##         namespaces: ["vela-system"]
+##       webservice:
+##         namespaceSelector:
+##           matchLabels:
+##             tenant: "true"
+##         quota:
+##           # The first entry matching the namespace applies, so the entry with
+##           # no matcher reads as the default and belongs last.
+##           - namespaceSelector:
+##               matchLabels:
+##                 tier: gold
+##             warn: 16
+##             limit: 20
+##           # warn without a limit never refuses: publish a quota, see who trips
+##           # it, set the limit once you know.
+##           - warn: 5
+##
+## @param definitionRestrictions Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default)
+definitionRestrictions: {}
+
+## @section Builtin definitions parameters
+
+## The builtin definitions are applied by a hook Job once the controller has
+## rolled out, so they are validated by this release's webhook rather than by
+## the pod being replaced. The image only needs a shell and kubectl.
+##
+## @param builtinDefinitions.job.image.repository Image the builtin definitions Job runs kubectl from
+## @param builtinDefinitions.job.image.tag Image tag of the builtin definitions Job
+## @param builtinDefinitions.job.image.pullPolicy Image pull policy of the builtin definitions Job
+## @param builtinDefinitions.job.rolloutTimeoutSeconds How long the Job waits for the controller to roll out before applying
+## @param builtinDefinitions.job.applyRetries How many times the Job applies the definitions before failing
+builtinDefinitions:
+  job:
+    image:
+      repository: alpine/k8s
+      tag: 1.31.13
+      pullPolicy: IfNotPresent
+    rolloutTimeoutSeconds: 300
+    applyRetries: 6
 
 ## @section MultiCluster parameters
 
@@ -157,13 +313,13 @@ featureGates:
 ## @param multicluster.clusterGateway.replicaCount ClusterGateway replica count
 ## @param multicluster.clusterGateway.port ClusterGateway port
 ## @param multicluster.clusterGateway.image.repository ClusterGateway image repository
-## @param multicluster.clusterGateway.image.tag ClusterGateway image tag
+## @param multicluster.clusterGateway.image.tag ClusterGateway image tag, optionally with an @sha256 digest to pin the image
 ## @param multicluster.clusterGateway.image.pullPolicy ClusterGateway image pull policy
 ## @param multicluster.clusterGateway.resources.requests.cpu ClusterGateway cpu request
 ## @param multicluster.clusterGateway.resources.requests.memory ClusterGateway memory request
 ## @param multicluster.clusterGateway.resources.limits.cpu ClusterGateway cpu limit
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
-## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
+## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS. When secure TLS and multicluster.enabled are on and cert-manager is off, the chart starts vela-core with --cluster-gateway-tls-secret, so vela-core generates the cluster-gateway serving cert at startup and sets the APIService caBundle when the APIService points at the chart's cluster-gateway Service
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
 ## @param multicluster.clusterGateway.secureTLS.certManager.enabled Whether to enable cert-manager
 ## @param multicluster.clusterGateway.serviceMonitor.enabled Whether to enable service monitor
@@ -181,7 +337,7 @@ multicluster:
     port: 9443
     image:
       repository: oamdev/cluster-gateway
-      tag: v1.9.0-alpha.2
+      tag: v1.10.0-alpha.1@sha256:a5c092758b77aead90e05142e465796e4a65ec38d66b1a3cbc12f8593bb9063b
       pullPolicy: IfNotPresent
     resources:
       requests:
@@ -280,6 +436,19 @@ admissionWebhooks:
   failurePolicy: Fail
   certificate:
     mountPath: /etc/k8s-webhook-certs
+  # With admissionWebhooks.enabled and patch.enabled on and cert-manager off,
+  # the chart starts vela-core with
+  # --webhook-tls-secret, so vela-core generates the webhook serving cert at
+  # startup, in the Secret <fullname>-admission. It sets the
+  # caBundle of its webhooks. When its webhook server serves requests, it also
+  # sets failurePolicy. It checks the cert and the webhooks every minute.
+  # Tools that render without cluster access (Argo CD, helm template) render
+  # failurePolicy: Ignore. For Argo CD, add an ignoreDifferences entry with
+  # jqPathExpressions: [".webhooks[].failurePolicy"]. When patch.enabled=false
+  # and cert-manager is off, supply the Secret and the caBundle yourself.
+  # Only patch.enabled is still read. image, nodeSelector, affinity and
+  # tolerations configured the removed cert Jobs and are kept so existing values
+  # files still apply.
   patch:
     enabled: true
     image:

@@ -1,0 +1,7 @@
+name: placement-import
+version: 1.0.0
+description: "Test addon in the catalog's multi-cluster shape: a clusters parameter, one topology policy and no workflow, importing widget-kit with placement.fromPolicy."
+tags:
+  - test
+  - module-import
+dependencies: []

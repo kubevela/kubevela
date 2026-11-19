@@ -5,11 +5,12 @@
 		podDisruptive: false
 		status: {
 			customStatus: #"""
-				let igs = context.outputs.ingress.status.loadBalancer.ingress
-				if igs == _|_ {
+				let lb = context.outputs.ingress.status.loadBalancer
+				if lb.ingress == _|_ {
 					message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
 				}
-				if len(igs) > 0 {
+				if lb.ingress != _|_ if len(lb.ingress) > 0 {
+					let igs = lb.ingress
 					let rules = context.outputs.ingress.spec.rules
 					host: *"" | string
 					if rules != _|_ if len(rules) > 0 if rules[0].host != _|_ {
@@ -35,9 +36,16 @@
 }
 
 template: {
+	legacyAPI: context.clusterVersion.minor < 19
+
 	outputs: ingress: {
-		apiVersion: "networking.k8s.io/v1beta1"
-		kind:       "Ingress"
+		if legacyAPI {
+			apiVersion: "networking.k8s.io/v1beta1"
+		}
+		if !legacyAPI {
+			apiVersion: "networking.k8s.io/v1"
+		}
+		kind: "Ingress"
 		metadata:
 			name: context.name
 		spec: {
@@ -47,9 +55,20 @@ template: {
 					paths: [
 						for k, v in parameter.http {
 							path: k
+							if !legacyAPI {
+								pathType: "ImplementationSpecific"
+							}
 							backend: {
-								serviceName: context.name
-								servicePort: v
+								if legacyAPI {
+									serviceName: context.name
+									servicePort: v
+								}
+								if !legacyAPI {
+									service: {
+										name: context.name
+										port: number: v
+									}
+								}
 							}
 						},
 					]

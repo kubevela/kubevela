@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -205,8 +206,8 @@ func (idx *PolicyScopeIndex) GetGlobalApplicationPoliciesDeduped(appNamespace st
 	var result []*PolicyMetadata
 	seenNames := make(map[string]bool)
 
-	// Add namespace policies first (higher precedence)
-	if appNamespace != oam.SystemDefinitionNamespace {
+	// Namespace globals come first (higher precedence), when they are allowed.
+	if appNamespace != oam.SystemDefinitionNamespace && common2.AllowNamespaceGlobalPolicies {
 		if nsPolicies, exists := idx.globalApplicationPolicies[appNamespace]; exists {
 			for _, policy := range nsPolicies {
 				result = append(result, policy)
@@ -225,6 +226,19 @@ func (idx *PolicyScopeIndex) GetGlobalApplicationPoliciesDeduped(appNamespace st
 	}
 
 	return result
+}
+
+// IgnoredNamespaceGlobals returns the global policies in appNamespace that do not apply because
+// global policies are restricted to vela-system (--allow-namespace-global-policies=false).
+func (idx *PolicyScopeIndex) IgnoredNamespaceGlobals(appNamespace string) []*PolicyMetadata {
+	if common2.AllowNamespaceGlobalPolicies || appNamespace == oam.SystemDefinitionNamespace {
+		return nil
+	}
+	idx.ensureInitialized(context.Background())
+
+	idx.mu.RLock()
+	defer idx.mu.RUnlock()
+	return append([]*PolicyMetadata(nil), idx.globalApplicationPolicies[appNamespace]...)
 }
 
 // AddOrUpdate adds or updates a policy in the index

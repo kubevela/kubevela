@@ -1,0 +1,7 @@
+name: broken-imports
+version: 1.0.1
+description: "Deliberately broken _imports.cue: module registry name that does not exist."
+tags:
+  - test
+  - module-import
+dependencies: []

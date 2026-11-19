@@ -30,6 +30,42 @@ type ComponentDefinitionSpec struct {
 	// +optional
 	Version string `json:"version,omitempty"`
 
+	// Module names the module this definition was published in, for example
+	// "s3". It identifies a versioned definition on the spec itself, not only
+	// through labels. Set it together with apiVersion, or leave both empty.
+	// +optional
+	Module string `json:"module,omitempty"`
+
+	// APIVersion is the API line of the module this definition belongs to, for
+	// example "v1" or "v1beta2". Set it together with module, or leave both empty.
+	// +kubebuilder:validation:Pattern=`^v\d+(alpha\d+|beta\d+)?$`
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
+	// Extends names a ComponentDefinition this one builds on. The parent renders
+	// with the parameters this definition's template passes it in its `$super`
+	// block, and its output, outputs and parameter schema are inherited unless
+	// the template says otherwise with `$inherit`.
+	//
+	// A DefinitionRevision may be named to pin the parent, as in
+	// "webservice@v3"; an unqualified name tracks whatever is current. The
+	// ancestors a render resolved are recorded in the ApplicationRevision, so an
+	// application keeps rendering the same way after a parent changes.
+	//
+	// +optional
+	Extends string `json:"extends,omitempty"`
+
+	// Abstract marks this definition as one that may only be extended, never
+	// named directly by an Application. A base that applies a platform's rules
+	// is not something to use as-is, and saying so here is what makes the
+	// definitions built on it the only way through.
+	//
+	// It is not inherited: a definition that extends an abstract one is usable
+	// unless it marks itself abstract too.
+	//
+	// +optional
+	Abstract bool `json:"abstract,omitempty"`
+
 	// Workload is a workload type descriptor
 	Workload common.WorkloadTypeDescriptor `json:"workload"`
 
@@ -58,6 +94,12 @@ type ComponentDefinitionSpec struct {
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
+
+	// Restrictions limits where this definition may be used. Absent or empty means
+	// usable anywhere. A non-empty block overrides the
+	// definition.oam.dev/restrict-namespaces annotation.
+	// +optional
+	Restrictions *common.DefinitionRestrictions `json:"restrictions,omitempty"`
 }
 
 // ComponentDefinitionStatus is the status of ComponentDefinition
@@ -98,6 +140,12 @@ func (cd *ComponentDefinition) SetConditions(c ...condition.Condition) {
 func (cd *ComponentDefinition) GetCondition(conditionType condition.ConditionType) condition.Condition {
 	return cd.Status.GetCondition(conditionType)
 }
+
+// GetModule returns the module this definition was published in, or "" for a
+// legacy, non-module definition. One accessor per X-Definition kind, so a
+// caller that only needs the module identity (e.g. Form 1 resolution) does
+// not need a type switch over every kind that carries one.
+func (cd *ComponentDefinition) GetModule() string { return cd.Spec.Module }
 
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

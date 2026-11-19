@@ -1,0 +1,24 @@
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: legacy-cue-policy
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Policy with legacy CUE list-arithmetic syntax for compat layer testing"
+spec:
+  schematic:
+    cue:
+      template: |
+        // Legacy list-arithmetic: deprecated + operator
+        baseTags: ["kubevela"]
+        extraTags: [parameter.team]
+        allTags: baseTags + extraTags
+        output: {
+          apiVersion: "v1"
+          kind:       "ConfigMap"
+          metadata: name: context.name
+          data: team: allTags[1]
+        }
+        parameter: {
+          team: *"platform" | string
+        }

@@ -19,7 +19,7 @@ kind: ClusterRole
 metadata:
   name: {{ include "kubevela.fullname" . }}:manager
 rules:
-  - apiGroups: ["core.oam.dev", "terraform.core.oam.dev", "prism.oam.dev", "standard.oam.dev"]
+  - apiGroups: ["core.oam.dev", "terraform.core.oam.dev", "prism.oam.dev", "standard.oam.dev", "config.oam.dev"]
     resources: ["*"]
     verbs: ["*"]
   - apiGroups: ["cluster.open-cluster-management.io"]
@@ -29,14 +29,22 @@ rules:
     resources: ["users", "groups", "serviceaccounts"]
     verbs: ["impersonate"]
   - apiGroups: [""]
-    resources: ["namespaces", "secrets", "services"]
+    resources: ["namespaces", "services"]
     verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "watch", "list", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["configmaps", "events"]
     verbs: ["*"]
   - apiGroups: ["apps"]
     resources: ["controllerrevisions"]
     verbs: ["*"]
+  # Read by the builtin definitions Job, which runs as this ServiceAccount and
+  # waits for the controller's rollout before applying them.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["apiregistration.k8s.io"]
     resources: ["apiservices"]
     verbs: ["get", "list", "watch", "update"]
@@ -46,6 +54,27 @@ rules:
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
     verbs: ["get", "list", "watch"]
+  {{- if .Values.multicluster.enabled }}
+  # cluster-gateway's admission plugins watch these; until they can, it refuses every request.
+  # The mutating ones are watched from Kubernetes 1.36, where they are on by default.
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["validatingadmissionpolicies", "validatingadmissionpolicybindings",
+                "mutatingadmissionpolicies", "mutatingadmissionpolicybindings"]
+    verbs: ["get", "list", "watch"]
+  {{- end }}
+  {{- if include "kubevela.webhookRuntimeCerts" . }}
+  # vela-core sets the caBundle and failurePolicy of its own webhooks at startup.
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+    resourceNames: [{{ printf "%s-admission" (include "kubevela.fullname" .) | quote }}]
+    verbs: ["update", "patch"]
+  {{- if .Values.admissionWebhooks.appConversion.enabled }}
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    resourceNames: ["applications.core.oam.dev"]
+    verbs: ["get", "update", "patch"]
+  {{- end }}
+  {{- end }}
   - apiGroups: ["flowcontrol.apiserver.k8s.io"]
     resources: ["prioritylevelconfigurations", "flowschemas"]
     verbs: ["get", "list", "watch"]
@@ -115,6 +144,47 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
 {{ end }}
+
+---
+# The source cache: Secrets that KubeVela owns, in its own namespace.
+#
+# The controller reads and writes these as itself rather than as the Application's
+# identity, because the cache is KubeVela's bookkeeping and is shared by every
+# Application that resolves the same source. Access to the data a source returns is
+# governed where it belongs - by whether a user may bind the SourceDefinition at
+# all, which the ValidateDefinitionPermissions gate checks per binding.
+#
+# Namespaced rather than added to the :manager ClusterRole, because cache entries
+# only ever live here and cluster-wide secret write is a much larger grant than
+# this needs.
+#
+# The namespace is systemDefinitionNamespace, not the release namespace: cache
+# entries sit with the definitions they are bookkeeping about, which is what the
+# controller writes to. Binding this in the release namespace instead left every
+# cache write, touch and sweep Forbidden wherever the two differ.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "kubevela.fullname" . }}:source-cache
+  namespace: {{ include "systemDefinitionNamespace" . }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "kubevela.fullname" . }}:source-cache
+  namespace: {{ include "systemDefinitionNamespace" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "kubevela.fullname" . }}:source-cache
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kubevela.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
 
 ---
 # permissions to do leader election.
@@ -251,6 +321,14 @@ spec:
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
+            {{ if include "kubevela.webhookRuntimeCerts" . }}
+            - "--webhook-tls-secret={{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-admission"
+            - "--webhook-configuration={{ template "kubevela.fullname" . }}-admission"
+            - "--webhook-failure-policy={{ .Values.admissionWebhooks.failurePolicy }}"
+            {{ if .Values.admissionWebhooks.appConversion.enabled }}
+            - "--webhook-conversion-crds=applications.core.oam.dev"
+            {{ end }}
+            {{ end }}
             {{ end }}
             {{ if ne .Values.optimize.cachedGvks "" }}
             - "--optimize-cached-gvks={{ .Values.optimize.cachedGvks }}"
@@ -279,10 +357,18 @@ spec:
             - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
+            {{ if include "kubevela.clusterGatewayRuntimeCerts" . }}
+            - "--cluster-gateway-tls-secret={{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2"
+            - "--cluster-gateway-service={{ .Release.Namespace }}/{{ .Release.Name }}-cluster-gateway-service"
+            {{ end }}
             {{ if .Values.multicluster.clusterGateway.direct }}
-            - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
+            - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:{{ .Values.multicluster.clusterGateway.port }}"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            {{ if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
+            - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca.crt"
+            {{ else }}
             - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca"
+            {{ end }}
             {{ end }}
             {{ end }}
             {{ end }}
@@ -290,14 +376,33 @@ spec:
             - "--enable-cluster-metrics"
             {{ end }}
             - "--application-re-sync-period={{ .Values.controllerArgs.reSyncPeriod }}"
+            - "--application-default-auto-revision={{ .Values.controllerArgs.defaultAutoRevision }}"
+            - "--application-default-apply-policy-updates={{ .Values.controllerArgs.defaultApplyPolicyUpdates }}"
+            - "--application-default-apply-data-changes={{ .Values.controllerArgs.defaultApplyDataChanges }}"
+            - "--allow-namespace-global-policies={{ .Values.controllerArgs.allowNamespaceGlobalPolicies }}"
+            - "--allow-skip-global-policies={{ .Values.controllerArgs.allowSkipGlobalPolicies }}"
             - "--concurrent-reconciles={{ .Values.concurrentReconciles }}"
             - "--kube-api-qps={{ .Values.kubeClient.qps }}"
             - "--kube-api-burst={{ .Values.kubeClient.burst }}"
             - "--max-workflow-wait-backoff-time={{ .Values.workflow.backoff.maxTime.waitState }}"
             - "--max-workflow-failed-backoff-time={{ .Values.workflow.backoff.maxTime.failedState }}"
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
+            - "--max-for-each-items={{ .Values.workflow.step.forEachMaxItems }}"
+            - "--workflow-http-deny-config-template-name={{ .Values.workflow.httpDeny.configTemplateName | default "" }}"
             - "--enable-external-package-for-default-compiler={{ .Values.workflow.enableExternalPackageForDefaultCompiler }}"
             - "--enable-external-package-watch-for-default-compiler={{ .Values.workflow.enableExternalPackageWatchForDefaultCompiler }}"
+            - "--enable-cue-version-compatibility={{ .Values.workflow.enableCUEVersionCompatibility }}"
+            - "--cue-compatibility-cache-size={{ .Values.workflow.cueCompatibilityCacheSize }}"
+            - "--cue-upgrade-list-concat-enabled={{ .Values.workflow.cueUpgradeListConcatEnabled }}"
+            - "--cue-upgrade-error-field-label-enabled={{ .Values.workflow.cueUpgradeErrorFieldLabelEnabled }}"
+            - "--cue-upgrade-bool-default-guard-enabled={{ .Values.workflow.cueUpgradeBoolDefaultGuardEnabled }}"
+            - "--cue-upgrade-generic-default-guard-enabled={{ .Values.workflow.cueUpgradeGenericDefaultGuardEnabled }}"
+            - "--cue-upgrade-keepvalidators-singleton-enabled={{ .Values.workflow.cueUpgradeKeepValidatorsSingletonEnabled }}"
+            - "--cue-upgrade-evalv3-selfref-guard-enabled={{ .Values.workflow.cueUpgradeEvalv3SelfRefGuardEnabled }}"
+            - "--helm-cache-max-bytes={{ .Values.helmCache.maxBytes | int64 }}"
+            - "--helm-cache-sweep-interval={{ .Values.helmCache.sweepInterval }}"
+            - "--helm-cache-immutable-ttl={{ .Values.helmCache.immutableTTL }}"
+            - "--helm-cache-mutable-ttl={{ .Values.helmCache.mutableTTL }}"
             - "--feature-gates=EnableSuspendOnFailure={{- .Values.workflow.enableSuspendOnFailure | toString -}}"
             - "--feature-gates=GzipResourceTracker={{- .Values.featureGates.gzipResourceTracker | toString -}}"
             - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"
@@ -316,6 +421,17 @@ spec:
             - "--feature-gates=ValidateResourcesExist={{- .Values.featureGates.validateResourcesExist | toString -}}"
             - "--feature-gates=EnableApplicationScopedPolicies={{- .Values.featureGates.enableApplicationScopedPolicies | toString -}}"
             - "--feature-gates=EnableGlobalPolicies={{- .Values.featureGates.enableGlobalPolicies | toString -}}"
+            - "--feature-gates=EnableAddonComponent={{- .Values.featureGates.enableAddonComponent | toString -}}"
+            - "--feature-gates=EnableModuleComponent={{- .Values.featureGates.enableModuleComponent | toString -}}"
+            - "--feature-gates=RestrictDefinitionNamespaces={{- .Values.featureGates.restrictDefinitionNamespaces | toString -}}"
+            - "--feature-gates=EnableSourceAutoUpdate={{- .Values.featureGates.enableSourceAutoUpdate | toString -}}"
+            - "--feature-gates=EnableCelExpressions={{- .Values.featureGates.enableCelExpressions | toString -}}"
+            - "--feature-gates=RequireCelExpressionOptIn={{- .Values.featureGates.requireCelExpressionOptIn | toString -}}"
+            - "--feature-gates=ValidateUndeclaredParameters={{- .Values.featureGates.validateUndeclaredParameters | toString -}}"
+            - "--feature-gates=EnableDefinitionInheritance={{- .Values.featureGates.enableDefinitionInheritance | toString -}}"
+            - "--feature-gates=AutoMigrateLegacyConfigs={{- .Values.featureGates.autoMigrateLegacyConfigs | toString -}}"
+            - "--feature-gates=DisableWorkflowHTTP={{- .Values.featureGates.disableWorkflowHTTP | toString -}}"
+            - "--feature-gates=BlockPrivateHTTPAddresses={{- .Values.featureGates.blockPrivateHTTPAddresses | toString -}}"
             - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authorization.definitionValidationEnabled | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}
@@ -333,8 +449,27 @@ spec:
             - "--dev-logs={{ .Values.devLogs }}"
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: metadata.namespace
+          {{- with .Values.extraEnvs }}
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.featureGates.enableCueExpVariable }}
+            - name: CUE_EXPERIMENT
+              value: "evalv3=0,keepvalidators=0"
+          {{- end }}
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
+          {{- $needAdmissionTLS := .Values.admissionWebhooks.enabled }}
+          {{- $needClusterGatewayTLS := and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+          {{- /* With runtime certs, vela-core creates the Secret itself and cannot
+                 mount it. It writes the files into an emptyDir at startup. */}}
+          {{- $webhookRuntime := include "kubevela.webhookRuntimeCerts" . }}
+          {{- $gatewayRuntime := include "kubevela.clusterGatewayRuntimeCerts" . }}
           {{ if .Values.admissionWebhooks.enabled }}
           ports:
             - containerPort: {{ .Values.webhookService.port }}
@@ -361,27 +496,45 @@ spec:
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
             failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
             successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          {{ end }}
+          {{ if or $needAdmissionTLS $needClusterGatewayTLS }}
           volumeMounts:
+            {{ if $needAdmissionTLS }}
             - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
+              {{- if not $webhookRuntime }}
               readOnly: true
-          {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+              {{- end }}
+            {{ end }}
+            {{ if $needClusterGatewayTLS }}
             - mountPath: /cluster-gateway-tls-cert
               name: tls-cert-vol-cg
+              {{- if not $gatewayRuntime }}
               readOnly: true
+              {{- end }}
+            {{ end }}
           {{ end }}
-          {{ end }}
-      {{ if .Values.admissionWebhooks.enabled }}
+      {{ if or $needAdmissionTLS $needClusterGatewayTLS }}
       volumes:
+        {{ if $needAdmissionTLS }}
         - name: tls-cert-vol
+          {{- if $webhookRuntime }}
+          emptyDir: {}
+          {{- else }}
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-admission
-      {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+          {{- end }}
+        {{ end }}
+        {{ if $needClusterGatewayTLS }}
         - name: tls-cert-vol-cg
+          {{- if $gatewayRuntime }}
+          emptyDir: {}
+          {{- else }}
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+          {{- end }}
       {{ end }}
       {{ end }}
       {{- with .Values.nodeSelector }}

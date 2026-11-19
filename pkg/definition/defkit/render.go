@@ -16,9 +16,47 @@ limitations under the License.
 
 package defkit
 
+import (
+	"fmt"
+	"regexp"
+)
+
+// RenderOption configures Render and RenderAll.
+type RenderOption func(*renderOptions)
+
+type renderOptions struct {
+	skipCompile bool
+}
+
+// SkipCompile disables the default CUE-compile check Render and RenderAll
+// otherwise perform against the component's generated CUE.
+func SkipCompile() RenderOption {
+	return func(o *renderOptions) {
+		o.skipCompile = true
+	}
+}
+
+func buildRenderOptions(opts []RenderOption) *renderOptions {
+	o := &renderOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
 // Render executes the component template with the given test context
-// and returns the rendered primary output resource.
-func (c *ComponentDefinition) Render(ctx *TestContextBuilder) *RenderedResource {
+// and returns the rendered primary output resource. By default it also
+// validates that the component's generated CUE compiles, panicking if it
+// does not; pass SkipCompile() to skip that check.
+func (c *ComponentDefinition) Render(ctx *TestContextBuilder, opts ...RenderOption) *RenderedResource {
+	c.refuseInheritedRender()
+	o := buildRenderOptions(opts)
+	if !o.skipCompile {
+		if err := ValidateGeneratedCUE(c); err != nil {
+			panic(err)
+		}
+	}
+
 	// Build the runtime context
 	rtCtx := ctx.Build()
 
@@ -36,8 +74,18 @@ func (c *ComponentDefinition) Render(ctx *TestContextBuilder) *RenderedResource 
 	return renderResource(tpl.output, rtCtx)
 }
 
-// RenderAll executes the component template and returns all outputs.
-func (c *ComponentDefinition) RenderAll(ctx *TestContextBuilder) *RenderedOutputs {
+// RenderAll executes the component template and returns all outputs. By
+// default it also validates that the component's generated CUE compiles,
+// panicking if it does not; pass SkipCompile() to skip that check.
+func (c *ComponentDefinition) RenderAll(ctx *TestContextBuilder, opts ...RenderOption) *RenderedOutputs {
+	c.refuseInheritedRender()
+	o := buildRenderOptions(opts)
+	if !o.skipCompile {
+		if err := ValidateGeneratedCUE(c); err != nil {
+			panic(err)
+		}
+	}
+
 	rtCtx := ctx.Build()
 	setCurrentTestContext(rtCtx)
 	defer clearCurrentTestContext()
@@ -266,6 +314,8 @@ func evaluateCondition(cond Condition, ctx *TestRuntimeContext) bool {
 		// Resolve the ports value and check if any have expose=true
 		portsValue := resolveValue(c.ports, ctx)
 		return hasExposedPorts(portsValue)
+	case *RegexMatchCondition:
+		return evaluateRegexMatch(c, ctx)
 	default:
 		// For parameter-based conditions (param used as condition)
 		if v, ok := cond.(Value); ok {
@@ -274,6 +324,30 @@ func evaluateCondition(cond Condition, ctx *TestRuntimeContext) bool {
 		}
 		return true
 	}
+}
+
+// evaluateRegexMatch evaluates a RegexMatchCondition against the resolved source.
+// It returns false for nil/missing sources, and panics on non-string values and
+// invalid regex patterns.
+func evaluateRegexMatch(c *RegexMatchCondition, ctx *TestRuntimeContext) bool {
+	val := resolveValue(c.Source(), ctx)
+	if val == nil {
+		return false
+	}
+
+	str, ok := val.(string)
+	if !ok {
+		panic(fmt.Sprintf("defkit: cannot use %v (type %T) as type string in regex match", val, val))
+	}
+
+	matched, err := regexp.MatchString(c.Pattern(), str)
+	if err != nil {
+		panic(fmt.Sprintf("defkit: failed compiling regex from pattern: '%s', error: %v", c.Pattern(), err))
+	}
+	if c.IsNegated() {
+		return !matched
+	}
+	return matched
 }
 
 // hasExposedPorts checks if a ports array has any port with expose=true.
@@ -622,4 +696,14 @@ func applyFieldMap(item map[string]any, mapping FieldMap) map[string]any {
 		}
 	}
 	return result
+}
+
+// refuseInheritedRender stops Render on a component that extends another. Render
+// interprets this component's own template, which for a child is only what it
+// adds on top of its parent.
+func (c *ComponentDefinition) refuseInheritedRender() {
+	if c.GetExtends() != "" {
+		panic(fmt.Sprintf("defkit: component %s extends %s, and Render sees only its own template; use EvaluateCUE, which renders the chain as the controller does",
+			c.GetName(), c.GetExtends()))
+	}
 }

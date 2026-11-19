@@ -1,4 +1,5 @@
 import (
+	"vela/builtin"
 	"vela/http"
 	"vela/kube"
 	"vela/util"
@@ -15,6 +16,12 @@ import (
 	description: "Send a POST request to the specified Webhook URL. If no request body is specified, the current Application body will be sent by default."
 }
 template: {
+	// url is required, but a missing one is unresolved rather than absent, so test both of its forms
+	if parameter.url.value == _|_ && parameter.url.secretRef == _|_ {
+		validateParams: builtin.#Fail & {
+			$params: message: "url is required: set url.value or url.secretRef"
+		}
+	}
 	data: {
 		if parameter.data == _|_ {
 			read: kube.#Read & {
@@ -35,6 +42,11 @@ template: {
 			value: json.Marshal(parameter.data)
 		}
 	}
+	httpRequestOpts: {
+		if parameter.timeout != _|_ {
+			timeout: parameter.timeout
+		}
+	}
 	webhook: {
 		if parameter.url.value != _|_ {
 			req: http.#HTTPDo & {
@@ -44,7 +56,7 @@ template: {
 					request: {
 						body: data.value
 						header: "Content-Type": "application/json"
-					}
+					} & httpRequestOpts
 				}
 			}
 		}
@@ -70,7 +82,7 @@ template: {
 					request: {
 						body: data.value
 						header: "Content-Type": "application/json"
-					}
+					} & httpRequestOpts
 				}
 			}
 		}
@@ -90,5 +102,7 @@ template: {
 		})
 		// +usage=Specify the data you want to send
 		data?: {...}
+		// +usage=The timeout of this request (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted. Invalid values fail when the step runs.
+		timeout?: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
 	}
 }

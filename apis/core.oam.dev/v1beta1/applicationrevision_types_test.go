@@ -42,6 +42,8 @@ func TestApplicationRevisionCompression(t *testing.T) {
 	spec.PolicyDefinitions["def"] = PolicyDefinition{Spec: PolicyDefinitionSpec{ManageHealthCheck: true}}
 	spec.WorkflowStepDefinitions = make(map[string]*WorkflowStepDefinition)
 	spec.WorkflowStepDefinitions["def"] = &WorkflowStepDefinition{Spec: WorkflowStepDefinitionSpec{Reference: common.DefinitionReference{Name: "testname"}}}
+	spec.SourceDefinitions = make(map[string]*SourceDefinition)
+	spec.SourceDefinitions["def"] = &SourceDefinition{}
 	spec.ReferredObjects = []common.ReferredObject{{RawExtension: runtime.RawExtension{Raw: []byte("123")}}}
 
 	testAppRev := &ApplicationRevision{Spec: *spec}

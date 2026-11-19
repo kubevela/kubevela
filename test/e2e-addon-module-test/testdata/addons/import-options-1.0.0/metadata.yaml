@@ -1,0 +1,7 @@
+name: import-options
+version: 1.0.0
+description: "Test addon for _imports.cue options: registry omitted, enabled false, versions filter, component name collision."
+tags:
+  - test
+  - module-import
+dependencies: []

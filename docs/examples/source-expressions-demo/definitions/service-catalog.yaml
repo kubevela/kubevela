@@ -1,0 +1,58 @@
+apiVersion: core.oam.dev/v1beta1
+kind: SourceDefinition
+metadata:
+  name: service-catalog
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Platform naming and placement rules. Reads no context, so one entry is shared by every consumer with the same inputs."
+    # Which inference policy generated $internal below. Admission loads the rules
+    # with this hash rather than the current ones, so a later policy does not
+    # invalidate a definition already committed.
+    definition.oam.dev/cache-key-rules: "6ac674fa"
+    definition.oam.dev/cache-key-rules-version: v1
+spec:
+  schematic:
+    cue:
+      template: |
+        // Generated from the context this template reads - do not edit. Admission re-derives these and rejects a mismatch.
+        $internal: {
+        	key: "service-catalog"
+        	keyInputs: []
+        }
+        // A derived source: it reads nothing from the cluster, only combines what it is
+        // given. This is the seam where a platform encodes naming and placement rules
+        // once, instead of every application repeating them.
+        schema: {
+        	image:       string
+        	serviceName: string
+        	tier:        string
+        	// The labels every workload for this tenant must carry.
+        	standardLabels: {[string]: string}
+        	// The port the platform standardises on.
+        	httpPort: int
+        	// Pull secrets every workload in this project needs.
+        	pullSecrets: [...string]
+        }
+
+        storage: storageTTL: "1h"
+
+        parameter: {
+        	registryHost: string
+        	project:      string
+        	team:         string
+        	environment:  string
+        	component:    string
+        }
+
+        output: {
+        	image:       parameter.registryHost + "/" + parameter.project + "/" + parameter.component
+        	serviceName: parameter.team + "-" + parameter.component
+        	tier:        parameter.environment
+        	standardLabels: {
+        		"platform.io/team":        parameter.team
+        		"platform.io/environment": parameter.environment
+        		"platform.io/managed-by":  "kubevela"
+        	}
+        	httpPort: 8080
+        	pullSecrets: ["platform-registry-creds"]
+        }

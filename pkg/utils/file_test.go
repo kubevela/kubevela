@@ -127,3 +127,17 @@ func TestIsJSONYAMLorCUEFile(t *testing.T) {
 		})
 	}
 }
+
+func TestIsCUETestFile(t *testing.T) {
+	for path, want := range map[string]bool{
+		"web_test.cue":           true,
+		"defs/web_test.cue":      true,
+		"web.cue":                false,
+		"contest.cue":            false,
+		"web_test.go":            false,
+		"web_test.cue.bak":       false,
+		"defs/_test.cue/web.cue": false,
+	} {
+		assert.Equal(t, want, IsCUETestFile(path), path)
+	}
+}

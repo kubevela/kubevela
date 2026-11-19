@@ -18,15 +18,19 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
 	"slices"
+	"sort"
 	"sync"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
@@ -39,6 +43,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
+	"github.com/oam-dev/kubevela/pkg/componenthealth"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -46,6 +52,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
+	"github.com/oam-dev/kubevela/pkg/sources"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 // AppHandler handles application reconcile
@@ -64,12 +72,65 @@ type AppHandler struct {
 	appliedResources []common.ClusterObjectReference
 	deletedResources []common.ClusterObjectReference
 
+	// sourceStatuses accumulates one entry per spec.sources[] binding across every
+	// render in this reconcile. Keyed by binding name, because a binding is
+	// declared once for the whole Application even though many surfaces read it.
+	sourceStatuses map[string]*common.ApplicationSourceStatus
+	// lastReportedSources is what the Application arrived with, captured before
+	// this reconcile reports anything over it.
+	lastReportedSources []common.ApplicationSourceStatus
+	sourcesCaptured     bool
+	// keptSourceReads is, by source, what the current run's steps read as the
+	// last report gave it, for steps that do not read again this reconcile.
+	keptSourceReads map[string]*common.ApplicationSourceStatus
+	// stepReads is, by workflow step, the steps it waits on because a component
+	// it applies reads theirs (appfile.StepReadDependencies).
+	stepReads map[string][]string
+
 	// Application-scoped PolicyDefinitions that were resolved and applied
 	// These need to be stored in the ApplicationRevision for version pinning
 	applicationScopedPolicyDefs map[string]*v1beta1.PolicyDefinition
 
 	// policyVersions stores version metadata for each policy (parallel to applicationScopedPolicyDefs)
 	policyVersions map[string]v1beta1.PolicyVersionMetadata
+
+	// policyUpdatesAdopted is set when this reconcile renders new live versions of policies
+	// pinned in the latest revision, so it cuts a new revision.
+	policyUpdatesAdopted bool
+	// pendingPolicyUpdates names the policies whose newer live version this reconcile held back.
+	pendingPolicyUpdates []string
+	// heldByGlobalPolicy is the revision a failing mandatory global holds the app at, if any.
+	heldByGlobalPolicy *v1beta1.ApplicationRevision
+	// dataLabels and dataAnnotations are rendered policy metadata that may reach dispatched
+	// resources without a new revision (apply-data-changes).
+	dataLabels      map[string]string
+	dataAnnotations map[string]string
+	// contextHashes are the rendered policy context hashes, by policy (apply-data-changes).
+	contextHashes map[string]string
+	// forceRedispatch makes every component redispatch, for a refresh after changed policy context.
+	forceRedispatch bool
+	// policyResults are the policies rendered this reconcile.
+	policyResults []RenderedPolicyResult
+	// metadataRemovedFromApp are the policy labels and annotations the policies stopped setting
+	// this reconcile, to take off the Application (a new revision then renders resources without
+	// them); dataRemovedMetadata are those a refresh takes off resources without a new revision
+	// (apply-data-changes on for their policy).
+	metadataRemovedFromApp policyMetadataRecord
+	dataRemovedMetadata    resourcekeeper.MetadataRemoval
+	// policyConfigMap is the app's policy observability ConfigMap as read this reconcile, nil when
+	// there is none; the policy render's write updates it.
+	policyConfigMap *corev1.ConfigMap
+	// recordedPolicySettings are the rollout settings each policy's template set when it last
+	// rendered, by PolicyDefinition name, read from the policy ConfigMap.
+	recordedPolicySettings map[string]policySettings
+
+	// readDelivery gives readers rendered outside the workflow their values,
+	// memoised for this reconcile.
+	readDelivery     *componentReadDelivery
+	readDeliveryOnce sync.Once
+	// readsWaiting records that some component was held back on its reads in
+	// this reconcile.
+	readsWaiting bool
 
 	mu sync.Mutex
 }
@@ -82,7 +143,7 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application)
 		}))
 		defer subCtx.Commit("finish create appHandler")
 	}
-	resourceHandler, err := resourcekeeper.NewResourceKeeper(ctx, r.Client, app)
+	resourceHandler, err := appkeeper.New(ctx, r.Client, app)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create resourceKeeper")
 	}
@@ -262,12 +323,15 @@ func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfi
 		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, comp.Name, tr.Name)
 	}
 	statusResult, err := tr.EvalStatus(templateContext)
-	if err == nil && statusResult != nil {
+	if err != nil {
+		klog.Warningf("app=%s, comp=%s, trait=%s, evaluate trait status error (best-effort): %v", appName, comp.Name, tr.Name, err)
+	}
+	if statusResult != nil {
 		traitStatus.Healthy = statusResult.Healthy
 		traitStatus.Message = statusResult.Message
 		traitStatus.Details = statusResult.Details
 	}
-	return traitStatus, extractOutputs(templateContext), err
+	return traitStatus, extractOutputs(templateContext), nil
 }
 
 // collectWorkloadHealthStatus collect workload health status
@@ -302,7 +366,7 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 		}
 		statusResult, err := comp.EvalStatus(templateContext)
 		if err != nil {
-			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, comp.Name)
+			klog.Warningf("app=%s, comp=%s, evaluate workload status error (best-effort): %v", appName, comp.Name, err)
 		}
 		if statusResult != nil {
 			status.Healthy = statusResult.Healthy
@@ -340,6 +404,10 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 	)
 
 	status = h.getServiceStatus(status)
+	// Reported on every path out, including the ones that give up: the resolver
+	// records what it knows before handing an error back, so a render that
+	// failed still has something to say about why.
+	defer func() { h.recordComponentSourceReads(comp, &status) }()
 	if !skipWorkload {
 		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
 		if err != nil {
@@ -419,27 +487,400 @@ collectNext:
 			break
 		}
 	}
-	traitHealthy := true
-	for _, ts := range traitStatusByKey {
-		if ts.Pending {
-			continue
-		}
-		if !ts.Healthy {
-			traitHealthy = false
-			break
-		}
-	}
-	if !skipWorkload {
-		status.Healthy = status.WorkloadHealthy && traitHealthy
-	} else if !traitHealthy {
-		status.Healthy = false
-		if status.Message == "" {
-			status.Message = "traits are not healthy"
-		}
-	}
 	status.Traits = slices.Collect(maps.Values(traitStatusByKey))
+	componenthealth.Rollup(&status, !skipWorkload)
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
+}
+
+// consumerValues renders the individual values one consumer took, each carrying
+// the source attribute, the property it landed in, and the value.
+//
+// readerKind filters: a chained source's reads are recorded against the source
+// that made them, so a component's entry must not claim them.
+func consumerValues(src v1beta1.ApplicationSource, rs sources.SourceResolutionStatus,
+	readerKind, readerName string) []common.SourceValue {
+	if src.StatusPolicy != nil && src.StatusPolicy.ExposeConsumedValues != nil &&
+		!*src.StatusPolicy.ExposeConsumedValues {
+		return nil
+	}
+	maskSet := sourceMaskSet(src, rs)
+	values := make([]common.SourceValue, 0, len(rs.Reads))
+	for _, rd := range rs.Reads {
+		if rd.ReaderKind != readerKind || rd.ReaderName != readerName {
+			continue
+		}
+		val := sources.RedactValue(rd.SourceAttr, rd.Value, maskSet)
+		out := common.SourceValue{SourceAttr: rd.SourceAttr, Property: rd.Property}
+		if raw, err := mapToRawExtension(map[string]interface{}{"v": val}); err == nil && raw != nil {
+			// Unwrap the single-key envelope mapToRawExtension needs.
+			out.Value = unwrapValue(raw)
+		}
+		values = append(values, out)
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].Property != values[j].Property {
+			return values[i].Property < values[j].Property
+		}
+		return values[i].SourceAttr < values[j].SourceAttr
+	})
+	if len(values) == 0 {
+		return nil
+	}
+	return values
+}
+
+func sourceMaskSet(src v1beta1.ApplicationSource, rs sources.SourceResolutionStatus) map[string]struct{} {
+	maskPaths := append([]string{}, rs.SensitivePaths...)
+	if src.StatusPolicy != nil {
+		maskPaths = append(maskPaths, src.StatusPolicy.MaskPaths...)
+	}
+	maskSet := make(map[string]struct{}, len(maskPaths))
+	for _, p := range maskPaths {
+		if p != "" {
+			maskSet[p] = struct{}{}
+		}
+	}
+	return maskSet
+}
+
+// recordSourceResolution folds one render's source resolution into the
+// Application-level view, and notes who read what.
+//
+// Called for every surface that resolves sources, not just components: a
+// workflow step has nowhere of its own to report, since its status type belongs
+// to the workflow repo, which knows nothing of sources.
+func (h *AppHandler) recordSourceResolution(kind, name, readerType, cluster, namespace string,
+	resolved map[string]sources.SourceResolutionStatus) {
+	if len(resolved) == 0 {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.sourceStatuses == nil {
+		h.sourceStatuses = map[string]*common.ApplicationSourceStatus{}
+	}
+	for _, src := range h.app.Spec.Sources {
+		rs, ok := resolved[src.Name]
+		if !ok {
+			continue
+		}
+		entry := h.sourceStatuses[src.Name]
+		if entry == nil {
+			entry = &common.ApplicationSourceStatus{Name: src.Name, Type: src.Type}
+			h.sourceStatuses[src.Name] = entry
+		}
+		if rs.Type != "" {
+			entry.Type = rs.Type
+		}
+		// The binding's own phase is the worst any reader saw. A source failing in
+		// one cluster and fine in another is a problem, and reporting the last
+		// render's answer would let which cluster reconciled last decide.
+		if phase := reportedSourcePhase(rs); sourcePhaseRank(phase) > sourcePhaseRank(entry.Phase) {
+			entry.Phase = phase
+		}
+		mergeResolution(entry, rs, cluster)
+		if len(rs.ConsumedFields) == 0 {
+			continue
+		}
+		consumer := common.SourceConsumer{
+			DefinitionKind: kind,
+			Name:           name,
+			Type:           readerType,
+			Cluster:        cluster,
+			Namespace:      namespace,
+			Values:         consumerValues(src, rs, "", ""),
+		}
+		// A reader is recorded once, with what each of its recordings read. A
+		// component is recorded again when refreshSourceDrivenComponents renders
+		// it a second time in one reconcile, and a workflow step resolves its
+		// forEach.items and its properties separately. A placement is part of the
+		// identity: the same component in two clusters is two readers.
+		replaced := false
+		for i, existing := range entry.ConsumedBy {
+			if existing.DefinitionKind == consumer.DefinitionKind &&
+				existing.Name == consumer.Name &&
+				existing.Cluster == consumer.Cluster &&
+				existing.Namespace == consumer.Namespace {
+				consumer.Values = mergeSourceValues(existing.Values, consumer.Values)
+				entry.ConsumedBy[i] = consumer
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			entry.ConsumedBy = append(entry.ConsumedBy, consumer)
+		}
+	}
+}
+
+// mergeResolution folds one render's view of a binding into the per-entry list.
+//
+// Keyed by the storage key, because that is what a resolution is. A source keyed
+// on the cluster has an entry per cluster; one keyed on the component has an
+// entry per component inside a single cluster. Keying this by cluster would
+// collapse the second case and invent entries in the first.
+// mergeSourceValues is a reader's values from two recordings, one per property
+// and source attribute, the later recording's value winning.
+func mergeSourceValues(earlier, later []common.SourceValue) []common.SourceValue {
+	if len(earlier) == 0 {
+		return later
+	}
+	type key struct{ property, attr string }
+	seen := map[key]bool{}
+	out := append([]common.SourceValue{}, later...)
+	for _, v := range later {
+		seen[key{v.Property, v.SourceAttr}] = true
+	}
+	for _, v := range earlier {
+		if !seen[key{v.Property, v.SourceAttr}] {
+			out = append(out, v)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Property != out[j].Property {
+			return out[i].Property < out[j].Property
+		}
+		return out[i].SourceAttr < out[j].SourceAttr
+	})
+	return out
+}
+
+func mergeResolution(entry *common.ApplicationSourceStatus, rs sources.SourceResolutionStatus, cluster string) {
+	// Named here as well as on the binding: the two are written from one
+	// resolution, so a phase reported on only one of them has the binding
+	// disagreeing with the entry it is reporting.
+	phase := reportedSourcePhase(rs)
+	if rs.Config == "" && phase == "" {
+		return
+	}
+	for i := range entry.Resolutions {
+		if entry.Resolutions[i].StorageKey != rs.Config {
+			continue
+		}
+		got := &entry.Resolutions[i]
+		if sourcePhaseRank(phase) > sourcePhaseRank(got.Phase) {
+			got.Phase = phase
+			got.Message = rs.Message
+		}
+		if rs.ExpiresAt != "" {
+			got.ExpiresAt = rs.ExpiresAt
+		}
+		addCluster(got, cluster)
+		return
+	}
+	res := common.SourceResolution{
+		StorageKey: rs.Config,
+		Phase:      phase,
+		ExpiresAt:  rs.ExpiresAt,
+		Message:    rs.Message,
+	}
+	addCluster(&res, cluster)
+	entry.Resolutions = append(entry.Resolutions, res)
+}
+
+// addCluster records a cluster this entry served, once. A reader with no
+// placement - a workflow step - contributes none.
+func addCluster(res *common.SourceResolution, cluster string) {
+	if cluster == "" {
+		return
+	}
+	for _, c := range res.Clusters {
+		if c == cluster {
+			return
+		}
+	}
+	res.Clusters = append(res.Clusters, cluster)
+}
+
+// keepStepSourceReads keeps, for this reconcile's report, what the current run's
+// workflow steps read as the last report gave it. A step resolves its sources
+// when it runs, so a reconcile in which it does not run records nothing for it;
+// a new run starts with no step run, and so with nothing kept.
+func (h *AppHandler) keepStepSourceReads() {
+	if h.app.Status.Workflow == nil {
+		return
+	}
+	ran := map[string]bool{}
+	for _, s := range h.app.Status.Workflow.Steps {
+		ran[s.Name] = true
+		for _, sub := range s.SubStepsStatus {
+			ran[sub.Name] = true
+		}
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, prev := range h.app.Status.Sources {
+		var kept []common.SourceConsumer
+		for _, c := range prev.ConsumedBy {
+			if c.DefinitionKind == sourceKindWorkflowStep && ran[c.Name] {
+				kept = append(kept, c)
+			}
+		}
+		if len(kept) == 0 {
+			continue
+		}
+		if h.keptSourceReads == nil {
+			h.keptSourceReads = map[string]*common.ApplicationSourceStatus{}
+		}
+		entry := prev.DeepCopy()
+		entry.ConsumedBy = kept
+		h.keptSourceReads[prev.Name] = entry
+	}
+}
+
+// withKeptReads is a source's entry for the report: what was read this
+// reconcile, which wins, with the kept step readers that did not read again and
+// the kept resolutions whose storage key no live read resolved; or, where
+// nothing read the source this reconcile, the kept entry as it was. Kept
+// resolutions travel with kept readers, so a step that read again reports only
+// what it read this time.
+func withKeptReads(live, kept *common.ApplicationSourceStatus) *common.ApplicationSourceStatus {
+	if kept == nil {
+		return live
+	}
+	if live == nil {
+		return kept
+	}
+	out := live.DeepCopy()
+	keptAny := false
+	for _, c := range kept.ConsumedBy {
+		found := false
+		for _, have := range out.ConsumedBy {
+			if have.DefinitionKind == c.DefinitionKind && have.Name == c.Name &&
+				have.Cluster == c.Cluster && have.Namespace == c.Namespace {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out.ConsumedBy = append(out.ConsumedBy, c)
+			keptAny = true
+		}
+	}
+	if !keptAny {
+		return out
+	}
+	for _, res := range kept.Resolutions {
+		found := false
+		for _, have := range out.Resolutions {
+			if have.StorageKey == res.StorageKey {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out.Resolutions = append(out.Resolutions, res)
+		}
+	}
+	return out
+}
+
+// sourceStatusList renders the accumulated view in spec order, so the report
+// reads in the order the bindings were declared rather than in map order.
+//
+// A binding nothing read still appears, as Unused. Silence would be ambiguous
+// with a binding that failed.
+func (h *AppHandler) sourceStatusList() []common.ApplicationSourceStatus {
+	if len(h.app.Spec.Sources) == 0 {
+		return nil
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := make([]common.ApplicationSourceStatus, 0, len(h.app.Spec.Sources))
+	autoUpdateDefault := sourceAutoUpdateDefault()
+	_, pinned := h.app.GetAnnotations()[oam.AnnotationPublishVersion]
+	// Once the workflow has settled, a reconcile that rendered nothing learned
+	// nothing, so each binding keeps what was last reported: the reconcile that
+	// lands a failed workflow runs no steps, and the failure that run found is
+	// what a reader needs to see.
+	//
+	// Only once it has settled, because a run that has not started has read
+	// nothing and the last run's answer would speak for a run that has not
+	// happened. And only when nothing rendered, because a render that read
+	// another binding and not this one is evidence this one is no longer read,
+	// which is the only evidence there is: an unread binding is never recorded.
+	// Captured on the first call, because the controller reports twice in one
+	// reconcile and replaces the workflow status between the two: the second
+	// call is the one that can see a run settle, and reading the live status
+	// there would find the Unused this call wrote.
+	if !h.sourcesCaptured {
+		h.lastReportedSources = make([]common.ApplicationSourceStatus, 0, len(h.app.Status.Sources))
+		for i := range h.app.Status.Sources {
+			h.lastReportedSources = append(h.lastReportedSources, *h.app.Status.Sources[i].DeepCopy())
+		}
+		h.sourcesCaptured = true
+	}
+	wf := h.app.Status.Workflow
+	lastReported := map[string]*common.ApplicationSourceStatus{}
+	if wf != nil && (wf.Finished || wf.Terminated) && len(h.sourceStatuses) == 0 {
+		for i := range h.lastReportedSources {
+			prev := h.lastReportedSources[i]
+			if prev.Phase != "" && prev.Phase != sourcePhaseUnused {
+				lastReported[prev.Name] = prev.DeepCopy()
+			}
+		}
+	}
+	for _, src := range h.app.Spec.Sources {
+		entry := common.ApplicationSourceStatus{Name: src.Name, Type: src.Type, Phase: sourcePhaseUnused}
+		// The last report is the base this reconcile reports over, so a kept
+		// step's reads add to it rather than standing in for it: the kept entry
+		// carries that step's consumers alone.
+		base := h.sourceStatuses[src.Name]
+		if base == nil {
+			base = lastReported[src.Name]
+		}
+		if got := withKeptReads(base, h.keptSourceReads[src.Name]); got != nil {
+			entry = *got
+			if entry.Phase == "" {
+				entry.Phase = sourcePhaseResolved
+			}
+		}
+		effective := sourceAutoUpdateEnabled(src, autoUpdateDefault, pinned)
+		entry.AutoUpdate = &effective
+		// A bool cannot say why it is false, and one case is worth the words: the
+		// default would have turned it on and a pin took it away. The other two -
+		// the gate is off, or the author set autoUpdate: false - need no message.
+		// Being off by default is the normal state of every binding in every
+		// Application, so reporting it would put a sentence nobody needs on all
+		// of them, and an author who set false already knows.
+		if !effective && pinned && sourceAutoUpdateEnabled(src, autoUpdateDefault, false) && entry.Message == "" {
+			entry.Message = "autoUpdate suppressed: the Application is pinned by app.oam.dev/publishVersion; set autoUpdate: true on the binding to keep it live"
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+// recordComponentSourceReads folds this component render's source resolution
+// into the Application-level report.
+//
+// There is deliberately no per-component copy. Which binding, which attribute
+// and which value all appear in AppStatus.Sources[].ConsumedBy, alongside the
+// property each value landed in and where the component was placed, so a second
+// list would be less information stored twice.
+func (h *AppHandler) recordComponentSourceReads(comp *appfile.Component, status *common.ApplicationComponentStatus) {
+	if len(h.app.Spec.Sources) == 0 || comp == nil || comp.Ctx == nil {
+		return
+	}
+	resolvedStatuses, _ := comp.Ctx.GetData(sources.SourceResolutionStatusKey).(map[string]sources.SourceResolutionStatus)
+	// The context reports the local cluster as an empty string, but empty already
+	// means "not placed" for a reader like a workflow step. Name it, so the two
+	// are distinguishable in the stored status and not only in whatever renders
+	// it.
+	cluster := status.Cluster
+	if cluster == "" {
+		cluster = multicluster.ClusterLocalName
+	}
+	h.recordSourceResolution(sourceKindComponent, status.Name, comp.Type, cluster, status.Namespace, resolvedStatuses)
+}
+
+func mapToRawExtension(v map[string]interface{}) (*runtime.RawExtension, error) {
+	bt, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return &runtime.RawExtension{Raw: bt}, nil
 }
 
 func setStatus(status *common.ApplicationComponentStatus, observedGeneration, generation int64, labels map[string]string,
@@ -522,6 +963,7 @@ func extractOutputs(templateContext map[string]interface{}) []*unstructured.Unst
 // applyPostDispatchTraits applies PostDispatch stage traits for healthy components.
 // This is called after the workflow succeeds and component health is confirmed.
 func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appParser *appfile.Parser, af *appfile.Appfile) error {
+	var readErrs []error
 	for _, svc := range h.services {
 		workloadHealthy := svc.WorkloadHealthy
 		if !workloadHealthy && svc.Healthy {
@@ -563,10 +1005,26 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 			continue
 		}
 
+		// Rendered from the stored spec, so its component reads are answered here,
+		// for the traits rendered. One that cannot be answered holds back this
+		// component's traits only; any other failure is still reported, once every
+		// component has had its turn.
+		scope, err := h.componentReads().deliver(ctx.GetContext(), withRenderedTraits(comp, wl.Traits, postDispatchTraits),
+			af.Components, svc.Cluster, svc.Namespace)
+		if err != nil {
+			if sources.IsComponentReadNotReady(err) {
+				h.recordWaiting(comp, svc.Cluster, svc.Namespace, err)
+			} else {
+				readErrs = append(readErrs, errors.WithMessagef(err, "failed to deliver component reads to %s for PostDispatch traits", svc.Name))
+			}
+			continue
+		}
+
 		wl.Traits = postDispatchTraits
 
 		// Generate manifest with context that includes live workload status
 		manifest, err := af.GenerateComponentManifest(wl, func(ctxData *velaprocess.ContextData) {
+			withComponentScope(ctxData, scope)
 			if svc.Namespace != "" {
 				ctxData.Namespace = svc.Namespace
 			}
@@ -650,5 +1108,62 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 			ctx.Error(err, "failed to refresh PostDispatch trait status", "component", comp.Name)
 		}
 	}
-	return nil
+	return velaerrors.AggregateErrors(readErrs)
+}
+
+// Phases reported on AppStatus.Sources, from the package that writes them.
+const (
+	sourcePhaseResolved = sources.PhaseResolved
+	sourcePhaseStale    = sources.PhaseStale
+	sourcePhaseFailed   = sources.PhaseFailed
+	sourcePhaseUnused   = sources.PhaseUnused
+)
+
+// reportedSourcePhase names a resolution in the Application's own vocabulary.
+// The resolver reports a value served past its TTL as resolved and flags it,
+// because a value is in hand; Stale is this layer's word for that pair.
+func reportedSourcePhase(rs sources.SourceResolutionStatus) string {
+	if rs.Stale && rs.Phase == sourcePhaseResolved {
+		return sourcePhaseStale
+	}
+	return rs.Phase
+}
+
+// sourcePhaseRank orders the phases a reader can report, worst highest, so a
+// binding keeps the worst any reader saw rather than whichever cluster
+// reconciled last. Unused is not ranked: it is the value a binding starts at
+// when nothing read it, not something a reader reports.
+func sourcePhaseRank(phase string) int {
+	switch phase {
+	case sourcePhaseFailed:
+		return 3
+	case sourcePhaseStale:
+		return 2
+	case sourcePhaseResolved:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// Definition kinds reported on SourceConsumer.
+const (
+	sourceKindComponent    = "component"
+	sourceKindTrait        = "trait"
+	sourceKindWorkflowStep = "workflowstep"
+	sourceKindPolicy       = "policy"
+)
+
+// unwrapValue pulls the single value back out of the envelope mapToRawExtension
+// requires, so a read reports its value directly rather than nested under a key.
+func unwrapValue(raw *runtime.RawExtension) *runtime.RawExtension {
+	var wrapper map[string]json.RawMessage
+	if err := json.Unmarshal(raw.Raw, &wrapper); err != nil {
+		return nil
+	}
+	inner, ok := wrapper["v"]
+	if !ok {
+		return nil
+	}
+	return &runtime.RawExtension{Raw: inner}
 }

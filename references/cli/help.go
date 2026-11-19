@@ -44,6 +44,10 @@ func NewHelpCommand(order string) *cobra.Command {
 	return cmd
 }
 
+// CommandGroups is the order top-level commands are grouped in, shared by
+// vela --help and the generated CLI reference index.
+var CommandGroups = []string{types.TypeStart, types.TypeApp, types.TypeCD, types.TypePlatform, types.TypeExtension, types.TypeSystem, types.TypeAuxiliary}
+
 // RunHelp exec help [command]
 func RunHelp(cmd *cobra.Command, args []string) {
 	runHelp(cmd, cmd.Root().Commands(), args)
@@ -52,7 +56,7 @@ func RunHelp(cmd *cobra.Command, args []string) {
 func runHelp(cmd *cobra.Command, allCommands []*cobra.Command, args []string) {
 	if len(args) == 0 {
 		cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\n")
-		for _, t := range []string{types.TypeStart, types.TypeApp, types.TypeCD, types.TypePlatform, types.TypeExtension, types.TypeSystem, types.TypeAuxiliary} {
+		for _, t := range CommandGroups {
 			PrintHelpByTag(cmd, allCommands, t)
 		}
 		cmd.Println("Flags:")

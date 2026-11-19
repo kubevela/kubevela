@@ -553,7 +553,7 @@ func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, 
 			if err != nil {
 				return err
 			}
-			if info.IsDir() {
+			if info.IsDir() || pkgUtils.IsCUETestFile(path) {
 				return nil
 			}
 			if !strings.HasSuffix(info.Name(), ".yaml") && !strings.HasSuffix(info.Name(), ".cue") {
