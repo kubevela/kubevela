@@ -369,7 +369,7 @@ func GetHelmRepo(ctx context.Context, c client.Client, repoName string) (*cmhelm
 	}
 
 	if matchedEntry == nil {
-		return nil, fmt.Errorf("we cannot find Helm repository %s. Make sure you hava added it using `vela addon registry add` and it is a Helm repository", repoName)
+		return nil, fmt.Errorf("we cannot find Helm repository %s. Make sure you have added it using `vela addon registry add` and it is a Helm repository", repoName)
 	}
 
 	// Use the repo found locally.

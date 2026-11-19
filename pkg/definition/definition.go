@@ -802,7 +802,7 @@ func formatCUEString(cueString string) (string, error) {
 	if len(nonImportDecls) > 0 {
 		b, err := format.Node(&ast.File{Decls: nonImportDecls}, format.Simplify())
 		if err != nil {
-			return "", errors.Wrapf(err, "failed to format node during formating cue string")
+			return "", errors.Wrapf(err, "failed to format node during formatting cue string")
 		}
 		result.WriteString(string(b))
 	}

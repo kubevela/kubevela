@@ -152,7 +152,7 @@ CHECKNEXT:
 	return res, nil
 }
 
-// merge2DefMap will parse annotation in addon's app to 'created x-definition'. Then stroe them in defMap
+// merge2DefMap will parse annotation in addon's app to 'created x-definition'. Then store them in defMap
 func merge2DefMap(defType string, defNames string, defMap map[string]bool) {
 	list := strings.Split(defNames, ",")
 	template := "addon-%s-%s"
@@ -199,7 +199,7 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 				// only fetch definition files from registry.
 				uiData, err = GetUIData(&registry, &meta, UnInstallOptions)
 				if err != nil {
-					return errors.Wrapf(err, "cannot fetch addon difinition files from registry")
+					return errors.Wrapf(err, "cannot fetch addon definition files from registry")
 				}
 			} else {
 				versionedRegistry, err := ToVersionedRegistry(registry)
@@ -208,7 +208,7 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 				}
 				uiData, err = versionedRegistry.GetAddonUIData(ctx, addonName, "")
 				if err != nil {
-					return errors.Wrapf(err, "cannot fetch addon difinition files from registry")
+					return errors.Wrapf(err, "cannot fetch addon definition files from registry")
 				}
 			}
 

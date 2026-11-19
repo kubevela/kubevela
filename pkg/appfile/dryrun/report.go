@@ -32,7 +32,7 @@ var (
 	white  = color.New(color.FgWhite)
 )
 
-// NewReportDiffOption creats a new ReportDiffOption that can formats and prints
+// NewReportDiffOption creates a new ReportDiffOption that can formats and prints
 // diff report into an io.Writer
 func NewReportDiffOption(ctx int, to io.Writer) *ReportDiffOption {
 	return &ReportDiffOption{
