@@ -39,6 +39,7 @@ output: {
 outputs: svc: {
 	apiVersion: "v1"
 	kind:       "Service"
+	spec: clusterIP: "None"
 }
 `
 
@@ -86,6 +87,9 @@ outputs: quota: kind: "ResourceQuota"
 	own := generated(t, "outputs: svc: {apiVersion: \"v1\", kind: \"Service\", spec: type: \"NodePort\"}\n")
 	replacedSvc := parent.Extend(own, map[string]bool{"svc": true})
 	assert.NotNil(t, schemaAt(replacedSvc.Outputs["svc"], "spec", "type"), "the child's own svc stands in its place")
+	assert.Nil(t, schemaAt(replacedSvc.Outputs["svc"], "spec", "clusterIP"), "nothing of the parent's svc is left under it")
+	assert.NotNil(t, schemaAt(parent.Extend(own, nil).Outputs["svc"], "spec", "clusterIP"),
+		"without the drop the parent's svc fields stay, so the check above can fail")
 
 	assert.Same(t, parent.Output, parent.Extend(nil, nil).Output, "a child declaring nothing leaves the parent's")
 	assert.Nil(t, (*OutputSchemas)(nil).Extend(nil, nil).Output)

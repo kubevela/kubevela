@@ -17,6 +17,7 @@ limitations under the License.
 package defkit
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
@@ -247,8 +248,17 @@ func (r *Resource) Directive(path string, directive string) *Resource {
 }
 
 // Final marks a field of the resource +final: a definition that extends this
-// one may not add anything to the field or below it.
+// one may not add anything to the field or below it. A map key is written in
+// brackets, as in Set: `metadata.labels[app.oam.dev/name]`.
+//
+// The inheritance check reads markers on struct fields only, so a path through
+// a list element such as `containers[0]` panics: mark the list field instead.
 func (r *Resource) Final(path string) *Resource {
+	for _, part := range splitPath(path) {
+		if _, _, index := parseBracketAccess(part); index >= 0 {
+			panic(fmt.Sprintf("defkit: Final(%q) goes through the list element %s, which +final cannot mark; mark the list field instead", path, part))
+		}
+	}
 	return r.Directive(path, strings.TrimPrefix(inherit.FinalTag, "+"))
 }
 

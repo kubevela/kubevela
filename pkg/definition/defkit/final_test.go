@@ -69,4 +69,37 @@ var _ = Describe("Resource.Final", func() {
 		Expect(err).To(MatchError(ContainSubstring(
 			"component team-web adds to output.spec.template.spec.securityContext, which secure-web marks +final")))
 	})
+
+	It("marks a map key written in brackets, as Set does", func() {
+		labelled := defkit.NewComponent("labelled-web").
+			Workload("apps/v1", "Deployment").
+			Template(func(tpl *defkit.Template) {
+				tpl.Output(
+					defkit.NewResource("apps/v1", "Deployment").
+						Set("metadata.labels[app.oam.dev/tier]", defkit.Lit("web")).
+						Final("metadata.labels[app.oam.dev/tier]"),
+				)
+			})
+		tpl, found, err := unstructured.NestedString(fromCUE(labelled.ToCue()), "schematic", "cue", "template")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue())
+		Expect(tpl).NotTo(ContainSubstring("labels[app.oam.dev/tier]"))
+
+		check := func(childTemplate string) error {
+			child := inherit.Level{Name: "team-web", Template: childTemplate}
+			own := cuecontext.New().CompileString(child.Template)
+			Expect(own.Err()).NotTo(HaveOccurred())
+			return inherit.CheckFinal("team-web", child, own,
+				[]inherit.Level{{Name: "labelled-web", Template: tpl}}, inherit.ComponentSurface)
+		}
+		Expect(check("output: metadata: labels: \"app.oam.dev/tier\": \"db\"\n")).To(MatchError(ContainSubstring(
+			"component team-web adds to output.metadata.labels.app.oam.dev/tier, which labelled-web marks +final")))
+		Expect(check("output: metadata: labels: team: \"a\"\n")).To(Succeed())
+	})
+
+	It("refuses a path through a list element, which the check cannot read", func() {
+		Expect(func() {
+			defkit.NewResource("apps/v1", "Deployment").Final("spec.template.spec.containers[0].image")
+		}).To(PanicWith(ContainSubstring("goes through the list element containers[0]")))
+	})
 })

@@ -186,6 +186,41 @@ var _ = Describe("Definition inheritance", func() {
 			Expect(drops("svc")).To(MatchError(ContainSubstring("leaves out outputs.svc, which secure-web marks +required")))
 			Expect(drops("netpol")).To(Succeed())
 		})
+
+		It("marks a grouped output +required, whichever comes first", func() {
+			enabled := defkit.Bool("enabled")
+			parent := defkit.NewComponent("secure-web").Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+					tpl.RequireOutput("svc")
+					tpl.OutputsGroupIf(enabled.IsTrue(), func(g *defkit.OutputGroup) {
+						g.Add("svc", defkit.NewResource("v1", "Service"))
+						g.Add("netpol", defkit.NewResource("networking.k8s.io/v1", "NetworkPolicy"))
+					})
+					tpl.OutputsGroupIf(enabled.IsTrue(), func(g *defkit.OutputGroup) {
+						g.Add("pdb", defkit.NewResource("policy/v1", "PodDisruptionBudget"))
+						tpl.RequireOutput("pdb")
+					})
+					tpl.OutputsGroupIf(enabled.IsTrue(), func(g *defkit.OutputGroup) {
+						g.Add("hpa", defkit.NewResource("autoscaling/v2", "HorizontalPodAutoscaler"))
+					})
+					tpl.RequireOutput("hpa")
+				})
+			tpl, found, err := unstructured.NestedString(fromCUE(parent.ToCue()), "schematic", "cue", "template")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			drops := func(name string) error {
+				return inherit.CheckRequired("headless-web",
+					inherit.Level{Name: "headless-web", Template: "$super: properties: {}\n$inherit: outputs: " + name + ": false\n"},
+					[]inherit.Level{{Name: "secure-web", Template: tpl}}, inherit.ComponentSurface)
+			}
+			for _, name := range []string{"svc", "pdb", "hpa"} {
+				Expect(drops(name)).To(MatchError(ContainSubstring("leaves out outputs." + name + ", which secure-web marks +required")))
+			}
+			Expect(drops("netpol")).To(Succeed())
+		})
 	})
 
 	Context("EvaluateCUE", func() {

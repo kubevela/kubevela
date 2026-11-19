@@ -181,6 +181,9 @@ type OutputGroup struct {
 // Add adds a named resource to the output group.
 func (g *OutputGroup) Add(name string, r *Resource) *OutputGroup {
 	g.outputs[name] = r
+	if g.tpl.requiredOutputs[name] {
+		r.requiredOutput = true
+	}
 	return g
 }
 
@@ -192,14 +195,13 @@ func (t *Template) OutputsGroupIf(cond Condition, fn func(g *OutputGroup)) {
 		cond:    cond,
 		outputs: make(map[string]*Resource),
 	}
-	fn(group)
-	if t.outputGroups == nil {
-		t.outputGroups = make([]*outputGroup, 0)
-	}
+	// Registered before fn runs, so a RequireOutput call inside fn also
+	// reaches the resources fn has already added.
 	t.outputGroups = append(t.outputGroups, &outputGroup{
 		cond:    cond,
 		outputs: group.outputs,
 	})
+	fn(group)
 }
 
 // GetOutputGroups returns all output groups.

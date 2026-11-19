@@ -267,6 +267,11 @@ func (t *Template) RequireOutput(name string) *Template {
 	if res, ok := t.outputs[name]; ok {
 		res.requiredOutput = true
 	}
+	for _, group := range t.outputGroups {
+		if res, ok := group.outputs[name]; ok {
+			res.requiredOutput = true
+		}
+	}
 	return t
 }
 

@@ -118,10 +118,11 @@ spec:
                   with the parameters this definition's template passes it in its `$super`
                   block; this definition declares parameters of its own and does not
                   inherit the parent's. It adds to what the parent renders and never
-                  changes it: its patch, patchOutputs and outputs merge onto the parent's,
-                  and a field the parent set is changed only through `$super`. One of the
-                  parent's outputs or patchOutputs may be left out with
-                  `$inherit: {outputs: {<name>: false}}` unless the parent marks it
+                  changes it: its patch, patchOutputs, outputs and processing merge onto
+                  the parent's, and a field the parent set is changed only through
+                  `$super`. One of the parent's outputs may be left out with
+                  `$inherit: {outputs: {<name>: false}}`, and one of its patchOutputs with
+                  `$inherit: {patchOutputs: {<name>: false}}`, unless the parent marks it
                   `+required`, and a field the parent marks `+final` takes no additions.
 
                   A DefinitionRevision may be named to pin the parent, as in "gateway@v2";
