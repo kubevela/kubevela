@@ -33,7 +33,7 @@ require (
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
-	github.com/guidewire-oss/sawchain v0.4.8
+	github.com/guidewire-oss/sawchain v0.5.0
 	github.com/hashicorp/go-version v1.8.0
 	github.com/hashicorp/hcl/v2 v2.18.0
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174

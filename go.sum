@@ -622,8 +622,8 @@ github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0/go.mod h1:8NvIoxWQoOIhqOTXgf
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 h1:Bd7KaOxzULLxtZ/K5s1aLbWhR0+5RToO65TXHsf3bqQ=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0/go.mod h1:nN7ts3dFXKtCZWc//yfkpcQNKJABg16/uDVAZpLDalo=
-github.com/guidewire-oss/sawchain v0.4.8 h1:IO+Ly1EFXu2CxgSdO+PZwneHnJ0QAmtZdkdb30jt85k=
-github.com/guidewire-oss/sawchain v0.4.8/go.mod h1:w5l5TgTj4LXTrTFZRZcYPMC0yrROXOOTLGUsvRa6AWE=
+github.com/guidewire-oss/sawchain v0.5.0 h1:jiPuHOLsUdsgjJuyJ3a9/ROfoc7mwoPHIX5ozzSDdgs=
+github.com/guidewire-oss/sawchain v0.5.0/go.mod h1:t1iH+9qbcG+06IepD8o88i6h/nZXMlDrDAk2doxp/tw=
 github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.72 h1:vTCWu1wbdYo7PEZFem/rlr01+Un+wwVmI7wiegFdRLk=
 github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.72/go.mod h1:Vn+BBgKQHVQYdVQ4NZDICE1Brb+JfaONyDHr3q07oQc=
 github.com/hashicorp/consul/api v1.10.1/go.mod h1:XjsvQN+RJGWI2TWy1/kqaE16HrR2J/FWgkYjdZQsX9M=
