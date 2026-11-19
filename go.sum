@@ -715,8 +715,8 @@ github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
 github.com/oam-dev/cluster-gateway v1.10.0-alpha.1 h1:j1+Bokuyb14ZiA52baqapjLKwfe10oJO8Da1TNygxFc=
 github.com/oam-dev/cluster-gateway v1.10.0-alpha.1/go.mod h1:do/iYYGPV1eBqIensOCBBAhcCM7A7T5JnN/I2N7G8CM=
-github.com/oam-dev/cluster-register v1.0.4-0.20261007161948-d674530a63cd h1:1iN9thtzIEy8BzA5O8sErxVyNIviCd/LamGEsykFJRY=
-github.com/oam-dev/cluster-register v1.0.4-0.20261007161948-d674530a63cd/go.mod h1:RzV5QSlVG72q/hpyCfH6jnZb/I3LaQtmtKApwFex1kY=
+github.com/oam-dev/cluster-register v1.1.0-alpha.1 h1:IlZsnrR55NwQKY/Hc76B9EGmfPutnrjOMXyAINSZDL0=
+github.com/oam-dev/cluster-register v1.1.0-alpha.1/go.mod h1:RzV5QSlVG72q/hpyCfH6jnZb/I3LaQtmtKApwFex1kY=
 github.com/oam-dev/stern v1.13.3-0.20261007155744-2c166cd8b945 h1:SbfBaVxZpqhp0zndqGWd1ZIKR0pomjnFncng8CUWs0M=
 github.com/oam-dev/stern v1.13.3-0.20261007155744-2c166cd8b945/go.mod h1:HuvBLJ3PSXwUN84pvqJHlv/AGud85oXRGWidds4quUY=
 github.com/oam-dev/terraform-config-inspect v0.0.0-20261007155724-d8a4743f5ad5 h1:HpCetA2QQU4bM51qTexbs+QiyZFooa8Z3WZHL+BSzd8=
