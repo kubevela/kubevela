@@ -230,16 +230,28 @@ func registerTools(s *Server, d *deps) {
 
 	addTool(s, ToolClassRead, &sdk.Tool{
 		Name: "diagnose_application",
-		Description: "Root-cause an unhealthy Application: reads provisioner-owned resources live, a bounded number " +
-			"per call, and interprets their conditions by the conventions of the family that owns their API group " +
-			"— ACK (ResourceSynced and Terminal, including the convergence-loop signature of a field the cloud " +
-			"service computes differently), Config Connector (Ready with reason UpToDate), Crossplane (Ready and " +
-			"Synced). Plain Kubernetes resources keep the resource tree's pod-corrected health without a live read; " +
-			"Secrets are never diagnosed and, as with every tool here, their content is never returned. Adds " +
-			"recent events and findings that each cite the object " +
-			"they came from; anything unread is named in unknowns. The resource tree defaults unknown kinds to " +
-			"Healthy, so use this, not explain_application alone, when a cloud resource looks fine but the " +
-			"application is not.",
+		Description: "Root-cause an unhealthy Application: reads family-owned resources live, a bounded number " +
+			"per call, and interprets their conditions by the conventions of the controller family that owns " +
+			"their API group — ACK (ResourceSynced and Terminal, including the convergence-loop signature of a " +
+			"field the cloud service computes differently), Config Connector (Ready with reason UpToDate), " +
+			"Crossplane (Ready and Synced), and standard-conditions for any other custom resource whose status " +
+			"carries conditions (Ready True is ready; no Ready condition is unknown, never healthy). Plain " +
+			"Kubernetes resources, and custom resources that write no conditions, keep the resource tree's " +
+			"pod-corrected health; Secrets are never diagnosed and, as with every tool here, their content is " +
+			"never returned. Adds recent events and findings that each cite the object they came from; anything " +
+			"unread is named in unknowns. The resource tree defaults unknown kinds to Healthy, so use this, not " +
+			"explain_application alone, when a managed resource looks fine but the application is not. A " +
+			"family-owned resource that is not ready carries a cause when its family's condition, or for " +
+			"Crossplane a matching Cannot warning event, holds error text: classified by the external system's " +
+			"own error code, a transport or lower-camel phrase, or a googleapi status into throttled, " +
+			"quota-exhausted, auth, invalid, dependency-missing, conflict or unreachable, with a single owner " +
+			"(application-spec, external or platform; controller is reserved) and the owning controller as a " +
+			"handle when this server can identify it; text no rule recognises, including an explicit code no " +
+			"rule names, is unclassified with no owner; a ready resource carries none. The ACK rules were " +
+			"exercised with a running ACK controller against an emulated endpoint; the Config Connector and " +
+			"Crossplane rules come from their controllers' message formats only; the standard-conditions family " +
+			"from cert-manager's and the Gateway API's documented conditions only. No family is verified " +
+			"against a cloud account.",
 	}, d.diagnoseApplication)
 
 	addTool(s, ToolClassRead, &sdk.Tool{
