@@ -117,6 +117,50 @@ var _ = Describe("a child's workload is its parent's", func() {
 		Expect(child.Spec.Workload).To(Equal(statefulSet))
 	})
 
+	// The root declares nothing, but its template writes what it renders. No
+	// level can change output.kind, so a workload below it that says otherwise
+	// is a wrong label.
+	Context("when the root declares no workload but renders a fixed kind", func() {
+		rendersDeployment := func(name string) *v1beta1.ComponentDefinition {
+			d := compDef(name, "", "output: {\n\tapiVersion: \"apps/v1\"\n\tkind: \"Deployment\"\n}\nparameter: {}\n")
+			d.Spec.Workload = autodetect
+			return d
+		}
+
+		It("refuses a child that declares a different workload", func() {
+			_, err := resolve(level("f-auto-sts", "f-auto", statefulSet), rendersDeployment("f-auto"))
+			Expect(err).To(MatchError(
+				"component f-auto-sts declares workload apps/v1 StatefulSet, but f-auto renders apps/v1 Deployment; " +
+					"leave spec.workload unset to inherit it"))
+		})
+
+		DescribeTable("accepts a child whose workload is what the root renders",
+			func(w common.WorkloadTypeDescriptor) {
+				_, err := resolve(level("child", "f-auto", w), rendersDeployment("f-auto"))
+				Expect(err).NotTo(HaveOccurred())
+			},
+			Entry("the same GVK", common.WorkloadTypeDescriptor{Definition: deployment.Definition}),
+			Entry("the same, by type only", common.WorkloadTypeDescriptor{Type: "deployments.apps"}),
+			Entry("left unset", common.WorkloadTypeDescriptor{}),
+			Entry("autodetect", autodetect),
+		)
+
+		It("accepts a child when the root's kind comes from a parameter", func() {
+			root := compDef("f-param", "", "output: {\n\tapiVersion: \"apps/v1\"\n\tkind: parameter.kind\n}\nparameter: kind: string\n")
+			root.Spec.Workload = autodetect
+			_, err := resolve(level("child", "f-param", statefulSet), root)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("refuses a leaf through a silent middle, naming the root", func() {
+			_, err := resolve(level("leaf", "middle", statefulSet),
+				level("middle", "f-auto", autodetect), rendersDeployment("f-auto"))
+			Expect(err).To(MatchError(
+				"component leaf declares workload apps/v1 StatefulSet, but f-auto renders apps/v1 Deployment; " +
+					"leave spec.workload unset to inherit it"))
+		})
+	})
+
 	// Three levels, and the leaf states a workload of its own. It renders the
 	// root's output with more on it, so a workload other than the root's could
 	// only ever be a wrong label, and is refused.

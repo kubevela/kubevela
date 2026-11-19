@@ -179,6 +179,32 @@ func fixedValue(v cue.Value) (string, bool) {
 	return string(j), true
 }
 
+// FixedOutputKind reads the apiVersion and kind a template writes on its output
+// as constants, from the template compiled with nothing bound. ok is false when
+// either one is missing, or comes from a parameter or the context, since then
+// the template does not say what it renders.
+func FixedOutputKind(unbound cue.Value) (apiVersion, kind string, ok bool) {
+	output := unbound.LookupPath(cue.ParsePath("output"))
+	apiVersion, ok = fixedString(output.LookupPath(cue.ParsePath("apiVersion")))
+	if !ok {
+		return "", "", false
+	}
+	kind, ok = fixedString(output.LookupPath(cue.ParsePath("kind")))
+	if !ok {
+		return "", "", false
+	}
+	return apiVersion, kind, true
+}
+
+// fixedString is a string field written as a constant.
+func fixedString(v cue.Value) (string, bool) {
+	if _, ok := fixedValue(v); !ok || v.Kind() != cue.StringKind {
+		return "", false
+	}
+	s, err := v.String()
+	return s, err == nil
+}
+
 // changes reports whether a child value at a path changes the parent's value
 // there. A default counts as set: writing even the default pins the field and
 // takes it away from the parent's parameter.

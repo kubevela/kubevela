@@ -102,6 +102,9 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 	if err := checkWorkloadsMatch(declared); err != nil {
 		return err
 	}
+	if err := checkRenderedWorkload(ctx, declared, tmpl.Ancestors); err != nil {
+		return err
+	}
 	if !workloadUnset(cd.Spec.Workload) {
 		tmpl.Reference = cd.Spec.Workload
 	}
@@ -266,6 +269,46 @@ func checkWorkloadsMatch(levels []namedWorkload) error {
 		}
 	}
 	return nil
+}
+
+// checkRenderedWorkload refuses a workload declared below a root that declares
+// none, when the root writes a different apiVersion and kind on its output as
+// constants. No level can change output.kind, so every level renders what the
+// root writes, and a workload of its own would be a wrong label. The check is
+// made on the highest level that declares one; checkWorkloadsMatch has already
+// held the levels below it to the same. A root whose kind or apiVersion comes
+// from a parameter or the context, or that writes no output, says nothing to
+// compare with, and the declaration is kept.
+func checkRenderedWorkload(ctx context.Context, levels []namedWorkload, ancestors []inherit.Level) error {
+	if len(ancestors) == 0 || len(levels) != len(ancestors)+1 {
+		return nil
+	}
+	top := -1
+	for i, lvl := range levels {
+		if !workloadUnset(lvl.workload) {
+			top = i
+		}
+	}
+	// Nothing declared, or the root declares its own and checkWorkloadsMatch
+	// has compared against that.
+	if top < 0 || top == len(levels)-1 {
+		return nil
+	}
+	root := ancestors[len(ancestors)-1]
+	unbound, err := compileSchemaLevel(ctx, root.Template)
+	if err != nil || unbound.Err() != nil {
+		return nil
+	}
+	apiVersion, kind, ok := inherit.FixedOutputKind(unbound)
+	if !ok {
+		return nil
+	}
+	rendered := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: apiVersion, Kind: kind}}
+	if sameWorkload(levels[top].workload, rendered) {
+		return nil
+	}
+	return fmt.Errorf("component %s declares workload %s, but %s renders %s; leave spec.workload unset to inherit it",
+		levels[top].name, describeWorkload(levels[top].workload), root.Name, describeWorkload(rendered))
 }
 
 // sameWorkload reports whether two declared workloads can be the same one.
