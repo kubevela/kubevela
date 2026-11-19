@@ -209,6 +209,57 @@ func clauseText(c ast.Clause) string {
 	}
 }
 
+// steeredByParameters reports whether a condition, as clauseText spells it,
+// reads the parent's parameters and nothing else, so a child can steer it
+// through $super. Names a for clause or a let declares are its own, and a
+// built-in type is not a reference.
+func steeredByParameters(cond string) bool {
+	file, err := parser.ParseFile("cond.cue", "x: {"+cond+" {}}")
+	if err != nil {
+		return false
+	}
+	declared := map[string]bool{}
+	ast.Walk(file, func(n ast.Node) bool {
+		switch c := n.(type) {
+		case *ast.ForClause:
+			if c.Key != nil {
+				declared[c.Key.Name] = true
+			}
+			if c.Value != nil {
+				declared[c.Value.Name] = true
+			}
+		case *ast.LetClause:
+			declared[c.Ident.Name] = true
+		}
+		return true
+	}, nil)
+	sawParameter, other := false, false
+	var roots func(n ast.Node) bool
+	roots = func(n ast.Node) bool {
+		switch v := n.(type) {
+		case *ast.SelectorExpr:
+			// Only the start of a selector chain is a reference; the rest are
+			// field names.
+			ast.Walk(v.X, roots, nil)
+			return false
+		case *ast.Field:
+			ast.Walk(v.Value, roots, nil)
+			return false
+		case *ast.Ident:
+			switch {
+			case v.Name == ParameterField:
+				sawParameter = true
+			case declared[v.Name], builtinType[v.Name], v.Name == "x":
+			default:
+				other = true
+			}
+		}
+		return true
+	}
+	ast.Walk(file, roots, nil)
+	return sawParameter && !other
+}
+
 func exprText(e ast.Expr) string {
 	b, err := format.Node(e)
 	if err != nil {
@@ -351,7 +402,7 @@ func checkGuarded(ctx context.Context, at string, own cue.Value, anc Level, s Su
 			// Only a condition on the parent's parameters can be steered from a
 			// child; one on context or anything else cannot.
 			fix := fmt.Sprintf("Pass a value to %s through `%s: properties` instead", anc.Name, SuperField)
-			if !strings.Contains(cond, ParameterField) {
+			if !steeredByParameters(cond) {
 				fix = fmt.Sprintf("To use another value, write a definition that does not extend %s", anc.Name)
 			}
 			return fmt.Errorf("%s %s sets %s, which %s sets only when `%s`; an Application that meets that condition "+

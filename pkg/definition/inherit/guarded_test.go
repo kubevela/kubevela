@@ -252,8 +252,24 @@ parameter: annotations?: [string]: string
 	It("points at a separate definition when the condition is on context", func() {
 		onContext := Level{Name: "base", Template: "output: {\n\tkind: \"Deployment\"\n\tspec: {\n" +
 			"\t\tif context.namespace == \"prod\" {\n\t\t\treplicas: 3\n\t\t}\n\t}\n}\nparameter: {}\n"}
-		Expect(admit("output: spec: replicas: 2\n", onContext)).To(MatchError(ContainSubstring(
-			"which base sets only when `if context.namespace == \"prod\"`; an Application that meets that condition would be refused. " +
-				"To use another value, write a definition that does not extend base")))
+		want := "which base sets only when `if context.namespace == \"prod\"`; an Application that meets that condition would be refused. " +
+			"To use another value, write a definition that does not extend base"
+		Expect(admit("output: spec: replicas: 2\n", onContext)).To(MatchError(ContainSubstring(want)))
+		_, err := renderComponent(child("output: spec: replicas: 2\n"), onContext)
+		Expect(err).To(MatchError(ContainSubstring(want)))
 	})
+
+	DescribeTable("suggests $super only for a condition that reads parameters alone",
+		func(cond string, steerable bool) {
+			Expect(steeredByParameters(cond)).To(Equal(steerable))
+		},
+		Entry("a parameter", "if parameter.cpu != _|_", true),
+		Entry("two parameters", "if parameter.a != _|_ if parameter.b == \"x\"", true),
+		Entry("a for over a parameter, with its own names", "for k, v in parameter.extra", true),
+		Entry("context", "if context.namespace == \"prod\"", false),
+		Entry("context compared with the word parameter", "if context.name == \"parameter\"", false),
+		Entry("a parameter and context", "if parameter.cpu != _|_ if context.name == \"x\"", false),
+		Entry("a field named parameter under context", "if context.parameter != _|_", false),
+		Entry("nothing at all", "if true", false),
+	)
 })
