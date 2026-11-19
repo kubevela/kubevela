@@ -32,9 +32,10 @@ spec:
     - name: build-push
       type: build-push-image
       properties:
-        # set kanikoExecutor to use another kaniko executor image, pinned by digest; if not set, the default is
+        # if kanikoExecutor is not set, the default image is
         # ghcr.io/osscontainertools/kaniko:v1.29.1@sha256:e7cba1f7e70c01c8ee1cbe622d07990c04dea550430c4c81319d26679226cd37
-        # kanikoExecutor: ghcr.io/osscontainertools/kaniko:v1.29.1@sha256:e7cba1f7e70c01c8ee1cbe622d07990c04dea550430c4c81319d26679226cd37
+        # to use another kaniko executor image, set it, pinned by digest:
+        # kanikoExecutor: <registry>/<kaniko image>:<tag>@sha256:<digest>
         # you can use context with git and branch or directly specify the context, please refer to https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts
         context:
           git: github.com/FogDong/simple-web-demo
