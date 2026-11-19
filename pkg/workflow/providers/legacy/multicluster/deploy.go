@@ -111,6 +111,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, s
 	if err != nil {
 		return false, "", err
 	}
+	components = executor.af.ComponentsWithReadDependencies(components)
 	return applyComponents(ctx, executor.apply, executor.healthCheck, components, placements, int(executor.parameter.Parallelism))
 }
 
@@ -256,7 +257,7 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 	for _, os := range outputs {
 		name := os.GetLabels()[oam.TraitResource]
 		if name != "" {
-			componentVal = componentVal.FillPath(cue.ParsePath(fmt.Sprintf("outputs.%s", name)), os.Object)
+			componentVal = componentVal.FillPath(cue.MakePath(cue.Str("outputs"), cue.Str(name)), os.Object)
 		}
 	}
 
@@ -294,11 +295,16 @@ func (t *applyTask) allInputReady(cache *pkgmaps.SyncMap[string, cue.Value]) boo
 
 type applyTaskResult struct {
 	healthy bool
+	// waiting is why the task was not applied yet, when it was not.
+	waiting string
 	err     error
 	task    *applyTask
+	// outputReady indicates whether all declared outputs are ready
+	outputReady bool
 }
 
 // applyComponents will apply components to placements.
+// nolint:gocyclo
 func applyComponents(ctx context.Context, apply oamprovidertypes.ComponentApply, healthCheck oamprovidertypes.ComponentHealthCheck, components []common.ApplicationComponent, placements []v1alpha1.PlacementDecision, parallelism int) (bool, string, error) {
 	var tasks []*applyTask
 	var cache = pkgmaps.NewSyncMap[string, cue.Value]()
@@ -321,6 +327,8 @@ func applyComponents(ctx context.Context, apply oamprovidertypes.ComponentApply,
 	}
 	unhealthyResults := make([]*applyTaskResult, 0)
 	maxHealthCheckTimes := len(tasks)
+	outputNotReadyReasons := make([]string, 0)
+	outputsReady := true
 HealthCheck:
 	for i := 0; i < maxHealthCheckTimes; i++ {
 		checkTasks := make([]*applyTask, 0)
@@ -340,16 +348,28 @@ HealthCheck:
 			break HealthCheck
 		}
 		checkResults := slices.ParMap[*applyTask, *applyTaskResult](checkTasks, func(task *applyTask) *applyTaskResult {
-			healthy, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			healthy, _, output, outputs, err := healthCheck(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
 			task.healthy = ptr.To(healthy)
 			if healthy {
-				err = task.generateOutput(output, outputs, cache, makeValue)
+				if errOutput := task.generateOutput(output, outputs, cache, makeValue); errOutput != nil {
+					var notFound workflowerrors.LookUpNotFoundErr
+					if errors.As(errOutput, &notFound) && strings.HasPrefix(string(notFound), "outputs.") && len(outputs) == 0 {
+						// PostDispatch traits are not rendered/applied yet, so trait outputs are unavailable.
+						// Skip blocking the deploy step; the outputs will be populated after PostDispatch runs.
+						errOutput = nil
+					}
+					err = errOutput
+				}
 			}
-			return &applyTaskResult{healthy: healthy, err: err, task: task}
+			return &applyTaskResult{healthy: healthy, err: err, task: task, outputReady: true}
 		}, slices.Parallelism(parallelism))
 
 		for _, res := range checkResults {
 			taskHealthyMap[res.task.key()] = res.healthy
+			if !res.outputReady {
+				outputsReady = false
+				outputNotReadyReasons = append(outputNotReadyReasons, fmt.Sprintf("%s outputs not ready", res.task.key()))
+			}
 			if !res.healthy || res.err != nil {
 				unhealthyResults = append(unhealthyResults, res)
 			}
@@ -374,13 +394,16 @@ HealthCheck:
 		results = slices.ParMap[*applyTask, *applyTaskResult](todoTasks, func(task *applyTask) *applyTaskResult {
 			err := task.fillInputs(cache, makeValue)
 			if err != nil {
-				return &applyTaskResult{healthy: false, err: err, task: task}
+				return &applyTaskResult{healthy: false, err: err, task: task, outputReady: true}
 			}
-			_, _, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			_, _, healthy, waiting, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			if waiting != "" {
+				return &applyTaskResult{healthy: false, waiting: waiting, task: task, outputReady: true}
+			}
 			if err != nil {
-				return &applyTaskResult{healthy: healthy, err: err, task: task}
+				return &applyTaskResult{healthy: healthy, err: err, task: task, outputReady: true}
 			}
-			return &applyTaskResult{healthy: healthy, err: err, task: task}
+			return &applyTaskResult{healthy: healthy, err: err, task: task, outputReady: true}
 		}, slices.Parallelism(parallelism))
 	}
 	var errs []error
@@ -392,6 +415,12 @@ HealthCheck:
 		}
 	}
 	for _, res := range results {
+		if res.waiting != "" {
+			// Not applied yet, and not an error: its reason is the step's message.
+			allHealthy = false
+			reasons = append(reasons, fmt.Sprintf("%s is %s", res.task.key(), res.waiting))
+			continue
+		}
 		if res.err != nil {
 			errs = append(errs, fmt.Errorf("error encountered in cluster %s: %w", res.task.placement.Cluster, res.err))
 		}
@@ -401,11 +430,13 @@ HealthCheck:
 		}
 	}
 
+	reasons = append(reasons, outputNotReadyReasons...)
+
 	for _, t := range pendingTasks {
 		reasons = append(reasons, fmt.Sprintf("%s is waiting dependents", t.key()))
 	}
 
-	return allHealthy && len(pendingTasks) == 0, strings.Join(reasons, ","), velaerrors.AggregateErrors(errs)
+	return allHealthy && outputsReady && len(pendingTasks) == 0, strings.Join(reasons, ","), velaerrors.AggregateErrors(errs)
 }
 
 func fieldPathToComponent(input string) string {

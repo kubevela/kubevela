@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 
@@ -114,14 +114,14 @@ func TestApplyComponentsDepends(t *testing.T) {
 	}
 
 	applyMap := &sync.Map{}
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
-		return nil, nil, true, nil
+		return nil, nil, true, "", nil
 	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, nil, nil, nil
+		return found, nil, nil, nil, nil
 	}
 	parallelism := 10
 
@@ -158,31 +158,31 @@ func TestApplyComponentsIO(t *testing.T) {
 		applyMap    = new(sync.Map)
 		ctx         = context.Background()
 	)
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
-		return nil, nil, true, nil
+		return nil, nil, true, "", nil
 	}
-	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
-		return found, &unstructured.Unstructured{Object: map[string]interface{}{
-				"spec": map[string]interface{}{
-					"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-				},
-			}}, []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
-								oam.TraitResource: "obj",
-							},
-						},
-						"spec": map[string]interface{}{
-							"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+		return found, nil, &unstructured.Unstructured{Object: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+			},
+		}}, []*unstructured.Unstructured{
+			{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"labels": map[string]interface{}{
+							oam.TraitResource: "obj",
 						},
 					},
+					"spec": map[string]interface{}{
+						"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+					},
 				},
-			}, nil
+			},
+		}, nil
 	}
 
 	resetStore := func() {
@@ -208,7 +208,7 @@ func TestApplyComponentsIO(t *testing.T) {
 				Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"placeholder":%d}`, i))},
 			}
 			if i != 0 {
-				comp.Inputs = workflowv1alpha1.StepInputs{
+				comp.Inputs = wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: "input_slot_1",
 						From:         fmt.Sprintf("var-output-%d", i-1),
@@ -220,7 +220,7 @@ func TestApplyComponentsIO(t *testing.T) {
 				}
 			}
 			if i != n-1 {
-				comp.Outputs = workflowv1alpha1.StepOutputs{
+				comp.Outputs = wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.path",
 						Name:      fmt.Sprintf("var-output-%d", i),
@@ -254,7 +254,7 @@ func TestApplyComponentsIO(t *testing.T) {
 		components := []apicommon.ApplicationComponent{
 			{
 				Name: "comp-0",
-				Outputs: workflowv1alpha1.StepOutputs{
+				Outputs: wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.error_path",
 						Name:      "var1",
@@ -263,7 +263,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-1",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: "input_slot_1",
 						From:         "var1",
@@ -293,7 +293,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			output  *unstructured.Unstructured
 			outputs []*unstructured.Unstructured
 		}
-		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 			time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 			key := storeKey(clusterName, comp)
 			result := applyResult{
@@ -318,20 +318,20 @@ func TestApplyComponentsIO(t *testing.T) {
 				},
 			}
 			applyMap.Store(storeKey(clusterName, comp), result)
-			return nil, nil, true, nil
+			return nil, nil, true, "", nil
 		}
-		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 			key := storeKey(clusterName, comp)
 			r, found := applyMap.Load(key)
 			result, _ := r.(applyResult)
-			return found, result.output, result.outputs, nil
+			return found, nil, result.output, result.outputs, nil
 		}
 
 		inputSlot := "input_slot"
 		components := []apicommon.ApplicationComponent{
 			{
 				Name: "comp-0",
-				Outputs: workflowv1alpha1.StepOutputs{
+				Outputs: wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.path",
 						Name:      "var1",
@@ -340,13 +340,13 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-1",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: inputSlot,
 						From:         "var1",
 					},
 				},
-				Outputs: workflowv1alpha1.StepOutputs{
+				Outputs: wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.anotherPath",
 						Name:      "var2",
@@ -356,13 +356,13 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-1",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: inputSlot,
 						From:         "var1",
 					},
 				},
-				Outputs: workflowv1alpha1.StepOutputs{
+				Outputs: wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.anotherPath",
 						Name:      "var2",
@@ -372,7 +372,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-2",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: inputSlot,
 						From:         "var2",
@@ -382,7 +382,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-2",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: inputSlot,
 						From:         "var2",
@@ -407,4 +407,20 @@ func TestApplyComponentsIO(t *testing.T) {
 		r.True(healthy)
 
 	})
+}
+
+// A component waiting on a read is reported with its reason, and is not an
+// error: the step retries it as it would any component not yet healthy.
+func TestApplyComponentsReportsAReadWait(t *testing.T) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, _ *cue.Value, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+		return nil, nil, false, `waiting for component "db" in hub to be healthy`, nil
+	}
+	healthCheck := func(context.Context, apicommon.ApplicationComponent, *cue.Value, string, string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		return false, nil, nil, nil, nil
+	}
+	healthy, reason, err := applyComponents(context.Background(), apply, healthCheck,
+		[]apicommon.ApplicationComponent{{Name: "api"}}, []v1alpha1.PlacementDecision{{Cluster: "east"}}, 1)
+	require.NoError(t, err)
+	require.False(t, healthy)
+	require.Equal(t, `east///api is waiting for component "db" in hub to be healthy`, reason)
 }

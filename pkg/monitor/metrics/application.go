@@ -66,6 +66,27 @@ var (
 		Name: "workflow_step_phase_number",
 		Help: "workflow step phase number",
 	}, []string{"step_type", "phase"})
+
+	// ApplicationHealthStatus reports the overall health status of each application
+	ApplicationHealthStatus = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubevela_application_health_status",
+		Help: "Application health status (1 = healthy, 0 = unhealthy)",
+	}, []string{"app_name", "namespace"})
+
+	// ApplicationPhase reports the numeric phase of each application
+	ApplicationPhase = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubevela_application_phase",
+		Help: "Application phase as numeric value (0=starting, 1=running, 2=rendering, 3=policy_generating, 4=running_workflow, " +
+			"5=workflow_suspending, 6=workflow_terminated, 7=workflow_failed, 8=unhealthy, 9=deleting, " +
+			"-1=unknown)",
+	}, []string{"app_name", "namespace"})
+
+	// WorkflowPhase reports the numeric phase of each workflow
+	WorkflowPhase = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "kubevela_application_workflow_phase",
+		Help: "Workflow phase as numeric value (0=initializing, 1=succeeded, 2=executing, 3=suspending, 4=terminated, " +
+			"5=failed, 6=skipped, -1=unknown)",
+	}, []string{"app_name", "namespace"})
 )
 
 var (

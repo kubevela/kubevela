@@ -27,6 +27,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/references/docgen"
 )
 
@@ -47,7 +48,7 @@ title: Built-in WorkflowStep Type
 
 This documentation will walk through all the built-in workflow step types sorted alphabetically.
 
-` + fmt.Sprintf("> It was generated automatically by [scripts](../../contributor/cli-ref-doc), please don't update manually, last updated at %s.\n\n", time.Now().Format(time.RFC3339))
+` + fmt.Sprintf("> It was generated automatically by [scripts](../../contributor/cli-ref-doc.md), please don't update manually, last updated at %s.\n\n", time.Now().Format(time.RFC3339))
 
 // CustomWorkflowHeaderZH .
 var CustomWorkflowHeaderZH = `---
@@ -56,7 +57,7 @@ title: 内置工作流步骤列表
 
 本文档将**按字典序**展示所有内置工作流步骤的参数列表。
 
-` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
+` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc.md)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
 
 // WorkflowDef generate workflow def reference doc
 func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
@@ -94,6 +95,7 @@ func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
 	}
 	ref.Local = &docgen.FromLocal{Paths: opt.DefDirs}
 	ref.Client = singleton.KubeClient.Get()
+	ref.Compiler = providers.DefaultCompiler.Get()
 
 	if opt.Path != "" {
 		ref.I18N = &docgen.En
@@ -110,19 +112,21 @@ func WorkflowDef(ctx context.Context, c common.Args, opt Options) {
 	}
 	if opt.Location == "" || opt.Location == "en" {
 		ref.I18N = &docgen.En
-		if err := ref.GenerateReferenceDocs(ctx, c, WorkflowDefRefPath); err != nil {
+		path := opt.SiteBase() + "/docs/end-user/workflow/built-in-workflow-defs.md"
+		if err := ref.GenerateReferenceDocs(ctx, c, path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("workflow reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), WorkflowDefRefPath)
+		fmt.Printf("workflow reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), path)
 	}
 	if opt.Location == "" || opt.Location == "zh" {
 		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomWorkflowHeaderZH
-		if err := ref.GenerateReferenceDocs(ctx, c, WorkflowDefRefPathZh); err != nil {
+		path := opt.SiteBase() + "/i18n/zh/docusaurus-plugin-content-docs/current/end-user/workflow/built-in-workflow-defs.md"
+		if err := ref.GenerateReferenceDocs(ctx, c, path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("workflow reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), WorkflowDefRefPathZh)
+		fmt.Printf("workflow reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), path)
 	}
 }

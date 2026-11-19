@@ -17,6 +17,7 @@ limitations under the License.
 package addon
 
 import (
+	"context"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +29,7 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
@@ -169,22 +171,22 @@ func TestLoadSystemRequirements(t *testing.T) {
 func TestLoadAddonVersions(t *testing.T) {
 	server := httptest.NewServer(multiVersionHandler)
 	defer server.Close()
-	mr := &versionedRegistry{
+	mr := &httpHelmBackend{
 		name: "multiversion-helm-repo",
 		url:  server.URL,
 		h:    helm.NewHelperWithCache(),
-		Opts: nil,
+		opts: nil,
 	}
 	versions, err := mr.loadAddonVersions("not-exist")
 	assert.Error(t, err)
 	assert.Equal(t, err, ErrNotExist)
 	assert.Equal(t, len(versions), 0)
 
-	mr = &versionedRegistry{
+	mr = &httpHelmBackend{
 		name: "multiversion-helm-repo",
 		url:  server.URL,
 		h:    helm.NewHelperWithCache(),
-		Opts: nil,
+		opts: nil,
 	}
 	versions, err = mr.loadAddonVersions("not-exist")
 	assert.Error(t, err)
@@ -205,18 +207,41 @@ func TestToVersionedRegistry(t *testing.T) {
 	actual, err := ToVersionedRegistry(registry)
 
 	assert.NoError(t, err)
-	expected := &versionedRegistry{
+	expected := &helmRegistry{
 		name: registry.Name,
-		url:  registry.Helm.URL,
-		h:    helm.NewHelperWithCache(),
-		Opts: &common.HTTPOption{
-			Username: registry.Helm.Username,
-			Password: registry.Helm.Password,
+		backend: &httpHelmBackend{
+			name: registry.Name,
+			url:  registry.Helm.URL,
+			h:    helm.NewHelperWithCache(),
+			opts: &common.HTTPOption{
+				Username: registry.Helm.Username,
+				Password: registry.Helm.Password,
+			},
 		},
 	}
 	assert.Equal(t, expected, actual)
 
-	// Test case 2: when converting a git-based registry, return error
+	// Test case 2: convert an OCI-based registry
+	registry = Registry{
+		Name: "oci-based-registry",
+		Helm: &HelmSource{
+			URL:      "oci://repo.example/addon",
+			Username: "example-user",
+			Token:    "example-token",
+		},
+	}
+	actual, err = ToVersionedRegistry(registry)
+	assert.NoError(t, err)
+	ociReg, ok := actual.(*helmRegistry)
+	require.True(t, ok)
+	ociActual, ok := ociReg.backend.(*ociHelmBackend)
+	require.True(t, ok)
+	assert.Equal(t, registry.Name, ociActual.name)
+	assert.Equal(t, registry.Helm.URL, ociActual.url)
+	assert.Equal(t, registry.Helm.Username, ociActual.username)
+	assert.Equal(t, registry.Helm.Token, ociActual.token)
+
+	// Test case 3: when converting a git-based registry, return error
 	registry = Registry{
 		Name: "git-based-registry",
 		Git: &GitAddonSource{
@@ -226,4 +251,191 @@ func TestToVersionedRegistry(t *testing.T) {
 	actual, err = ToVersionedRegistry(registry)
 	assert.EqualError(t, err, "registry 'git-based-registry' is not a versioned registry")
 	assert.Nil(t, actual)
+
+	// Test case 4: a cm:// url stays on the HTTP backend. ChartMuseum registries
+	// are stored with a cm:// URL, which push.go rewrites to http(s) later.
+	// Rejecting the scheme here, or routing it to OCI, would break those records.
+	registry = Registry{Name: "cm", Helm: &HelmSource{URL: "cm://charts.example.com"}}
+	actual, err = ToVersionedRegistry(registry)
+	require.NoError(t, err)
+	cmReg, ok := actual.(*helmRegistry)
+	require.True(t, ok)
+	assert.IsType(t, &httpHelmBackend{}, cmReg.backend)
+
+	// Test case 5: mismatched credentials are rejected at construction.
+	registry = Registry{Name: "bad", Helm: &HelmSource{URL: "https://charts.example.com", Token: "tok"}}
+	_, err = ToVersionedRegistry(registry)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "token")
+
+	// Test case 6: an oci registry never reaches BuildReader. The defect this
+	// guards: an OCI registry used to fall through to BuildReader, which has no
+	// chart-registry branch and fails with "registry don't have enough info to
+	// build a reader".
+	registry = Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://reg.example.com/addon"}}
+	_, err = registry.BuildReader()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "don't have enough info")
+	assert.True(t, IsVersionRegistry(registry),
+		"chart-backed registries must be classified as version capable")
+}
+
+func TestResolveAddonListFromIndex(t *testing.T) {
+	r := &httpHelmBackend{name: "test-repo"}
+	indexFile := &repo.IndexFile{
+		Entries: map[string]repo.ChartVersions{
+			"addon-good": {
+				{Metadata: &chart.Metadata{Name: "addon-good", Version: "1.0.0", Description: "old desc", Icon: "old_icon", Keywords: []string{"tag1"}}},
+				{Metadata: &chart.Metadata{Name: "addon-good", Version: "1.2.0", Description: "latest desc", Icon: "latest_icon", Keywords: []string{"tag2"}}},
+				{Metadata: &chart.Metadata{Name: "addon-good", Version: "1.1.0", Description: "middle desc", Icon: "middle_icon", Keywords: []string{"tag3"}}},
+			},
+			"addon-empty": {},
+			"addon-single": {
+				{Metadata: &chart.Metadata{Name: "addon-single", Version: "0.1.0", Description: "single desc"}},
+			},
+		},
+	}
+
+	result := r.resolveAddonListFromIndex(indexFile)
+
+	assert.Equal(t, 2, len(result))
+
+	var addonGood, addonSingle *UIData
+	for _, addon := range result {
+		if addon.Name == "addon-good" {
+			addonGood = addon
+		}
+		if addon.Name == "addon-single" {
+			addonSingle = addon
+		}
+	}
+
+	require.NotNil(t, addonGood)
+	assert.Equal(t, "addon-good", addonGood.Name)
+	assert.Empty(t, addonGood.RegistryName,
+		"the backend leaves RegistryName unset; helmRegistry.ListAddon stamps it")
+	assert.Equal(t, "1.2.0", addonGood.Version)
+	assert.Equal(t, "latest desc", addonGood.Description)
+	assert.Equal(t, "latest_icon", addonGood.Icon)
+	assert.Equal(t, []string{"tag2"}, addonGood.Tags)
+	assert.Equal(t, []string{"1.2.0", "1.1.0", "1.0.0"}, addonGood.AvailableVersions)
+
+	require.NotNil(t, addonSingle)
+	assert.Equal(t, "addon-single", addonSingle.Name)
+	assert.Equal(t, "0.1.0", addonSingle.Version)
+	assert.Equal(t, []string{"0.1.0"}, addonSingle.AvailableVersions)
+}
+
+// setupAddonTestServer creates a mock HTTP server for testing addon loading.
+// It can simulate success, 404 errors, or serving corrupt data based on the handlerType.
+func setupAddonTestServer(t *testing.T, handlerType string) string {
+	var server *httptest.Server
+	// This handler rewrites URLs in the index file to point to the server it's running on.
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "index.yaml") {
+			content, err := os.ReadFile("./testdata/multiversion-helm-repo/index.yaml")
+			assert.NoError(t, err)
+			newContent := strings.ReplaceAll(string(content), "http://127.0.0.1:18083/multi", server.URL)
+			_, err = w.Write([]byte(newContent))
+			assert.NoError(t, err)
+			return
+		}
+
+		// After serving the index, the next request depends on the handler type.
+		switch handlerType {
+		case "success":
+			multiVersionHandler(w, r)
+		case "notfound":
+			w.WriteHeader(http.StatusNotFound)
+		case "corrupt":
+			_, err := w.Write([]byte("this is not a valid tgz file"))
+			assert.NoError(t, err)
+		default:
+			t.Errorf("unknown handler type: %s", handlerType)
+		}
+	})
+	server = httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	return server.URL
+}
+
+func TestLoadAddon(t *testing.T) {
+	testCases := []struct {
+		name           string
+		handlerType    string
+		addonName      string
+		addonVersion   string
+		expectErr      bool
+		expectedErrStr string
+		checkFunc      func(t *testing.T, pkg *WholeAddonPackage)
+	}{
+		{
+			name:         "Success case",
+			handlerType:  "success",
+			addonName:    "fluxcd",
+			addonVersion: "1.0.0",
+			expectErr:    false,
+			checkFunc: func(t *testing.T, pkg *WholeAddonPackage) {
+				assert.NotNil(t, pkg)
+				assert.Equal(t, "fluxcd", pkg.Name)
+				assert.Equal(t, "1.0.0", pkg.Version)
+				assert.NotEmpty(t, pkg.YAMLTemplates)
+				assert.Equal(t, []string{"2.0.0", "1.0.0"}, pkg.AvailableVersions)
+			},
+		},
+		{
+			name:           "Version not found",
+			handlerType:    "success",
+			addonName:      "fluxcd",
+			addonVersion:   "3.0.0",
+			expectErr:      true,
+			expectedErrStr: "specified version 3.0.0 for addon fluxcd not exist",
+		},
+		{
+			name:           "Chart download fails",
+			handlerType:    "notfound",
+			addonName:      "fluxcd",
+			addonVersion:   "1.0.0",
+			expectErr:      true,
+			expectedErrStr: ErrFetch.Error(),
+		},
+		{
+			name:           "Corrupt chart file",
+			handlerType:    "corrupt",
+			addonName:      "fluxcd",
+			addonVersion:   "1.0.0",
+			expectErr:      true,
+			expectedErrStr: ErrFetch.Error(),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			serverURL := setupAddonTestServer(t, tc.handlerType)
+			reg := &helmRegistry{
+				name: "test-registry",
+				backend: &httpHelmBackend{
+					name: "test-registry",
+					url:  serverURL,
+					h:    helm.NewHelperWithCache(),
+					opts: nil,
+				},
+			}
+
+			pkg, err := reg.loadAddon(context.Background(), tc.addonName, tc.addonVersion)
+
+			if tc.expectErr {
+				assert.Error(t, err)
+				if tc.expectedErrStr != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrStr)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+
+			if tc.checkFunc != nil {
+				tc.checkFunc(t, pkg)
+			}
+		})
+	}
 }

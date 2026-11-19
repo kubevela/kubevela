@@ -47,7 +47,7 @@ title: Built-in Policy Type
 
 This documentation will walk through all the built-in policy types sorted alphabetically.
 
-` + fmt.Sprintf("> It was generated automatically by [scripts](../../contributor/cli-ref-doc), please don't update manually, last updated at %s.\n\n", time.Now().Format(time.RFC3339))
+` + fmt.Sprintf("> It was generated automatically by [scripts](../../contributor/cli-ref-doc.md), please don't update manually, last updated at %s.\n\n", time.Now().Format(time.RFC3339))
 
 // CustomPolicyHeaderZH .
 var CustomPolicyHeaderZH = `---
@@ -56,7 +56,7 @@ title: 内置策略列表
 
 本文档将**按字典序**展示所有内置策略的参数列表。
 
-` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
+` + fmt.Sprintf("> 本文档由[脚本](../../contributor/cli-ref-doc.md)自动生成，请勿手动修改，上次更新于 %s。\n\n", time.Now().Format(time.RFC3339))
 
 // PolicyDef generate policy def reference doc
 func PolicyDef(ctx context.Context, c common.Args, opt Options) {
@@ -108,19 +108,21 @@ func PolicyDef(ctx context.Context, c common.Args, opt Options) {
 	}
 	if opt.Location == "" || opt.Location == "en" {
 		ref.I18N = &docgen.En
-		if err := ref.GenerateReferenceDocs(ctx, c, PolicyDefRefPath); err != nil {
+		path := opt.SiteBase() + "/docs/end-user/policies/references.md"
+		if err := ref.GenerateReferenceDocs(ctx, c, path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("policy reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), PolicyDefRefPath)
+		fmt.Printf("policy reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), path)
 	}
 	if opt.Location == "" || opt.Location == "zh" {
 		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomPolicyHeaderZH
-		if err := ref.GenerateReferenceDocs(ctx, c, PolicyDefRefPathZh); err != nil {
+		path := opt.SiteBase() + "/i18n/zh/docusaurus-plugin-content-docs/current/end-user/policies/references.md"
+		if err := ref.GenerateReferenceDocs(ctx, c, path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("policy reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), PolicyDefRefPathZh)
+		fmt.Printf("policy reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), path)
 	}
 }

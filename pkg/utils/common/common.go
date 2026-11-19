@@ -31,22 +31,30 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
+	"github.com/kubevela/pkg/cue/cuex"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
+	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
+	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
-	yamlv3 "gopkg.in/yaml.v3"
+	yamlv3 "go.yaml.in/yaml/v3"
 	v1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	metricsV1beta1api "k8s.io/metrics/pkg/apis/metrics/v1beta1"
@@ -58,12 +66,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"sigs.k8s.io/yaml"
 
-	clustergatewayapi "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
-	terraformapiv1 "github.com/oam-dev/terraform-controller/api/v1beta1"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
-
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
-
+	configoam "github.com/oam-dev/kubevela/apis/config.oam.dev"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
@@ -84,6 +87,7 @@ func init() {
 	_ = apiregistrationv1.AddToScheme(Scheme)
 	_ = crdv1.AddToScheme(Scheme)
 	_ = oamcore.AddToScheme(Scheme)
+	_ = configoam.AddToScheme(Scheme)
 	_ = kruise.AddToScheme(Scheme)
 	_ = terraformapi.AddToScheme(Scheme)
 	_ = terraformapiv1.AddToScheme(Scheme)
@@ -103,10 +107,15 @@ func init() {
 type HTTPOption struct {
 	Username        string `json:"username,omitempty"`
 	Password        string `json:"password,omitempty"`
+	BearerToken     string `json:"bearerToken,omitempty"` // RFC 6750. Mutually exclusive with Username/Password.
 	CaFile          string `json:"caFile,omitempty"`
 	CertFile        string `json:"certFile,omitempty"`
 	KeyFile         string `json:"keyFile,omitempty"`
 	InsecureSkipTLS bool   `json:"insecureSkipTLS,omitempty"`
+	// PlainHTTP signals that the caller wants the OCI client to use plain
+	// HTTP rather than TLS. Honored only on the OCI fetch path. Insecure
+	// by design; users opt in via the Opaque Secret key insecurePlainHTTP.
+	PlainHTTP bool `json:"plainHTTP,omitempty"`
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
@@ -124,6 +133,18 @@ func InitBaseRestConfig() (Args, error) {
 	return args, nil
 }
 
+func outboundHTTPPolicy() httpguard.Policy {
+	policy := httpguard.Current()
+	if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {
+		policy.BlockPrivate = true
+	}
+	return policy
+}
+
+func secureHTTPTransport(base *http.Transport) *http.Transport {
+	return httpguard.SecureTransport(base, outboundHTTPPolicy())
+}
+
 // HTTPGetResponse use HTTP option and default client to send request and get raw response
 func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.Response, error) {
 	// Change NewRequest to NewRequestWithContext and pass context it
@@ -134,12 +155,27 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	if err != nil {
 		return nil, err
 	}
-	httpClient := &http.Client{}
+	policy := outboundHTTPPolicy()
+	if err := policy.BlockedHost(req.URL.Host); err != nil {
+		return nil, err
+	}
+	httpClient := &http.Client{
+		Transport:     secureHTTPTransport(http.DefaultTransport.(*http.Transport).Clone()),
+		CheckRedirect: guardedRedirect(policy, nil),
+	}
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
 	}
+	if opts != nil && opts.BearerToken != "" {
+		if opts.Username != "" || opts.Password != "" {
+			return nil, fmt.Errorf(
+				"HTTPOption sets both basic-auth and a bearer token: " +
+					"at most one credential method MUST be configured (RFC 6750 §2)")
+		}
+		req.Header.Set("Authorization", "Bearer "+opts.BearerToken)
+	}
 	if opts != nil && opts.InsecureSkipTLS {
-		httpClient.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} // nolint
+		httpClient.Transport = secureHTTPTransport(&http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}) // nolint
 	}
 	// if specify the caFile, we cannot re-use the default httpClient, so create a new one.
 	if opts != nil && (len(opts.CaFile) != 0 || len(opts.KeyFile) != 0 || len(opts.CertFile) != 0) {
@@ -162,12 +198,103 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 		}
 		tr.TLSClientConfig = tlsConfig
 		defer tr.CloseIdleConnections()
-		httpClient.Transport = &tr
+		httpClient.Transport = secureHTTPTransport(&tr)
+		if len(tlsConfig.Certificates) != 0 {
+			// A client certificate is presented during the TLS handshake, so it
+			// belongs to the transport rather than to a header. net/http strips
+			// Authorization when a redirect crosses to another origin, but it
+			// cannot strip a client certificate: every hop in the chain reuses
+			// this transport and so authenticates the caller to whatever host it
+			// lands on. Refuse the crossing instead.
+			httpClient.CheckRedirect = guardedRedirect(policy, rejectCrossOriginRedirect)
+		}
 	}
 	return httpClient.Do(req)
 }
 
-// HTTPGetWithOption use HTTP option and default client to send get request
+// defaultRedirectLimit matches net/http's own cap, which a custom
+// CheckRedirect replaces rather than adds to.
+const defaultRedirectLimit = 10
+
+// guardedRedirect checks every redirect hop: the redirect limit, then the
+// workflow HTTP deny policy on the target host, then next when it is set. A
+// custom CheckRedirect replaces the net/http default, so the limit is enforced
+// here.
+func guardedRedirect(policy httpguard.Policy, next func(*http.Request, []*http.Request) error) func(*http.Request, []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= defaultRedirectLimit {
+			return fmt.Errorf("stopped after %d redirects", defaultRedirectLimit)
+		}
+		if err := policy.BlockedHost(req.URL.Host); err != nil {
+			return err
+		}
+		if next != nil {
+			return next(req, via)
+		}
+		return nil
+	}
+}
+
+// rejectCrossOriginRedirect follows redirects only while they stay on the
+// original request's origin. It exists for requests that carry a TLS client
+// certificate; see the call site in HTTPGetResponse. guardedRedirect enforces
+// the redirect limit before it calls this.
+func rejectCrossOriginRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) == 0 {
+		return nil
+	}
+	if origin := via[0].URL; !sameOriginURL(origin, req.URL) {
+		return fmt.Errorf("refusing to follow the redirect from %s to %s: this request presents a TLS client certificate, which would be sent to the redirect target", redactedOrigin(origin), redactedOrigin(req.URL))
+	}
+	return nil
+}
+
+func redactedOrigin(u *neturl.URL) string {
+	return u.Scheme + "://" + u.Host
+}
+
+// SameOrigin reports whether two URLs address the same origin, meaning the
+// same scheme and the same host. A scheme's default port counts as equal to
+// that port written out, so "https://example.com" and "https://example.com:443"
+// are the same origin. The scheme itself has to match: an https:// origin and
+// an http:// one on the same host are different origins, since sending a
+// credential to the latter would put it on the wire in cleartext.
+func SameOrigin(a, b string) bool {
+	ua, errA := neturl.Parse(a)
+	ub, errB := neturl.Parse(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return sameOriginURL(ua, ub)
+}
+
+func sameOriginURL(a, b *neturl.URL) bool {
+	return strings.EqualFold(a.Scheme, b.Scheme) && normalizedHostPort(a) == normalizedHostPort(b)
+}
+
+// normalizedHostPort renders a URL's host as a lowercase host:port, filling in
+// the scheme's default port when the URL leaves it out so that the two
+// spellings of one origin compare equal.
+func normalizedHostPort(u *neturl.URL) string {
+	port := u.Port()
+	if port == "" {
+		switch strings.ToLower(u.Scheme) {
+		case "http":
+			port = "80"
+		case "https":
+			port = "443"
+		}
+	}
+	return strings.ToLower(u.Hostname()) + ":" + port
+}
+
+// HTTPGetWithOption use HTTP option and default client to send get request.
+// Non-2xx responses are surfaced as an error including the status line plus a
+// truncated body excerpt. Without this guard, registry 401/403 bodies (HTML
+// or short text) would be returned as raw bytes and later parsed as YAML or
+// gzip-tar, producing misleading "no chart name found" / "cannot unmarshal
+// string into Go value of type repo.IndexFile" failures instead of a clear
+// "HTTP 401 Unauthorized" message.
 func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byte, error) {
 	resp, err := HTTPGetResponse(ctx, url, opts)
 	if err != nil {
@@ -175,6 +302,14 @@ func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byt
 	}
 	//nolint:errcheck
 	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		excerpt := strings.TrimSpace(string(body))
+		if excerpt == "" {
+			return nil, fmt.Errorf("HTTP %s", resp.Status)
+		}
+		return nil, fmt.Errorf("HTTP %s: %s", resp.Status, excerpt)
+	}
 	return io.ReadAll(resp.Body)
 }
 
@@ -212,6 +347,29 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	return val, nil
 }
 
+// GetCUExParameterValue converts definitions with cuex imports to cue format and extracts parameter field.
+// An optional *cuex.Compiler can be passed to override the default compiler (e.g. to use one that has
+// additional internal packages such as vela/builtin or vela/multicluster registered).
+func GetCUExParameterValue(ctx context.Context, cueStr string, compilers ...*cuex.Compiler) (cue.Value, error) {
+	compiler := cuex.DefaultCompiler.Get()
+	if len(compilers) > 0 && compilers[0] != nil {
+		compiler = compilers[0]
+	}
+	template, err := compiler.CompileStringWithOptions(
+		ctx,
+		cueStr+velacue.BaseTemplate,
+		cuex.DisableResolveProviderFunctions{},
+	)
+	if err != nil {
+		return cue.Value{}, err
+	}
+	val := template.LookupPath(cue.ParsePath(process.ParameterFieldName))
+	if !val.Exists() {
+		return cue.Value{}, velacue.ErrParameterNotExist
+	}
+	return val, nil
+}
+
 // GenOpenAPI generates OpenAPI json schema from cue.Instance
 func GenOpenAPI(val cue.Value) (b []byte, err error) {
 	defer func() {
@@ -228,8 +386,7 @@ func GenOpenAPI(val cue.Value) (b []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	defaultConfig := &openapi.Config{ExpandReferences: true}
-	b, err = openapi.Gen(paramOnlyVal, defaultConfig)
+	b, err = encodeOpenAPI(val, paramOnlyVal, RefineParameterValue)
 	if err != nil {
 		return nil, err
 	}
@@ -251,8 +408,9 @@ func GenOpenAPIWithCueX(val cue.Value) (b []byte, err error) {
 		return nil, val.Err()
 	}
 	paramOnlyVal := FillParameterDefinitionFieldIfNotExist(val)
-	defaultConfig := &openapi.Config{ExpandReferences: true}
-	b, err = openapi.Gen(paramOnlyVal, defaultConfig)
+	b, err = encodeOpenAPI(val, paramOnlyVal, func(v cue.Value) (cue.Value, error) {
+		return FillParameterDefinitionFieldIfNotExist(v), nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -406,6 +564,9 @@ func NewK8sClient() (client.Client, error) {
 		return nil, err
 	}
 	if err := oamcore.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := configoam.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
 

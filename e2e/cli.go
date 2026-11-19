@@ -17,6 +17,7 @@ limitations under the License.
 package e2e
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
@@ -83,6 +84,9 @@ func asyncExec(cli string) (*gexec.Session, error) {
 func LongTimeExecWithEnv(cli string, timeout time.Duration, env []string) (string, error) {
 	var output []byte
 	c := strings.Fields(cli)
+	if len(c) == 0 {
+		return "", fmt.Errorf("empty command")
+	}
 	commandName := path.Join(rudrPath, c[0])
 	command := exec.Command(commandName, c[1:]...)
 	command.Env = os.Environ()

@@ -18,20 +18,30 @@ package app
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	velaclient "github.com/kubevela/pkg/controller/client"
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/meta"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/profiling"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/wait"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/textlogger"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -45,19 +55,29 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/cmd/core/app/config"
 	"github.com/oam-dev/kubevela/cmd/core/app/hooks"
+	"github.com/oam-dev/kubevela/cmd/core/app/hooks/crdvalidation"
 	"github.com/oam-dev/kubevela/cmd/core/app/options"
+	addonservice "github.com/oam-dev/kubevela/pkg/addon/service"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
+	configv1alpha1 "github.com/oam-dev/kubevela/pkg/controller/config.oam.dev/v1alpha1"
 	oamv1beta1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/logging"
+	moduleservice "github.com/oam-dev/kubevela/pkg/module/service"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/requiredcrds"
+	"github.com/oam-dev/kubevela/pkg/utils/servingcert"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	webhookcerts "github.com/oam-dev/kubevela/pkg/webhook/certs"
+	configwebhook "github.com/oam-dev/kubevela/pkg/webhook/config.oam.dev/v1alpha1"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -70,12 +90,12 @@ var (
 
 // NewCoreCommand creates a *cobra.Command object with default parameters
 func NewCoreCommand() *cobra.Command {
-	s := options.NewCoreOptions()
+	coreOptions := options.NewCoreOptions()
 	cmd := &cobra.Command{
 		Use:  "vela-core",
 		Long: `The KubeVela controller manager is a daemon that embeds the core control loops shipped with KubeVela`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(signals.SetupSignalHandler(), s)
+			return run(signals.SetupSignalHandler(), coreOptions)
 		},
 		SilenceUsage: true,
 		FParseErrWhitelist: cobra.FParseErrWhitelist{
@@ -84,10 +104,10 @@ func NewCoreCommand() *cobra.Command {
 		},
 	}
 
-	fs := cmd.Flags()
-	namedFlagSets := s.Flags()
-	for _, set := range namedFlagSets.FlagSets {
-		fs.AddFlagSet(set)
+	flags := cmd.Flags()
+	namedFlagSets := coreOptions.Flags()
+	for _, flagSet := range namedFlagSets.FlagSets {
+		flags.AddFlagSet(flagSet)
 	}
 	meta.Name = types.VelaCoreName
 
@@ -97,65 +117,598 @@ func NewCoreCommand() *cobra.Command {
 	return cmd
 }
 
-func run(ctx context.Context, s *options.CoreOptions) error {
-	restConfig := ctrl.GetConfigOrDie()
-	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
-	restConfig.QPS = float32(s.QPS)
-	restConfig.Burst = s.Burst
-	restConfig.Wrap(auth.NewImpersonatingRoundTripper)
-	klog.InfoS("Kubernetes Config Loaded",
-		"UserAgent", restConfig.UserAgent,
-		"QPS", restConfig.QPS,
-		"Burst", restConfig.Burst,
-	)
+func run(ctx context.Context, coreOptions *options.CoreOptions) error {
+	// restartForNewCA cancels this context to restart vela-core.
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+
+	klog.InfoS("Starting KubeVela core controller",
+		"context", "initialization",
+		"leaderElection", coreOptions.Server.EnableLeaderElection,
+		"webhookEnabled", coreOptions.Webhook.UseWebhook)
+
+	// Sync configurations
+	klog.V(2).InfoS("Syncing configurations to global variables")
+	syncConfigurations(ctx, coreOptions)
+	klog.InfoS("Configuration sync completed successfully")
+
+	// Setup logging
+	klog.V(2).InfoS("Setting up logging configuration",
+		"debug", coreOptions.Observability.LogDebug,
+		"devLogs", coreOptions.Observability.DevLogs,
+		"logFilePath", coreOptions.Observability.LogFilePath)
+	setupLogging(coreOptions.Observability)
+
+	// Configure Kubernetes client
+	klog.InfoS("Configuring Kubernetes client",
+		"QPS", coreOptions.Kubernetes.QPS,
+		"burst", coreOptions.Kubernetes.Burst)
+	kubeConfig, err := configureKubernetesClient(coreOptions.Kubernetes)
+	if err != nil {
+		klog.ErrorS(err, "Failed to configure Kubernetes client")
+		return fmt.Errorf("failed to configure Kubernetes client: %w", err)
+	}
+
+	// The vela/addon CueX provider is registered on the compilers unconditionally
+	// (the addon ComponentDefinition imports it and could not compile otherwise), but
+	// it only does anything once a renderer is installed. Wire that up here, after
+	// flags have been parsed, so it can be gated.
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableAddonComponent) {
+		addonservice.Register()
+		klog.InfoS("Addon-as-component enabled, registered the addon render service")
+	}
+
+	// Same shape for the vela/module CueX provider: always on the compilers,
+	// inert until a renderer is installed, so the gate decides whether type: module
+	// works rather than whether the package compiles.
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableModuleComponent) {
+		moduleservice.Register()
+		klog.InfoS("Module-as-component enabled, registered the module render service")
+	}
+
+	// Start profiling server
+	klog.V(2).InfoS("Starting profiling server in background")
 	go profiling.StartProfilingServer(nil)
 
-	// wrapper the round tripper by multi cluster rewriter
-	if s.EnableClusterGateway {
-		client, err := multicluster.Initialize(restConfig, true)
+	// The serving certs that vela-core manages share one uncached client. A
+	// cache would watch every Secret in the cluster, so the client has none.
+	webhookCerts := coreOptions.Webhook.UseWebhook && coreOptions.Webhook.TLSSecret != ""
+	gatewayCerts := coreOptions.MultiCluster.EnableClusterGateway && coreOptions.MultiCluster.ClusterGatewayTLSSecret != ""
+	var certClient ctrlclient.Client
+	if webhookCerts || gatewayCerts {
+		c, err := ctrlclient.New(kubeConfig, ctrlclient.Options{Scheme: common.Scheme})
 		if err != nil {
-			klog.ErrorS(err, "failed to enable multi-cluster capability")
+			return errors.Wrap(err, "failed to create client for serving cert setup")
+		}
+		certClient = c
+	}
+	var webhookTLS webhookcerts.Options
+	if webhookCerts {
+		if webhookTLS, err = webhookTLSOptions(coreOptions.Webhook); err != nil {
 			return err
 		}
-
-		if s.EnableClusterMetrics {
-			_, err := multicluster.NewClusterMetricsMgr(context.Background(), client, s.ClusterMetricsInterval)
-			if err != nil {
-				klog.ErrorS(err, "failed to enable multi-cluster-metrics capability")
-				return err
-			}
+		// resyncWebhookTLS sets the failurePolicy later. If the policy changes to
+		// Fail before the webhook server listens, the API server rejects every
+		// request until the server starts.
+		if err = retryStartup(ctx, "webhook TLS", func(ctx context.Context) error {
+			return ensureWebhookTLS(ctx, certClient, webhookTLS, coreOptions.Webhook.CertDir, false)
+		}); err != nil {
+			klog.ErrorS(err, "Failed to set up webhook TLS")
+			return err
 		}
 	}
 
-	ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
-
-	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
-		commonconfig.ApplicationReSyncPeriod = s.InformerSyncPeriod
+	// Setup multi-cluster if enabled
+	if coreOptions.MultiCluster.EnableClusterGateway {
+		klog.InfoS("Multi-cluster gateway enabled, setting up multi-cluster capability",
+			"enableMetrics", coreOptions.MultiCluster.EnableClusterMetrics,
+			"metricsInterval", coreOptions.MultiCluster.ClusterMetricsInterval)
+		if err := setupMultiCluster(ctx, kubeConfig, coreOptions.MultiCluster, certClient, restartForNewCA(stop)); err != nil {
+			klog.ErrorS(err, "Failed to setup multi-cluster")
+			return fmt.Errorf("failed to setup multi-cluster: %w", err)
+		}
+		klog.InfoS("Multi-cluster setup completed successfully")
 	}
 
-	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, s.ControllerArgs.IgnoreAppWithoutControllerRequirement)
+	// Configure feature gates
+	klog.V(2).InfoS("Configuring feature gates")
+	configureFeatureGates(coreOptions)
+	publishFeatureGates(ctx, kubeConfig)
+
+	// Create controller manager
+	klog.InfoS("Creating controller manager",
+		"metricsAddr", coreOptions.Observability.MetricsAddr,
+		"healthAddr", coreOptions.Server.HealthAddr,
+		"webhookPort", coreOptions.Webhook.WebhookPort)
+	manager, err := createControllerManager(ctx, kubeConfig, coreOptions)
+	if err != nil {
+		klog.ErrorS(err, "Failed to create controller manager")
+		return fmt.Errorf("failed to create controller manager: %w", err)
+	}
+	klog.InfoS("Controller manager created successfully")
+	if webhookCerts {
+		started := manager.GetWebhookServer().StartedChecker()
+		go resyncWebhookTLS(ctx, certClient, webhookTLS, coreOptions.Webhook.CertDir, func() bool { return started(nil) == nil })
+	}
+
+	// Before anything registers a watch. Six of these kinds are watched with
+	// For(), and a watch on a kind the API server does not serve takes the manager
+	// down with it, reported as a bare "no matches for kind" from an informer.
+	// Helm never updates a chart's CRDs on upgrade, so that is a routine outcome
+	// of a `helm upgrade` onto a version that added one, and it deserves a cause.
+	//
+	// Deliberately not a hooks.PreStartHook, despite being exactly that shape.
+	// The hook list runs inside prepareRun, which a worker shard never reaches -
+	// it goes straight to application.Setup - and a worker shard watches
+	// Applications and reads definitions like any other process. Here is where
+	// both paths converge, and it is earlier than the hooks besides.
+	klog.V(2).InfoS("Verifying required CRDs are installed")
+	if err := requiredcrds.Verify(manager.GetRESTMapper()); err != nil {
+		klog.ErrorS(err, "Required CustomResourceDefinitions are missing")
+		return err
+	}
+
+	controllerNamespace := resolveControllerNamespace(coreOptions.Server.LeaderElectionNamespace)
+	httpguard.SetEnhancer(func(p httpguard.Policy) httpguard.Policy {
+		if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {
+			p.BlockPrivate = true
+		}
+		return p
+	})
+	// Use APIReader: GetClient() is cache-backed and is not ready before mgr.Start.
+	if err := httpguard.LoadConfigMaps(ctx, manager.GetAPIReader(), coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
+		klog.ErrorS(err, "Failed to initialize workflow HTTP deny ConfigMaps",
+			"template", coreOptions.Workflow.HTTPDenyConfigTemplateName, "namespace", controllerNamespace)
+		return fmt.Errorf("failed to initialize workflow HTTP deny ConfigMaps: %w", err)
+	}
+	if err := httpguard.SetupWatcher(manager, coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
+		klog.ErrorS(err, "Failed to watch workflow HTTP deny ConfigMaps",
+			"template", coreOptions.Workflow.HTTPDenyConfigTemplateName, "namespace", controllerNamespace)
+		return fmt.Errorf("failed to watch workflow HTTP deny ConfigMaps: %w", err)
+	}
+
+	// Register health checks
+	klog.V(2).InfoS("Registering health and readiness checks")
+	if err := registerHealthChecks(manager); err != nil {
+		klog.ErrorS(err, "Failed to register health checks")
+		return fmt.Errorf("failed to register health checks: %w", err)
+	}
+
+	// Setup controllers based on sharding mode
+	klog.InfoS("Setting up controllers",
+		"shardingEnabled", sharding.EnableSharding,
+		"shardID", sharding.ShardID)
+	if err := setupControllers(ctx, manager, coreOptions); err != nil {
+		klog.ErrorS(err, "Failed to setup controllers")
+		return fmt.Errorf("failed to setup controllers: %w", err)
+	}
+	klog.InfoS("Controllers setup completed successfully")
+
+	// Start application monitor
+	klog.InfoS("Starting application metrics monitor")
+	if err := startApplicationMonitor(ctx, manager); err != nil {
+		klog.ErrorS(err, "Failed to start application monitor")
+		return fmt.Errorf("failed to start application monitor: %w", err)
+	}
+
+	// Start the manager
+	klog.InfoS("Starting controller manager")
+	if err := manager.Start(ctx); err != nil {
+		klog.ErrorS(err, "Failed to run manager")
+		return err
+	}
+
+	// Cleanup
+	performCleanup(coreOptions)
+	klog.InfoS("Program safely stopped")
+	return nil
+}
+
+// syncConfigurations syncs parsed config values to external package global variables
+func syncConfigurations(ctx context.Context, coreOptions *options.CoreOptions) {
+	if coreOptions.Workflow != nil {
+		klog.V(3).InfoS("Syncing workflow configuration")
+		coreOptions.Workflow.SyncToWorkflowGlobals()
+	}
+	if coreOptions.CUE != nil {
+		klog.V(3).InfoS("Syncing CUE configuration")
+		coreOptions.CUE.SyncToCUEGlobals(ctx)
+	}
+	if coreOptions.Helm != nil {
+		klog.V(3).InfoS("Syncing Helm configuration")
+		coreOptions.Helm.SyncToHelmGlobals(ctx)
+	}
+	if coreOptions.Application != nil {
+		klog.V(3).InfoS("Syncing application configuration")
+		coreOptions.Application.SyncToApplicationGlobals()
+	}
+	if coreOptions.Performance != nil {
+		klog.V(3).InfoS("Syncing performance configuration")
+		coreOptions.Performance.SyncToPerformanceGlobals()
+	}
+	if coreOptions.Resource != nil {
+		klog.V(3).InfoS("Syncing resource configuration")
+		coreOptions.Resource.SyncToResourceGlobals()
+	}
+	if coreOptions.OAM != nil {
+		klog.V(3).InfoS("Syncing OAM configuration")
+		coreOptions.OAM.SyncToOAMGlobals()
+	}
+}
+
+// setupLogging configures klog based on parsed observability settings
+func setupLogging(observabilityConfig *config.ObservabilityConfig) {
+	// Configure klog verbosity
+	if observabilityConfig.LogDebug {
+		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
+	}
+
+	// Configure log file output
+	if observabilityConfig.LogFilePath != "" {
+		_ = flag.Set("logtostderr", "false")
+		_ = flag.Set("log_file", observabilityConfig.LogFilePath)
+		_ = flag.Set("log_file_max_size", strconv.FormatUint(observabilityConfig.LogFileMaxSize, 10))
+	}
+
+	// Set logger (use --dev-logs=true for local development)
+	if observabilityConfig.DevLogs {
+		logOutput := logging.NewColorWriter(os.Stdout)
+		klog.LogToStderr(false)
+		klog.SetOutput(logOutput)
+		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
+	} else {
+		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
+	}
+}
+
+// ConfigProvider is a function type that provides a Kubernetes REST config
+type ConfigProvider func() (*rest.Config, error)
+
+// configureKubernetesClient creates and configures the Kubernetes REST config
+func configureKubernetesClient(kubernetesConfig *config.KubernetesConfig) (*rest.Config, error) {
+	return configureKubernetesClientWithProvider(kubernetesConfig, ctrl.GetConfig)
+}
+
+// configureKubernetesClientWithProvider creates and configures the Kubernetes REST config
+// using a provided config provider function. This allows for dependency injection in tests.
+func configureKubernetesClientWithProvider(kubernetesConfig *config.KubernetesConfig, configProvider ConfigProvider) (*rest.Config, error) {
+	// Gracefully handle error returns instead of panicking
+	kubeConfig, err := configProvider()
+	if err != nil {
+		return nil, err
+	}
+	kubeConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
+	kubeConfig.QPS = float32(kubernetesConfig.QPS)
+	kubeConfig.Burst = kubernetesConfig.Burst
+	kubeConfig.Wrap(auth.NewImpersonatingRoundTripper)
+
+	klog.InfoS("Kubernetes Config Loaded",
+		"UserAgent", kubeConfig.UserAgent,
+		"QPS", kubeConfig.QPS,
+		"Burst", kubeConfig.Burst,
+	)
+
+	return kubeConfig, nil
+}
+
+// setupMultiCluster initializes the multi-cluster capability. When
+// --cluster-gateway-tls-secret is set, it uses certClient to manage the
+// cluster-gateway serving cert. It calls restart if that CA changes.
+func setupMultiCluster(ctx context.Context, kubeConfig *rest.Config, multiClusterConfig *config.MultiClusterConfig,
+	certClient ctrlclient.Client, restart func()) error {
+	if multiClusterConfig.ClusterGatewayTLSSecret != "" {
+		// Run this before multicluster.Initialize, which waits for the APIService
+		// to become Available. On Kubernetes 1.36 and later, the APIService is
+		// never Available without a valid caBundle.
+		if err := startClusterGatewayTLS(ctx, certClient, multiClusterConfig.ClusterGatewayTLSSecret,
+			multiClusterConfig.ClusterGatewayService, &pkgmulticluster.DefaultClusterGatewayClientOptions, restart); err != nil {
+			klog.ErrorS(err, "Failed to set up cluster-gateway TLS")
+			return err
+		}
+	}
+
+	klog.V(2).InfoS("Initializing multi-cluster client")
+	clusterClient, err := multicluster.Initialize(kubeConfig, true)
+	if err != nil {
+		klog.ErrorS(err, "Failed to enable multi-cluster capability")
+		return err
+	}
+	klog.InfoS("Multi-cluster client initialized successfully")
+
+	if multiClusterConfig.EnableClusterMetrics {
+		klog.InfoS("Enabling cluster metrics collection",
+			"interval", multiClusterConfig.ClusterMetricsInterval)
+		_, err := multicluster.NewClusterMetricsMgr(ctx, clusterClient, multiClusterConfig.ClusterMetricsInterval)
+		if err != nil {
+			klog.ErrorS(err, "Failed to enable multi-cluster-metrics capability")
+			return err
+		}
+		klog.InfoS("Cluster metrics manager initialized successfully")
+	}
+
+	return nil
+}
+
+// configureFeatureGates sets up feature-dependent configurations
+func configureFeatureGates(coreOptions *options.CoreOptions) {
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyOnce) {
+		klog.V(2).InfoS("ApplyOnce feature gate enabled, configuring application re-sync period",
+			"period", coreOptions.Kubernetes.InformerSyncPeriod)
+		commonconfig.ApplicationReSyncPeriod = coreOptions.Kubernetes.InformerSyncPeriod
+	}
+}
+
+// publishFeatureGatesTimeout bounds publishFeatureGates, retries included.
+const publishFeatureGatesTimeout = 30 * time.Second
+
+// publishFeatureGates writes KubeVela's feature gates, as the controller has
+// them, to a ConfigMap in the system namespace, so other processes running KubeVela code can match
+// them. Failing to is logged, not fatal: the controller does not need it, so
+// startup waits for it no longer than publishFeatureGatesTimeout.
+func publishFeatureGates(ctx context.Context, kubeConfig *rest.Config) {
+	ctx, cancel := context.WithTimeout(ctx, publishFeatureGatesTimeout)
+	defer cancel()
+	cli, err := ctrlclient.New(kubeConfig, ctrlclient.Options{})
+	if err == nil {
+		err = features.Publish(ctx, cli, oam.SystemDefinitionNamespace, version.VelaVersion, utilfeature.DefaultFeatureGate, features.KubeVelaFeatures())
+	}
+	if err != nil {
+		klog.ErrorS(err, "Failed to publish feature gates", "configMap", features.FeatureGatesConfigMapName)
+		return
+	}
+	klog.InfoS("Published feature gates", "configMap", klog.KRef(oam.SystemDefinitionNamespace, features.FeatureGatesConfigMapName))
+}
+
+var (
+	// servingCertResyncPeriod is the interval between checks of the serving
+	// certs that vela-core manages. Each check renews a cert if necessary. It
+	// also repairs a caBundle or failurePolicy that something changed, for
+	// example a GitOps sync.
+	servingCertResyncPeriod = time.Minute
+	// startupRetryInterval and startupRetryTimeout control how long the first
+	// setup waits for objects that the chart creates with the Deployment. These
+	// objects include the APIService and the webhook configurations.
+	startupRetryInterval = 2 * time.Second
+	startupRetryTimeout  = 2 * time.Minute
+	// restartJitter spreads the restarts of several replicas after a CA change.
+	restartJitter = 30 * time.Second
+)
+
+// resyncJitterFactor spreads the resyncs of several replicas over 10% of the
+// period, so that they do not all write at the same time.
+const resyncJitterFactor = 0.1
+
+// retryStartup runs fn until fn succeeds or startupRetryTimeout ends. It gives
+// fn a context that ends at the same time, so a request that hangs does not
+// keep startup waiting. It returns the last error from fn.
+func retryStartup(ctx context.Context, name string, fn func(context.Context) error) error {
+	var lastErr error
+	err := wait.PollUntilContextTimeout(ctx, startupRetryInterval, startupRetryTimeout, true, func(ctx context.Context) (bool, error) {
+		lastErr = fn(ctx)
+		if lastErr != nil {
+			klog.InfoS("Waiting to set up serving cert", "for", name, "reason", lastErr.Error())
+		}
+		// A failed attempt is retried, not returned: the poll ends only on
+		// success or at the timeout.
+		return lastErr == nil, nil
+	})
+	if lastErr != nil {
+		return lastErr
+	}
+	return err
+}
+
+// startClusterGatewayTLS sets up the cluster-gateway serving cert in the Secret
+// secretRef, for the Service serviceRef if it is not empty. Then it keeps the
+// cert valid in the background. In direct mode
+// (gateway.URL is set), it sets gateway.CAFile to the file that holds the CA.
+// It sets gateway.CAFile once, before a client reads the options.
+func startClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, secretRef, serviceRef string,
+	gateway *pkgmulticluster.ClusterGatewayClientOptions, restart func()) error {
+	namespace, name, err := parseNamespacedName("cluster-gateway-tls-secret", secretRef)
+	if err != nil {
+		return err
+	}
+	var svc *servingcert.Service
+	if serviceRef != "" {
+		svcNamespace, svcName, err := parseNamespacedName("cluster-gateway-service", serviceRef)
+		if err != nil {
+			return err
+		}
+		svc = &servingcert.Service{Namespace: svcNamespace, Name: svcName}
+	}
+	caFile := ""
+	if gateway.URL != "" {
+		caFile = gateway.CAFile
+		if caFile == "" {
+			caFile = filepath.Join(os.TempDir(), "cluster-gateway", servingcert.CAKey)
+		}
+		gateway.CAFile = caFile
+	}
+	var trusted []byte
+	if err = retryStartup(ctx, "cluster-gateway TLS", func(ctx context.Context) (err error) {
+		trusted, err = setupClusterGatewayTLS(ctx, c, namespace, name, svc, caFile)
+		return err
+	}); err != nil {
+		return err
+	}
+	go wait.JitterUntilWithContext(ctx, clusterGatewayTLSResync(c, namespace, name, svc, caFile, trusted, restart),
+		servingCertResyncPeriod, resyncJitterFactor, true)
+	return nil
+}
+
+// setupClusterGatewayTLS makes sure that the cluster-gateway serving cert in
+// the Secret <namespace>/<name> is valid. It also makes sure that the
+// cluster-gateway APIService trusts the CA. It returns the CA bundle. If
+// caFile is set (direct mode), it also writes the bundle to caFile. vela-core
+// cannot mount a Secret that it creates itself.
+func setupClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, namespace, name string, svc *servingcert.Service,
+	caFile string) ([]byte, error) {
+	bundle, err := multicluster.EnsureClusterGatewayTLS(ctx, c, namespace, name, svc)
+	if err != nil {
+		return nil, err
+	}
+	if caFile == "" {
+		return bundle, nil
+	}
+	changed, err := servingcert.WriteFileIfChanged(caFile, bundle)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to write cluster-gateway CA file")
+	}
+	if changed {
+		klog.InfoS("Wrote the cluster-gateway CA for direct mode", "file", caFile)
+	}
+	return bundle, nil
+}
+
+// clusterGatewayTLSResync returns the periodic check for the cluster-gateway
+// cert. The direct-mode client reads its CA only once, when vela-core builds
+// the client. Thus, if the CA set changes, vela-core restarts to load it.
+// A serving cert renewal with the same CA is the usual case. It does not need
+// a restart.
+func clusterGatewayTLSResync(c ctrlclient.Client, namespace, name string, svc *servingcert.Service, caFile string,
+	trusted []byte, restart func()) func(context.Context) {
+	return func(ctx context.Context) {
+		bundle, err := setupClusterGatewayTLS(ctx, c, namespace, name, svc, caFile)
+		if err != nil {
+			klog.ErrorS(err, "Failed to resync the cluster-gateway serving cert")
+			return
+		}
+		// Restart when the CA set changes in either direction: a new CA must be
+		// trusted, and a CA dropped after the overlap must stop being trusted.
+		if caFile != "" && (!servingcert.Covers(trusted, bundle) || !servingcert.Covers(bundle, trusted)) {
+			restart()
+		}
+	}
+}
+
+// restartForNewCA returns a func that stops vela-core gracefully after a
+// random delay of up to restartJitter. Because of the delay, replicas do not
+// all restart at the same time. Then the restart policy of the container
+// starts vela-core again.
+func restartForNewCA(stop context.CancelFunc) func() {
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			delay := time.Duration(utilrand.Int63nRange(0, int64(restartJitter)+1))
+			klog.InfoS("The cluster-gateway CA was replaced, restarting so the direct-mode client trusts it", "in", delay)
+			time.AfterFunc(delay, stop)
+		})
+	}
+}
+
+// webhookTLSOptions checks the webhook TLS flags and converts them into the
+// options for webhookcerts.Ensure.
+func webhookTLSOptions(cfg *config.WebhookConfig) (webhookcerts.Options, error) {
+	namespace, name, err := parseNamespacedName("webhook-tls-secret", cfg.TLSSecret)
+	if err != nil {
+		return webhookcerts.Options{}, err
+	}
+	if cfg.ConfigurationName == "" {
+		return webhookcerts.Options{}, fmt.Errorf("--webhook-configuration is required with --webhook-tls-secret")
+	}
+	policy := admissionregistrationv1.FailurePolicyType(cfg.FailurePolicy)
+	if policy != "" && policy != admissionregistrationv1.Fail && policy != admissionregistrationv1.Ignore {
+		return webhookcerts.Options{}, fmt.Errorf("invalid --webhook-failure-policy %q, want Fail or Ignore", cfg.FailurePolicy)
+	}
+	return webhookcerts.Options{
+		SecretNamespace:   namespace,
+		SecretName:        name,
+		ConfigurationName: cfg.ConfigurationName,
+		FailurePolicy:     policy,
+		ConversionCRDs:    cfg.ConversionCRDs,
+	}, nil
+}
+
+// ensureWebhookTLS makes sure that the webhook serving cert is valid. It
+// writes the cert to certDir for the webhook server and sets the caBundle of
+// the webhook configurations. If applyPolicy is true, it also sets
+// opts.FailurePolicy. Set applyPolicy only when the webhook server serves
+// requests. The webhook server reloads the files when they change.
+func ensureWebhookTLS(ctx context.Context, c ctrlclient.Client, opts webhookcerts.Options, certDir string, applyPolicy bool) error {
+	if !applyPolicy {
+		opts.FailurePolicy = ""
+	}
+	res, err := webhookcerts.Ensure(ctx, c, opts)
+	if err != nil {
+		return err
+	}
+	changed, err := webhookcerts.WriteFiles(certDir, res)
+	if err != nil {
+		return err
+	}
+	if changed {
+		klog.InfoS("Wrote the webhook serving cert", "secret", opts.SecretNamespace+"/"+opts.SecretName, "certDir", certDir)
+	}
+	return nil
+}
+
+// resyncWebhookTLS keeps the webhook serving cert valid until ctx is done.
+// Until serving reports that the webhook server is up, it checks every
+// startupRetryInterval and does not change the failurePolicy. After it sets
+// the failurePolicy, it checks every servingCertResyncPeriod.
+func resyncWebhookTLS(ctx context.Context, c ctrlclient.Client, opts webhookcerts.Options, certDir string, serving func() bool) {
+	policySet := false
+	for {
+		period := servingCertResyncPeriod
+		if !policySet {
+			period = startupRetryInterval
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(period):
+		}
+		up := serving()
+		if err := ensureWebhookTLS(ctx, c, opts, certDir, up); err != nil {
+			klog.ErrorS(err, "Failed to resync the webhook serving cert")
+			continue
+		}
+		if up && !policySet {
+			policySet = true
+			klog.InfoS("Webhook server is serving, set the webhook failurePolicy", "failurePolicy", opts.FailurePolicy)
+		}
+	}
+}
+
+// parseNamespacedName divides the <namespace>/<name> value of flag into its two
+// parts.
+func parseNamespacedName(flag, ref string) (namespace, name string, err error) {
+	namespace, name, ok := strings.Cut(ref, "/")
+	if !ok || namespace == "" || name == "" || strings.Contains(name, "/") {
+		return "", "", fmt.Errorf("invalid --%s %q, want <namespace>/<name>", flag, ref)
+	}
+	return namespace, name, nil
+}
+
+// buildManagerOptions constructs ctrl.Options from CoreOptions for creating a controller manager.
+// This function is extracted for testability - it contains the option construction logic
+// without the side effects of creating a manager or starting background processes.
+func buildManagerOptions(ctx context.Context, coreOptions *options.CoreOptions) ctrl.Options {
+	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, coreOptions.Controller.IgnoreAppWithoutControllerRequirement)
 	leaderElectionID += sharding.GetShardIDSuffix()
-	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
+
+	return ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
-			BindAddress: s.MetricsAddr,
+			BindAddress: coreOptions.Observability.MetricsAddr,
 		},
-		LeaderElection:          s.EnableLeaderElection,
-		LeaderElectionNamespace: s.LeaderElectionNamespace,
+		LeaderElection:          coreOptions.Server.EnableLeaderElection,
+		LeaderElectionNamespace: coreOptions.Server.LeaderElectionNamespace,
 		LeaderElectionID:        leaderElectionID,
 		WebhookServer: ctrlwebhook.NewServer(ctrlwebhook.Options{
-			Port:    s.WebhookPort,
-			CertDir: s.CertDir,
+			Port:    coreOptions.Webhook.WebhookPort,
+			CertDir: coreOptions.Webhook.CertDir,
 		}),
-		HealthProbeBindAddress: s.HealthAddr,
-		LeaseDuration:          &s.LeaseDuration,
-		RenewDeadline:          &s.RenewDeadLine,
-		RetryPeriod:            &s.RetryPeriod,
+		HealthProbeBindAddress: coreOptions.Server.HealthAddr,
+		LeaseDuration:          &coreOptions.Server.LeaseDuration,
+		RenewDeadline:          &coreOptions.Server.RenewDeadline,
+		RetryPeriod:            &coreOptions.Server.RetryPeriod,
 		NewClient:              velaclient.DefaultNewControllerClient,
 		NewCache: cache.BuildCache(ctx,
 			ctrlcache.Options{
 				Scheme:     scheme,
-				SyncPeriod: &s.InformerSyncPeriod,
+				SyncPeriod: &coreOptions.Kubernetes.InformerSyncPeriod,
 				// SyncPeriod is configured with default value, aka. 10h. First, controller-runtime does not
 				// recommend use it as a time trigger, instead, it is expected to work for failure tolerance
 				// of controller-runtime. Additionally, set this value will affect not only application
@@ -169,105 +722,191 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 				DisableFor: cache.NewResourcesToDisableCache(),
 			},
 		},
-	})
+	}
+}
+
+// createControllerManager creates and configures the controller-runtime manager
+func createControllerManager(ctx context.Context, kubeConfig *rest.Config, coreOptions *options.CoreOptions) (ctrl.Manager, error) {
+	leaderElectionID := util.GenerateLeaderElectionID(types.KubeVelaName, coreOptions.Controller.IgnoreAppWithoutControllerRequirement)
+	leaderElectionID += sharding.GetShardIDSuffix()
+
+	klog.V(2).InfoS("Creating controller manager with configuration",
+		"leaderElectionID", leaderElectionID,
+		"leaderElection", coreOptions.Server.EnableLeaderElection,
+		"leaderElectionNamespace", coreOptions.Server.LeaderElectionNamespace,
+		"leaseDuration", coreOptions.Server.LeaseDuration,
+		"renewDeadline", coreOptions.Server.RenewDeadline)
+
+	managerOptions := buildManagerOptions(ctx, coreOptions)
+	manager, err := ctrl.NewManager(kubeConfig, managerOptions)
+
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
-		return err
+		return nil, err
 	}
 
-	if err := registerHealthChecks(mgr); err != nil {
-		klog.ErrorS(err, "Unable to register ready/health checks")
-		return err
-	}
+	return manager, nil
+}
 
+// setupControllers sets up controllers based on sharding configuration
+func setupControllers(ctx context.Context, manager ctrl.Manager, coreOptions *options.CoreOptions) error {
 	if !sharding.EnableSharding {
-		if err = prepareRun(ctx, mgr, s); err != nil {
-			return err
-		}
-	} else {
-		if err = prepareRunInShardingMode(ctx, mgr, s); err != nil {
-			return err
-		}
+		return prepareRun(ctx, manager, coreOptions)
 	}
+	return prepareRunInShardingMode(ctx, manager, coreOptions)
+}
 
-	klog.Info("Start the vela application monitor")
-	informer, err := mgr.GetCache().GetInformer(ctx, &v1beta1.Application{})
+// startApplicationMonitor starts the application metrics watcher
+func startApplicationMonitor(ctx context.Context, manager ctrl.Manager) error {
+	klog.InfoS("Starting vela application monitor")
+	applicationInformer, err := manager.GetCache().GetInformer(ctx, &v1beta1.Application{})
 	if err != nil {
 		klog.ErrorS(err, "Unable to get informer for application")
-	}
-	watcher.StartApplicationMetricsWatcher(informer)
-
-	if err := mgr.Start(ctx); err != nil {
-		klog.ErrorS(err, "Failed to run manager")
 		return err
 	}
-	if s.LogFilePath != "" {
-		klog.Flush()
-	}
-	klog.Info("Safely stops Program...")
+	watcher.StartApplicationMetricsWatcher(applicationInformer)
+	klog.V(2).InfoS("Application metrics watcher started successfully")
 	return nil
 }
 
-func prepareRunInShardingMode(ctx context.Context, mgr manager.Manager, s *options.CoreOptions) error {
+// performCleanup handles any necessary cleanup operations
+func performCleanup(coreOptions *options.CoreOptions) {
+	klog.V(2).InfoS("Performing cleanup operations")
+	if coreOptions.Observability.LogFilePath != "" {
+		klog.V(3).InfoS("Flushing log file", "path", coreOptions.Observability.LogFilePath)
+		klog.Flush()
+	}
+}
+
+func resolveControllerNamespace(leaderElectionNamespace string) string {
+	// The deny ConfigMaps live with the controller, so its own namespace comes
+	// first. The leader-election namespace only says where the lease lives.
+	if ns := strings.TrimSpace(os.Getenv("POD_NAMESPACE")); ns != "" {
+		return ns
+	}
+	if ns := strings.TrimSpace(leaderElectionNamespace); ns != "" {
+		return ns
+	}
+	return "vela-system"
+}
+
+// prepareRunInShardingMode initializes the controller manager in sharding mode where workload
+// is distributed across multiple controller instances. In sharding mode:
+// - Master shard handles webhooks, scheduling, and full controller setup
+// - Non-master shards only run the Application controller for their assigned Applications
+// This enables horizontal scaling of the KubeVela control plane across multiple pods.
+func prepareRunInShardingMode(ctx context.Context, manager manager.Manager, coreOptions *options.CoreOptions) error {
 	if sharding.IsMaster() {
-		klog.Infof("controller running in sharding mode, current shard is master")
+		klog.InfoS("Controller running in sharding mode",
+			"shardType", "master",
+			"webhookAutoSchedule", !utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableWebhookAutoSchedule))
 		if !utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableWebhookAutoSchedule) {
+			klog.V(2).InfoS("Starting webhook auto-scheduler in background")
 			go sharding.DefaultScheduler.Get().Start(ctx)
 		}
-		if err := prepareRun(ctx, mgr, s); err != nil {
+		if err := prepareRun(ctx, manager, coreOptions); err != nil {
 			return err
 		}
 	} else {
-		klog.Infof("controller running in sharding mode, current shard id: %s", sharding.ShardID)
-		if err := application.Setup(mgr, *s.ControllerArgs); err != nil {
+		klog.InfoS("Controller running in sharding mode",
+			"shardType", "worker",
+			"shardID", sharding.ShardID)
+		klog.V(2).InfoS("Setting up application controller for worker shard")
+		if err := application.Setup(manager, coreOptions.Controller.Args); err != nil {
+			klog.ErrorS(err, "Failed to setup application controller in sharding mode")
 			return err
 		}
+		klog.InfoS("Application controller setup completed for worker shard")
 	}
 
 	return nil
 }
 
-func prepareRun(ctx context.Context, mgr manager.Manager, s *options.CoreOptions) error {
-	if s.UseWebhook {
-		klog.InfoS("Enable webhook", "server port", strconv.Itoa(s.WebhookPort))
-		oamwebhook.Register(mgr, *s.ControllerArgs)
-		if err := waitWebhookSecretVolume(s.CertDir, waitSecretTimeout, waitSecretInterval); err != nil {
+// prepareRun sets up the complete KubeVela controller manager with all necessary components:
+// - Configures and registers OAM webhooks if enabled
+// - Sets up all OAM controllers (Application, ComponentDefinition, WorkflowStepDefinition, PolicyDefinition, and TraitDefinition)
+// - Initializes multi-cluster capabilities and cluster info
+// - Runs pre-start validation hooks to ensure system readiness
+// This function is used in single-instance mode or by the master shard in sharding mode.
+func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *options.CoreOptions) error {
+	// Bootstrap provider registry early before other initialization
+	klog.V(2).InfoS("Initializing provider registry")
+	bootstrapProviderRegistry()
+
+	// The controllers learn whether the webhook server will run; the config migration
+	// sweep only borrows its started checker when it does.
+	args := coreOptions.Controller.Args
+	args.UseWebhook = coreOptions.Webhook.UseWebhook
+
+	if coreOptions.Webhook.UseWebhook {
+		klog.InfoS("Webhook enabled, registering OAM webhooks",
+			"port", coreOptions.Webhook.WebhookPort,
+			"certDir", coreOptions.Webhook.CertDir)
+		oamwebhook.Register(manager, args)
+		configwebhook.Register(manager)
+		klog.V(2).InfoS("Waiting for webhook secret volume",
+			"timeout", waitSecretTimeout,
+			"checkInterval", waitSecretInterval)
+		if err := waitWebhookSecretVolume(coreOptions.Webhook.CertDir, waitSecretTimeout, waitSecretInterval); err != nil {
 			klog.ErrorS(err, "Unable to get webhook secret")
 			return err
 		}
+		klog.InfoS("Webhook secret volume ready, webhooks registered successfully")
 	}
 
-	if err := oamv1beta1.Setup(mgr, *s.ControllerArgs); err != nil {
-		klog.ErrorS(err, "Unable to setup the oam controller")
+	klog.InfoS("Setting up OAM controllers")
+	if err := oamv1beta1.Setup(manager, args); err != nil {
+		klog.ErrorS(err, "Unable to setup the OAM controller")
+		return err
+	}
+	klog.InfoS("OAM controllers setup completed successfully")
+
+	klog.InfoS("Setting up config controllers")
+	if err := configv1alpha1.Setup(manager, args); err != nil {
+		klog.ErrorS(err, "Unable to setup the config controller")
+		return err
+	}
+	klog.InfoS("Config controllers setup completed successfully")
+
+	klog.V(2).InfoS("Initializing control plane cluster info")
+	if err := multicluster.InitClusterInfo(manager.GetConfig()); err != nil {
+		klog.ErrorS(err, "Failed to init control plane cluster info")
 		return err
 	}
 
-	if err := multicluster.InitClusterInfo(mgr.GetConfig()); err != nil {
-		klog.ErrorS(err, "Init control plane cluster info")
-		return err
-	}
-
-	klog.Info("Start the vela controller manager")
-	for _, hook := range []hooks.PreStartHook{hooks.NewSystemCRDValidationHook()} {
+	klog.InfoS("Starting vela controller manager with pre-start validation")
+	for _, hook := range []hooks.PreStartHook{crdvalidation.NewHook()} {
+		hookName := hook.Name()
+		klog.InfoS("Running pre-start hook", "hook", hookName)
 		if err := hook.Run(ctx); err != nil {
-			return fmt.Errorf("failed to run hook %T: %w", hook, err)
+			klog.ErrorS(err, "Failed to run pre-start hook", "hook", hookName)
+			return fmt.Errorf("failed to run hook %s: %w", hookName, err)
 		}
+		klog.InfoS("Pre-start hook completed successfully", "hook", hookName)
 	}
+	klog.InfoS("All pre-start validation hooks completed successfully")
 
 	return nil
 }
 
 // registerHealthChecks is used to create readiness&liveness probes
-func registerHealthChecks(mgr ctrl.Manager) error {
-	klog.Info("Create readiness/health check")
-	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
+func registerHealthChecks(manager ctrl.Manager) error {
+	klog.InfoS("Registering readiness and health checks")
+	if err := manager.AddReadyzCheck("ping", healthz.Ping); err != nil {
+		klog.ErrorS(err, "Failed to add readiness check")
 		return err
 	}
+	klog.V(3).InfoS("Readiness check registered", "check", "ping")
 	// TODO: change the health check to be different from readiness check
-	return mgr.AddHealthzCheck("ping", healthz.Ping)
+	if err := manager.AddHealthzCheck("ping", healthz.Ping); err != nil {
+		klog.ErrorS(err, "Failed to add health check")
+		return err
+	}
+	klog.V(3).InfoS("Health check registered", "check", "ping")
+	return nil
 }
 
-// waitWebhookSecretVolume waits for webhook secret ready to avoid mgr running crash
+// waitWebhookSecretVolume waits for webhook secret ready to avoid manager running crash
 func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) error {
 	start := time.Now()
 	for {
@@ -279,23 +918,23 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 			"timeout(second)", int64(timeout.Seconds()))
 		if _, err := os.Stat(certDir); !os.IsNotExist(err) {
 			ready := func() bool {
-				f, err := os.Open(filepath.Clean(certDir))
+				certDirectory, err := os.Open(filepath.Clean(certDir))
 				if err != nil {
 					return false
 				}
 				defer func() {
-					if err := f.Close(); err != nil {
-						klog.Error(err, "Failed to close file")
+					if err := certDirectory.Close(); err != nil {
+						klog.ErrorS(err, "Failed to close directory")
 					}
 				}()
 				// check if dir is empty
-				if _, err := f.Readdir(1); errors.Is(err, io.EOF) {
+				if _, err := certDirectory.Readdir(1); errors.Is(err, io.EOF) {
 					return false
 				}
 				// check if secret files are empty
-				err = filepath.Walk(certDir, func(path string, info os.FileInfo, err error) error {
+				err = filepath.Walk(certDir, func(path string, fileInfo os.FileInfo, err error) error {
 					// even Cert dir is created, cert files are still empty for a while
-					if info.Size() == 0 {
+					if fileInfo.Size() == 0 {
 						return errors.New("secret is not ready")
 					}
 					return nil

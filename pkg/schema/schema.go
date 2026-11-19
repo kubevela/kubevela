@@ -45,8 +45,15 @@ context: {
 }
 `
 
+// SchemaContext is the context stub the parameter schema generator compiles a
+// template with, for a caller that compiles the template itself.
+const SchemaContext = schemaContext
+
 // ErrGenerateOpenAPIV2JSONSchemaForCapability is the error while generating OpenAPI v3 schema
 const ErrGenerateOpenAPIV2JSONSchemaForCapability = "cannot generate OpenAPI v3 JSON schema for capability %s: %v"
+
+// ExtensionImmutable is the OpenAPI extension key that marks a parameter field as immutable
+const ExtensionImmutable = "x-immutable"
 
 // ParsePropertiesToSchema parse the properties in cue script to the openapi schema
 func ParsePropertiesToSchema(ctx context.Context, s string, templateFieldPath ...string) (*openapi3.Schema, error) {
@@ -64,6 +71,18 @@ func ParsePropertiesToSchema(ctx context.Context, s string, templateFieldPath ..
 			return nil, fmt.Errorf("%w cue script: %s", template.Err(), s)
 		}
 	}
+	return ParseValueToSchema(template)
+}
+
+// ParseValueToSchema is ParsePropertiesToSchema for a value that has already
+// been compiled.
+//
+// A definition that extends another cannot be compiled from its own template:
+// it writes `parameter: $super._parameter & {...}`, and `$super` is supplied by
+// the chain rather than declared anywhere in the file. Such a definition is
+// compiled by the inheritance renderer and handed here, so its published
+// parameter schema is the one an application will actually be validated against.
+func ParseValueToSchema(template cue.Value) (*openapi3.Schema, error) {
 	data, err := common.GenOpenAPI(template)
 	if err != nil {
 		return nil, err
@@ -93,22 +112,31 @@ func ConvertOpenAPISchema2SwaggerObject(data []byte) (*openapi3.Schema, error) {
 // FixOpenAPISchema fixes tainted `description` filed, missing of title `field`.
 func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 	t := schema.Type
-	switch t {
-	case "object":
+
+	if t.Is(openapi3.TypeObject) {
 		for k, v := range schema.Properties {
 			s := v.Value
 			FixOpenAPISchema(k, s)
 		}
-	case "array":
+	} else if t.Is(openapi3.TypeArray) {
 		if schema.Items != nil {
 			FixOpenAPISchema("", schema.Items.Value)
 		}
 	}
+
 	if name != "" {
 		schema.Title = name
 	}
 
 	description := schema.Description
+	// Extract +immutable first, before other tags may strip the lines containing it.
+	if cleaned, found := extractMarkerFromDescription(description, appfile.ImmutableTag); found {
+		description = cleaned
+		if schema.Extensions == nil {
+			schema.Extensions = make(map[string]any)
+		}
+		schema.Extensions[ExtensionImmutable] = true
+	}
 	if strings.Contains(description, appfile.UsageTag) {
 		description = strings.Split(description, appfile.UsageTag)[1]
 	}
@@ -117,4 +145,23 @@ func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 		description = strings.TrimSpace(description)
 	}
 	schema.Description = description
+}
+
+// extractMarkerFromDescription removes all lines containing marker from description
+// and reports whether the marker was found. Used to extract flag-style markers
+// like +immutable that have no value component.
+func extractMarkerFromDescription(description, marker string) (string, bool) {
+	found := false
+	var lines []string
+	for _, line := range strings.Split(description, "\n") {
+		if strings.TrimSpace(line) == marker {
+			found = true
+		} else {
+			lines = append(lines, line)
+		}
+	}
+	if !found {
+		return description, false
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n")), true
 }

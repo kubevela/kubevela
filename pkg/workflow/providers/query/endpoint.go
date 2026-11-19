@@ -51,13 +51,23 @@ func CollectServiceEndpoints(ctx context.Context, params *ListParams) (*ListRetu
 	if err != nil {
 		return nil, fmt.Errorf("query app failure %w", err)
 	}
-	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
-	var clusterGatewayNodeIP = make(map[string]string)
 	collector := NewAppCollector(cli, opt)
 	resources, err := collector.ListApplicationResources(ctx, app)
 	if err != nil {
 		return nil, err
 	}
+	serviceEndpoints := ServiceEndpointsOf(ctx, cli, resources)
+	return &ListReturns[querytypes.ServiceEndpoint]{Returns: ListReturnVars[querytypes.ServiceEndpoint]{List: serviceEndpoints}}, nil
+}
+
+// ServiceEndpointsOf derives the access endpoints of resources an Application
+// manages, walking each resource's tree when it has one. It reads the
+// Services, Ingresses, HTTPRoutes and SeldonDeployments it finds through cli,
+// plus the nodes of a cluster for a NodePort address, the Gateways a route
+// attaches to, and a SeldonDeployment's Ambassador Service.
+func ServiceEndpointsOf(ctx context.Context, cli client.Client, resources []querytypes.AppliedResource) []querytypes.ServiceEndpoint {
+	serviceEndpoints := make([]querytypes.ServiceEndpoint, 0)
+	var clusterGatewayNodeIP = make(map[string]string)
 	for i, resource := range resources {
 		cluster := resources[i].Cluster
 		cachedSelectorNodeIP := func() string {
@@ -75,9 +85,8 @@ func CollectServiceEndpoints(ctx context.Context, params *ListParams) (*ListRetu
 		} else {
 			serviceEndpoints = append(serviceEndpoints, getServiceEndpoints(ctx, cli, resource.GroupVersionKind(), resource.Name, resource.Namespace, resource.Cluster, resource.Component, cachedSelectorNodeIP)...)
 		}
-
 	}
-	return &ListReturns[querytypes.ServiceEndpoint]{Returns: ListReturnVars[querytypes.ServiceEndpoint]{List: serviceEndpoints}}, nil
+	return serviceEndpoints
 }
 
 func getEndpointFromNode(ctx context.Context, cli client.Client, node *querytypes.ResourceTreeNode, component string, cachedSelectorNodeIP func() string) []querytypes.ServiceEndpoint {
@@ -340,8 +349,14 @@ func getGatewayPortAndProtocol(ctx context.Context, cli client.Client, defaultNa
 func generatorFromHTTPRoute(ctx context.Context, cli client.Client, route gatewayv1beta1.HTTPRoute, cluster, component string) []querytypes.ServiceEndpoint {
 	existPath := make(map[string]bool)
 	var serviceEndpoints []querytypes.ServiceEndpoint
+	hostnames := route.Spec.Hostnames
+	if len(hostnames) == 0 {
+		// A route without hostnames serves on every listener hostname, so it
+		// still has an endpoint, just no host of its own.
+		hostnames = []gatewayv1beta1.Hostname{""}
+	}
 	for _, rule := range route.Spec.Rules {
-		for _, host := range route.Spec.Hostnames {
+		for _, host := range hostnames {
 			appProtocol, appPort := getGatewayPortAndProtocol(ctx, cli, route.Namespace, cluster, route.Spec.ParentRefs)
 			for _, match := range rule.Matches {
 				path := ""
@@ -359,7 +374,7 @@ func generatorFromHTTPRoute(ctx context.Context, cli client.Client, route gatewa
 							Port:        appPort,
 						},
 						Ref: corev1.ObjectReference{
-							Kind:            route.Kind,
+							Kind:            "HTTPRoute",
 							Namespace:       route.ObjectMeta.Namespace,
 							Name:            route.ObjectMeta.Name,
 							UID:             route.UID,

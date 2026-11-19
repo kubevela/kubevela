@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -115,6 +116,86 @@ var _ = Describe("Test definition check", func() {
 		usedApps, err := checkAddonHasBeenUsed(ctx, k8sClient, "my-addon", addonApp, cfg)
 		Expect(err).Should(BeNil())
 		Expect(len(usedApps)).Should(BeEquivalentTo(4))
+	})
+
+	It("Test checkConflictDefs", func() {
+		const appName = "addon-fluxcd"
+		const otherAppName = "addon-other"
+		isController := true
+
+		// A definition that doesn't exist in the cluster
+		nonExistingDef := &unstructured.Unstructured{}
+		nonExistingDef.SetAPIVersion("core.oam.dev/v1beta1")
+		nonExistingDef.SetKind("ComponentDefinition")
+		nonExistingDef.SetName("non-existing-def")
+		nonExistingDef.SetNamespace(velatypes.DefaultKubeVelaNS)
+
+		// A definition that exists but has no owner
+		defWithNoOwner := &unstructured.Unstructured{}
+		defWithNoOwner.SetAPIVersion("core.oam.dev/v1beta1")
+		defWithNoOwner.SetKind("ComponentDefinition")
+		defWithNoOwner.SetName("def-no-owner")
+		defWithNoOwner.SetNamespace(velatypes.DefaultKubeVelaNS)
+		Expect(k8sClient.Create(ctx, defWithNoOwner)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, defWithNoOwner)).Should(Succeed())
+		}()
+
+		// A definition that is owned by another addon
+		defWithOtherOwner := &unstructured.Unstructured{}
+		defWithOtherOwner.SetAPIVersion("core.oam.dev/v1beta1")
+		defWithOtherOwner.SetKind("ComponentDefinition")
+		defWithOtherOwner.SetName("def-other-owner")
+		defWithOtherOwner.SetNamespace(velatypes.DefaultKubeVelaNS)
+		defWithOtherOwner.SetOwnerReferences([]metav1.OwnerReference{
+			{
+				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				Kind:       v1beta1.ApplicationKind,
+				Name:       otherAppName,
+				Controller: &isController,
+				UID:        "test-uid-other",
+			},
+		})
+		Expect(k8sClient.Create(ctx, defWithOtherOwner)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, defWithOtherOwner)).Should(Succeed())
+		}()
+
+		// A definition that is owned by the same addon
+		defWithSameOwner := &unstructured.Unstructured{}
+		defWithSameOwner.SetAPIVersion("core.oam.dev/v1beta1")
+		defWithSameOwner.SetKind("ComponentDefinition")
+		defWithSameOwner.SetName("def-same-owner")
+		defWithSameOwner.SetNamespace(velatypes.DefaultKubeVelaNS)
+		defWithSameOwner.SetOwnerReferences([]metav1.OwnerReference{
+			{
+				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				Kind:       v1beta1.ApplicationKind,
+				Name:       appName,
+				Controller: &isController,
+				UID:        "test-uid-same",
+			},
+		})
+		Expect(k8sClient.Create(ctx, defWithSameOwner)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, defWithSameOwner)).Should(Succeed())
+		}()
+
+		By("Checking a mix of definitions for conflicts")
+		defs := []*unstructured.Unstructured{
+			nonExistingDef,
+			defWithNoOwner,
+			defWithOtherOwner,
+			defWithSameOwner,
+		}
+
+		conflicts, err := checkConflictDefs(ctx, k8sClient, defs, appName)
+		Expect(err).Should(BeNil())
+		Expect(len(conflicts)).Should(Equal(2))
+		Expect(conflicts).Should(HaveKey(defWithNoOwner.GetName()))
+		Expect(conflicts[defWithNoOwner.GetName()]).Should(ContainSubstring("already exist and not belong to any addon"))
+		Expect(conflicts).Should(HaveKey(defWithOtherOwner.GetName()))
+		Expect(conflicts[defWithOtherOwner.GetName()]).Should(ContainSubstring("already exist in other"))
 	})
 })
 
@@ -387,10 +468,10 @@ func TestCheckAddonPackageValid(t *testing.T) {
 		err:      fmt.Errorf("the addon package doesn't have `metadata.yaml`"),
 	}, {
 		testCase: Meta{Version: "v1.4.0"},
-		err:      fmt.Errorf("`matadata.yaml` must define the name of addon"),
+		err:      fmt.Errorf("`metadata.yaml` must define the name of addon"),
 	}, {
 		testCase: Meta{Name: "test-addon"},
-		err:      fmt.Errorf("`matadata.yaml` must define the version of addon"),
+		err:      fmt.Errorf("`metadata.yaml` must define the version of addon"),
 	}, {
 		testCase: Meta{Name: "test-addon", Version: "1.4.5"},
 		err:      nil,
@@ -400,6 +481,90 @@ func TestCheckAddonPackageValid(t *testing.T) {
 		err := validateAddonPackage(&InstallPackage{Meta: testCase.testCase})
 		assert.Equal(t, reflect.DeepEqual(err, testCase.err), true)
 	}
+}
+
+func TestIsRegistryFuncs(t *testing.T) {
+	t.Run("IsLocalRegistry", func(t *testing.T) {
+		assert.True(t, IsLocalRegistry(Registry{Name: "local"}))
+		assert.False(t, IsLocalRegistry(Registry{Name: "KubeVela"}))
+	})
+	t.Run("IsVersionRegistry", func(t *testing.T) {
+		assert.True(t, IsVersionRegistry(Registry{Helm: &HelmSource{}}))
+		assert.False(t, IsVersionRegistry(Registry{Git: &GitAddonSource{}}))
+		assert.False(t, IsVersionRegistry(Registry{}))
+	})
+}
+
+func TestInstallOptions(t *testing.T) {
+	t.Run("SkipValidateVersion", func(t *testing.T) {
+		installer := &Installer{}
+		SkipValidateVersion(installer)
+		assert.True(t, installer.skipVersionValidate)
+	})
+	t.Run("DryRunAddon", func(t *testing.T) {
+		installer := &Installer{}
+		DryRunAddon(installer)
+		assert.True(t, installer.dryRun)
+	})
+	t.Run("OverrideDefinitions", func(t *testing.T) {
+		installer := &Installer{}
+		OverrideDefinitions(installer)
+		assert.True(t, installer.overrideDefs)
+	})
+}
+
+func TestProduceDefConflictError(t *testing.T) {
+	t.Run("no conflicts", func(t *testing.T) {
+		err := produceDefConflictError(map[string]string{})
+		assert.NoError(t, err)
+	})
+	t.Run("with conflicts", func(t *testing.T) {
+		conflicts := map[string]string{
+			"def1": "error message 1",
+			"def2": "error message 2",
+		}
+		err := produceDefConflictError(conflicts)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "error message 1")
+		assert.Contains(t, err.Error(), "error message 2")
+		assert.Contains(t, err.Error(), "--override-definitions")
+	})
+}
+
+func TestGenerateChartMetadata(t *testing.T) {
+	addonDir := t.TempDir()
+
+	// Corrected YAML content with no leading whitespace
+	metaFileContent := `name: my-addon
+version: 1.2.3
+description: my addon description
+icon: http://my-icon.com
+url: http://my-home.com
+tags:
+  - tag1
+  - tag2
+system:
+  vela: ">=1.5.0"
+  kubernetes: "1.20.0"
+`
+	err := os.WriteFile(filepath.Join(addonDir, MetadataFileName), []byte(metaFileContent), 0644)
+	assert.NoError(t, err)
+
+	chartMeta, err := generateChartMetadata(addonDir)
+	assert.NoError(t, err)
+	assert.NotNil(t, chartMeta)
+
+	assert.Equal(t, "my-addon", chartMeta.Name)
+	assert.Equal(t, "1.2.3", chartMeta.Version)
+	assert.Equal(t, "my addon description", chartMeta.Description)
+	assert.Equal(t, "library", chartMeta.Type)
+	assert.Equal(t, chart.APIVersionV2, chartMeta.APIVersion)
+	assert.Equal(t, "http://my-icon.com", chartMeta.Icon)
+	assert.Equal(t, "http://my-home.com", chartMeta.Home)
+	assert.Equal(t, []string{"tag1", "tag2"}, chartMeta.Keywords)
+	assert.Equal(t, ">=1.5.0", chartMeta.Annotations[velaSystemRequirement])
+	assert.Equal(t, "1.20.0", chartMeta.Annotations[kubernetesSystemRequirement])
+	assert.Equal(t, "my-addon", chartMeta.Annotations[addonSystemRequirement])
 }
 
 const (

@@ -1,0 +1,18 @@
+# One Form 3 Widget plus a module trait; used by the self-healing and the
+# delete-chain scenarios, which do not install the addon-level trait's addon
+# parameters.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: widget-consumer
+  namespace: default
+spec:
+  components:
+    - name: blue-widget
+      type: widget-kit/v1/widget
+      properties:
+        color: blue
+      traits:
+        - type: widget-kit/v1/labeler
+          properties:
+            tier: gold

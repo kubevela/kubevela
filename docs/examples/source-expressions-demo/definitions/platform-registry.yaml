@@ -1,0 +1,57 @@
+apiVersion: core.oam.dev/v1beta1
+kind: SourceDefinition
+metadata:
+  name: platform-registry
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Where images live. Keyed per cluster, so every Application on a cluster shares one cache entry."
+    # Which inference policy generated $internal below. Admission loads the rules
+    # with this hash rather than the current ones, so a later policy does not
+    # invalidate a definition already committed.
+    definition.oam.dev/cache-key-rules: "6ac674fa"
+    definition.oam.dev/cache-key-rules-version: v1
+spec:
+  schematic:
+    cue:
+      template: |
+        import "vela/kube"
+
+        // Generated from the context this template reads - do not edit. Admission re-derives these and rejects a mismatch.
+        $internal: {
+        	key: "platform-registry-\(context.cluster)"
+        	keyInputs: ["cluster"]
+        }
+
+        // What an application author may read. Everything else the definition touches -
+        // the ConfigMap, the cluster wiring - is invisible to them.
+        schema: {
+        	host:       string
+        	project:    string
+        	pullPolicy: string
+        	// Absent unless the platform has published one for this cluster.
+        	mirror?: string
+        }
+
+        storage: {
+        	storageTTL:     "30m"
+        	onStaleFailure: "use-stale"
+        }
+
+        parameter: {}
+
+        _info: kube.#Get & {
+        	$params: {
+        		cluster: context.cluster
+        		resource: {
+        			apiVersion: "v1"
+        			kind:       "ConfigMap"
+        			metadata: {name: "registry-info", namespace: "vela-system"}
+        		}
+        	}
+        }
+
+        output: {
+        	host:       _info.$returns.data.host
+        	project:    _info.$returns.data.project
+        	pullPolicy: _info.$returns.data.pullPolicy
+        }

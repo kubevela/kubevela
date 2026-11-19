@@ -20,10 +20,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
+	"time"
+
+	"k8s.io/apiserver/pkg/util/feature"
+
+	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+	"github.com/oam-dev/kubevela/pkg/features"
+
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
+	cueerrors "cuelang.org/go/cue/errors"
 	"github.com/kubevela/pkg/multicluster"
 
 	"github.com/pkg/errors"
@@ -36,13 +45,13 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/process"
 
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/render"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-
-	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 const (
@@ -54,13 +63,24 @@ const (
 	PatchFieldName = "patch"
 	// PatchOutputsFieldName is the name of the struct contains the patch of outputs CR data
 	PatchOutputsFieldName = "patchOutputs"
-	// CustomMessage defines the custom message in definition template
-	CustomMessage = "message"
-	// HealthCheckPolicy defines the health check policy in definition template
-	HealthCheckPolicy = "isHealth"
-	// ErrsFieldName check if errors contained in the cue
-	ErrsFieldName = "errs"
+	// ErrsFieldName check if errors contained in the cue. Kept as an alias so
+	// existing callers of definition.ErrsFieldName still compile; the value lives
+	// in pkg/cue/render, shared with source resolution.
+	ErrsFieldName = render.ErrsFieldName
+	// TemplateContextPrefix is the base prefix for storing templates in context
+	TemplateContextPrefix = "template-context-"
 )
+
+// GetWorkloadTemplateKey returns the context key for storing workload templates
+func GetWorkloadTemplateKey(name string) string {
+	return TemplateContextPrefix + "workload-" + name
+}
+
+// GetTraitTemplateKey returns the context key for storing trait templates
+// GetTraitTemplateKey returns the context key for storing trait templates
+func GetTraitTemplateKey(name string) string {
+	return TemplateContextPrefix + "trait-" + name
+}
 
 const (
 	// AuxiliaryWorkload defines the extra workload obj from a workloadDefinition,
@@ -69,40 +89,83 @@ const (
 )
 
 // AbstractEngine defines Definition's Render interface
+// AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
-	HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error)
-	Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error)
+	Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error)
 	GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error)
 }
-
 type def struct {
 	name string
+	// ancestors are the definitions this one extends, nearest parent first.
+	// Empty for a definition that extends nothing, which is the common case and
+	// renders exactly as it always did.
+	ancestors []inherit.Level
 }
-
 type workloadDef struct {
 	def
+	// surface is the call site this definition renders on. A PolicyDefinition
+	// with a CUE template renders through this same engine, but it is not a
+	// component: its readable context differs, and context.name is the policy.
+	surface string
 }
 
-// NewWorkloadAbstractEngine create Workload Definition AbstractEngine
-func NewWorkloadAbstractEngine(name string) AbstractEngine {
+// NewWorkloadAbstractEngine create Workload Definition AbstractEngine.
+//
+// Ancestors are the definitions this one extends, nearest parent first. They
+// are variadic so that every existing caller, and every definition that extends
+// nothing, is unaffected.
+func NewWorkloadAbstractEngine(name string, ancestors ...inherit.Level) AbstractEngine {
 	return &workloadDef{
 		def: def{
-			name: name,
+			name:      name,
+			ancestors: ancestors,
 		},
+		surface: sources.SurfaceComponent,
+	}
+}
+
+// NewPolicyAbstractEngine creates the engine for a PolicyDefinition that renders
+// resources. Same machinery as a component, different surface - so its
+// expressions are typed and resolved against the context a policy render has.
+// NewPolicyAbstractEngine creates the engine for a PolicyDefinition that renders
+// resources. Same machinery as a component, different surface - so its
+// expressions are typed and resolved against the context a policy render has.
+func NewPolicyAbstractEngine(name string) AbstractEngine {
+	return &workloadDef{
+		def:     def{name: name},
+		surface: sources.SurfacePolicyRendered,
 	}
 }
 
 // Complete do workload definition's rendering
-func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
+// Complete do workload definition's rendering
+func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) (retErr error) {
+	start := time.Now()
+	defer func() {
+		status := "ok"
+		if retErr != nil {
+			status = "error"
+		}
+		CUERenderDuration.WithLabelValues(string(upgrade.ComponentKind), status).Observe(time.Since(start).Seconds())
+	}()
+
 	var paramFile = velaprocess.ParameterFieldName + ": {}"
 	if params != nil {
-		bt, err := json.Marshal(params)
+		surface := wd.surface
+		if surface == "" {
+			surface = sources.SurfaceComponent
+		}
+		resolved, err := sources.ResolveSourceExpressions(ctx, params, surface)
+		if err != nil {
+			return errors.WithMessagef(err, "resolve source expressions for %s %s", surface, wd.name)
+		}
+		bt, err := renderParams(ctx, params, resolved)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
-		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, string(bt))
+		if bt != "null" {
+			paramFile = fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, bt)
 		}
 	}
 
@@ -111,14 +174,39 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	val := cuecontext.New().CompileString(strings.Join([]string{
-		renderTemplate(abstractTemplate), paramFile, c,
-	}, "\n"))
+	abstractTemplate, _ = upgrade.EnsureCueVersionCompatibility(abstractTemplate, wd.name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
 
-	if err := val.Validate(); err != nil {
-		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
+	var val cue.Value
+	var userErrors []string
+	if wd.extendsSomething() {
+		res, err := wd.renderChain(ctx, abstractTemplate, paramFile, c, inherit.ComponentSurface)
+		if err != nil {
+			return err
+		}
+		val, userErrors = res.value, res.userErrors
+	} else {
+		val, err = velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
+			render.Template(abstractTemplate), paramFile, c,
+		}, "\n"))
+		if err != nil {
+			return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
+		}
+		userErrors = render.UserErrors(val, "Workload definition", wd.name)
+	}
+
+	validationErr := val.Validate()
+
+	if validationErr != nil || len(userErrors) > 0 {
+		verr := &ValidationError{Kind: "workload", Name: wd.name, User: userErrors}
+		verr.Parameter, verr.Template = cueErrorMessages(validationErr, &val)
+		return verr
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
+	// A typed parameter leaves this non-concrete, and the trait renders against
+	// it as JSON. Prune it here, where nothing checks it, rather than in the
+	// parameters, where something does.
+	output = concreteForRender(ctx, output)
+
 	base, err := model.NewBase(output)
 	if err != nil {
 		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
@@ -127,12 +215,13 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	// Strict Cue required field parameter validation
-	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
-		paramCue := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
-		if err := paramCue.Validate(cue.Concrete(true)); err != nil {
-			return errors.WithMessagef(err, "parameter error for %s", wd.name)
-		}
+	// Store template for error context (use workload-specific key to avoid pollution)
+	// Skipped when parameters are open (a validation, or a placeholder dry-run):
+	// the whole value is marshalled into every later template's context, which a
+	// typed parameter cannot survive. The render
+	// path falls back to the base when it is absent.
+	if !sources.OpenParams(ctx.GetCtx()) {
+		ctx.PushData(GetWorkloadTemplateKey(wd.name), val)
 	}
 
 	// we will support outputs for workload composition, and it will become trait in AppConfig.
@@ -140,6 +229,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if !outputs.Exists() {
 		return nil
 	}
+
 	iter, err := outputs.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 	if err != nil {
 		return errors.WithMessagef(err, "invalid outputs of workload %s", wd.name)
@@ -148,8 +238,8 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 			continue
 		}
-		other, err := model.NewOther(iter.Value())
-		name := iter.Label()
+		other, err := model.NewOther(concreteForRender(ctx, iter.Value()))
+		name := util.GetIteratorLabel(*iter)
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", name, wd.name)
 		}
@@ -159,14 +249,12 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 	return nil
 }
-
 func withCluster(ctx context.Context, o client.Object) context.Context {
 	if cluster := oam.GetCluster(o); cluster != "" {
 		return multicluster.WithCluster(ctx, cluster)
 	}
 	return ctx
 }
-
 func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	baseLabels := GetBaseContextLabels(ctx)
 	var root = initRoot(baseLabels)
@@ -214,114 +302,132 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 	return root, nil
 }
 
-func formatRuntimeContext(templateContext map[string]interface{}, parameter interface{}) (string, error) {
-	var paramBuff = "parameter: {}\n"
-
-	bt, err := json.Marshal(templateContext)
-	if err != nil {
-		return "", errors.WithMessage(err, "json marshal template context")
-	}
-	ctxBuff := "context: " + string(bt) + "\n"
-
-	bt, err = json.Marshal(parameter)
-	if err != nil {
-		return "", errors.WithMessage(err, "json marshal template parameters")
-	}
-	if string(bt) != "null" {
-		paramBuff = "parameter: " + string(bt) + "\n"
-	}
-	return ctxBuff + paramBuff, nil
-}
-
-// HealthCheck address health check for workload
-func (wd *workloadDef) HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	return checkHealth(templateContext, healthPolicyTemplate, parameter)
-}
-
-func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	if healthPolicyTemplate == "" {
-		return true, nil
-	}
-	runtimeContextBuff, err := formatRuntimeContext(templateContext, parameter)
-	if err != nil {
-		return false, err
-	}
-	var buff = healthPolicyTemplate + "\n" + runtimeContextBuff
-
-	val := cuecontext.New().CompileString(buff)
-	healthy, err := val.LookupPath(value.FieldPath(HealthCheckPolicy)).Bool()
-	if err != nil {
-		return false, errors.WithMessage(err, "evaluate health status")
-	}
-	return healthy, nil
-}
-
 // Status get workload status by customStatusTemplate
-func (wd *workloadDef) Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
-	return getStatusMessage(templateContext, customStatusTemplate, parameter)
+// Status get workload status by customStatusTemplate
+func (wd *workloadDef) Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error) {
+	return health.GetStatus(templateContext, request)
 }
-
-func getStatusMessage(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
-	if customStatusTemplate == "" {
-		return "", nil
-	}
-	runtimeContextBuff, err := formatRuntimeContext(templateContext, parameter)
-	if err != nil {
-		return "", err
-	}
-	var buff = customStatusTemplate + "\n" + runtimeContextBuff
-
-	val := cuecontext.New().CompileString(buff)
-	if val.Err() != nil {
-		return "", errors.WithMessage(val.Err(), "compile status template")
-	}
-	message, err := val.LookupPath(value.FieldPath(CustomMessage)).String()
-	if err != nil {
-		return "", errors.WithMessage(err, "evaluate customStatus.message")
-	}
-	return message, nil
-}
-
 func (wd *workloadDef) GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	return wd.getTemplateContext(ctx, cli, accessor)
 }
 
 type traitDef struct {
 	def
+	// typeLabel is the trait.oam.dev/type value put on the objects the trait
+	// emits through outputs. It is the name, except for a module definition,
+	// where it is the installed name (see NewTraitAbstractEngineWithTypeLabel).
+	typeLabel string
 }
 
-// NewTraitAbstractEngine create Trait Definition AbstractEngine
-func NewTraitAbstractEngine(name string) AbstractEngine {
+// NewTraitAbstractEngine create Trait Definition AbstractEngine.
+//
+// Ancestors are the definitions this one extends, nearest parent first. They
+// are variadic so that every existing caller, and every trait that extends
+// nothing, is unaffected.
+func NewTraitAbstractEngine(name string, ancestors ...inherit.Level) AbstractEngine {
+	return NewTraitAbstractEngineWithTypeLabel(name, name, ancestors...)
+}
+
+// NewTraitAbstractEngineWithTypeLabel is NewTraitAbstractEngine for a trait
+// whose outputs are labelled with something other than its name. A module
+// trait referenced as "note" or "widget-kit/v1/note" is labelled with its
+// installed name "widget-kit-v1-note": the slashes of the long forms are not
+// valid in a label value, and the dispatcher looks the label up among the
+// revision's definitions, which are keyed by installed name.
+func NewTraitAbstractEngineWithTypeLabel(name, typeLabel string, ancestors ...inherit.Level) AbstractEngine {
 	return &traitDef{
 		def: def{
-			name: name,
+			name:      name,
+			ancestors: ancestors,
 		},
+		typeLabel: typeLabel,
 	}
+}
+
+// outputTypeLabel returns typeLabel, or the name for a traitDef built without one.
+func (td *traitDef) outputTypeLabel() string {
+	if td.typeLabel != "" {
+		return td.typeLabel
+	}
+	return td.name
 }
 
 // Complete do trait definition's rendering
 // nolint:gocyclo
-func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
-	buff := abstractTemplate + "\n"
+// Complete do trait definition's rendering
+// nolint:gocyclo
+func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) (retErr error) {
+	start := time.Now()
+	defer func() {
+		status := "ok"
+		if retErr != nil {
+			status = "error"
+		}
+		CUERenderDuration.WithLabelValues(string(upgrade.TraitKind), status).Observe(time.Since(start).Seconds())
+	}()
+
+	abstractTemplate, _ = upgrade.EnsureCueVersionCompatibility(abstractTemplate, td.name, upgrade.TraitKind, upgrade.TemplateAreaMain)
+
+	var paramFile string
 	if params != nil {
-		bt, err := json.Marshal(params)
+		resolved, err := sources.ResolveSourceExpressions(ctx, params, sources.SurfaceTrait)
+		if err != nil {
+			return errors.WithMessagef(err, "resolve source expressions for trait %s", td.name)
+		}
+		bt, err := renderParams(ctx, params, resolved)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
-		if string(bt) != "null" {
-			buff += fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, string(bt))
+		if bt != "null" {
+			paramFile = fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, bt)
 		}
 	}
+	buff := abstractTemplate + "\n" + paramFile
+
+	multiStageEnabled := feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply)
+	var statusBytes []byte
+	if multiStageEnabled {
+		statusBytes = outputStatusBytes(ctx)
+	}
+
 	c, err := ctx.BaseContextFile()
 	if err != nil {
 		return err
 	}
+
+	// When multi-stage is enabled, merge the existing output.status from ctx into the
+	// base context so downstream CUE can reference it deterministically.
+	if multiStageEnabled {
+		c = injectOutputStatusIntoBaseContext(ctx, c, statusBytes)
+	}
+
 	buff += c
 
-	val := cuecontext.New().CompileString(buff)
-	if err := val.Validate(); err != nil {
-		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
+	var val cue.Value
+	var userErrors []string
+	var levels []cue.Value
+	if td.extendsSomething() {
+		res, err := td.renderChain(ctx, abstractTemplate, paramFile, c, inherit.TraitSurface)
+		if err != nil {
+			return err
+		}
+		val, userErrors, levels = res.value, res.userErrors, res.levels
+	} else {
+		val, err = velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), buff)
+		if err != nil {
+			return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
+		}
+		userErrors = render.UserErrors(val, "Trait definition", td.name)
 	}
+
+	validationErr := val.Validate()
+
+	if validationErr != nil || len(userErrors) > 0 {
+		verr := &ValidationError{Kind: "trait", Name: td.name, User: userErrors}
+		verr.Parameter, verr.Template = cueErrorMessages(validationErr, &val)
+		return verr
+	}
+
 	processing := val.LookupPath(value.FieldPath("processing"))
 	if processing.Exists() {
 		if val, err = task.Process(val); err != nil {
@@ -330,6 +436,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	outputs := val.LookupPath(value.FieldPath(OutputsFieldName))
 	if outputs.Exists() {
+
 		iter, err := outputs.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs of trait %s", td.name)
@@ -338,12 +445,12 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 				continue
 			}
-			other, err := model.NewOther(iter.Value())
-			name := iter.Label()
+			other, err := model.NewOther(concreteForRender(ctx, iter.Value()))
+			name := util.GetIteratorLabel(*iter)
 			if err != nil {
 				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", name, td.name)
 			}
-			if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: name}); err != nil {
+			if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.outputTypeLabel(), Name: name}); err != nil {
 				return err
 			}
 		}
@@ -355,44 +462,104 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if base == nil {
 			return fmt.Errorf("patch trait %s into an invalid workload", td.name)
 		}
-		if err := base.Unify(patcher, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
+		opts := patchOptionsFromLevels(levels, patcher)
+		if err := base.Unify(marshalablePatch(ctx, patcher, opts), opts...); err != nil {
+			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
+		}
+		// The patch carries the trait's own parameters, so a source-fed one
+		// lands here as a type. Pruned after the unification rather than before
+		// it, because the patcher's attributes are what drive patch strategy.
+		if err := repruneBase(ctx, base); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
 	}
 	outputsPatcher := val.LookupPath(value.FieldPath(PatchOutputsFieldName))
 	if outputsPatcher.Exists() {
-		for _, auxiliary := range auxiliaries {
+		// Honor +patchStrategy on patchOutputs (nearest parent declaration, then
+		// fall back to the patch field) so overlays like affinity nodeSelector
+		// can win over chart values.
+		outOpts := sets.CreateUnifyOptionsForPatcher(outputsPatcher)
+		if len(outOpts) == 0 {
+			for i := len(levels) - 1; i >= 0; i-- {
+				p := levels[i].LookupPath(value.FieldPath(PatchOutputsFieldName))
+				if !p.Exists() {
+					continue
+				}
+				if opts := sets.CreateUnifyOptionsForPatcher(p); len(opts) > 0 {
+					outOpts = opts
+					break
+				}
+			}
+		}
+		if len(outOpts) == 0 && patcher.Exists() {
+			outOpts = patchOptionsFromLevels(levels, patcher)
+		}
+		for i, auxiliary := range auxiliaries {
 			target := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
 			if !target.Exists() {
 				continue
 			}
-			if err = auxiliary.Ins.Unify(target); err != nil {
+			if err = auxiliary.Ins.Unify(marshalablePatch(ctx, target, outOpts), outOpts...); err != nil {
+				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
+			}
+			if err = repruneAuxiliary(ctx, auxiliaries, i); err != nil {
 				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
 		}
 	}
 
-	errs := val.LookupPath(value.FieldPath(ErrsFieldName))
-	if errs.Exists() {
-		if err := parseErrors(errs); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
+func outputStatusBytes(ctx process.Context) []byte {
+	var statusBytes []byte
+	var outputMap map[string]interface{}
+	if output := ctx.GetData(OutputFieldName); output != nil {
+		if m, ok := output.(map[string]interface{}); ok {
+			outputMap = m
+		} else if ptr, ok := output.(*interface{}); ok && ptr != nil {
+			if m, ok := (*ptr).(map[string]interface{}); ok {
+				outputMap = m
+			}
+		}
 
-func parseErrors(errs cue.Value) error {
-	if it, e := errs.List(); e == nil {
-		for it.Next() {
-			if s, err := it.Value().String(); err == nil && s != "" {
-				return errors.Errorf(s)
+		if outputMap != nil {
+			if status, ok := outputMap["status"]; ok {
+				if b, err := json.Marshal(status); err == nil {
+					statusBytes = b
+				}
 			}
 		}
 	}
-	return nil
+	return statusBytes
+}
+func injectOutputStatusIntoBaseContext(ctx process.Context, c string, statusBytes []byte) string {
+	if len(statusBytes) > 0 {
+		// If output is an empty object, replace it with only the status field without trailing comma.
+		emptyOutputMarker := "\"output\":{}"
+		if strings.Contains(c, emptyOutputMarker) {
+			replacement := fmt.Sprintf("\"output\":{\"status\":%s}", string(statusBytes))
+			c = strings.Replace(c, emptyOutputMarker, replacement, 1)
+		} else {
+			// Otherwise, insert status as the first field and keep the comma to separate from existing fields.
+			replacement := fmt.Sprintf("\"output\":{\"status\":%s,", string(statusBytes))
+			c = strings.Replace(c, "\"output\":{", replacement, 1)
+		}
+
+		// Restore the status field to the current output in ctx.data
+		var status interface{}
+		if err := json.Unmarshal(statusBytes, &status); err == nil {
+			if currentOutput := ctx.GetData(OutputFieldName); currentOutput != nil {
+				if currentMap, ok := currentOutput.(map[string]interface{}); ok {
+					currentMap["status"] = status
+					ctx.PushData(OutputFieldName, currentMap)
+				}
+			}
+		}
+	}
+	return c
 }
 
+// GetCommonLabels will convert context based labels to OAM standard labels
 // GetCommonLabels will convert context based labels to OAM standard labels
 func GetCommonLabels(contextLabels map[string]string) map[string]string {
 	var commonLabels = map[string]string{}
@@ -413,6 +580,7 @@ func GetCommonLabels(contextLabels map[string]string) map[string]string {
 }
 
 // GetBaseContextLabels get base context labels
+// GetBaseContextLabels get base context labels
 func GetBaseContextLabels(ctx process.Context) map[string]string {
 	baseLabels := ctx.BaseContextLabels()
 	baseLabels[velaprocess.ContextAppName] = ctx.GetData(velaprocess.ContextAppName).(string)
@@ -420,7 +588,6 @@ func GetBaseContextLabels(ctx process.Context) map[string]string {
 
 	return baseLabels
 }
-
 func initRoot(contextLabels map[string]string) map[string]interface{} {
 	var root = map[string]interface{}{}
 	for k, v := range contextLabels {
@@ -428,23 +595,15 @@ func initRoot(contextLabels map[string]string) map[string]interface{} {
 	}
 	return root
 }
-
-func renderTemplate(templ string) string {
-	return templ + `
-context: _
-parameter: _
-`
-}
-
 func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	baseLabels := GetBaseContextLabels(ctx)
 	var root = initRoot(baseLabels)
 	var commonLabels = GetCommonLabels(baseLabels)
-
 	_, assists := ctx.Output()
+
 	outputs := make(map[string]interface{})
 	for _, assist := range assists {
-		if assist.Type != td.name {
+		if assist.Type != td.outputTypeLabel() {
 			continue
 		}
 		traitRef, err := assist.Ins.Unstructured()
@@ -467,19 +626,13 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 }
 
 // Status get trait status by customStatusTemplate
-func (td *traitDef) Status(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
-	return getStatusMessage(templateContext, customStatusTemplate, parameter)
+// Status get trait status by customStatusTemplate
+func (td *traitDef) Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error) {
+	return health.GetStatus(templateContext, request)
 }
-
-// HealthCheck address health check for trait
-func (td *traitDef) HealthCheck(templateContext map[string]interface{}, healthPolicyTemplate string, parameter interface{}) (bool, error) {
-	return checkHealth(templateContext, healthPolicyTemplate, parameter)
-}
-
 func (td *traitDef) GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	return td.getTemplateContext(ctx, cli, accessor)
 }
-
 func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
 	if outputsResource != "" {
 		labels[oam.TraitResource] = outputsResource
@@ -510,4 +663,231 @@ func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 		}
 	}
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
+}
+
+// FormatCUEError returns err as a *ValidationError, its messages grouped into
+// Parameter and Template sections, or nil when there is nothing to report.
+func FormatCUEError(err error, messagePrefix string, entityType, entityName string, val ...*cue.Value) error {
+	paramErrs, templateErrs := cueErrorMessages(err, val...)
+	if len(paramErrs) == 0 && len(templateErrs) == 0 {
+		return nil
+	}
+	return &ValidationError{
+		Kind:      entityType,
+		Name:      entityName,
+		Parameter: paramErrs,
+		Template:  templateErrs,
+		header:    fmt.Sprintf("%s %s %s:", messagePrefix, entityType, entityName),
+	}
+}
+
+// cueErrorMessages splits a CUE error, and the incomplete values left in
+// val, into parameter and template messages, deduplicated and sorted.
+func cueErrorMessages(err error, val ...*cue.Value) (params, templates []string) {
+	if err == nil {
+		return nil, nil
+	}
+	paramSet, templateSet := map[string]bool{}, map[string]bool{}
+	collect := func(err error) {
+		for _, e := range cueerrors.Errors(err) {
+			if msg := e.Error(); strings.HasPrefix(msg, "parameter.") {
+				paramSet[msg] = true
+			} else {
+				templateSet[msg] = true
+			}
+		}
+	}
+	collect(err)
+	if len(val) > 0 && val[0] != nil {
+		if concreteErr := val[0].Validate(cue.Concrete(true)); concreteErr != nil {
+			collect(concreteErr)
+		}
+	}
+	return sortedKeys(paramSet), sortedKeys(templateSet)
+}
+
+func sortedKeys(set map[string]bool) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func writeErrorSection(b *strings.Builder, title string, errs []string) {
+	if len(errs) == 0 {
+		return
+	}
+	b.WriteString("\n\n" + title + ":\n")
+	for _, e := range errs {
+		b.WriteString("  " + e + "\n")
+	}
+}
+
+// ValidationError is a definition that failed validation once rendered: the
+// errors it raised itself through `errs`, and the CUE errors in its parameters
+// and in the rest of its template.
+type ValidationError struct {
+	// Kind is what failed: a workload, trait, component and so on.
+	Kind      string
+	Name      string
+	User      []string
+	Parameter []string
+	Template  []string
+
+	// header opens the message in place of "validation failed for ...".
+	header string
+}
+
+func (e *ValidationError) Error() string {
+	var b strings.Builder
+	if e.header != "" {
+		b.WriteString(e.header)
+	} else {
+		b.WriteString(fmt.Sprintf("validation failed for %s %s:", e.Kind, e.Name))
+	}
+	writeErrorSection(&b, "User Errors", e.User)
+	writeErrorSection(&b, "Parameter errors", e.Parameter)
+	writeErrorSection(&b, "Template errors", e.Template)
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// renderParams writes a component or trait's properties as CUE. An open render
+// may carry types rather than values, and a type cannot survive json.Marshal.
+func renderParams(ctx process.Context, params, resolved interface{}) (string, error) {
+	chosen := params
+	if resolved != nil {
+		chosen = resolved
+	}
+	if typed, ok := chosen.(map[string]interface{}); ok && sources.OpenParams(ctx.GetCtx()) {
+		return sources.ParamsAsCUE(typed)
+	}
+	raw, err := json.Marshal(chosen)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// concreteForRender makes an open render's resource marshalable. Every
+// resource here is handed to the next template through the context as JSON,
+// which an unknowable leaf cannot survive. A real render has nothing to prune.
+func concreteForRender(ctx process.Context, v cue.Value) cue.Value {
+	if !sources.OpenParams(ctx.GetCtx()) {
+		return v
+	}
+	pruned, _ := sources.ConcreteForOpenRender(ctx.GetCtx(), v)
+	return pruned
+}
+
+// repruneBase prunes a base that a patch has just made non-concrete again, and
+// puts the result back so the next trait can be handed it as JSON.
+func repruneBase(ctx process.Context, base model.Instance) error {
+	if !sources.OpenParams(ctx.GetCtx()) {
+		return nil
+	}
+	pruned, changed := sources.ConcreteForOpenRender(ctx.GetCtx(), base.Value())
+	if !changed {
+		return nil
+	}
+	next, err := model.NewBase(pruned)
+	if err != nil {
+		return err
+	}
+	return ctx.SetBase(next)
+}
+
+// repruneAuxiliary does the same for the i'th auxiliary. Unifying it with its
+// pruned self would keep the open leaf, so the instance is replaced; Output
+// hands back the context's own slice, which is what makes the replacement stick.
+func repruneAuxiliary(ctx process.Context, auxiliaries []process.Auxiliary, i int) error {
+	if !sources.OpenParams(ctx.GetCtx()) {
+		return nil
+	}
+	pruned, changed := sources.ConcreteForOpenRender(ctx.GetCtx(), auxiliaries[i].Ins.Value())
+	if !changed {
+		return nil
+	}
+	next, err := model.NewOther(pruned)
+	if err != nil {
+		return err
+	}
+	auxiliaries[i].Ins = next
+	return nil
+}
+
+// marshalablePatch prunes what an open render cannot know from a patch whose
+// strategy hands it to a JSON patch library, which takes concrete JSON only.
+// Elsewhere CUE unifies the patch and an open value is no obstacle.
+//
+// For a JSON patch, an operation keeps its path, so admission still checks the
+// path exists, and loses only what of its value is unknowable; a value with
+// nothing left is applied as an empty list for a list and as null otherwise. A test with anything unknowable in its value
+// is left out instead, since comparing against what remains would refuse a value
+// that may well match.
+func marshalablePatch(ctx process.Context, patcher cue.Value, opts []sets.UnifyOption) cue.Value {
+	if !sources.OpenParams(ctx.GetCtx()) {
+		return patcher
+	}
+	params := &sets.UnifyParams{}
+	for _, o := range opts {
+		o.ApplyToOption(params)
+	}
+	switch params.PatchStrategy {
+	case sets.StrategyJSONMergePatch:
+		pruned, _ := sources.ConcreteForOpenRender(ctx.GetCtx(), patcher)
+		return pruned
+	case sets.StrategyJSONPatch:
+		return marshalableJSONPatch(ctx, patcher)
+	default:
+		return patcher
+	}
+}
+
+// marshalableJSONPatch prunes each operation of a JSON patch on its own, so one
+// unknowable value does not take the whole operations list with it.
+func marshalableJSONPatch(ctx process.Context, patcher cue.Value) cue.Value {
+	iter, err := patcher.LookupPath(cue.ParsePath("operations")).List()
+	if err != nil {
+		pruned, _ := sources.ConcreteForOpenRender(ctx.GetCtx(), patcher)
+		return pruned
+	}
+	ops := []any{}
+	for iter.Next() {
+		op := iter.Value()
+		val := op.LookupPath(cue.ParsePath("value"))
+		// A struct or list is concrete even with an unknowable leaf, so the
+		// prune decides.
+		known := true
+		if val.Exists() {
+			_, pruned := sources.ConcreteForOpenRender(ctx.GetCtx(), val)
+			known = !pruned
+		}
+		if !known {
+			if kind, _ := op.LookupPath(cue.ParsePath("op")).String(); kind == "test" {
+				continue
+			}
+		}
+		pruned, _ := sources.ConcreteForOpenRender(ctx.GetCtx(), op)
+		var decoded map[string]any
+		if err := pruned.Decode(&decoded); err != nil {
+			return patcher
+		}
+		if _, kept := decoded["value"]; val.Exists() && !kept {
+			decoded["value"] = nil
+			if val.IncompleteKind() == cue.ListKind {
+				decoded["value"] = []any{}
+			}
+		}
+		ops = append(ops, decoded)
+	}
+	out := patcher.Context().Encode(map[string]any{"operations": ops})
+	if out.Err() != nil {
+		return patcher
+	}
+	return out
 }

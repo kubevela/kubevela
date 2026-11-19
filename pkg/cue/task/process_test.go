@@ -66,18 +66,56 @@ func TestProcess(t *testing.T) {
 	s := NewMock()
 	defer s.Close()
 
-	taskTemplate := cuecontext.New().CompileString(TaskTemplate)
-	taskTemplate = taskTemplate.FillPath(value.FieldPath(process.ParameterFieldName), map[string]interface{}{
-		"serviceURL": "http://127.0.0.1:8090/api/v1/token?val=test-token",
-	})
-
-	inst, err := Process(taskTemplate)
-	if err != nil {
-		t.Fatal(err)
+	testCases := map[string]struct {
+		template   string
+		parameter  map[string]interface{}
+		wantOutput string
+		wantErr    string
+	}{
+		"success": {
+			template: TaskTemplate,
+			parameter: map[string]interface{}{
+				"serviceURL": "http://127.0.0.1:8090/api/v1/token?val=test-token",
+			},
+			wantOutput: "{\"data\":\"test-token\"}",
+		},
+		"no http in processing": {
+			template: `
+parameter: {
+  serviceURL: string
+}
+processing: {}
+`,
+			parameter: map[string]interface{}{
+				"serviceURL": "http://127.0.0.1:8090/api/v1/token?val=test-token",
+			},
+			wantErr: "there is no http in processing",
+		},
+		"http task fails": {
+			template:  TaskTemplate,
+			parameter: map[string]interface{}{"serviceURL": "http://127.0.0.1:3000"},
+			wantErr:   "fail to exec http task",
+		},
 	}
-	output := inst.LookupPath(value.FieldPath("output"))
-	data, _ := cueJson.Marshal(output)
-	assert.Equal(t, "{\"data\":\"test-token\"}", data)
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			taskTemplate := cuecontext.New().CompileString(tc.template)
+			taskTemplate = taskTemplate.FillPath(value.FieldPath(process.ParameterFieldName), tc.parameter)
+
+			inst, err := Process(taskTemplate)
+
+			if tc.wantErr != "" {
+				assert.ErrorContains(t, err, tc.wantErr)
+			} else {
+				assert.NoError(t, err)
+				output := inst.LookupPath(value.FieldPath("output"))
+				data, err := cueJson.Marshal(output)
+				assert.NoError(t, err)
+				assert.Equal(t, tc.wantOutput, string(data))
+			}
+		})
+	}
 }
 
 func NewMock() *httptest.Server {

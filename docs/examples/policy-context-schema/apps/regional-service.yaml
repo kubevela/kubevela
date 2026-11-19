@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: payments-regional
+  namespace: payments
+spec:
+  components:
+    - name: regional
+      type: regional-service
+      properties:
+        image: nginx:1.27

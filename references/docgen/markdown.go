@@ -24,6 +24,8 @@ import (
 	"sort"
 	"strings"
 
+	cuelang "cuelang.org/go/cue"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/pkg/errors"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -43,6 +45,10 @@ type MarkdownReference struct {
 	AllInOne        bool
 	ForceExample    bool
 	CustomDocHeader string
+	// Compiler overrides the default cuex compiler used to extract CUE parameter values.
+	// Set this to providers.DefaultCompiler.Get() when generating docs for definitions that
+	// import vela-specific packages (vela/builtin, vela/multicluster, etc.).
+	Compiler *cuex.Compiler
 	ParseReference
 }
 
@@ -145,7 +151,14 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(_ context.Context, c types.
 	capNameInTitle := ref.makeReadableTitle(capName)
 	switch c.Category {
 	case types.CUECategory:
-		cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
+		// TODO: Use context from caller for proper cancellation/timeout support
+		// Currently using Background() to avoid breaking changes to function
+		ctx := context.Background()
+		var cueValue cuelang.Value
+		var err error
+		// A definition states the parameters it takes, whether or not it
+		// extends something, so no cluster is needed to document one.
+		cueValue, err = common.GetCUExParameterValue(ctx, c.CueTemplate, ref.Compiler)
 		if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 			return "", fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 		}
@@ -156,7 +169,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(_ context.Context, c types.
 		}
 		if c.Type == types.TypeComponentDefinition {
 			var warnErr error
-			baseDoc, warnErr = GetBaseResourceKinds(c.CueTemplate, ref.Client.RESTMapper())
+			baseDoc, warnErr = GetBaseResourceKinds(ctx, c.CueTemplate, ref.Client.RESTMapper())
 			if warnErr != nil {
 				klog.Warningf("failed to get base resource kinds for %s: %v", c.Name, warnErr)
 			}
@@ -280,26 +293,31 @@ func (ref *MarkdownReference) getParameterString(tableName string, parameterList
 	if tableName == "" || tableName == Specification {
 		tab = "\n\n"
 	}
-	tab += fmt.Sprintf(" %s | %s | %s | %s | %s \n", ref.I18N.Get("Name"), ref.I18N.Get("Description"), ref.I18N.Get("Type"), ref.I18N.Get("Required"), ref.I18N.Get("Default"))
-	tab += fmt.Sprintf(" %s | %s | %s | %s | %s \n",
+	tab += fmt.Sprintf(" %s | %s | %s | %s | %s | %s \n", ref.I18N.Get("Name"), ref.I18N.Get("Description"), ref.I18N.Get("Type"), ref.I18N.Get("Required"), ref.I18N.Get("Default"), ref.I18N.Get("Immutable"))
+	tab += fmt.Sprintf(" %s | %s | %s | %s | %s | %s \n",
 		strings.Repeat("-", len(ref.I18N.Get("Name"))),
 		strings.Repeat("-", len(ref.I18N.Get("Description"))),
 		strings.Repeat("-", len(ref.I18N.Get("Type"))),
 		strings.Repeat("-", len(ref.I18N.Get("Required"))),
-		strings.Repeat("-", len(ref.I18N.Get("Default"))))
+		strings.Repeat("-", len(ref.I18N.Get("Default"))),
+		strings.Repeat("-", len(ref.I18N.Get("Immutable"))))
 
 	switch category {
 	case types.CUECategory:
 		for _, p := range parameterList {
 			if !p.Ignore {
 				printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
-				tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, printableDefaultValue)
+				immutableVal := ""
+				if p.Immutable {
+					immutableVal = "true"
+				}
+				tab += fmt.Sprintf(" %s | %s | %s | %t | %s | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, printableDefaultValue, immutableVal)
 			}
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value
 		for _, p := range parameterList {
-			tab += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, "")
+			tab += fmt.Sprintf(" %s | %s | %s | %t | %s | %s \n", p.Name, ref.prettySentence(p.Usage), ref.formatTableString(p.PrintableType), p.Required, "", "")
 		}
 	default:
 	}

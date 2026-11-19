@@ -51,20 +51,21 @@ template: {
 		if parameter.hostPath != _|_ for v in parameter.hostPath {
 			{
 				name: "hostpath-" + v.name
-				path: v.path
+				hostPath: {
+					path: v.path
+					type: v.type
+				}
 			}
 		},
 	]
 
 	volumeMountsList: [
-		if parameter.pvc != _|_ for v in parameter.pvc {
-			if v.volumeMode == "Filesystem" {
-				{
-					name:      "pvc-" + v.name
-					mountPath: v.mountPath
-					if v.subPath != _|_ {
-						subPath: v.subPath
-					}
+		if parameter.pvc != _|_ for v in parameter.pvc if v.volumeMode == "Filesystem" {
+			{
+				name:      "pvc-" + v.name
+				mountPath: v.mountPath
+				if v.subPath != _|_ {
+					subPath: v.subPath
 				}
 			}
 		},
@@ -75,6 +76,9 @@ template: {
 				if v.subPath != _|_ {
 					subPath: v.subPath
 				}
+				if v.readOnly {
+					readOnly: true
+				}
 			}
 		},
 		if parameter.secret != _|_ for v in parameter.secret if v.mountPath != _|_ {
@@ -83,6 +87,9 @@ template: {
 				mountPath: v.mountPath
 				if v.subPath != _|_ {
 					subPath: v.subPath
+				}
+				if v.readOnly {
+					readOnly: true
 				}
 			}
 		},
@@ -173,6 +180,7 @@ template: {
 
 		containers: [{
 			// +patchKey=name
+			// +patchStrategy=retainKeys
 			env: envList
 			// +patchKey=name
 			volumeDevices: volumeDevicesList
@@ -217,7 +225,7 @@ template: {
 							dataSource: v.dataSource
 						}
 						if v.selector != _|_ {
-							dataSource: v.selector
+							selector: v.selector
 						}
 					}
 				}
@@ -282,11 +290,11 @@ template: {
 			}
 			selector?: {
 				matchLabels?: [string]: string
-				matchExpressions?: {
-					key: string
-					values: [...string]
+				matchExpressions?: [...{
+					key:      string
 					operator: string
-				}
+					values?: [...string]
+				}]
 			}
 		}]
 

@@ -21,9 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -31,7 +34,12 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils"
+	addonvalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/addon"
+	modulevalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/module"
+	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -39,8 +47,29 @@ var _ admission.Handler = &ValidatingHandler{}
 // ValidatingHandler handles application
 type ValidatingHandler struct {
 	Client client.Client
+	// APIReader reads straight from the API server, used for the one Namespace
+	// lookup a restriction's label selector needs. The cached client would start a
+	// cluster-wide Namespace informer inside an admission request.
+	APIReader client.Reader
+	// Live is the same idea for definitions, as a full client rather than a
+	// Reader: resolving a pinned revision asserts its reader back to a
+	// client.Client. It sits behind the cache, not in front of it. Nil falls back
+	// to Client.
+	Live client.Client
 	// Decoder decodes objects
-	Decoder *admission.Decoder
+	Decoder admission.Decoder
+
+	addonValidator  componentValidator
+	moduleValidator componentValidator
+
+	// controllerUsername is vela-core's own identity, resolved from the
+	// manager's kubeconfig the same way RegisterMutatingHandler resolves
+	// skipUsers. ValidateAnnotations trusts modules.oam.dev/install-namespace
+	// only from this identity, since it is the addon renderer -- never a
+	// user's own Application -- that is meant to set it. Empty when it could
+	// not be resolved, in which case nobody is trusted and the annotation is
+	// always refused.
+	controllerUsername string
 }
 
 func simplifyError(err error) error {
@@ -54,51 +83,123 @@ func simplifyError(err error) error {
 
 func mergeErrors(errs field.ErrorList) error {
 	s := ""
-	for _, err := range errs {
-		s += fmt.Sprintf("field \"%s\": %s error encountered, %s. ", err.Field, err.Type, err.Detail)
+	for i, err := range errs {
+		s += fmt.Sprintf("\n  %d) %q: %s.", i+1, err.Field, err.Detail)
 	}
 	return errors.New(s)
 }
 
 // Handle validate Application Spec here
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	startTime := time.Now()
+	ctx = logging.WithRequestID(ctx, string(req.UID))
+	logger := logging.NewHandlerLogger(ctx, req, "ApplicationValidator")
+
+	logger.WithStep("start").Debug("Starting admission validation for Application resource", "operation", req.Operation, "applicationName", req.Name, "namespace", req.Namespace)
+
+	// Decode the application
 	app := &v1beta1.Application{}
 	if err := h.Decoder.Decode(req, app); err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
+		logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into Application object - malformed request")
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode: %w (requestUID=%s)", err, req.UID))
 	}
+
 	if req.Namespace != "" {
 		app.Namespace = req.Namespace
 	}
 
+	logger = logger.WithValues(logging.FieldGeneration, app.Generation)
+	ctx = logger.IntoContext(ctx)
 	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+
+	workflowSteps := 0
+	if app.Spec.Workflow != nil {
+		workflowSteps = len(app.Spec.Workflow.Steps)
+	}
+
+	logger.WithStep("decode").Debug("Successfully decoded Application from admission request",
+		"applicationName", app.Name,
+		"namespace", app.Namespace,
+		"componentCount", len(app.Spec.Components),
+		"policyCount", len(app.Spec.Policies),
+		"workflowSteps", workflowSteps)
+
+	// A quota may ask to be flagged before it refuses; the warnings ride back on an
+	// admitted response.
+	var warnings []string
+
 	switch req.Operation {
 	case admissionv1.Create:
-		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
-			// http.StatusUnprocessableEntity will NOT report any error descriptions
-			// to the client, use generic http.StatusBadRequest instead.
-			return admission.Errored(http.StatusBadRequest, mergeErrors(allErrs))
+		logger.WithStep("validate-create").Debug("Validating Application creation - checking components, policies, and workflow configuration")
+		allErrs, createWarnings := h.ValidateCreate(ctx, app, req)
+		warnings = createWarnings
+		if len(allErrs) > 0 {
+			mergedErr := mergeErrors(allErrs)
+			logger.WithStep("validate-create").WithError(mergedErr).Error(mergedErr, "Application creation validation failed - contains invalid components, policies, or workflow steps", "errorCount", len(allErrs), "applicationName", app.Name)
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", mergedErr, req.UID))
 		}
+		logger.WithStep("validate-create").WithSuccess(true).Debug("Application creation validation completed successfully - all components, policies, and workflows are valid", "applicationName", app.Name)
+
 	case admissionv1.Update:
+		logger.WithStep("validate-update").Debug("Validating Application update - comparing new configuration with existing state")
 		oldApp := &v1beta1.Application{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
-			return admission.Errored(http.StatusBadRequest, simplifyError(err))
+			logger.WithStep("decode-old").WithError(err).Error(err, "Unable to decode previous Application state from admission request - cannot validate update")
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", simplifyError(err), req.UID))
 		}
+
+		logger = logger.WithValues("oldGeneration", oldApp.Generation)
+
 		if app.ObjectMeta.DeletionTimestamp.IsZero() {
-			if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
-				return admission.Errored(http.StatusBadRequest, mergeErrors(allErrs))
+			allErrs, updateWarnings := h.ValidateUpdate(ctx, app, oldApp, req)
+			warnings = updateWarnings
+			if len(allErrs) > 0 {
+				mergedErr := mergeErrors(allErrs)
+				logger.WithStep("validate-update").WithError(mergedErr).Error(mergedErr, "Application update validation failed - new configuration contains invalid changes", "errorCount", len(allErrs), "applicationName", app.Name, "oldGeneration", oldApp.Generation, "newGeneration", app.Generation)
+				return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", mergedErr, req.UID))
 			}
+			logger.WithStep("validate-update").WithSuccess(true).Debug("Application update validation completed successfully - configuration changes are valid", "applicationName", app.Name, "generationChange", fmt.Sprintf("%d->%d", oldApp.Generation, app.Generation))
+		} else {
+			logger.WithStep("skip-validation").Debug("Skipping Application validation - resource is being deleted and validation is not required", "reason", "deletion-in-progress", "deletionTimestamp", app.DeletionTimestamp)
 		}
+
+	case admissionv1.Delete:
+		logger.WithStep("skip-validation").Debug("Skipping Application validation - DELETE operations do not require content validation", "reason", "delete-operation-no-validation-needed")
+
 	default:
-		// Do nothing for DELETE and CONNECT
+		logger.WithStep("skip-validation").Debug("Skipping Application validation - operation type is not supported by validator", "operation", req.Operation, "reason", "only CREATE, UPDATE, and DELETE operations are handled")
 	}
-	return admission.ValidationResponse(true, "")
+
+	logger.WithStep("complete").WithSuccess(true, startTime).Debug("Application admission validation completed successfully - resource will be admitted", "applicationName", req.Name, "operation", req.Operation, "namespace", req.Namespace)
+	return admission.ValidationResponse(true, "").WithWarnings(warnings...)
 }
 
 // RegisterValidatingHandler will register application validate handler to the webhook
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{
-		Client:  mgr.GetClient(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}})
+	handler := &ValidatingHandler{
+		Client:          mgr.GetClient(),
+		APIReader:       mgr.GetAPIReader(),
+		Live:            webhookutils.LiveClient(mgr),
+		Decoder:         admission.NewDecoder(mgr.GetScheme()),
+		addonValidator:  addonvalidation.NewValidator(mgr.GetClient()),
+		moduleValidator: modulevalidation.NewValidator(mgr.GetClient()),
+	}
+	handler.controllerUsername = resolveControllerUsername(mgr.GetConfig())
+	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: handler})
+}
+
+// resolveControllerUsername resolves vela-core's own identity from the
+// manager's kubeconfig, the same way RegisterMutatingHandler resolves
+// skipUsers. Returns "" when it could not be resolved, logging a warning
+// since ValidateAnnotations then refuses modules.oam.dev/install-namespace
+// for everyone, including the addon renderer itself.
+func resolveControllerUsername(cfg *rest.Config) string {
+	userInfo := utils.GetUserInfoFromConfig(cfg)
+	if userInfo == nil {
+		klog.Warning("[ApplicationValidatingHandler] could not resolve vela-core's own identity; " +
+			"modules.oam.dev/install-namespace will be refused on every Application, including the addon renderer's own")
+		return ""
+	}
+	return userInfo.Username
 }

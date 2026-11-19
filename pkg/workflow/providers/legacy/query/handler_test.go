@@ -788,7 +788,7 @@ var _ = Describe("Test Query Provider", func() {
 			},
 			&networkv1.Ingress{
 				TypeMeta: metav1.TypeMeta{
-					APIVersion: "networking.k8s.io/v1beta1",
+					APIVersion: "networking.k8s.io/v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "ingress-helm",

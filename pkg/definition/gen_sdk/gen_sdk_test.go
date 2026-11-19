@@ -64,6 +64,15 @@ var _ = Describe("Test Generating SDK", func() {
 		err = meta.Run(context.Background())
 		Expect(err).Should(BeNil())
 	}
+	It("skips CUE test files in a directory, but not one named explicitly", func() {
+		dir := GinkgoT().TempDir()
+		for _, f := range []string{"web.cue", "web_test.cue", "README.md"} {
+			Expect(os.WriteFile(filepath.Join(dir, f), nil, 0o600)).To(Succeed())
+		}
+		named := filepath.Join(dir, "web_test.cue")
+		Expect(cuePathsIn([]string{dir, named})).To(Equal([]string{filepath.Join(dir, "web.cue"), named}))
+	})
+
 	It("Test generating SDK and init the scaffold", func() {
 		meta.InitSDK = true
 		genWithMeta()
@@ -151,18 +160,19 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 				OneOf: openapi3.SchemaRefs{
 					{
 						Value: &openapi3.Schema{
-							Type: "number",
+							Type: &openapi3.Types{"number"},
 						},
 					},
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: &openapi3.Types{"string"},
 						},
 					},
 				},
 			},
 		}
-		fixSchemaWithOneOf(schema)
+		err := fixSchemaWithOneOf(schema)
+		Expect(err).To(BeNil())
 
 		Expect(schema.Value.OneOf[0].Value.Default).To(Equal(1))
 		Expect(schema.Value.OneOf[1].Value.Default).To(BeNil())
@@ -174,34 +184,35 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 		By(`image: language | string`)
 		schema = &openapi3.SchemaRef{
 			Value: &openapi3.Schema{
-				Type:  "string",
+				Type:  &openapi3.Types{"string"},
 				Title: "image",
 				OneOf: openapi3.SchemaRefs{
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: &openapi3.Types{"string"},
 							Enum: []interface{}{"go", "java", "python", "node", "ruby"},
 						},
 					},
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: &openapi3.Types{"string"},
 						},
 					},
 				},
 			},
 		}
-		fixSchemaWithOneOf(schema)
+		err := fixSchemaWithOneOf(schema)
+		Expect(err).To(BeNil())
 
 		Expect(schema.Value.OneOf).To(HaveLen(1))
-		Expect(schema.Value.OneOf[0].Value.Type).To(Equal("string"))
+		Expect(schema.Value.OneOf[0].Value.Type).To(Equal(&openapi3.Types{"string"}))
 		Expect(schema.Value.OneOf[0].Value.Enum).To(Equal([]interface{}{"go", "java", "python", "node", "ruby"}))
 	})
 
 	It("should both move type and remove duplicated type in oneOf", func() {
 		schema = &openapi3.SchemaRef{
 			Value: &openapi3.Schema{
-				Type:  "string",
+				Type:  &openapi3.Types{"string"},
 				Title: "image",
 				OneOf: openapi3.SchemaRefs{
 					{
@@ -211,16 +222,17 @@ var _ = Describe("FixSchemaWithOneAnyAllOf", func() {
 					},
 					{
 						Value: &openapi3.Schema{
-							Type: "string",
+							Type: &openapi3.Types{"string"},
 						},
 					},
 				},
 			},
 		}
 
-		fixSchemaWithOneOf(schema)
+		err := fixSchemaWithOneOf(schema)
+		Expect(err).To(BeNil())
 		Expect(schema.Value.OneOf).To(HaveLen(1))
-		Expect(schema.Value.OneOf[0].Value.Type).To(Equal("string"))
+		Expect(schema.Value.OneOf[0].Value.Type).To(Equal(&openapi3.Types{"string"}))
 		Expect(schema.Value.OneOf[0].Value.Enum).To(Equal([]interface{}{"go", "java", "python", "node", "ruby"}))
 	})
 })
@@ -243,6 +255,15 @@ var _ = Describe("TestNewLanguageArgs", func() {
 				langArgs: []string{"GoProxy=value1", "MainModuleVersion=value2"},
 			},
 			want:    map[string]string{"GoProxy": "value1", "MainModuleVersion": "value2"},
+			wantErr: false,
+		},
+		{
+			name: "should preserve equals signs in the value portion",
+			args: args{
+				lang:     "go",
+				langArgs: []string{"GoProxy=https://proxy.example.com?foo=bar=baz"},
+			},
+			want:    map[string]string{"GoProxy": "https://proxy.example.com?foo=bar=baz"},
 			wantErr: false,
 		},
 		{
@@ -311,7 +332,7 @@ var _ = Describe("type fit", func() {
 	var schema *openapi3.Schema
 
 	BeforeEach(func() {
-		schema = &openapi3.Schema{Type: "string"}
+		schema = &openapi3.Schema{Type: &openapi3.Types{"string"}}
 	})
 
 	var testCases = []struct {
@@ -333,7 +354,7 @@ var _ = Describe("type fit", func() {
 
 	It("should return whether the CUEType fits the schema type or not", func() {
 		for _, tc := range testCases {
-			schema.Type = tc.schemaType
+			schema.Type = &openapi3.Types{tc.schemaType}
 			result := tc.cueType.fit(schema)
 			Expect(result).To(Equal(tc.expectedFit), tc.name)
 		}

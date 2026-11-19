@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-github/v32/github"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,4 +42,16 @@ func TestGetAvailableVersion(t *testing.T) {
 	version, err = unMatchErr.GetAvailableVersion()
 	assert.NotEmpty(t, err)
 	assert.Equal(t, version, "")
+}
+
+func TestWrapErrRateLimit(t *testing.T) {
+	regularErr := errors.New("regular error")
+	wrappedErr := WrapErrRateLimit(regularErr)
+	assert.Equal(t, regularErr, wrappedErr)
+
+	rateLimitErr := &github.RateLimitError{}
+	wrappedErr = WrapErrRateLimit(rateLimitErr)
+	// The wrapped error now carries the reset time, so it is matched by
+	// errors.Is rather than compared for identity.
+	assert.ErrorIs(t, wrappedErr, ErrRateLimit)
 }

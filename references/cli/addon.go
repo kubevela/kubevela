@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -35,6 +36,7 @@ import (
 	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -57,15 +59,17 @@ const (
 var enabledAddonColor = color.New(color.Bold, color.FgGreen)
 
 var (
-	forceDisable  bool
-	addonRegistry string
-	addonVersion  string
-	addonClusters string
-	verboseStatus bool
-	skipValidate  bool
-	overrideDefs  bool
-	dryRun        bool
-	yes2all       bool
+	forceDisable        bool
+	addonRegistry       string
+	addonVersion        string
+	addonClusters       string
+	verboseStatus       bool
+	skipValidate        bool
+	overrideDefs        bool
+	dryRun              bool
+	yes2all             bool
+	addonNodeSelector   map[string]string
+	addonSchedulingFile string
 )
 
 // NewAddonCommand create `addon` command
@@ -88,7 +92,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		NewAddonUpgradeCommand(c, ioStreams),
 		NewAddonPackageCommand(c),
 		NewAddonInitCommand(),
-		NewAddonPushCommand(c),
+		NewAddonPushCommand(c, ioStreams),
 	)
 	return cmd
 }
@@ -142,6 +146,9 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	vela addon enable <addon-name> <my-parameter-of-addon>=<my-value>
   Enable addon with specified registry:
     vela addon enable <registryName>/<addonName>
+  Enable addon with pod scheduling (nodeSelector / affinity / tolerations):
+	vela addon enable <addon-name> --nodeSelector disktype=ssd
+	vela addon enable <addon-name> --scheduling-file scheduling.yaml
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var additionalInfo string
@@ -150,6 +157,9 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			}
 			addonArgs, err := parseAddonArgsToMap(args[1:])
 			if err != nil {
+				return err
+			}
+			if err := injectSchedulingArgs(addonArgs); err != nil {
 				return err
 			}
 			clusterArgs := transClusters(addonClusters)
@@ -179,7 +189,7 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
 				}
-				ioStream.Infof(color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
+				ioStream.Infof("%s", color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
 				// args[0] is a local path install with local dir, use base dir name as addonName
 				abs, err := filepath.Abs(addonOrDir)
 				if err != nil {
@@ -228,6 +238,8 @@ func NewAddonEnableCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
 	cmd.Flags().BoolVarP(&dryRun, FlagDryRun, "", false, "render all yaml files out without real execute it")
 	cmd.Flags().BoolVarP(&yes2all, "yes", "y", false, "all checks will be skipped and the default answer is yes for all validation check.")
+	cmd.Flags().StringToStringVar(&addonNodeSelector, "nodeSelector", nil, "pod nodeSelector key=value pairs (affinity trait (overlays chart values))")
+	cmd.Flags().StringVar(&addonSchedulingFile, "scheduling-file", "", "YAML file with Kubernetes pod scheduling fields (nodeSelector, affinity, tolerations, ...)")
 	return cmd
 }
 
@@ -263,6 +275,9 @@ func NewAddonUpgradeCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Co
 	vela addon upgrade <addon-name> <my-parameter-of-addon>=<my-value>
   The specified args will be merged with legacy args, what user specified in 'vela addon enable', and non-empty legacy arg will be overridden by
 non-empty new arg
+  Upgrade addon scheduling:
+	vela addon upgrade <addon-name> --nodeSelector disktype=ssd
+	vela addon upgrade <addon-name> --scheduling-file scheduling.yaml
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -284,6 +299,9 @@ non-empty new arg
 			if err != nil {
 				return err
 			}
+			if err := injectSchedulingArgs(addonInputArgs); err != nil {
+				return err
+			}
 			clusterArgs := transClusters(addonClusters)
 			if len(clusterArgs) != 0 {
 				addonInputArgs[types.ClustersArg] = clusterArgs
@@ -300,7 +318,7 @@ non-empty new arg
 				if !file.IsDir() {
 					return fmt.Errorf("%s is not addon dir", addonOrDir)
 				}
-				ioStream.Infof(color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
+				ioStream.Infof("%s", color.New(color.FgYellow).Sprintf("enabling addon by local dir: %s \n", addonOrDir))
 				// args[0] is a local path install with local dir
 				abs, err := filepath.Abs(addonOrDir)
 				if err != nil {
@@ -323,10 +341,13 @@ non-empty new arg
 				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
 					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
-				name = addonOrDir
-				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
+				_, name, err = splitSpecifyRegistry(addonOrDir)
 				if err != nil {
-					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
+					return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+				}
+				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
+				if err != nil {
+					return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
 				}
 				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
 				if err != nil {
@@ -347,7 +368,28 @@ non-empty new arg
 	cmd.Flags().StringVarP(&addonClusters, types.ClustersArg, "c", "", "specify the runtime-clusters to upgrade")
 	cmd.Flags().BoolVarP(&skipValidate, "skip-version-validating", "s", false, "skip validating system version requirement")
 	cmd.Flags().BoolVarP(&overrideDefs, "override-definitions", "", false, "override existing definitions if conflict with those contained in this addon")
+	cmd.Flags().StringToStringVar(&addonNodeSelector, "nodeSelector", nil, "pod nodeSelector key=value pairs (affinity trait (overlays chart values))")
+	cmd.Flags().StringVar(&addonSchedulingFile, "scheduling-file", "", "YAML file with Kubernetes pod scheduling fields (nodeSelector, affinity, tolerations, ...)")
 	return cmd
+}
+
+// injectSchedulingArgs loads --scheduling-file and merges --nodeSelector into reserved addon args.
+// Flags are read once and cleared so a reused cobra command cannot leak prior scheduling settings.
+func injectSchedulingArgs(addonArgs map[string]interface{}) error {
+	file := addonSchedulingFile
+	ns := addonNodeSelector
+	addonSchedulingFile = ""
+	addonNodeSelector = nil
+	props, err := pkgaddon.LoadSchedulingFile(file)
+	if err != nil {
+		return err
+	}
+	props.MergeNodeSelector(ns)
+	if props.Empty() {
+		return nil
+	}
+	pkgaddon.InjectSchedulingIntoArgs(addonArgs, props)
+	return nil
 }
 
 func parseAddonArgsToMap(args []string) (map[string]interface{}, error) {
@@ -372,7 +414,10 @@ func NewAddonDisableCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			name := args[0]
+			_, name, err := splitSpecifyRegistry(args[0])
+			if err != nil {
+				return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return err
@@ -404,8 +449,11 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			name := args[0]
-			err := statusAddon(name, ioStream, cmd, c)
+			_, name, err := splitSpecifyRegistry(args[0])
+			if err != nil {
+				return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+			}
+			err = statusAddon(name, ioStream, cmd, c)
 			if err != nil {
 				return err
 			}
@@ -437,6 +485,12 @@ func NewAddonInitCommand() *cobra.Command {
   Use --no-samples options to skip creating sample files
 	vela addon init my-addon --no-sample
 
+  Create addon with Go-based definition scaffolding (defkit)
+	vela addon init my-addon --godef
+
+  Create addon with specific Go-based definitions
+	vela addon init my-addon --godef --components webservice,worker --traits scaler
+
   You can combine all the options together.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -459,6 +513,13 @@ func NewAddonInitCommand() *cobra.Command {
 			initCmd.AddonName = addonName
 			initCmd.Path = addonPath
 
+			// Validate that godef-specific flags require --godef
+			hasGoDefFlags := initCmd.GoDefComponents != "" || initCmd.GoDefTraits != "" ||
+				initCmd.GoDefPolicies != "" || initCmd.GoDefWorkflowSteps != ""
+			if hasGoDefFlags && !initCmd.EnableGoDef {
+				return fmt.Errorf("--components, --traits, --policies, and --workflowsteps flags require --godef to be set")
+			}
+
 			return initCmd.CreateScaffold()
 		},
 	}
@@ -471,27 +532,34 @@ func NewAddonInitCommand() *cobra.Command {
 	f.StringArrayVarP(&initCmd.RefObjURLs, "url", "u", []string{}, "add URL resources using ref-object component")
 	f.BoolVarP(&initCmd.NoSamples, "no-samples", "", false, "do not generate sample files")
 	f.BoolVarP(&initCmd.Overwrite, "force", "f", false, "overwrite existing addon files")
+	f.BoolVar(&initCmd.EnableGoDef, "godef", false, "generate Go-based definition scaffolding in godef/ folder")
+	f.StringVar(&initCmd.GoDefComponents, "components", "", "comma-separated list of component names to scaffold (requires --godef)")
+	f.StringVar(&initCmd.GoDefTraits, "traits", "", "comma-separated list of trait names to scaffold (requires --godef)")
+	f.StringVar(&initCmd.GoDefPolicies, "policies", "", "comma-separated list of policy names to scaffold (requires --godef)")
+	f.StringVar(&initCmd.GoDefWorkflowSteps, "workflowsteps", "", "comma-separated list of workflow step names to scaffold (requires --godef)")
 
 	return cmd
 }
 
-// NewAddonPushCommand pushes an addon dir/package to a ChartMuseum
-func NewAddonPushCommand(c common.Args) *cobra.Command {
+// NewAddonPushCommand pushes an addon dir/package to a Helm or OCI registry.
+func NewAddonPushCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	p := &pkgaddon.PushCmd{}
 	cmd := &cobra.Command{
 		Use:   "push",
-		Short: "uploads an addon package to ChartMuseum",
-		Long: `Uploads an addon package to ChartMuseum.
+		Short: "uploads an addon package to a Helm or OCI registry",
+		Long: `Uploads an addon package to a Helm or OCI registry.
 
-Two arguments are needed <addon directory/package> and <name/URL of ChartMuseum>.
+Two arguments are needed ` + "`<addon directory/package>`" + ` and ` + "`<registry name/URL>`" + `.
 
-The first argument <addon directory/package> can be:
+The first argument ` + "`<addon directory/package>`" + ` can be:
 	- your conventional addon directory (containing metadata.yaml). We will package it for you.
 	- packaged addon (.tgz) generated by 'vela addon package' command
 
-The second argument <name/URL of ChartMuseum> can be:
+The second argument ` + "`<registry name/URL>`" + ` can be:
 	- registry name (helm type). You can add your ChartMuseum registry using 'vela addon registry add'.
-	- ChartMuseum URL, e.g. http://localhost:8080`,
+	- registry name (oci type). OCI pushes also update the portable addon catalog.
+	- ChartMuseum URL, e.g. http://localhost:8080
+	- OCI URL, e.g. oci://registry.example.com/addons`,
 		Example: `# Push the addon in directory <your-addon> to a ChartMuseum registry named <localcm>
 $ vela addon push your-addon localcm
 
@@ -505,6 +573,12 @@ $ vela addon push your-addon localcm -f
 $ vela addon push your-addon localcm --keep-chartmeta
 # Note: when using .tgz packages, we will always keep the original Chart.yaml
 
+# Push to an OCI registry using a password from stdin
+$ printf '%s' "$REGISTRY_PASSWORD" | vela addon push your-addon oci://registry.example.com/addons --username myuser --password-stdin
+
+# Push to an OCI registry using credentials previously saved by Helm or Docker
+$ vela addon push your-addon oci://registry.example.com/addons
+
 # In addition to cli flags, you can also use environment variables
 $ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tgz http://localhost:8080`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -512,27 +586,37 @@ $ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tg
 				return fmt.Errorf("two arguments are needed: addon directory/package, name/URL of Chart repository")
 			}
 
-			c, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-
-			p.Client = c
 			p.Out = cmd.OutOrStdout()
 			p.ChartName = args[0]
 			p.RepoName = args[1]
 			p.SetFieldsFromEnv()
+			if err := setPushPasswordFromStdin(cmd, p); err != nil {
+				return err
+			}
 
-			return p.Push(context.Background())
+			if !pkgaddon.IsDirectAddonPushTarget(p.RepoName) {
+				kubeClient, err := c.GetClient()
+				if err != nil {
+					return err
+				}
+				p.Client = kubeClient
+			}
+
+			ctx := cmd.Context()
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			return p.Push(ctx)
 		},
 	}
 
 	f := cmd.Flags()
 	f.StringVarP(&p.ChartVersion, "version", "v", "", "override chart version pre-push")
 	f.StringVarP(&p.AppVersion, "app-version", "a", "", "override app version pre-push")
-	f.StringVarP(&p.Username, "username", "u", "", "override HTTP basic auth username [$HELM_REPO_USERNAME]")
-	f.StringVarP(&p.Password, "password", "p", "", "override HTTP basic auth password [$HELM_REPO_PASSWORD]")
-	f.StringVarP(&p.AccessToken, "access-token", "", "", "send token in Authorization header [$HELM_REPO_ACCESS_TOKEN]")
+	f.StringVarP(&p.Username, "username", "u", "", "override registry basic auth username [$HELM_REPO_USERNAME]")
+	f.StringVarP(&p.Password, "password", "p", "", "override registry basic auth password [$HELM_REPO_PASSWORD]")
+	f.BoolVar(&p.PasswordStdin, "password-stdin", false, "read the registry basic auth password from stdin")
+	f.StringVarP(&p.AccessToken, "access-token", "", "", "send a ChartMuseum token in the Authorization header [$HELM_REPO_ACCESS_TOKEN]")
 	f.StringVarP(&p.AuthHeader, "auth-header", "", "", "alternative header to use for token auth [$HELM_REPO_AUTH_HEADER]")
 	f.StringVarP(&p.ContextPath, "context-path", "", "", "ChartMuseum context path [$HELM_REPO_CONTEXT_PATH]")
 	f.StringVarP(&p.CaFile, "ca-file", "", "", "verify certificates of HTTPS-enabled servers using this CA bundle [$HELM_REPO_CA_FILE]")
@@ -544,7 +628,38 @@ $ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tg
 	f.BoolVarP(&p.KeepChartMetadata, "keep-chartmeta", "", false, "do not update Chart.yaml automatically according to addon metadata (only when addon dir provided)")
 	f.Int64VarP(&p.Timeout, "timeout", "t", 30, "The duration (in seconds) vela cli will wait to get response from ChartMuseum")
 
+	useIOStreamsInput(cmd, ioStreams)
 	return cmd
+}
+
+func setPushPasswordFromStdin(cmd *cobra.Command, p *pkgaddon.PushCmd) error {
+	if !p.PasswordStdin {
+		return nil
+	}
+	password, err := readPasswordFromStdin(cmd, cmd.Flags().Changed("password"), "registry")
+	if err != nil {
+		return err
+	}
+	p.Password = password
+	return nil
+}
+
+// readPasswordFromStdin reads and validates a password piped via --password-stdin,
+// rejecting it if --password was also set. label names the credential in error
+// messages (e.g. "registry", "addon registry").
+func readPasswordFromStdin(cmd *cobra.Command, passwordFlagChanged bool, label string) (string, error) {
+	if passwordFlagChanged {
+		return "", errors.New("--password and --password-stdin cannot be used together")
+	}
+	password, err := io.ReadAll(cmd.InOrStdin())
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to read %s password from stdin", label)
+	}
+	value := strings.TrimRight(string(password), "\r\n")
+	if value == "" {
+		return "", errors.Errorf("%s password read from stdin is empty", label)
+	}
+	return value, nil
 }
 
 func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, name string, version string, args map[string]interface{}) (string, error) {
@@ -570,13 +685,22 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			return "", fmt.Errorf("specified registry %s not exist", registryName)
 		}
 	}
+	// Registries that could not be read at all, kept apart from the ones that
+	// answered "no such addon". Only the latter justifies telling the user the
+	// addon does not exist.
+	var unreadable []string
 	for i, registry := range registries {
 		opts := addonOptions()
 		if len(registryName) != 0 && registryName != registry.Name {
 			continue
 		}
 		additionalInfo, err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
-		if errors.Is(err, pkgaddon.ErrNotExist) || errors.Is(err, pkgaddon.ErrFetch) {
+		if errors.Is(err, pkgaddon.ErrFetch) {
+			klog.Warningf("skip registry %s: %v", registry.Name, err)
+			unreadable = append(unreadable, fmt.Sprintf("%s: %v", registry.Name, err))
+			continue
+		}
+		if errors.Is(err, pkgaddon.ErrNotExist) {
 			continue
 		}
 		if unMatchErr := new(pkgaddon.VersionUnMatchError); errors.As(err, unMatchErr) {
@@ -599,6 +723,15 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			return "", err
 		}
 		return additionalInfo, nil
+	}
+	// A registry that could not be read never said the addon is absent, so
+	// folding its failure into a "not found" message points the user at the
+	// addon name when the actual cause is an unreachable registry, a rejected
+	// credential, or a malformed package -- none of which appear in that
+	// message. Report those registries as what they are.
+	if len(unreadable) > 0 {
+		return "", fmt.Errorf("addon: %s was not found in the registries that answered, and %d could not be read, so it may exist in one of those: %s",
+			addonName, len(unreadable), strings.Join(unreadable, "; "))
 	}
 	if len(registryName) != 0 {
 		return "", fmt.Errorf("addon: %s not found in registry %s", addonName, registryName)
@@ -623,7 +756,8 @@ func addonOptions() []pkgaddon.InstallOption {
 // enableAddonByLocal enable addon in local dir and return the addon name
 func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}) (string, error) {
 	opts := addonOptions()
-	info, err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...)
+	// overrideDefs flag also allows Go definitions to override CUE definitions within the same addon
+	info, err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, overrideDefs, opts...)
 	if err != nil {
 		return "", err
 	}
@@ -913,7 +1047,7 @@ func printSchema(ref *openapi3.Schema, currentParams map[string]interface{}, ind
 
 		// Object type param, we will get inside the object.
 		// To show what's inside nested objects.
-		if propValue.Value.Type == "object" {
+		if propValue.Value.Type.Is(openapi3.TypeObject) {
 			nestedParam := make(map[string]interface{})
 			if hasParam {
 				nestedParam = currentParams[propKey].(map[string]interface{})
@@ -978,24 +1112,34 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 			continue
 		}
 		var addonList []*pkgaddon.UIData
-		var err error
 		if !pkgaddon.IsVersionRegistry(r) {
 			meta, err := r.ListAddonMeta()
 			if err != nil {
+				if registry != "" {
+					return nil, err
+				}
 				continue
 			}
-			addonList, err = r.ListUIData(meta, pkgaddon.CLIMetaOptions)
+			addonList, err = pkgaddon.ListUIData(&r, meta, pkgaddon.CLIMetaOptions)
 			if err != nil {
+				if registry != "" {
+					return nil, err
+				}
 				continue
 			}
 		} else {
-			versionedRegistry := pkgaddon.BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-				Username:        r.Helm.Username,
-				Password:        r.Helm.Password,
-				InsecureSkipTLS: r.Helm.InsecureSkipTLS,
-			})
+			versionedRegistry, err := pkgaddon.ToVersionedRegistry(r)
+			if err != nil {
+				if registry != "" {
+					return nil, err
+				}
+				continue
+			}
 			addonList, err = versionedRegistry.ListAddon()
 			if err != nil {
+				if registry != "" {
+					return nil, err
+				}
 				continue
 			}
 		}

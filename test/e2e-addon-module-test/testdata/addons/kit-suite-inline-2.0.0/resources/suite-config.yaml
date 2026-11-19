@@ -1,0 +1,9 @@
+# Becomes the kit-suite-resources component; the widget-kit-inline module
+# component waits for it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kit-suite-inline-config
+  namespace: vela-system
+data:
+  suiteVersion: "2.0.0"

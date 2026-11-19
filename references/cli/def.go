@@ -30,20 +30,26 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/gocode/gocodec"
+	"github.com/fatih/color"
+	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	crossplane "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
+	corev1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	types2 "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -51,8 +57,11 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/definition/gen_sdk"
+	"github.com/oam-dev/kubevela/pkg/definition/goloader"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -66,9 +75,28 @@ import (
 const (
 	// HelmChartNamespacePlaceholder is used as a placeholder for rendering definitions into helm chart format
 	HelmChartNamespacePlaceholder = "###HELM_NAMESPACE###"
+	// helmChartNamespaceInclude replaces the namespace placeholder. It stays quoted
+	// so the file is valid YAML before Helm expands it: the chart reads these files
+	// with .Files and renders them with tpl, and other callers read them unrendered.
+	helmChartNamespaceInclude = `'{{ include "systemDefinitionNamespace" . }}'`
+	// HelmChartRestrictionsPlaceholder stands in for spec.restrictions while the
+	// definition is a Go value, and is swapped for a Helm include once the YAML is
+	// marshalled.
+	HelmChartRestrictionsPlaceholder = "###HELM_RESTRICTIONS###"
+	// envOptIn is the value the definition-render environment variables take to
+	// opt in.
+	envOptIn = "true"
+	// RestrictionGenEnvName makes a chart render take its definitions' restrictions
+	// from chart values, discarding whatever their sources declared. Separate from
+	// AS_HELM_CHART so rendering as a chart does not imply that.
+	RestrictionGenEnvName = "WITH_RESTRICTION_GEN"
+	// restrictionsField matches the json tag carrying common.DefinitionRestrictions.
+	restrictionsField = "restrictions"
 	// HelmChartFormatEnvName is the name of the environment variable to enable render helm chart format YAML
 	HelmChartFormatEnvName = "AS_HELM_CHART"
 )
+
+var definitionUpgradePassesMu sync.Mutex
 
 // DefinitionCommandGroup create the command group for `vela def` command to manage definitions
 func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
@@ -87,23 +115,119 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 		NewDefinitionListCommand(c),
 		NewDefinitionEditCommand(c),
 		NewDefinitionRenderCommand(c),
+		NewDefinitionTestCommand(),
 		NewDefinitionApplyCommand(c, ioStreams),
 		NewDefinitionDelCommand(c),
 		NewDefinitionInitCommand(c),
 		NewDefinitionValidateCommand(c),
+		NewDefinitionUpgradeCommand(c, ioStreams),
+		NewDefinitionCompatibilityCommand(c, ioStreams),
 		NewDefinitionDocGenCommand(c, ioStreams),
 		NewCapabilityShowCommand(c, "", ioStreams),
 		NewDefinitionGenAPICommand(c),
 		NewDefinitionGenCUECommand(c, ioStreams),
 		NewDefinitionGenDocCommand(c, ioStreams),
+		// Module commands for Go definition modules
+		NewDefinitionInitModuleCommand(c, ioStreams),
+		NewDefinitionApplyModuleCommand(c, ioStreams),
+		NewDefinitionListModuleCommand(c, ioStreams),
+		NewDefinitionValidateModuleCommand(c, ioStreams),
+		NewDefinitionGenModuleCommand(c, ioStreams),
 	)
+	// Set custom help function for grouped output
+	cmd.SetHelpFunc(defHelpFunc)
 	return cmd
 }
 
+// defHelpFunc provides grouped help output for the def command
+func defHelpFunc(cmd *cobra.Command, args []string) {
+	// If this is being called for a subcommand (not the root "def" command),
+	// use the standard cobra help output
+	if cmd.Name() != "def" {
+		// Use standard help template for subcommands
+		cmd.Println(cmd.Long)
+		if cmd.Example != "" {
+			cmd.Println()
+			cmd.Println("Examples:")
+			cmd.Println(cmd.Example)
+		}
+		cmd.Println()
+		cmd.Println("Usage:")
+		cmd.Printf("  %s\n", cmd.UseLine())
+		cmd.Println()
+		localFlags := cmd.LocalFlags().FlagUsages()
+		if localFlags != "" {
+			cmd.Println("Flags:")
+			cmd.Print(localFlags)
+		}
+		inheritedFlags := cmd.InheritedFlags().FlagUsages()
+		if inheritedFlags != "" {
+			cmd.Println()
+			cmd.Println("Global Flags:")
+			cmd.Print(inheritedFlags)
+		}
+		return
+	}
+
+	if len(args) > 0 {
+		// If args provided, find and show help for subcommand
+		foundCmd, _, err := cmd.Find(args)
+		if foundCmd != nil && err == nil {
+			_ = foundCmd.Help()
+			return
+		}
+	}
+
+	cmd.Println(cmd.Long)
+	cmd.Println()
+	cmd.Println("Usage:")
+	cmd.Printf("  %s [command]\n", cmd.UseLine())
+	cmd.Println()
+
+	// Print commands grouped by type
+	for _, t := range []string{types.TypeDefManagement, types.TypeDefGeneration, types.TypeDefModule} {
+		PrintDefHelpByTag(cmd, cmd.Commands(), t)
+	}
+
+	cmd.Println("Flags:")
+	cmd.Println("  -h, --help   help for def")
+	cmd.Println()
+	cmd.Println("Global Flags:")
+	cmd.Println("  -V, --verbosity Level   number for the log level verbosity")
+	cmd.Println("  -y, --yes               Assume yes for all user prompts")
+	cmd.Println()
+	cmd.Printf("Use \"%s [command] --help\" for more information about a command.\n", cmd.CommandPath())
+}
+
+// PrintDefHelpByTag prints commands grouped by their TagCommandType annotation
+func PrintDefHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
+	table := newUITable()
+	table.MaxColWidth = 80
+	var pl []Printable
+	for _, c := range all {
+		if c.Hidden || c.IsAdditionalHelpTopicCommand() {
+			continue
+		}
+		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
+			pl = append(pl, NewPrintable(c, c.Short))
+		}
+	}
+	if len(pl) == 0 {
+		return
+	}
+	slices.Sort(pl, func(i, j Printable) bool { return i.Order < j.Order })
+	cmd.Println(tag + ":")
+	for _, v := range pl {
+		table.AddRow(fmt.Sprintf("  %-18s", v.Use), v.Desc)
+	}
+	cmd.Println(table.String())
+	cmd.Println()
+}
+
 func getPrompt(cmd *cobra.Command, reader *bufio.Reader, description string, prompt string, validate func(string) error) (string, error) {
-	cmd.Printf(description)
+	cmd.Printf("%s", description)
 	for {
-		cmd.Printf(prompt)
+		cmd.Printf("%s", prompt)
 		resp, err := reader.ReadString('\n')
 		resp = strings.TrimSpace(resp)
 		if err != nil {
@@ -133,12 +257,14 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 		process.OutputsFieldName:   map[string]interface{}{},
 		process.ParameterFieldName: map[string]interface{}{},
 	}
+	kind := def.GetKind()
 	for index, yamlString := range yamlStrings {
 		var yamlObject map[string]interface{}
 		if err = yaml.Unmarshal([]byte(yamlString), &yamlObject); err != nil {
 			return errors.Wrapf(err, "failed to unmarshal template yaml file")
 		}
-		if index == 0 {
+
+		if index == 0 && kind != v1beta1.TraitDefinitionKind {
 			templateObject[process.OutputFieldName] = yamlObject
 		} else {
 			name, _, _ := unstructured.NestedString(yamlObject, "metadata", "name")
@@ -164,6 +290,9 @@ func buildTemplateFromYAML(templateYAML string, def *pkgdef.Definition) error {
 	return nil
 }
 
+// FlagLang is the flag for specifying the language of a definition
+const FlagLang = "lang"
+
 // NewDefinitionInitCommand create the `vela def init` command to help user initialize a definition locally
 func NewDefinitionInitCommand(_ common.Args) *cobra.Command {
 	cmd := &cobra.Command{
@@ -171,18 +300,25 @@ func NewDefinitionInitCommand(_ common.Args) *cobra.Command {
 		Short: "Init a new definition",
 		Long: "Init a new definition with given arguments or interactively\n* We support parsing a single YAML file (like kubernetes objects) into the cue-style template. \n" +
 			"However, we do not support variables in YAML file currently, which prevents users from directly feeding files like helm chart directly. \n" +
-			"We may introduce such features in the future.",
+			"We may introduce such features in the future.\n\n" +
+			"Use --lang go to generate a Go-based definition using the defkit package.",
 		Example: "# Command below initiate an empty TraitDefinition named my-ingress\n" +
 			"> vela def init my-ingress -t trait --desc \"My ingress trait definition.\" > ./my-ingress.cue\n" +
 			"# Command below initiate a definition named my-def interactively and save it to ./my-def.cue\n" +
 			"> vela def init my-def -i --output ./my-def.cue\n" +
 			"# Command below initiate a ComponentDefinition named my-webservice with the template parsed from ./template.yaml.\n" +
 			"> vela def init my-webservice -i --template-yaml ./template.yaml\n" +
+			"# Command below initiate a Go-based ComponentDefinition\n" +
+			"> vela def init my-webservice -t component --lang go -o ./my-webservice.go\n" +
 			"# Initiate a Terraform ComponentDefinition named vswitch from Github for Alibaba Cloud.\n" +
 			"> vela def init vswitch --type component --provider alibaba --desc xxx --git https://github.com/kubevela-contrib/terraform-modules.git --path alibaba/vswitch\n" +
 			"# Initiate a Terraform ComponentDefinition named redis from local file for AWS.\n" +
 			"> vela def init redis --type component --provider aws --desc \"Terraform configuration for AWS Redis\" --local redis.tf",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "1",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var defStr string
 			definitionType, err := cmd.Flags().GetString(FlagType)
@@ -209,6 +345,10 @@ func NewDefinitionInitCommand(_ common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagInteractive)
 			}
+			lang, err := cmd.Flags().GetString(FlagLang)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagLang)
+			}
 
 			if interactive {
 				reader := bufio.NewReader(cmd.InOrStdin())
@@ -227,7 +367,7 @@ func NewDefinitionInitCommand(_ common.Args) *cobra.Command {
 						return err
 					}
 				}
-				if templateYAML == "" {
+				if templateYAML == "" && lang != "go" {
 					if templateYAML, err = getPrompt(cmd, reader, "Please enter the location the template YAML file to build definition. Leave it empty to generate default template.\n", "> Definition template filename: ", func(resp string) error {
 						if resp == "" {
 							return nil
@@ -251,33 +391,42 @@ func NewDefinitionInitCommand(_ common.Args) *cobra.Command {
 			}
 
 			name := args[0]
-			provider, err := cmd.Flags().GetString(FlagProvider)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get `%s`", FlagProvider)
-			}
-			if provider != "" {
-				defStr, err = generateTerraformTypedComponentDefinition(cmd, name, kind, provider, desc)
+
+			// Handle Go-based definitions
+			if lang == "go" {
+				defStr, err = generateGoDefinition(name, definitionType, desc)
 				if err != nil {
-					return errors.Wrapf(err, "failed to generate Terraform typed component definition")
+					return errors.Wrapf(err, "failed to generate Go definition")
 				}
 			} else {
-				def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-				def.SetGVK(kind)
-				def.SetName(name)
-				def.SetAnnotations(map[string]string{
-					pkgdef.DescriptionKey: desc,
-					pkgdef.AliasKey:       alias,
-				})
-				def.SetLabels(map[string]string{})
-				def.Object["spec"] = pkgdef.GetDefinitionDefaultSpec(def.GetKind())
-				if templateYAML != "" {
-					if err = buildTemplateFromYAML(templateYAML, &def); err != nil {
-						return err
-					}
-				}
-				defStr, err = def.ToCUEString()
+				provider, err := cmd.Flags().GetString(FlagProvider)
 				if err != nil {
-					return errors.Wrapf(err, "failed to generate cue string")
+					return errors.Wrapf(err, "failed to get `%s`", FlagProvider)
+				}
+				if provider != "" {
+					defStr, err = generateTerraformTypedComponentDefinition(cmd, name, kind, provider, desc)
+					if err != nil {
+						return errors.Wrapf(err, "failed to generate Terraform typed component definition")
+					}
+				} else {
+					def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+					def.SetGVK(kind)
+					def.SetName(name)
+					def.SetAnnotations(map[string]string{
+						pkgdef.DescriptionKey: desc,
+						pkgdef.AliasKey:       alias,
+					})
+					def.SetLabels(map[string]string{})
+					def.Object["spec"] = pkgdef.GetDefinitionDefaultSpec(def.GetKind())
+					if templateYAML != "" {
+						if err = buildTemplateFromYAML(templateYAML, &def); err != nil {
+							return err
+						}
+					}
+					defStr, err = def.ToCUEString()
+					if err != nil {
+						return errors.Wrapf(err, "failed to generate cue string")
+					}
 				}
 			}
 			if output != "" {
@@ -286,7 +435,7 @@ func NewDefinitionInitCommand(_ common.Args) *cobra.Command {
 				}
 				cmd.Printf("Definition written to %s\n", output)
 			} else if _, err = cmd.OutOrStdout().Write([]byte(defStr + "\n")); err != nil {
-				return errors.Wrapf(err, "failed to write out cue string")
+				return errors.Wrapf(err, "failed to write out definition")
 			}
 			return nil
 		},
@@ -297,11 +446,260 @@ func NewDefinitionInitCommand(_ common.Args) *cobra.Command {
 	cmd.Flags().StringP(FlagTemplateYAML, "f", "", "Specify the template yaml file that definition will use to build the schema. If empty, a default template for the given definition type will be used.")
 	cmd.Flags().StringP(FlagOutput, "o", "", "Specify the output path of the generated definition. If empty, the definition will be printed in the console.")
 	cmd.Flags().BoolP(FlagInteractive, "i", false, "Specify whether use interactive process to help generate definitions.")
+	cmd.Flags().StringP(FlagLang, "l", "cue", "Specify the language of the definition. Valid options: cue, go")
 	cmd.Flags().StringP(FlagProvider, "p", "", "Specify which provider the cloud resource definition belongs to. Only `alibaba`, `aws`, `azure`, `gcp`, `baidu`, `tencent`, `elastic`, `ucloud`, `vsphere` are supported.")
 	cmd.Flags().StringP(FlagGit, "", "", "Specify which git repository the configuration(HCL) is stored in. Valid when --provider/-p is set.")
 	cmd.Flags().StringP(FlagLocal, "", "", "Specify the local path of the configuration(HCL) file. Valid when --provider/-p is set.")
 	cmd.Flags().StringP(FlagPath, "", "", "Specify which path the configuration(HCL) is stored in the Git repository. Valid when --git is set.")
 	return cmd
+}
+
+// generateGoDefinition generates a Go-based definition scaffold
+func generateGoDefinition(name, definitionType, desc string) (string, error) {
+	// Convert name to Go-friendly format (PascalCase)
+	funcName := toPascalCase(name)
+
+	switch definitionType {
+	case "component":
+		return generateGoComponentDefinition(name, funcName, desc), nil
+	case "trait":
+		return generateGoTraitDefinition(name, funcName, desc), nil
+	case "policy":
+		return generateGoPolicyDefinition(name, funcName, desc), nil
+	case "workflow-step":
+		return generateGoWorkflowStepDefinition(name, funcName, desc), nil
+	default:
+		return "", errors.Errorf("unsupported definition type for Go: %s", definitionType)
+	}
+}
+
+// toPascalCase converts a kebab-case or snake_case string to PascalCase
+func toPascalCase(s string) string {
+	// Split by common separators
+	parts := strings.FieldsFunc(s, func(r rune) bool {
+		return r == '-' || r == '_'
+	})
+	var result strings.Builder
+	for _, part := range parts {
+		if len(part) > 0 {
+			result.WriteString(strings.ToUpper(part[:1]))
+			result.WriteString(strings.ToLower(part[1:]))
+		}
+	}
+	return result.String()
+}
+
+func generateGoComponentDefinition(name, funcName, desc string) string {
+	return fmt.Sprintf(`/*
+Copyright 2025 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package main
+
+import (
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+)
+
+// %sComponent creates the %s component definition.
+func %sComponent() *defkit.ComponentDefinition {
+	// Define parameters
+	image := defkit.String("image").
+		Required().
+		Description("Container image to use")
+
+	// Create the component definition
+	return defkit.NewComponent("%s").
+		Description(%q).
+		Workload("apps/v1", "Deployment").
+		Params(image).
+		Template(func(tpl *defkit.Template) {
+			// Access runtime context
+			vela := defkit.VelaCtx()
+
+			// Create the Deployment resource
+			deployment := defkit.NewResource("apps/v1", "Deployment").
+				Set("metadata.name", vela.Name()).
+				Set("metadata.labels.app", vela.Name()).
+				Set("spec.selector.matchLabels.app", vela.Name()).
+				Set("spec.template.metadata.labels.app", vela.Name()).
+				Set("spec.template.spec.containers[0].name", vela.Name()).
+				Set("spec.template.spec.containers[0].image", image)
+
+			// Set as primary output
+			tpl.Output(deployment)
+		})
+}
+
+func main() {
+	// Print the CUE definition
+	component := %sComponent()
+	println(component.ToCue())
+}
+`, funcName, name, funcName, name, desc, funcName)
+}
+
+func generateGoTraitDefinition(name, funcName, desc string) string {
+	return fmt.Sprintf(`/*
+Copyright 2025 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package main
+
+import (
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+)
+
+// %sTrait creates the %s trait definition.
+func %sTrait() *defkit.TraitDefinition {
+	// Define parameters
+	replicas := defkit.Int("replicas").
+		Default(1).
+		Description("Number of replicas")
+
+	// Create the trait definition
+	return defkit.NewTrait("%s").
+		Description(%q).
+		AppliesTo("deployments.apps", "statefulsets.apps").
+		Params(replicas).
+		Template(func(tpl *defkit.Template) {
+			// Access the context
+			vela := defkit.VelaCtx()
+
+			// Patch the workload
+			patch := defkit.NewPatch().
+				Set("spec.replicas", replicas)
+
+			tpl.Patch(patch)
+			_ = vela // use vela context as needed
+		})
+}
+
+func main() {
+	// Print the CUE definition
+	trait := %sTrait()
+	println(trait.ToCue())
+}
+`, funcName, name, funcName, name, desc, funcName)
+}
+
+func generateGoPolicyDefinition(name, funcName, desc string) string {
+	return fmt.Sprintf(`/*
+Copyright 2025 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package main
+
+import (
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+)
+
+// %sPolicy creates the %s policy definition.
+func %sPolicy() *defkit.PolicyDefinition {
+	// Define parameters
+	enabled := defkit.Bool("enabled").
+		Default(true).
+		Description("Whether to enable this policy")
+
+	// Create the policy definition
+	return defkit.NewPolicy("%s").
+		Description(%q).
+		Params(enabled).
+		Template(func(tpl *defkit.Template) {
+			// Policy logic here
+			_ = enabled
+		})
+}
+
+func main() {
+	// Print the CUE definition
+	policy := %sPolicy()
+	println(policy.ToCue())
+}
+`, funcName, name, funcName, name, desc, funcName)
+}
+
+func generateGoWorkflowStepDefinition(name, funcName, desc string) string {
+	return fmt.Sprintf(`/*
+Copyright 2025 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package main
+
+import (
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+)
+
+// %sWorkflowStep creates the %s workflow step definition.
+func %sWorkflowStep() *defkit.WorkflowStepDefinition {
+	// Define parameters
+	message := defkit.String("message").
+		Default("Hello").
+		Description("Message to use in the workflow step")
+
+	// Create the workflow step definition
+	return defkit.NewWorkflowStep("%s").
+		Description(%q).
+		Params(message).
+		Template(func(tpl *defkit.Template) {
+			// Workflow step logic here
+			_ = message
+		})
+}
+
+func main() {
+	// Print the CUE definition
+	step := %sWorkflowStep()
+	println(step.ToCue())
+}
+`, funcName, name, funcName, name, desc, funcName)
 }
 
 func generateTerraformTypedComponentDefinition(cmd *cobra.Command, name, kind, provider, desc string) (string, error) {
@@ -456,6 +854,10 @@ func NewDefinitionGetCommand(c common.Args) *cobra.Command {
 			"# Command below will get the TraitDefinition of annotations in namespace vela-system\n" +
 			"> vela def get annotations --type trait --namespace vela-system",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "2",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -539,6 +941,10 @@ func NewDefinitionDocGenCommand(c common.Args, ioStreams util.IOStreams) *cobra.
 			"3. Generate documentation for local Cloud Resource Definition YAML alibaba-vpc.yaml:\n" +
 			"> vela def doc-gen alibaba-vpc.yaml\n",
 		Deprecated: "This command has been replaced by 'vela show' or 'vela def show'.",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "1",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return fmt.Errorf("please specify definition name, cue file or a cloud resource definition yaml")
@@ -564,11 +970,16 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 		Use:   "list",
 		Short: "List definitions.",
 		Long:  "List definitions in kubernetes cluster.",
-		Example: "# Command below will list all definitions in all namespaces\n" +
+		Example: "# Command below lists the definitions you can use: those in your current\n" +
+			"# namespace and those in the system namespace\n" +
 			"> vela def list\n" +
-			"# Command below will list all definitions in the vela-system namespace\n" +
-			"> vela def get annotations --type trait --namespace vela-system",
+			"# Command below lists the definitions in one namespace\n" +
+			"> vela def list --namespace vela-system",
 		Args: cobra.ExactArgs(0),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "3",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -582,17 +993,58 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", "from")
 			}
+			showAbstract, err := cmd.Flags().GetBool("include-abstract")
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", "include-abstract")
+			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			definitions, err := pkgdef.SearchDefinition(k8sClient,
-				definitionType,
-				namespace,
-				filters.ByOwnerAddon(addonName))
+			workingIn := currentNamespace(c)
+
+			// Without --namespace, look where a definition is actually resolved
+			// from: the current namespace, then the system one.
+			searchIn := []string{namespace}
+			if namespace == "" {
+				searchIn = []string{workingIn}
+				if workingIn != types.DefaultKubeVelaNS {
+					searchIn = append(searchIn, types.DefaultKubeVelaNS)
+				}
+			}
+
+			var definitions []unstructured.Unstructured
+			for _, ns := range searchIn {
+				found, err := pkgdef.SearchDefinition(k8sClient,
+					definitionType,
+					ns,
+					filters.ByOwnerAddon(addonName),
+					filters.ByAbstract(showAbstract))
+				if err != nil {
+					return err
+				}
+				definitions = append(definitions, found...)
+			}
+
+			// Leave out what this namespace cannot use. The list is what you can
+			// build with, so a definition reserved for somewhere else is not yours
+			// to see here.
+			objs := make([]client.Object, len(definitions))
+			for i := range definitions {
+				objs[i] = &definitions[i]
+			}
+			usable, err := judgeUsability(cmd.Context(), k8sClient, objs, workingIn)
 			if err != nil {
 				return err
 			}
+			kept := definitions[:0]
+			for i, def := range definitions {
+				if usable[i] {
+					kept = append(kept, def)
+				}
+			}
+			definitions = kept
+
 			if len(definitions) == 0 {
 				cmd.Println("No definition found.")
 				return nil
@@ -609,10 +1061,24 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			}
 			table := newUITable()
 
+			// Likewise ABSTRACT, only ever on show under --include-abstract
+			showAbstractColumn := false
+			for _, def := range definitions {
+				if filters.IsAbstract(def) {
+					showAbstractColumn = true
+					break
+				}
+			}
+
 			// We only include SOURCE-ADDON if there is at least one definition from an addon
-			if showSourceAddon {
+			switch {
+			case showSourceAddon && showAbstractColumn:
+				table.AddRow("NAME", "TYPE", "NAMESPACE", "SOURCE-ADDON", "ABSTRACT", "DESCRIPTION")
+			case showSourceAddon:
 				table.AddRow("NAME", "TYPE", "NAMESPACE", "SOURCE-ADDON", "DESCRIPTION")
-			} else {
+			case showAbstractColumn:
+				table.AddRow("NAME", "TYPE", "NAMESPACE", "ABSTRACT", "DESCRIPTION")
+			default:
 				table.AddRow("NAME", "TYPE", "NAMESPACE", "DESCRIPTION")
 			}
 
@@ -622,17 +1088,22 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 					desc = annotations[pkgdef.DescriptionKey]
 				}
 
-				// Do not show SOURCE-ADDON column
-				if !showSourceAddon {
-					table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), desc)
-					continue
+				row := []interface{}{definition.GetName(), definition.GetKind(), definition.GetNamespace()}
+				if showSourceAddon {
+					sourceAddon := ""
+					if len(definition.GetOwnerReferences()) > 0 {
+						sourceAddon = strings.TrimPrefix(definition.GetOwnerReferences()[0].Name, "addon-")
+					}
+					row = append(row, sourceAddon)
 				}
-
-				sourceAddon := ""
-				if len(definition.GetOwnerReferences()) > 0 {
-					sourceAddon = strings.TrimPrefix(definition.GetOwnerReferences()[0].Name, "addon-")
+				if showAbstractColumn {
+					abstract := ""
+					if filters.IsAbstract(definition) {
+						abstract = "yes"
+					}
+					row = append(row, abstract)
 				}
-				table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), sourceAddon, desc)
+				table.AddRow(append(row, desc)...)
 			}
 			cmd.Println(table)
 			return nil
@@ -640,8 +1111,53 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to list. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().String("from", "", "Filter definitions by which addon installed them.")
-	cmd.Flags().StringP(Namespace, "n", types.DefaultKubeVelaNS, "Specify which namespace the definition locates.")
+	cmd.Flags().Bool("include-abstract", false, "Include definitions that may only be extended, which are hidden by default.")
+	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace the definition locates. Defaults to your current namespace and the system namespace.")
 	return cmd
+}
+
+// judgeUsability reports, per definition, whether an Application in namespace ns
+// may use it.
+//
+// The namespace's labels are read once, and only when some definition restricts
+// with a selector.
+func judgeUsability(ctx context.Context, c client.Client, definitions []client.Object, ns string) ([]bool, error) {
+	needLabels := false
+	for _, def := range definitions {
+		if nsrestrict.NeedsNamespaceLabels(def, ns) {
+			needLabels = true
+			break
+		}
+	}
+	var nsLabels map[string]string
+	if needLabels {
+		namespace := &corev1.Namespace{}
+		if err := c.Get(ctx, types2.NamespacedName{Name: ns}, namespace); err != nil {
+			if !errors2.IsNotFound(err) {
+				return nil, errors.Wrapf(err, "failed to read namespace %s", ns)
+			}
+			// A namespace that does not exist has no labels, so a selector matches
+			// nothing and those definitions read as unusable.
+		} else if nsLabels = namespace.Labels; nsLabels == nil {
+			nsLabels = map[string]string{}
+		}
+	}
+
+	usable := make([]bool, len(definitions))
+	for i, def := range definitions {
+		usable[i] = nsrestrict.Allows(nsrestrict.Of(def), ns, nsLabels)
+	}
+	return usable, nil
+}
+
+// currentNamespace is the namespace the user is working in: the current vela
+// env, else the kubeconfig context, else "default". GetFlagEnvOrCurrent falls
+// through all three and cannot fail.
+func currentNamespace(c common.Args) string {
+	if velaEnv, err := GetFlagEnvOrCurrent(nil, c); err == nil && velaEnv.Namespace != "" {
+		return velaEnv.Namespace
+	}
+	return types.DefaultAppNamespace
 }
 
 // NewDefinitionEditCommand create the `vela def edit` command to help user edit remote definitions
@@ -656,6 +1172,10 @@ func NewDefinitionEditCommand(c common.Args) *cobra.Command {
 			"# Command below will edit the TraitDefinition of ingress in vela-system namespace\n" +
 			"> vela def edit ingress --type trait --namespace vela-system",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "4",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -743,20 +1263,50 @@ func prettyYAMLMarshal(obj map[string]interface{}) (string, error) {
 	return b.String(), nil
 }
 
+// FlagFormat is the flag for specifying the output format
+const FlagFormat = "format"
+
+// FlagClusterPackages makes vela def render load CUE packages from the cluster.
+const FlagClusterPackages = "cluster-packages"
+
 // NewDefinitionRenderCommand create the `vela def render` command to help user render definition cue file into k8s YAML file, if used without kubernetes environment, set IGNORE_KUBE_CONFIG=true
+//
+//nolint:gocyclo // CLI command handling multiple input/output formats and file types
 func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "render DEFINITION.cue",
+		Use:   "render DEFINITION.cue|DEFINITION.go",
 		Short: "Render X-Definition.",
-		Long:  "Render X-Definition with cue format into kubernetes YAML format. Could be used to check whether the cue format definition is working as expected. If a directory is used as input, all cue definitions in the directory will be rendered.",
+		Long: "Render X-Definition with CUE or Go format into kubernetes YAML format (default) or CUE format. Could be used to check whether the definition is working as expected. " +
+			"If a directory is used as input, all CUE and Go definitions in the directory will be rendered.\n\n" +
+			"Go definitions use the defkit package to define components, traits, policies, and workflow steps in Go code. " +
+			"The Go file must import defkit and export functions that return definition types (e.g., *defkit.ComponentDefinition).\n\n" +
+			"Use --format cue to output the raw CUE template instead of YAML. This is useful for inspecting the generated CUE from Go definitions.",
 		Example: "# Command below will render my-webservice.cue into YAML format and print it out.\n" +
 			"> vela def render my-webservice.cue\n" +
+			"# Command below will render a Go definition into YAML format.\n" +
+			"> vela def render my-webservice.go\n" +
+			"# Command below will render a Go definition into CUE format.\n" +
+			"> vela def render my-webservice.go --format cue\n" +
 			"# Command below will render my-webservice.cue and save it in my-webservice.yaml.\n" +
-			"> vela def render my-webservice.cue -o my-webservice.yaml" +
-			"# Command below will render all cue format definitions in the ./defs/cue/ directory and save the YAML objects in ./defs/yaml/.\n" +
-			"> vela def render ./defs/cue/ -o ./defs/yaml/",
+			"> vela def render my-webservice.cue -o my-webservice.yaml\n" +
+			"# Command below will render all CUE and Go definitions in the ./defs/ directory and save the YAML objects in ./defs/yaml/.\n" +
+			"> vela def render ./defs/ -o ./defs/yaml/\n" +
+			"# Command below will render all CUE and Go definitions in ./defs/ and save CUE output in ./defs/cue/.\n" +
+			"> vela def render ./defs/ -o ./defs/cue/ --format cue",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "5",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			clusterPackages, err := cmd.Flags().GetBool(FlagClusterPackages)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagClusterPackages)
+			}
+			// Each compiler is a process-wide singleton that reads this once, on its
+			// first use: set it before any compile, as a process that compiled
+			// earlier (one embedding this package) keeps what it read then.
+			cuex.EnableExternalPackageForDefaultCompiler = clusterPackages
 			output, err := cmd.Flags().GetString(FlagOutput)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagOutput)
@@ -765,12 +1315,38 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagMessage)
 			}
+			outputFormat, err := cmd.Flags().GetString(FlagFormat)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagFormat)
+			}
+			// Validate output format
+			if outputFormat != outputFormatYAML && outputFormat != "cue" {
+				return errors.Errorf("invalid format %q, must be 'yaml' or 'cue'", outputFormat)
+			}
 
-			render := func(inputFilename, outputFilename string) error {
+			// renderCUE renders a CUE definition file to YAML or CUE output
+			renderCUE := func(inputFilename, outputFilename string) error {
 				cueBytes, err := utils.ReadRemoteOrLocalPath(inputFilename, false)
 				if err != nil {
 					return errors.Wrapf(err, "failed to get %s", args[0])
 				}
+
+				// If format is cue, just output the raw CUE content
+				if outputFormat == "cue" {
+					cueStr := string(cueBytes)
+					if outputFilename == "" {
+						cmd.Printf("--- %s ---\n%s\n", filepath.Base(inputFilename), cueStr)
+					} else {
+						if message != "" {
+							cueStr = "// " + strings.ReplaceAll(message, "{{INPUT_FILENAME}}", filepath.Base(inputFilename)) + "\n" + cueStr
+						}
+						if err := os.WriteFile(outputFilename, []byte(cueStr), 0600); err != nil {
+							return errors.Wrapf(err, "failed to write CUE format definition to file %s", outputFilename)
+						}
+					}
+					return nil
+				}
+
 				config, err := c.GetConfig()
 				if err != nil {
 					klog.Infof("ignore kubernetes cluster, unable to get kubeconfig: %s", err.Error())
@@ -781,8 +1357,9 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				}
 
 				helmChartFormatEnv := strings.ToLower(os.Getenv(HelmChartFormatEnvName))
-				if helmChartFormatEnv == "true" {
+				if helmChartFormatEnv == envOptIn {
 					def.SetNamespace(HelmChartNamespacePlaceholder)
+					markRestrictionsPlaceholder(&def)
 				} else if helmChartFormatEnv == "system" {
 					def.SetNamespace(types.DefaultKubeVelaNS)
 				}
@@ -793,7 +1370,8 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				if err != nil {
 					return errors.Wrapf(err, "failed to marshal CRD into YAML")
 				}
-				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
+				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", helmChartNamespaceInclude) + "\n"
+				s = replaceRestrictionsPlaceholder(s, def.GetName(), def.GetKind())
 				if outputFilename == "" {
 					s = fmt.Sprintf("--- %s ---\n%s", filepath.Base(inputFilename), s)
 					cmd.Print(s)
@@ -808,6 +1386,123 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				}
 				return nil
 			}
+
+			// renderGo renders a Go definition file to YAML or CUE output
+			renderGo := func(inputFilename, outputFilename string) error {
+				results, err := goloader.LoadFromFile(inputFilename)
+				if err != nil {
+					return errors.Wrapf(err, "failed to load Go definition from %s", inputFilename)
+				}
+
+				// If format is cue, output the raw generated CUE content
+				if outputFormat == "cue" {
+					var allCUE strings.Builder
+					for _, result := range results {
+						if result.Error != nil {
+							return errors.Wrapf(result.Error, "failed to generate CUE for %s", result.Definition.FunctionName)
+						}
+						if outputFilename == "" {
+							allCUE.WriteString(fmt.Sprintf("--- %s (%s) ---\n%s\n", filepath.Base(inputFilename), result.Definition.Name, result.CUE))
+						} else {
+							allCUE.WriteString(result.CUE)
+							if len(results) > 1 {
+								allCUE.WriteString("\n---\n")
+							}
+						}
+					}
+
+					if outputFilename == "" {
+						cmd.Print(allCUE.String())
+					} else {
+						content := allCUE.String()
+						if message != "" {
+							content = "// " + strings.ReplaceAll(message, "{{INPUT_FILENAME}}", filepath.Base(inputFilename)) + "\n" + content
+						}
+						content = "// Code generated by KubeVela templates. DO NOT EDIT. Please edit the original Go file.\n" + content
+						if err := os.WriteFile(outputFilename, []byte(content), 0600); err != nil {
+							return errors.Wrapf(err, "failed to write CUE format definition to file %s", outputFilename)
+						}
+					}
+					return nil
+				}
+
+				config, err := c.GetConfig()
+				if err != nil {
+					klog.Infof("ignore kubernetes cluster, unable to get kubeconfig: %s", err.Error())
+				}
+
+				var allYAML strings.Builder
+				for _, result := range results {
+					if result.Error != nil {
+						return errors.Wrapf(result.Error, "failed to generate CUE for %s", result.Definition.FunctionName)
+					}
+
+					// Convert generated CUE to Definition
+					def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+					if err := def.FromCUEString(result.CUE, config); err != nil {
+						return errors.Wrapf(err, "failed to parse generated CUE for %s", result.Definition.FunctionName)
+					}
+
+					helmChartFormatEnv := strings.ToLower(os.Getenv(HelmChartFormatEnvName))
+					if helmChartFormatEnv == envOptIn {
+						def.SetNamespace(HelmChartNamespacePlaceholder)
+						markRestrictionsPlaceholder(&def)
+					} else if helmChartFormatEnv == "system" {
+						def.SetNamespace(types.DefaultKubeVelaNS)
+					}
+					if len(def.GetLabels()) == 0 {
+						def.SetLabels(nil)
+					}
+
+					s, err := prettyYAMLMarshal(def.Object)
+					if err != nil {
+						return errors.Wrapf(err, "failed to marshal CRD into YAML for %s", result.Definition.FunctionName)
+					}
+					s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", helmChartNamespaceInclude) + "\n"
+					s = replaceRestrictionsPlaceholder(s, def.GetName(), def.GetKind())
+
+					if outputFilename == "" {
+						allYAML.WriteString(fmt.Sprintf("--- %s (%s) ---\n%s", filepath.Base(inputFilename), result.Definition.Name, s))
+					} else {
+						allYAML.WriteString(s)
+						if len(results) > 1 {
+							allYAML.WriteString("---\n")
+						}
+					}
+				}
+
+				if outputFilename == "" {
+					cmd.Print(allYAML.String())
+				} else {
+					content := allYAML.String()
+					if message != "" {
+						content = "# " + strings.ReplaceAll(message, "{{INPUT_FILENAME}}", filepath.Base(inputFilename)) + "\n" + content
+					}
+					content = "# Code generated by KubeVela templates. DO NOT EDIT. Please edit the original Go file.\n" + content
+					if err := os.WriteFile(outputFilename, []byte(content), 0600); err != nil {
+						return errors.Wrapf(err, "failed to write YAML format definition to file %s", outputFilename)
+					}
+				}
+				return nil
+			}
+
+			// render dispatches to the appropriate renderer based on file extension
+			render := func(inputFilename, outputFilename string) error {
+				ext := filepath.Ext(inputFilename)
+				switch ext {
+				case GoExtension:
+					// Skip test files
+					if strings.HasSuffix(inputFilename, "_test.go") {
+						return nil
+					}
+					return renderGo(inputFilename, outputFilename)
+				case CUEExtension:
+					return renderCUE(inputFilename, outputFilename)
+				default:
+					return errors.Errorf("unsupported file extension %s, expected .cue or .go", ext)
+				}
+			}
+
 			inputFilenames := []string{args[0]}
 			outputFilenames := []string{output}
 			fi, err := os.Stat(args[0])
@@ -818,16 +1513,48 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				inputFilenames = []string{}
 				outputFilenames = []string{}
 				err := filepath.Walk(args[0], func(path string, info os.FileInfo, err error) error {
-					filename := filepath.Base(path)
-					fileSuffix := filepath.Ext(path)
-					if fileSuffix != CUEExtension {
+					if err != nil {
+						return err
+					}
+					if info.IsDir() || utils.IsCUETestFile(path) {
 						return nil
 					}
-					inputFilenames = append(inputFilenames, path)
-					if output != "" {
-						outputFilenames = append(outputFilenames, filepath.Join(output, strings.ReplaceAll(filename, CUEExtension, YAMLExtension)))
-					} else {
-						outputFilenames = append(outputFilenames, "")
+					filename := filepath.Base(path)
+					fileSuffix := filepath.Ext(path)
+
+					// Determine output extension based on format
+					outputExt := YAMLExtension
+					if outputFormat == "cue" {
+						outputExt = CUEExtension
+					}
+
+					// Handle CUE files
+					if fileSuffix == CUEExtension {
+						inputFilenames = append(inputFilenames, path)
+						if output != "" {
+							outputFilenames = append(outputFilenames, filepath.Join(output, strings.ReplaceAll(filename, CUEExtension, outputExt)))
+						} else {
+							outputFilenames = append(outputFilenames, "")
+						}
+						return nil
+					}
+
+					// Handle Go files (skip test files)
+					if fileSuffix == GoExtension && !strings.HasSuffix(filename, "_test.go") {
+						// Check if this is a defkit definition file
+						isDefFile, checkErr := goloader.IsGoDefinitionFile(path)
+						if checkErr != nil {
+							klog.Warningf("failed to check if %s is a Go definition file: %v", path, checkErr)
+							return nil
+						}
+						if isDefFile {
+							inputFilenames = append(inputFilenames, path)
+							if output != "" {
+								outputFilenames = append(outputFilenames, filepath.Join(output, strings.ReplaceAll(filename, GoExtension, outputExt)))
+							} else {
+								outputFilenames = append(outputFilenames, "")
+							}
+						}
 					}
 					return nil
 				})
@@ -835,40 +1562,56 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 					return errors.Wrapf(err, "failed to read directory %s", args[0])
 				}
 			}
+			var renderErrs []error
 			for i, inputFilename := range inputFilenames {
-				if err = render(inputFilename, outputFilenames[i]); err != nil {
-					if _, err = fmt.Fprintf(cmd.ErrOrStderr(), "failed to render %s, reason: %v", inputFilename, err); err != nil {
-						return errors.Wrapf(err, "failed to write err")
+				renderErr := render(inputFilename, outputFilenames[i])
+				if renderErr != nil {
+					wrappedRenderErr := errors.Wrapf(renderErr, "failed to render %s", inputFilename)
+					if _, writeErr := fmt.Fprintln(cmd.ErrOrStderr(), wrappedRenderErr); writeErr != nil {
+						renderErrs = append(renderErrs, errors.Wrapf(writeErr, "failed to write to stderr for %s", inputFilename))
 					}
+					renderErrs = append(renderErrs, wrappedRenderErr)
 				}
+			}
+			if len(renderErrs) > 0 {
+				return fmt.Errorf("rendering failed for %d file(s)", len(renderErrs))
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringP(FlagOutput, "o", "", "Specify the output path of the rendered definition YAML. If empty, the definition will be printed in the console. If input is a directory, the output path is expected to be a directory as well.")
-	cmd.Flags().StringP(FlagMessage, "", "", "Specify the header message of the generated YAML file. For example, declaring author information.")
+	cmd.Flags().StringP(FlagOutput, "o", "", "Specify the output path of the rendered definition. If empty, the definition will be printed in the console. If input is a directory, the output path is expected to be a directory as well.")
+	cmd.Flags().StringP(FlagMessage, "", "", "Specify the header message of the generated file. For example, declaring author information.")
+	cmd.Flags().StringP(FlagFormat, "f", "yaml", "Specify the output format: 'yaml' (default) for Kubernetes YAML, or 'cue' for raw CUE template output.")
+	cmd.Flags().Bool(FlagClusterPackages, false, "Load CUE packages (Package resources) from the cluster the kubeconfig names, for definitions that import them. Off by default, so rendering does not depend on, or contact, a cluster.")
 	return cmd
 }
 
 // NewDefinitionApplyCommand create the `vela def apply` command to help user apply local definitions to k8s
 func NewDefinitionApplyCommand(c common.Args, streams util.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "apply DEFINITION.cue",
+		Use:   "apply DEFINITION.cue|DEFINITION.go",
 		Short: "Apply X-Definition.",
-		Long:  "Apply X-Definition from local storage to kubernetes cluster. It will apply file to vela-system namespace by default.",
+		Long: "Apply X-Definition from local storage to kubernetes cluster. It will apply file to vela-system namespace by default.\n\n" +
+			"Supports CUE, YAML, and Go definition files. Go definitions use the defkit package to define components, traits, policies, and workflow steps.",
 		Example: "# Command below will apply the local my-webservice.cue file to kubernetes vela-system namespace\n" +
 			"> vela def apply my-webservice.cue\n" +
-			"# Apply the local directory including all files(YAML and CUE definition) to kubernetes vela-system namespace\n" +
+			"# Apply a Go definition file to kubernetes vela-system namespace\n" +
+			"> vela def apply my-webservice.go\n" +
+			"# Apply the local directory including all files (YAML, CUE, and Go definitions) to kubernetes vela-system namespace\n" +
 			"> vela def apply def/\n" +
 			"# Command below will apply the ./defs/my-trait.cue file to kubernetes default namespace\n" +
-			"> vela def apply ./defs/my-trait.cue --namespace default" +
+			"> vela def apply ./defs/my-trait.cue --namespace default\n" +
 			"# Command below will convert the ./defs/my-trait.cue file to kubernetes CRD object and print it without applying it to kubernetes\n" +
-			"> vela def apply ./defs/my-trait.cue --dry-run" +
+			"> vela def apply ./defs/my-trait.cue --dry-run\n" +
 			"# Apply a CUE from URL \n" +
-			"> vela def apply https://my-host-to-def/my-trait.cue --dry-run" +
+			"> vela def apply https://my-host-to-def/my-trait.cue --dry-run\n" +
 			"# Apply a CUE from stdin \n" +
 			"> vela def apply -",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "6",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			dryRun, err := cmd.Flags().GetBool(FlagDryRun)
@@ -891,29 +1634,54 @@ func NewDefinitionApplyCommand(c common.Args, streams util.IOStreams) *cobra.Com
 	return cmd
 }
 
+// isDefinitionFile checks if the path is a definition file (JSON, YAML, CUE, or Go)
+func isDefinitionFile(path string) bool {
+	// Check for standard definition file types, skipping CUE test files
+	if utils.IsJSONYAMLorCUEFile(path) {
+		return !utils.IsCUETestFile(path)
+	}
+	// Check for Go definition files (skip test files)
+	if strings.HasSuffix(path, GoExtension) && !strings.HasSuffix(path, "_test.go") {
+		isDefFile, err := goloader.IsGoDefinitionFile(path)
+		if err != nil {
+			klog.Warningf("failed to check if %s is a Go definition file: %v", path, err)
+			return false
+		}
+		return isDefFile
+	}
+	return false
+}
+
 func defApplyAll(ctx context.Context, c common.Args, io util.IOStreams, namespace, path string, dryRun bool) error {
-	files, err := utils.LoadDataFromPath(ctx, path, utils.IsJSONYAMLorCUEFile)
+	files, err := utils.LoadDataFromPath(ctx, path, isDefinitionFile)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get from %s", path)
 	}
 	for _, f := range files {
-		result, err := defApplyOne(ctx, c, namespace, f.Path, f.Data, dryRun)
+		results, err := defApplyOne(ctx, c, namespace, f.Path, f.Data, dryRun)
 		if err != nil {
 			return err
 		}
-		io.Infonln(result)
+		for _, result := range results {
+			io.Infonln(result)
+		}
 	}
 	return nil
 }
 
-func defApplyOne(ctx context.Context, c common.Args, namespace, defpath string, defBytes []byte, dryRun bool) (string, error) {
+func defApplyOne(ctx context.Context, c common.Args, namespace, defpath string, defBytes []byte, dryRun bool) ([]string, error) {
 	config, err := c.GetConfig()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	k8sClient, err := c.GetClient()
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to get k8s client")
+		return nil, errors.Wrapf(err, "failed to get k8s client")
+	}
+
+	// Handle Go definition files
+	if strings.HasSuffix(defpath, GoExtension) {
+		return defApplyGoFile(ctx, c, k8sClient, config, namespace, defpath, dryRun)
 	}
 
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
@@ -922,55 +1690,122 @@ func defApplyOne(ctx context.Context, c common.Args, namespace, defpath string, 
 	case strings.HasSuffix(defpath, YAMLExtension) || strings.HasSuffix(defpath, YMLExtension):
 		// In this case, it's not in cue format, it's a yaml
 		if err = def.FromYAML(defBytes); err != nil {
-			return "", errors.Wrapf(err, "failed to parse YAML to definition")
+			return nil, errors.Wrapf(err, "failed to parse YAML to definition")
 		}
 		if dryRun {
-			return "", errors.New("dry-run will render CUE to YAML, while the input is already in yaml")
+			return nil, errors.New("dry-run will render CUE to YAML, while the input is already in yaml")
 		}
 		// YAML won't validate or format CUE schematic
 		op, err := utils.CreateOrUpdate(ctx, k8sClient, &def)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		return fmt.Sprintf("%s %s in namespace %s %s.\n", def.GetKind(), def.GetName(), def.GetNamespace(), op), nil
+		return []string{fmt.Sprintf("%s %s in namespace %s %s.\n", def.GetKind(), def.GetName(), def.GetNamespace(), op)}, nil
 	default:
+		var results []string
+		if *upgrade.EnableCUEVersionCompatibility {
+			if needsUpgrade, reasons, err := upgrade.RequiresUpgrade(string(defBytes)); err == nil && needsUpgrade {
+				relpath := defpath
+				if rel, err := filepath.Rel(".", defpath); err == nil {
+					relpath = rel
+				}
+				header := color.New(color.Bold).Sprint("Compatibility Warning:")
+				results = append(results, fmt.Sprintf("%s %s uses legacy CUE syntax that will be auto-upgraded at render time.\n  - %s\nRun `vela def upgrade <file> -o <file>` to rewrite the file.\n\n",
+					header, relpath, strings.Join(reasons, "\n  - ")))
+			}
+		}
 		if err := def.FromCUEString(string(defBytes), config); err != nil {
-			return "", errors.Wrapf(err, "failed to parse CUE for definition")
+			return nil, errors.Wrapf(err, "failed to parse CUE for definition")
 		}
 		def.SetNamespace(namespace)
-	}
-
-	if dryRun {
-		s, err := prettyYAMLMarshal(def.Object)
-		if err != nil {
-			return "", errors.Wrapf(err, "failed to marshal CRD into YAML")
-		}
-		return s, nil
-	}
-
-	oldDef := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-	oldDef.SetGroupVersionKind(def.GroupVersionKind())
-	err = k8sClient.Get(ctx, types2.NamespacedName{
-		Namespace: def.GetNamespace(),
-		Name:      def.GetName(),
-	}, &oldDef)
-	if err != nil {
-		if errors2.IsNotFound(err) {
-			kind := def.GetKind()
-			if err = k8sClient.Create(ctx, &def); err != nil {
-				return "", errors.Wrapf(err, "failed to create new definition in kubernetes")
+		if dryRun {
+			s, err := prettyYAMLMarshal(def.Object)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to marshal CRD into YAML")
 			}
-			return fmt.Sprintf("%s %s created in namespace %s.\n", kind, def.GetName(), def.GetNamespace()), nil
+			return append(results, s), nil
 		}
-		return "", errors.Wrapf(err, "failed to check existence of target definition in kubernetes")
+		oldDef := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+		oldDef.SetGroupVersionKind(def.GroupVersionKind())
+		err = k8sClient.Get(ctx, types2.NamespacedName{
+			Namespace: def.GetNamespace(),
+			Name:      def.GetName(),
+		}, &oldDef)
+		if err != nil {
+			if errors2.IsNotFound(err) {
+				kind := def.GetKind()
+				if err = k8sClient.Create(ctx, &def); err != nil {
+					return nil, errors.Wrapf(err, "failed to create new definition in kubernetes")
+				}
+				return append(results, fmt.Sprintf("%s %s created in namespace %s.\n", kind, def.GetName(), def.GetNamespace())), nil
+			}
+			return nil, errors.Wrapf(err, "failed to check existence of target definition in kubernetes")
+		}
+		if err := oldDef.FromCUEString(string(defBytes), config); err != nil {
+			return nil, errors.Wrapf(err, "failed to merge with existing definition")
+		}
+		if err = k8sClient.Update(ctx, &oldDef); err != nil {
+			return nil, errors.Wrapf(err, "failed to update existing definition in kubernetes")
+		}
+		return append(results, fmt.Sprintf("%s %s in namespace %s updated.\n", oldDef.GetKind(), oldDef.GetName(), oldDef.GetNamespace())), nil
 	}
-	if err := oldDef.FromCUEString(string(defBytes), config); err != nil {
-		return "", errors.Wrapf(err, "failed to merge with existing definition")
+}
+
+// defApplyGoFile handles applying Go definition files
+// Args is kept for future use (e.g., Schema for type registration, DiscoveryClient for API discovery)
+func defApplyGoFile(ctx context.Context, _ common.Args, k8sClient client.Client, config *rest.Config, namespace, defpath string, dryRun bool) ([]string, error) {
+	results, err := goloader.LoadFromFile(defpath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to load Go definition from %s", defpath)
 	}
-	if err = k8sClient.Update(ctx, &oldDef); err != nil {
-		return "", errors.Wrapf(err, "failed to update existing definition in kubernetes")
+
+	var outputs []string
+	for _, result := range results {
+		if result.Error != nil {
+			return nil, errors.Wrapf(result.Error, "failed to generate CUE for %s", result.Definition.FunctionName)
+		}
+
+		def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+		if err := def.FromCUEString(result.CUE, config); err != nil {
+			return nil, errors.Wrapf(err, "failed to parse generated CUE for %s", result.Definition.FunctionName)
+		}
+		def.SetNamespace(namespace)
+
+		if dryRun {
+			s, err := prettyYAMLMarshal(def.Object)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to marshal CRD into YAML for %s", result.Definition.FunctionName)
+			}
+			outputs = append(outputs, s)
+			continue
+		}
+
+		oldDef := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+		oldDef.SetGroupVersionKind(def.GroupVersionKind())
+		err = k8sClient.Get(ctx, types2.NamespacedName{
+			Namespace: def.GetNamespace(),
+			Name:      def.GetName(),
+		}, &oldDef)
+		if err != nil {
+			if errors2.IsNotFound(err) {
+				kind := def.GetKind()
+				if err = k8sClient.Create(ctx, &def); err != nil {
+					return nil, errors.Wrapf(err, "failed to create new definition in kubernetes")
+				}
+				outputs = append(outputs, fmt.Sprintf("%s %s created in namespace %s.\n", kind, def.GetName(), def.GetNamespace()))
+				continue
+			}
+			return nil, errors.Wrapf(err, "failed to check existence of target definition in kubernetes")
+		}
+		if err := oldDef.FromCUEString(result.CUE, config); err != nil {
+			return nil, errors.Wrapf(err, "failed to merge with existing definition")
+		}
+		if err = k8sClient.Update(ctx, &oldDef); err != nil {
+			return nil, errors.Wrapf(err, "failed to update existing definition in kubernetes")
+		}
+		outputs = append(outputs, fmt.Sprintf("%s %s in namespace %s updated.\n", oldDef.GetKind(), oldDef.GetName(), oldDef.GetNamespace()))
 	}
-	return fmt.Sprintf("%s %s in namespace %s updated.\n", oldDef.GetKind(), oldDef.GetName(), oldDef.GetNamespace()), nil
+	return outputs, nil
 }
 
 // NewDefinitionDelCommand create the `vela def del` command to help user delete existing definitions conveniently
@@ -982,6 +1817,10 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 		Example: "# Command below will delete TraitDefinition of annotations in default namespace\n" +
 			"> vela def del annotations -t trait -n default",
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "7",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			definitionType, err := cmd.Flags().GetString(FlagType)
 			if err != nil {
@@ -1038,28 +1877,50 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 	return cmd
 }
 
-// NewDefinitionValidateCommand create the `vela def vet` command to help user validate the definition
+// isCUEorGoDefinitionFile checks if a file is a CUE file or a Go definition file
+func isCUEorGoDefinitionFile(path string) bool {
+	if utils.IsCUEFile(path) {
+		return !utils.IsCUETestFile(path)
+	}
+	if strings.HasSuffix(path, GoExtension) && !strings.HasSuffix(path, "_test.go") {
+		isDefFile, err := goloader.IsGoDefinitionFile(path)
+		if err != nil {
+			return false
+		}
+		return isDefFile
+	}
+	return false
+}
+
 func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "vet DEFINITION.cue",
+		Use:   "vet DEFINITION.cue|DEFINITION.go",
 		Short: "Validate X-Definition.",
-		Long: "Validate definition file by checking whether it has the valid cue format with fields set correctly\n" +
-			"* Currently, this command only checks the cue format. This function is still working in progress and we will support more functional validation mechanism in the future.",
+		Long: "Validate definition file by checking whether it has the valid CUE or Go format with fields set correctly.\n" +
+			"Supports both CUE files and Go definition files using the defkit package.\n" +
+			"* For CUE files, this command checks the CUE syntax and validates the definition structure.\n" +
+			"* For Go files, it verifies the Go syntax and ensures the generated CUE is valid.",
 		Example: "# Command below will validate the my-def.cue file.\n" +
 			"> vela def vet my-def.cue\n" +
-			"# Validate every cue file provided\n" +
-			"> vela def vet my-def1.cue my-def2.cue my-def3.cue\n" +
-			"# Validate every cue file in the specified directories" +
+			"# Validate a Go definition file.\n" +
+			"> vela def vet my-def.go\n" +
+			"# Validate every CUE and Go definition file provided\n" +
+			"> vela def vet my-def1.cue my-def2.go my-def3.cue\n" +
+			"# Validate every CUE and Go definition file in the specified directories\n" +
 			"> vela def vet ./test1/ ./test2/",
 		Args: cobra.MinimumNArgs(1),
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefManagement,
+			types.TagCommandOrder: "8",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
-				files, err := utils.LoadDataFromPath(cmd.Context(), arg, utils.IsCUEFile)
+				files, err := utils.LoadDataFromPath(cmd.Context(), arg, isCUEorGoDefinitionFile)
 				if err != nil {
 					return errors.Wrapf(err, "failed to get file from %s", arg)
 				}
 				for _, file := range files {
-					validateRes, err := validateSingleCueFile(file.Path, file.Data, c)
+					validateRes, err := validateDefinitionFile(file.Path, file.Data, c)
 					if err != nil {
 						return err
 					}
@@ -1072,7 +1933,16 @@ func NewDefinitionValidateCommand(c common.Args) *cobra.Command {
 	return cmd
 }
 
-func validateSingleCueFile(fileName string, fileData []byte, c common.Args) (string, error) {
+func validateDefinitionFile(fileName string, fileData []byte, c common.Args) (string, error) {
+	// Handle Go definition files
+	if strings.HasSuffix(fileName, GoExtension) {
+		return validateGoDefinitionFile(fileName, c)
+	}
+	// Handle CUE files
+	return validateCueFile(fileName, fileData, c)
+}
+
+func validateCueFile(fileName string, fileData []byte, c common.Args) (string, error) {
 	def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
 	config, err := c.GetConfig()
 	if err != nil {
@@ -1082,6 +1952,38 @@ func validateSingleCueFile(fileName string, fileData []byte, c common.Args) (str
 		return "", errors.Wrapf(err, "failed to parse CUE: %s", fileName)
 	}
 	return fmt.Sprintf("Validation %s succeed.\n", fileName), nil
+}
+
+func validateGoDefinitionFile(fileName string, c common.Args) (string, error) {
+	// Load and generate CUE from the Go file
+	results, err := goloader.LoadFromFile(fileName)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to load Go definition: %s", fileName)
+	}
+
+	config, err := c.GetConfig()
+	if err != nil {
+		klog.Infof("ignore kubernetes cluster, unable to get kubeconfig: %s", err.Error())
+	}
+
+	var validatedDefs []string
+	for _, result := range results {
+		if result.Error != nil {
+			return "", errors.Wrapf(result.Error, "failed to generate CUE for %s in %s", result.Definition.FunctionName, fileName)
+		}
+
+		// Validate the generated CUE
+		def := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+		if err := def.FromCUEString(result.CUE, config); err != nil {
+			return "", errors.Wrapf(err, "generated CUE is invalid for %s in %s", result.Definition.FunctionName, fileName)
+		}
+		validatedDefs = append(validatedDefs, result.Definition.Name)
+	}
+
+	if len(validatedDefs) == 1 {
+		return fmt.Sprintf("Validation %s succeed (definition: %s).\n", fileName, validatedDefs[0]), nil
+	}
+	return fmt.Sprintf("Validation %s succeed (definitions: %s).\n", fileName, strings.Join(validatedDefs, ", ")), nil
 }
 
 // NewDefinitionGenAPICommand create the `vela def gen-api` command to help user generate Go code from the definition
@@ -1101,6 +2003,10 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 			"> vela def gen-api --language go -f /path/to/def -o /path/to/sdk\n" +
 			"# Generate definitions to a sub-module\n" +
 			"> vela def gen-api --language go -f /path/to/def -o /path/to/sdk --submodule --api-dir path/relative/to/output --language-args arg1=val1,arg2=val2\n",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "2",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := meta.Init(c, languageArgs)
 			if err != nil {
@@ -1140,7 +2046,7 @@ func NewDefinitionGenAPICommand(c common.Args) *cobra.Command {
 		}
 	}
 	cmd.Flags().StringSliceVar(&languageArgs, "language-args", []string{},
-		fmt.Sprintf("language-specific arguments to pass to the go generator, available options: \n"+langArgsDescStr),
+		fmt.Sprintf("language-specific arguments to pass to the go generator, available options: \n%s", langArgsDescStr),
 	)
 
 	return cmd
@@ -1169,6 +2075,10 @@ func NewDefinitionGenCUECommand(_ common.Args, streams util.IOStreams) *cobra.Co
 			"> vela def gen-cue -t provider /path/to/myprovider.go > /path/to/myprovider.cue\n" +
 			"# Generate CUE schema for provider type with custom types\n" +
 			"> vela def gen-cue -t provider --types *k8s.io/apimachinery/pkg/apis/meta/v1/unstructured.Unstructured=ellipsis /path/to/myprovider.go > /path/to/myprovider.cue",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "3",
+		},
 		RunE: func(cmd *cobra.Command, args []string) (rerr error) {
 			// convert map[string]string to map[string]cuegen.Type
 			newTypeMap := make(map[string]cuegen.Type, len(typeMap))
@@ -1213,6 +2123,10 @@ func NewDefinitionGenDocCommand(_ common.Args, streams util.IOStreams) *cobra.Co
 		Long:  "Generate documentation for non component, trait, policy and workflow definitions",
 		Example: "1. Generate documentation for provider definitions\n" +
 			"> vela def gen-doc -t provider provider1.cue provider2.cue > provider.md",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "4",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			readers := make([]io.Reader, 0, len(args))
 
@@ -1241,4 +2155,189 @@ func NewDefinitionGenDocCommand(_ common.Args, streams util.IOStreams) *cobra.Co
 	cmd.Flags().StringVarP(&typ, "type", "t", "", "Type of the definition to generate. Valid types: [provider]")
 
 	return cmd
+}
+
+// NewDefinitionUpgradeCommand create the `vela def upgrade` command to help user upgrade CUE templates for version compatibility
+func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
+	var (
+		outputFile    string
+		targetVersion string
+		checkOnly     bool
+		quiet         bool
+		enableAll     bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "upgrade DEFINITION_FILE",
+		Short: "Upgrade CUE definition for version compatibility",
+		Long: "Upgrade CUE definition files to be compatible with a specific KubeVela version.\n" +
+			"This command applies the upgrades that are on by default; --enable-all also applies the opt-in passes, such as the default guards for boolean and generic fields.\n" +
+			"If no version is specified, upgrades to the current CLI version.\n\n" +
+			"Currently supported upgrades:\n" +
+			"• List concatenation syntax compatibility\n" +
+			"• Import statement management\n" +
+			"• Template syntax modernization",
+		Example: "# Validate if definition needs upgrading (exit code 1 if upgrade needed)\n" +
+			"vela def upgrade my-definition.cue --validate\n\n" +
+			"# Silent validation for scripting (only exit code)\n" +
+			"vela def upgrade my-definition.cue --validate --quiet\n\n" +
+			"# Upgrade definition for current KubeVela version\n" +
+			"vela def upgrade my-definition.cue\n\n" +
+			"# Upgrade and save to specific file\n" +
+			"vela def upgrade my-definition.cue -o upgraded-definition.cue\n\n" +
+			"# Upgrade for specific KubeVela version\n" +
+			"vela def upgrade my-definition.cue --target-version=v1.11",
+		Annotations: map[string]string{
+			types.TagCommandType:  types.TypeDefGeneration,
+			types.TagCommandOrder: "5",
+		},
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sourceFile := args[0]
+			definitionUpgradePassesMu.Lock()
+			restoreFlags := enableAllUpgradePasses(enableAll)
+			defer func() {
+				restoreFlags()
+				definitionUpgradePassesMu.Unlock()
+			}()
+
+			// Read the source file
+			content, err := os.ReadFile(sourceFile) //nolint:gosec
+			if err != nil {
+				return fmt.Errorf("failed to read source file %s: %w", sourceFile, err)
+			}
+
+			// Check-only mode
+			if checkOnly {
+				var needsUpgrade bool
+				var reasons []string
+
+				if targetVersion != "" {
+					v, parseErr := upgrade.ParseVersion(targetVersion)
+					if parseErr != nil {
+						return fmt.Errorf("invalid --target-version: %w", parseErr)
+					}
+					needsUpgrade, reasons, err = upgrade.RequiresUpgrade(string(content), v)
+				} else {
+					needsUpgrade, reasons, err = upgrade.RequiresUpgrade(string(content))
+				}
+
+				if err != nil {
+					return fmt.Errorf("failed to check upgrade requirements: %w", err)
+				}
+
+				if needsUpgrade {
+					if !quiet {
+						fmt.Fprintf(ioStreams.Out, "✗ Definition %s requires upgrade:\n", sourceFile)
+						for _, reason := range reasons {
+							fmt.Fprintf(ioStreams.Out, "  - %s\n", reason)
+						}
+					}
+					os.Exit(1) // Non-zero exit code for scripts
+				} else if !quiet {
+					fmt.Fprintf(ioStreams.Out, "✓ Definition %s is up to date\n", sourceFile)
+				}
+				return nil
+			}
+
+			// Apply upgrades
+			var upgradedContent string
+			if targetVersion != "" {
+				v, parseErr := upgrade.ParseVersion(targetVersion)
+				if parseErr != nil {
+					return fmt.Errorf("invalid --target-version: %w", parseErr)
+				}
+				upgradedContent, err = upgrade.Upgrade(string(content), v)
+			} else {
+				upgradedContent, err = upgrade.Upgrade(string(content))
+			}
+
+			if err != nil {
+				return fmt.Errorf("failed to upgrade CUE template: %w", err)
+			}
+
+			// Determine output destination
+			if outputFile != "" {
+				// Write to specified output file
+				if err := os.WriteFile(outputFile, []byte(upgradedContent), 0600); err != nil { //nolint:gosec
+					return fmt.Errorf("failed to write output file %s: %w", outputFile, err)
+				}
+				fmt.Fprintf(ioStreams.Out, "Successfully upgraded %s and saved to %s\n", sourceFile, outputFile)
+			} else {
+				// Write to stdout
+				fmt.Fprint(ioStreams.Out, upgradedContent)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file path. If not specified, outputs to stdout.")
+	cmd.Flags().StringVar(&targetVersion, "target-version", "", "Target KubeVela version (e.g., --target-version=v1.11). If not specified, uses current CLI version.")
+	cmd.Flags().BoolVar(&checkOnly, "validate", false, "Validate if definition needs upgrading without making changes (exit code 1 if upgrade required)")
+	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Suppress output in validate mode, only return exit code")
+	cmd.Flags().BoolVar(&enableAll, "enable-all", false, "Enable all upgrade passes for this command invocation.")
+
+	return cmd
+}
+
+func enableAllUpgradePasses(enableAll bool) func() {
+	if !enableAll {
+		return func() {}
+	}
+	origList := upgrade.EnableListConcatUpgrade
+	origErr := upgrade.EnableErrorFieldLabelUpgrade
+	origBool := upgrade.EnableBoolDefaultGuardUpgrade
+	origGeneric := upgrade.EnableGenericDefaultGuardUpgrade
+	origKeep := upgrade.EnableKeepValidatorsSingletonUpgrade
+	origEval := upgrade.EnableEvalv3SelfRefGuardUpgrade
+
+	upgrade.EnableListConcatUpgrade = true
+	upgrade.EnableErrorFieldLabelUpgrade = true
+	upgrade.EnableBoolDefaultGuardUpgrade = true
+	upgrade.EnableGenericDefaultGuardUpgrade = true
+	upgrade.EnableKeepValidatorsSingletonUpgrade = true
+	upgrade.EnableEvalv3SelfRefGuardUpgrade = true
+
+	return func() {
+		upgrade.EnableListConcatUpgrade = origList
+		upgrade.EnableErrorFieldLabelUpgrade = origErr
+		upgrade.EnableBoolDefaultGuardUpgrade = origBool
+		upgrade.EnableGenericDefaultGuardUpgrade = origGeneric
+		upgrade.EnableKeepValidatorsSingletonUpgrade = origKeep
+		upgrade.EnableEvalv3SelfRefGuardUpgrade = origEval
+	}
+}
+
+// markRestrictionsPlaceholder puts a marker where spec.restrictions belongs, so
+// the marshalled YAML has a line to splice a Helm directive into. It discards any
+// restrictions the source declared, so it runs only under WITH_RESTRICTION_GEN.
+func markRestrictionsPlaceholder(def *pkgdef.Definition) {
+	if !restrictionGenEnabled() {
+		return
+	}
+	spec, ok := def.Object["spec"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	spec[restrictionsField] = HelmChartRestrictionsPlaceholder
+}
+
+func restrictionGenEnabled() bool {
+	return strings.ToLower(os.Getenv(RestrictionGenEnvName)) == envOptIn
+}
+
+// replaceRestrictionsPlaceholder swaps the marker line for an include of the
+// chart's definitionRestrictions helper, keyed by the definition's name so a value
+// can target one definition, and by its kind so the helper can refuse a quota on a
+// kind nothing counts before anything is applied.
+//
+// The include sits behind a "#". Helm expands the file as text before anything
+// parses it as YAML, so the directive still runs and the helper emits its content
+// on the lines below. This keeps the generated file valid YAML unrendered, which
+// callers that read it without Helm rely on.
+func replaceRestrictionsPlaceholder(s, name, kind string) string {
+	marker := fmt.Sprintf("  %s: '%s'\n", restrictionsField, HelmChartRestrictionsPlaceholder)
+	include := fmt.Sprintf("  #{{ include \"definitionRestrictions\" (dict \"name\" %q \"kind\" %q \"root\" $) }}\n", name, kind)
+	return strings.Replace(s, marker, include, 1)
 }

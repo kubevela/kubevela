@@ -117,7 +117,7 @@ var _ = Describe("Test velaQL", func() {
 						Kind:       "Ingress",
 						Namespace:  "default",
 						Name:       "ingress-http",
-						APIVersion: "networking.k8s.io/v1beta1",
+						APIVersion: "networking.k8s.io/v1",
 					},
 				},
 				{
@@ -386,7 +386,7 @@ var _ = Describe("Test velaQL", func() {
 			},
 			&networkv1.Ingress{
 				TypeMeta: metav1.TypeMeta{
-					APIVersion: "networking.k8s.io/v1beta1",
+					APIVersion: "networking.k8s.io/v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "ingress-helm",

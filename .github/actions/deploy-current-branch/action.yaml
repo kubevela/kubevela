@@ -1,0 +1,89 @@
+name: 'Deploy Current Branch'
+description: 'Builds Docker image from current branch commit and deploys it to KubeVela cluster for development testing'
+
+runs:
+  using: "composite"
+  steps:
+    # ========================================================================
+    # Git Commit Hash Generation
+    # Generate unique image tag from current branch's latest commit
+    # ========================================================================
+    - name: Get commit hash
+      id: commit_hash
+      shell: bash
+      run: |
+        COMMIT_HASH="git-$(git rev-parse --short HEAD)"
+        echo "Using commit hash: $COMMIT_HASH"
+        echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+
+    # ========================================================================
+    # Docker Image Build and Cluster Loading
+    # Build development image from current code and load into KinD cluster
+    # ========================================================================
+    - name: Build and load Docker image
+      shell: bash
+      run: |
+        echo "Building development image: vela-core-test:${{ env.COMMIT_HASH }}"
+
+        mkdir -p $HOME/tmp/
+
+        docker build --no-cache \
+          -t vela-core-test:${{ env.COMMIT_HASH }} \
+          -f Dockerfile .
+
+        echo "Loading image into KinD cluster..."
+        TMPDIR=$HOME/tmp/ kind load docker-image vela-core-test:${{ env.COMMIT_HASH }}
+
+    # ========================================================================
+    # Custom Resource Definitions Application
+    # Pre-apply CRDs to ensure upgrade compatibility and prevent conflicts
+    # ========================================================================
+    - name: Pre-apply CRDs from target chart (upgrade-safe)
+      shell: bash
+      run: |
+        CRD_DIR="charts/vela-core/crds"
+
+        echo "Applying CRDs idempotently..."
+        kubectl apply -f "${CRD_DIR}"
+
+    # ========================================================================
+    # KubeVela Helm Chart Upgrade
+    # Upgrade existing installation to use locally built development image
+    # ========================================================================
+    - name: Upgrade KubeVela to development image
+      shell: bash
+      run: |
+        echo "Upgrading KubeVela to development version..."
+        helm upgrade kubevela ./charts/vela-core \
+          --namespace vela-system \
+          --set image.repository=vela-core-test \
+          --set image.tag=${{ env.COMMIT_HASH }} \
+          --set image.pullPolicy=IfNotPresent \
+          --timeout 5m \
+          --wait \
+          --debug
+
+    # ========================================================================
+    # Deployment Status Verification
+    # Verify successful upgrade and confirm correct image deployment
+    # ========================================================================
+    - name: Verify deployment status
+      shell: bash
+      run: |
+        echo "=== DEPLOYMENT VERIFICATION ==="
+        echo "Verifying upgrade to local development image..."
+
+        echo "--- Pod Status ---"
+        kubectl get pods -n vela-system
+
+        echo "--- Deployment Rollout ---"
+        kubectl rollout status deployment/kubevela-vela-core \
+          -n vela-system \
+          --timeout=300s
+
+        echo "--- Deployed Image Version ---"
+        kubectl get deployment kubevela-vela-core \
+          -n vela-system \
+          -o yaml | grep "image:" | head -1
+
+        echo "Deployment verification completed successfully!"

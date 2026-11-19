@@ -25,7 +25,7 @@ var _ = Describe("Test Registry ListAddonInfo()", func() {
 			Helm: &HelmSource{URL: "http://127.0.0.1:18083/multi"},
 		}
 		It("return addon info", func() {
-			addons, err := registry.ListAddonInfo()
+			addons, err := ListAddonInfo(&registry)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(addons).To(HaveLen(2))
 			Expect(addons).To(HaveKey("fluxcd"))
@@ -37,7 +37,7 @@ var _ = Describe("Test Registry ListAddonInfo()", func() {
 			Name: LocalAddonRegistryName,
 		}
 		It("return empty map", func() {
-			addons, err := registry.ListAddonInfo()
+			addons, err := ListAddonInfo(&registry)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(addons).To(HaveLen(0))
 		})

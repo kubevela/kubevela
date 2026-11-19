@@ -18,7 +18,9 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
+	"strconv"
 
 	"github.com/hashicorp/go-version"
 	"github.com/kubevela/pkg/util/k8s"
@@ -35,6 +37,7 @@ import (
 
 	"github.com/kubevela/pkg/util/compression"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"github.com/kubevela/pkg/controller/sharding"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
@@ -45,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/component"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -129,6 +133,21 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
+
+	// Normalize component properties (RawExtension) to ensure consistent JSON encoding
+	// This prevents spurious revision creation due to JSON field order/formatting differences
+	for i := range copiedApp.Spec.Components {
+		if copiedApp.Spec.Components[i].Properties != nil && copiedApp.Spec.Components[i].Properties.Raw != nil {
+			// Decode and re-encode to normalize JSON
+			var obj map[string]interface{}
+			if err := json.Unmarshal(copiedApp.Spec.Components[i].Properties.Raw, &obj); err == nil {
+				if normalized, err := json.Marshal(obj); err == nil {
+					copiedApp.Spec.Components[i].Properties.Raw = normalized
+				}
+			}
+		}
+	}
+
 	appRev := &v1beta1.ApplicationRevision{
 		Spec: v1beta1.ApplicationRevisionSpec{
 			ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
@@ -138,10 +157,22 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 				TraitDefinitions:        make(map[string]*v1beta1.TraitDefinition),
 				PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
 				WorkflowStepDefinitions: make(map[string]*v1beta1.WorkflowStepDefinition),
+				SourceDefinitions:       make(map[string]*v1beta1.SourceDefinition),
 				Policies:                make(map[string]v1alpha1.Policy),
 			},
 		},
 	}
+
+	// If af is nil, skip gathering definitions from appfile
+	// This can happen in tests that only need to test the JSON normalization behavior
+	if af == nil {
+		hash, err := ComputeAppRevisionHash(appRev)
+		if err != nil {
+			return nil, "", errors.Wrapf(err, "failed to compute hash for application revision")
+		}
+		return appRev, hash, nil
+	}
+
 	for _, w := range af.ParsedComponents {
 		if w == nil {
 			continue
@@ -186,9 +217,34 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	for name, def := range af.RelatedWorkflowStepDefinitions {
 		appRev.Spec.WorkflowStepDefinitions[name] = def.DeepCopy()
 	}
+	for name, def := range af.RelatedSourceDefinitions {
+		appRev.Spec.SourceDefinitions[name] = def.DeepCopy()
+	}
 	for name, po := range af.ExternalPolicies {
 		appRev.Spec.Policies[name] = *po
 	}
+
+	// Add Application-scoped PolicyDefinitions that were resolved and applied
+	// These are stored in the ApplicationRevision (like ComponentDefinitions)
+	if h.applicationScopedPolicyDefs != nil {
+		for name, pd := range h.applicationScopedPolicyDefs {
+			pdCopy := pd.DeepCopy()
+			pdCopy.Status = v1beta1.PolicyDefinitionStatus{} // Clear status
+			appRev.Spec.PolicyDefinitions[name] = *pdCopy
+		}
+	}
+
+	// Add policy version metadata for observability
+	if len(h.policyVersions) > 0 {
+		appRev.Spec.PolicyVersions = make(map[string]v1beta1.PolicyVersionMetadata)
+		for name, versionInfo := range h.policyVersions {
+			appRev.Spec.PolicyVersions[name] = versionInfo
+		}
+		klog.V(common2.LogDebug).InfoS("Stored PolicyVersions in ApplicationRevision", "count", len(h.policyVersions), "policies", h.policyVersions)
+	} else {
+		klog.V(common2.LogDebug).InfoS("No PolicyVersions to store in ApplicationRevision", "policyVersionsNil", h.policyVersions == nil, "count", len(h.policyVersions))
+	}
+
 	var err error
 	if appRev.Spec.ReferredObjects, err = component.ConvertUnstructuredsToReferredObjects(af.ReferredObjects); err != nil {
 		return nil, "", errors.Wrapf(err, "failed to marshal referred object")
@@ -232,6 +288,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ScopeDefinitionHash        map[string]string
 		PolicyDefinitionHash       map[string]string
 		WorkflowStepDefinitionHash map[string]string
+		SourceDefinitionHash       map[string]string
 		PolicyHash                 map[string]string
 		WorkflowHash               string
 		ReferredObjectsHash        string
@@ -242,6 +299,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ScopeDefinitionHash:        make(map[string]string),
 		PolicyDefinitionHash:       make(map[string]string),
 		WorkflowStepDefinitionHash: make(map[string]string),
+		SourceDefinitionHash:       make(map[string]string),
 		PolicyHash:                 make(map[string]string),
 	}
 	var err error
@@ -289,6 +347,14 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		}
 		revHash.WorkflowStepDefinitionHash[key] = hash
 	}
+	for key, sd := range appRevision.Spec.SourceDefinitions {
+		s := sd
+		hash, err := utils.ComputeSpecHash(&s.Spec)
+		if err != nil {
+			return "", err
+		}
+		revHash.SourceDefinitionHash[key] = hash
+	}
 	for key, po := range appRevision.Spec.Policies {
 		hash, err := utils.ComputeSpecHash(po.Properties)
 		if err != nil {
@@ -323,17 +389,22 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 	if h.latestAppRev != nil && oam.GetPublishVersion(h.app) != oam.GetPublishVersion(h.latestAppRev) {
 		isLatestRev = false
 	}
+	if h.policyUpdatesAdopted {
+		isLatestRev = false
+	}
 
 	// diff the latest revision first
 	if isLatestRev {
 		appSpec := h.currentAppRev.Spec.Application.Spec
 		traitDef := h.currentAppRev.Spec.TraitDefinitions
 		workflowStepDef := h.currentAppRev.Spec.WorkflowStepDefinitions
+		sourceDef := h.currentAppRev.Spec.SourceDefinitions
 		h.currentAppRev = h.latestAppRev.DeepCopy()
 		h.currentRevHash = h.app.Status.LatestRevision.RevisionHash
 		h.currentAppRev.Spec.Application.Spec = appSpec
 		h.currentAppRev.Spec.TraitDefinitions = traitDef
 		h.currentAppRev.Spec.WorkflowStepDefinitions = workflowStepDef
+		h.currentAppRev.Spec.SourceDefinitions = sourceDef
 		return false, false, nil
 	}
 
@@ -345,9 +416,11 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 
 	for _, _rev := range revs {
 		rev := _rev.DeepCopy()
-		if rev.GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash &&
-			DeepEqualRevision(rev, h.currentAppRev) &&
-			oam.GetPublishVersion(rev) == oam.GetPublishVersion(h.app) {
+		hashMatches := rev.GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash
+		deepEqual := DeepEqualRevision(rev, h.currentAppRev)
+		publishVersionMatches := oam.GetPublishVersion(rev) == oam.GetPublishVersion(h.app)
+
+		if hashMatches && deepEqual && publishVersionMatches {
 			// we set currentAppRev to existRevision
 			h.currentAppRev = rev
 			return true, false, nil
@@ -370,21 +443,41 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	if len(oldTraitDefinitions) != len(newTraitDefinitions) {
 		return false
 	}
+	oldSourceDefinitions := old.Spec.SourceDefinitions
+	newSourceDefinitions := new.Spec.SourceDefinitions
+	if len(oldSourceDefinitions) != len(newSourceDefinitions) {
+		return false
+	}
 	if len(old.Spec.ComponentDefinitions) != len(new.Spec.ComponentDefinitions) {
 		return false
 	}
 	for key, wd := range new.Spec.WorkloadDefinitions {
-		if !apiequality.Semantic.DeepEqual(old.Spec.WorkloadDefinitions[key].Spec, wd.Spec) {
+		oldWd, exists := old.Spec.WorkloadDefinitions[key]
+		if !exists || !apiequality.Semantic.DeepEqual(oldWd.Spec, wd.Spec) {
 			return false
 		}
 	}
 	for key, cd := range new.Spec.ComponentDefinitions {
-		if !apiequality.Semantic.DeepEqual(old.Spec.ComponentDefinitions[key].Spec, cd.Spec) {
+		oldCd, exists := old.Spec.ComponentDefinitions[key]
+		if !exists || !apiequality.Semantic.DeepEqual(oldCd.Spec, cd.Spec) {
 			return false
 		}
 	}
 	for key, td := range newTraitDefinitions {
-		if !apiequality.Semantic.DeepEqual(oldTraitDefinitions[key].Spec, td.Spec) {
+		oldTd, exists := oldTraitDefinitions[key]
+		if !exists || !apiequality.Semantic.DeepEqual(oldTd.Spec, td.Spec) {
+			return false
+		}
+	}
+	for key, sd := range newSourceDefinitions {
+		oldSd, exists := oldSourceDefinitions[key]
+		if !exists {
+			return false
+		}
+		if (oldSd == nil) != (sd == nil) {
+			return false
+		}
+		if oldSd != nil && !apiequality.Semantic.DeepEqual(oldSd.Spec, sd.Spec) {
 			return false
 		}
 	}
@@ -395,7 +488,7 @@ func deepEqualPolicy(old, new v1alpha1.Policy) bool {
 	return old.Type == new.Type && apiequality.Semantic.DeepEqual(old.Properties, new.Properties)
 }
 
-func deepEqualWorkflow(old, new workflowv1alpha1.Workflow) bool {
+func deepEqualWorkflow(old, new wfTypesv1alpha1.Workflow) bool {
 	return apiequality.Semantic.DeepEqual(old.Steps, new.Steps)
 }
 
@@ -452,6 +545,12 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 	}
 	appRev := h.currentAppRev
 	appRev.Namespace = h.app.Namespace
+	// A held revision runs while the author's later edits wait, so it keeps the generation it
+	// recorded, or none: that is how the policy render tells those edits from what it holds.
+	generation, recordGeneration := strconv.FormatInt(h.app.Generation, 10), true
+	if h.heldByGlobalPolicy != nil {
+		generation, recordGeneration = h.heldByGlobalPolicy.GetAnnotations()[oam.AnnotationAppGeneration]
+	}
 	appRev.SetGroupVersionKind(v1beta1.ApplicationRevisionGroupVersionKind)
 	// pass application's annotations & labels to app revision
 	appRev.SetAnnotations(h.app.GetAnnotations())
@@ -461,6 +560,9 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		oam.LabelAppName:         h.app.GetName(),
 		oam.LabelAppRevisionHash: h.currentRevHash,
 	})
+	if recordGeneration {
+		util.AddAnnotations(appRev, map[string]string{oam.AnnotationAppGeneration: generation})
+	}
 	// ApplicationRevision must use Application as ctrl-owner
 	appRev.SetOwnerReferences([]metav1.OwnerReference{{
 		APIVersion: v1beta1.SchemeGroupVersion.String(),
@@ -506,6 +608,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchSta
 		// skip update if app revision is not changed
 		return nil
 	}
+
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("update-apprev-status", monitorContext.DurationMetric(func(v float64) {
 			metrics.AppReconcileStageDurationHistogram.WithLabelValues("update-apprev-status").Observe(v)
@@ -519,13 +622,23 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchSta
 		Revision:     int64(revNum),
 		RevisionHash: h.currentRevHash,
 	}
+
+	// Save the spec before patchStatus - the merge patch operation refreshes the entire app from API server
+	// This would lose any in-memory policy modifications to app.Spec
+	savedSpec := h.app.Spec.DeepCopy()
+
 	if err := patchStatus(ctx, h.app, common.ApplicationRendering); err != nil {
 		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
 			"latest revision", revName, "err", err)
 		return err
 	}
-	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
+
+	// Restore the spec after patchStatus to preserve policy modifications
+	h.app.Spec = *savedSpec
+
+	klog.V(common2.LogDebug).InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
 		"latest revision", revName)
+
 	return nil
 }
 

@@ -5,7 +5,7 @@ on:
     branches:
       - master
       - release-*
-  workflow_dispatch: { }
+  workflow_dispatch: {}
   pull_request:
     branches:
       - master
@@ -14,15 +14,10 @@ on:
 permissions:
   contents: read
 
-env:
-  # Common versions
-  GO_VERSION: '1.22'
-
 jobs:
-
   detect-noop:
     permissions:
-      actions: write  # for fkirc/skip-duplicate-actions to skip or stop workflow runs
+      actions: write # for fkirc/skip-duplicate-actions to skip or stop workflow runs
     runs-on: ubuntu-22.04
     outputs:
       noop: ${{ steps.noop.outputs.should_skip }}
@@ -42,41 +37,22 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
 
     steps:
-      - name: Set up Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
       - name: Check out code into the Go module directory
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           submodules: true
 
-      - name: Cache Go Dependencies
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84
+      - name: Setup Env
+        uses: ./.github/actions/env-setup
+
+      # Unit tests do not use the vela-core image, so skip building it.
+      - name: Setup KinD with Kubernetes
+        uses: ./.github/actions/setup-kind-cluster
         with:
-          path: .work/pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-pkg-
+          load-image: 'false'
 
-      - name: Install ginkgo
-        run: |
-          sudo sed -i 's/azure\.//' /etc/apt/sources.list
-          sudo apt-get update
-          sudo apt-get install -y golang-ginkgo-dev
-
-      - name: Setup KinD
-        run: |
-          go install sigs.k8s.io/kind@v0.19.0
-          kind create cluster
-
-      - name: Run Make test
-        run: make test
-
-      - name: Upload coverage report
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
+      - name: Run unit tests
+        uses: ./.github/actions/unit-test
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.txt
-          flags: core-unittests
-          name: codecov-umbrella
+          codecov-enable: true
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}

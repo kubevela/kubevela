@@ -18,13 +18,20 @@ package appfile
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+
+	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+
 	"cuelang.org/go/cue"
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	"github.com/kubevela/pkg/util/slices"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"
@@ -35,8 +42,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	velaclient "github.com/kubevela/pkg/controller/client"
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/cue/process"
 
@@ -50,6 +57,8 @@ import (
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/policy/ctxschema"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 // constant error information
@@ -110,32 +119,25 @@ func (comp *Component) GetTemplateContext(ctx process.Context, client client.Cli
 }
 
 // EvalStatus eval workload status
-func (comp *Component) EvalStatus(templateContext map[string]interface{}) (string, error) {
+func (comp *Component) EvalStatus(templateContext map[string]interface{}) (*health.StatusResult, error) {
 	// if the standard workload is managed by trait always return empty message
 	if comp.SkipApplyWorkload {
-		return "", nil
+		return nil, nil
 	}
-	return comp.engine.Status(templateContext, comp.FullTemplate.CustomStatus, comp.Params)
-}
-
-// EvalHealth eval workload health check
-func (comp *Component) EvalHealth(templateContext map[string]interface{}) (bool, error) {
-	// if the health of template is not set or standard workload is managed by trait always return true
-	if comp.SkipApplyWorkload {
-		return true, nil
-	}
-	return comp.engine.HealthCheck(templateContext, comp.FullTemplate.Health, comp.Params)
+	return comp.engine.Status(templateContext, comp.FullTemplate.AsStatusRequest(comp.Params))
 }
 
 // Trait is ComponentTrait
 type Trait struct {
 	// The Name is name of TraitDefinition, actually it's a type of the trait instance
-	Name               string
+	Name string
+	// TypeLabel is the trait.oam.dev/type value on the objects the trait emits.
+	// It equals Name except for a module trait, where it is the installed name.
+	TypeLabel          string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
 
 	Template           string
-	HealthCheckPolicy  string
 	CustomStatusFormat string
 
 	// RequiredSecrets stores secret names which the trait needs from cloud resource component and its context
@@ -143,6 +145,15 @@ type Trait struct {
 
 	FullTemplate *Template
 	engine       definition.AbstractEngine
+}
+
+// GetTypeLabel returns TypeLabel, falling back to Name for a Trait built
+// without one.
+func (trait *Trait) GetTypeLabel() string {
+	if trait.TypeLabel != "" {
+		return trait.TypeLabel
+	}
+	return trait.Name
 }
 
 // EvalContext eval trait template and set result to context
@@ -159,14 +170,9 @@ func (trait *Trait) GetTemplateContext(ctx process.Context, client client.Client
 	return templateContext, err
 }
 
-// EvalStatus eval trait status
-func (trait *Trait) EvalStatus(templateContext map[string]interface{}) (string, error) {
-	return trait.engine.Status(templateContext, trait.CustomStatusFormat, trait.Params)
-}
-
-// EvalHealth eval trait health check
-func (trait *Trait) EvalHealth(templateContext map[string]interface{}) (bool, error) {
-	return trait.engine.HealthCheck(templateContext, trait.HealthCheckPolicy, trait.Params)
+// EvalStatus eval trait status (including health)
+func (trait *Trait) EvalStatus(templateContext map[string]interface{}) (*health.StatusResult, error) {
+	return trait.engine.Status(templateContext, trait.FullTemplate.AsStatusRequest(trait.Params))
 }
 
 // Appfile describes application
@@ -186,27 +192,51 @@ type Appfile struct {
 	RelatedTraitDefinitions        map[string]*v1beta1.TraitDefinition
 	RelatedComponentDefinitions    map[string]*v1beta1.ComponentDefinition
 	RelatedWorkflowStepDefinitions map[string]*v1beta1.WorkflowStepDefinition
+	RelatedSourceDefinitions       map[string]*v1beta1.SourceDefinition
 
-	Policies      []v1beta1.AppPolicy
-	Components    []common.ApplicationComponent
+	Policies   []v1beta1.AppPolicy
+	Sources    []v1beta1.ApplicationSource
+	Components []common.ApplicationComponent
+	// Dependencies is what each component depends on, taken once from the
+	// components as parsed: status reports it, and the workflow orders by the
+	// entries of it that order (sources.Orders).
+	Dependencies  []common.ComponentDependency
 	Artifacts     []*types.ComponentManifest
-	WorkflowSteps []workflowv1alpha1.WorkflowStep
-	WorkflowMode  *workflowv1alpha1.WorkflowExecuteMode
+	WorkflowSteps []wfTypesv1alpha1.WorkflowStep
+	WorkflowMode  *wfTypesv1alpha1.WorkflowExecuteMode
 
 	ExternalPolicies map[string]*v1alpha1.Policy
-	ExternalWorkflow *workflowv1alpha1.Workflow
+	ExternalWorkflow *wfTypesv1alpha1.Workflow
 	ReferredObjects  []*unstructured.Unstructured
 
 	app *v1beta1.Application
+
+	// Context is the reconciliation context for the current Application, populated during
+	// controller reconcile and carried into rendering
+	Context context.Context
+	// KubeClient is used by runtime resolvers that need API access during rendering.
+	KubeClient client.Client
+	// SourceCacheStore provides source cache persistence backing for rendering.
+	SourceCacheStore velaprocess.SourceCacheStore
+
+	// PolicyContext is context.custom as the policies that apply will supply
+	// it, set by admission to validate components against. Nil validates as
+	// though nothing were known of it.
+	PolicyContext *ctxschema.View
 
 	Debug bool
 }
 
 // GeneratePolicyManifests generates policy manifests from an appFile
 // internal policies like apply-once, topology, will not render manifests
-func (af *Appfile) GeneratePolicyManifests(_ context.Context) ([]*unstructured.Unstructured, error) {
+func (af *Appfile) GeneratePolicyManifests(ctx context.Context, cli client.Client) ([]*unstructured.Unstructured, error) {
 	var manifests []*unstructured.Unstructured
 	for _, policy := range af.ParsedPolicies {
+		// Skip Application-scoped policies - they were already processed in ApplyApplicationScopeTransforms
+		if af.isApplicationScopedPolicy(ctx, cli, policy) {
+			continue
+		}
+
 		un, err := af.generatePolicyUnstructured(policy)
 		if err != nil {
 			return nil, err
@@ -217,12 +247,52 @@ func (af *Appfile) GeneratePolicyManifests(_ context.Context) ([]*unstructured.U
 }
 
 func (af *Appfile) generatePolicyUnstructured(workload *Component) ([]*unstructured.Unstructured, error) {
-	ctxData := GenerateContextDataFromAppFile(af, workload.Name)
-	uns, err := generatePolicyUnstructuredFromCUEModule(workload, af.Artifacts, ctxData)
+	r, err := af.RenderPolicy(workload)
 	if err != nil {
 		return nil, err
 	}
-	for _, un := range uns {
+	uns := []*unstructured.Unstructured{r.Output}
+	for _, name := range r.outputNames {
+		uns = append(uns, r.Outputs[name])
+	}
+	return uns, nil
+}
+
+// RenderedPolicy is a workload-bearing policy rendered as it is dispatched.
+type RenderedPolicy struct {
+	// Output and Outputs, by name, are defaulted to the policy's name and the
+	// Application's namespace, and labelled as the Application's.
+	Output  *unstructured.Unstructured
+	Outputs map[string]*unstructured.Unstructured
+	// Context is what the template rendered against.
+	Context process.Context
+
+	outputNames []string
+}
+
+// RenderPolicy renders a policy's template as it is dispatched.
+func (af *Appfile) RenderPolicy(workload *Component) (*RenderedPolicy, error) {
+	ctxData := GenerateContextDataFromAppFile(af, workload.Name)
+	// A policy's manifests are rendered once and dispatched to the hub - Dispatch
+	// is called with an empty cluster, which means local. GenerateContextDataFromAppFile
+	// leaves Cluster unset because it serves paths that decide placement later, so
+	// without this a policy read context.cluster as "" while the component beside
+	// it read "local" in the same reconcile.
+	//
+	// It is not cosmetic: most sources do a cluster-scoped lookup, so they read
+	// context.cluster and key on it. An unset cluster makes every such source
+	// unusable from a policy, and makes the two cache entries for one ConfigMap
+	// collide on "".
+	ctxData.Cluster = pkgmulticluster.Local
+	r, err := generatePolicyUnstructuredFromCUEModule(workload, af.Artifacts, ctxData)
+	if err != nil {
+		return nil, err
+	}
+	all := []*unstructured.Unstructured{r.Output}
+	for _, name := range r.outputNames {
+		all = append(all, r.Outputs[name])
+	}
+	for _, un := range all {
 		if len(un.GetName()) == 0 {
 			un.SetName(workload.Name)
 		}
@@ -230,12 +300,16 @@ func (af *Appfile) generatePolicyUnstructured(workload *Component) ([]*unstructu
 			un.SetNamespace(af.Namespace)
 		}
 	}
-	return uns, nil
+	return r, nil
 }
 
-func generatePolicyUnstructuredFromCUEModule(comp *Component, artifacts []*types.ComponentManifest, ctxData velaprocess.ContextData) ([]*unstructured.Unstructured, error) {
+func generatePolicyUnstructuredFromCUEModule(comp *Component, artifacts []*types.ComponentManifest, ctxData velaprocess.ContextData) (*RenderedPolicy, error) {
 	pCtx := velaprocess.NewContext(ctxData)
 	pCtx.PushData(velaprocess.ContextDataArtifacts, prepareArtifactsData(artifacts))
+	// The policy's own identity, and the surface it renders on - its context is
+	// component-shaped but it is not a component, and context.name is the policy.
+	pCtx.PushData(velaprocess.ContextPolicyName, comp.Name)
+	pCtx.PushData(velaprocess.ContextPolicyType, comp.Type)
 	if err := comp.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
@@ -247,16 +321,47 @@ func generatePolicyUnstructuredFromCUEModule(comp *Component, artifacts []*types
 	commonLabels := definition.GetCommonLabels(definition.GetBaseContextLabels(pCtx))
 	util.AddLabels(workload, commonLabels)
 
-	var res = []*unstructured.Unstructured{workload}
+	r := &RenderedPolicy{Output: workload, Outputs: map[string]*unstructured.Unstructured{}, Context: pCtx}
 	for _, assist := range auxs {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
 			return nil, errors.Wrapf(err, "evaluate auxiliary=%s template for policy=%s app=%s", assist.Name, comp.Name, ctxData.AppName)
 		}
 		util.AddLabels(tr, commonLabels)
-		res = append(res, tr)
+		r.outputNames = append(r.outputNames, assist.Name)
+		r.Outputs[assist.Name] = tr
 	}
-	return res, nil
+	return r, nil
+}
+
+// isApplicationScopedPolicy checks if a policy has a non-default Scope
+// Non-default scopes (e.g. ApplicationScope) are handled in specialized pipelines
+// Note: Backward compatible - unset Scope field defaults to empty string (DefaultScope)
+func (af *Appfile) isApplicationScopedPolicy(ctx context.Context, cli client.Client, policy *Component) bool {
+	var policyDef *v1beta1.PolicyDefinition
+
+	// Try to get from AppRevision first
+	if af.AppRevision != nil && af.AppRevision.Spec.PolicyDefinitions != nil {
+		if def, ok := af.AppRevision.Spec.PolicyDefinitions[policy.Type]; ok {
+			policyDef = &def
+		}
+	}
+
+	// If not in AppRevision, look it up from cluster
+	if policyDef == nil && cli != nil {
+		def := &v1beta1.PolicyDefinition{}
+		err := util.GetCapabilityDefinition(ctx, cli, def, policy.Type, af.app.Annotations)
+		if err != nil {
+			return false
+		}
+		policyDef = def
+	}
+
+	if policyDef == nil {
+		return false
+	}
+
+	return policyDef.Spec.Scope != v1beta1.DefaultScope
 }
 
 // artifacts contains resources in unstructured shape of all components
@@ -338,17 +443,94 @@ func (af *Appfile) SetOAMContract(comp *types.ComponentManifest) error {
 		if err := af.setWorkloadRefToTrait(workloadRef, trait); err != nil && !IsNotFoundInAppFile(err) {
 			return errors.WithMessagef(err, "cannot set workload reference to trait %q", trait.GetName())
 		}
+		if err := af.propagatePodDisruptiveHash(comp.ComponentOutput, trait); err != nil && !IsNotFoundInAppFile(err) {
+			return errors.WithMessagef(err, "cannot propagate podDisruptive hash for trait %q", trait.GetName())
+		}
 	}
 	return nil
 }
 
-// workload and trait in the same component both have these labels, except componentRevision which should be evaluated with input/output
-func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]string {
-	filter := func(labels map[string]string, notAllowedKey []string) {
-		for _, l := range notAllowedKey {
-			delete(labels, strings.TrimSpace(l))
+const podRestartHashAnnotationPrefix = "app.oam.dev/trait-restart-hash-"
+
+const maxAnnotationKeyNameLength = 63
+
+func podRestartHashAnnotationKey(lookupType string) string {
+	key := podRestartHashAnnotationPrefix + lookupType
+	if len(key) <= maxAnnotationKeyNameLength {
+		return key
+	}
+	sum := sha256.Sum256([]byte(lookupType))
+	return podRestartHashAnnotationPrefix + hex.EncodeToString(sum[:])[:16]
+}
+
+func (af *Appfile) propagatePodDisruptiveHash(workload *unstructured.Unstructured, trait *unstructured.Unstructured) error {
+	traitType := trait.GetLabels()[oam.TraitTypeLabel]
+	if traitType == "" || traitType == definition.AuxiliaryWorkload {
+		return nil
+	}
+	lookupType := traitType
+	if strings.Contains(lookupType, "-") {
+		splitName := lookupType[0:strings.LastIndex(lookupType, "-")]
+		if _, ok := af.RelatedTraitDefinitions[splitName]; ok {
+			lookupType = splitName
 		}
 	}
+	traitDef, ok := af.RelatedTraitDefinitions[lookupType]
+	if !ok {
+		return errors.Errorf("TraitDefinition %s not found in appfile", lookupType)
+	}
+	if !traitDef.Spec.PodDisruptive {
+		return nil
+	}
+
+	if _, found, err := unstructured.NestedMap(workload.UnstructuredContent(), "spec", "template"); err != nil || !found {
+		return nil //nolint:nilerr
+	}
+
+	hash, err := computeTraitContentHash(trait)
+	if err != nil {
+		return errors.Wrapf(err, "failed to hash content of trait %q", trait.GetName())
+	}
+
+	templateAnnotations, _, err := unstructured.NestedStringMap(workload.UnstructuredContent(), "spec", "template", "metadata", "annotations")
+	if err != nil {
+		return err
+	}
+	if templateAnnotations == nil {
+		templateAnnotations = map[string]string{}
+	}
+
+	templateAnnotations[podRestartHashAnnotationKey(lookupType)] = hash
+	return unstructured.SetNestedStringMap(workload.UnstructuredContent(), templateAnnotations, "spec", "template", "metadata", "annotations")
+}
+
+var oamInjectedMetadataFields = [][]string{
+	{"resourceVersion"},
+	{"uid"},
+	{"creationTimestamp"},
+	{"generation"},
+	{"managedFields"},
+	{"ownerReferences"},
+	{"labels", oam.LabelAppRevision},
+	{"labels", oam.LabelAppRevisionHash},
+}
+
+func computeTraitContentHash(trait *unstructured.Unstructured) (string, error) {
+	cp := trait.DeepCopy()
+	for _, field := range oamInjectedMetadataFields {
+		unstructured.RemoveNestedField(cp.Object, append([]string{"metadata"}, field...)...)
+	}
+	unstructured.RemoveNestedField(cp.Object, "status")
+	data, err := json.Marshal(cp.Object)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:16], nil
+}
+
+// workload and trait in the same component both have these labels, except componentRevision which should be evaluated with input/output
+func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]string {
 	Labels := map[string]string{
 		oam.LabelAppName:      af.Name,
 		oam.LabelAppNamespace: af.Namespace,
@@ -357,27 +539,96 @@ func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]str
 	}
 	// merge application's all labels
 	finalLabels := util.MergeMapOverrideWithDst(af.AppLabels, Labels)
-	filterLabels, ok := af.AppAnnotations[oam.AnnotationFilterLabelKeys]
-	if ok {
-		filter(finalLabels, strings.Split(filterLabels, ","))
+	// app.oam.dev/cluster says where this Application was dispatched, by an
+	// Application that deployed it. It is not about the objects this one renders:
+	// dispatch only sets the cluster on an object that has none, so an inherited
+	// value would override this Application's own topology.
+	delete(finalLabels, oam.LabelAppCluster)
+	for _, k := range FilteredLabelKeys(af.AppAnnotations) {
+		delete(finalLabels, k)
 	}
 	return finalLabels
 }
 
-// workload and trait both have these annotations
-func (af *Appfile) filterAndSetAnnotations(obj *unstructured.Unstructured) {
-	var allFilterAnnotation []string
-	allFilterAnnotation = append(allFilterAnnotation, types.DefaultFilterAnnots...)
+// FilteredLabelKeys returns the label keys an Application with appAnnotations does not pass
+// down to the resources it renders (filter.oam.dev/label-keys).
+func FilteredLabelKeys(appAnnotations map[string]string) []string {
+	passed, ok := appAnnotations[oam.AnnotationFilterLabelKeys]
+	if !ok {
+		return nil
+	}
+	return splitKeys(passed)
+}
 
-	passedFilterAnnotation, ok := af.AppAnnotations[oam.AnnotationFilterAnnotationKeys]
-	if ok {
-		allFilterAnnotation = append(allFilterAnnotation, strings.Split(passedFilterAnnotation, ",")...)
+// FilteredAnnotationKeys returns the annotation keys an Application with appAnnotations does
+// not pass down to the resources it renders: the defaults in types.DefaultFilterAnnots and
+// those listed in filter.oam.dev/annotation-keys.
+func FilteredAnnotationKeys(appAnnotations map[string]string) []string {
+	keys := append([]string{}, types.DefaultFilterAnnots...)
+	if passed, ok := appAnnotations[oam.AnnotationFilterAnnotationKeys]; ok {
+		keys = append(keys, splitKeys(passed)...)
+	}
+	return keys
+}
+
+// splitKeys splits a comma-separated list of keys, trimming each.
+func splitKeys(list string) []string {
+	keys := strings.Split(list, ",")
+	for i := range keys {
+		keys[i] = strings.TrimSpace(keys[i])
+	}
+	return keys
+}
+
+// workload and trait both have these annotations
+//
+// The annotation map is read once and written once. util.AddAnnotations and
+// util.RemoveAnnotations would each fetch and set it again, and GetAnnotations
+// deep-copies on every call, so doing the merge and the filtering in one pass here
+// halves the allocations per rendered object.
+func (af *Appfile) filterAndSetAnnotations(obj *unstructured.Unstructured) {
+	ann := obj.GetAnnotations()
+	if ann == nil && af.AppAnnotations == nil {
+		// Nothing to merge and nothing to filter. Matches util.AddAnnotations, whose
+		// MergeMapOverrideWithDst returns nil when both sides are nil, so the
+		// metadata.annotations field stays absent rather than becoming an empty map.
+		return
+	}
+	if ann == nil {
+		ann = map[string]string{}
 	}
 
+	// The "-"/"skip" value of app.oam.dev/last-applied-configuration is a statement
+	// an object makes about itself (see pkg/utils/apply), so it must not be
+	// inherited. The addon-as-component flow sets it on the Application it renders
+	// because that single object can exceed Kubernetes' annotation size limit;
+	// letting it pass down would disable three-way merge for every resource inside
+	// the addon and break `vela status --tree --format raw`, which feeds this value
+	// to a JSON parser (pkg/resourcetracker/tree.go).
+	//
+	// Read before the merge below, because the Application's value would otherwise
+	// overwrite the component's own.
+	own := ann[oam.AnnotationLastAppliedConfig]
+
 	// pass application's all annotations
-	util.AddAnnotations(obj, af.AppAnnotations)
-	// remove useless annotations for workload/trait
-	util.RemoveAnnotations(obj, allFilterAnnotation)
+	maps.Copy(ann, af.AppAnnotations)
+	for _, k := range FilteredAnnotationKeys(af.AppAnnotations) {
+		delete(ann, k)
+	}
+
+	switch {
+	case own != "":
+		// The component set this key on its own output. Whatever it says, it is a
+		// statement about the component's own resource, so it wins over the copy
+		// inherited from the Application above -- including a recorded
+		// configuration, not just the "-"/"skip" opt-out.
+		ann[oam.AnnotationLastAppliedConfig] = own
+	case oam.IsSkipLastAppliedConfig(ann[oam.AnnotationLastAppliedConfig]):
+		// inherited from the parent Application; drop it
+		delete(ann, oam.AnnotationLastAppliedConfig)
+	}
+
+	obj.SetAnnotations(ann)
 }
 
 func (af *Appfile) setNamespace(obj *unstructured.Unstructured) {
@@ -497,6 +748,10 @@ func PrepareProcessContext(comp *Component, ctxData velaprocess.ContextData) (pr
 	if comp.Ctx == nil {
 		comp.Ctx = NewBasicContext(ctxData, comp.Params)
 	}
+	// Before EvalContext, not after: that call runs the component's template, and
+	// a source consumed there resolves during it.
+	comp.Ctx.PushData(velaprocess.ContextComponentName, comp.Name)
+	comp.Ctx.PushData(velaprocess.ContextComponentType, comp.Type)
 	if err := comp.EvalContext(comp.Ctx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
@@ -526,8 +781,14 @@ func generateComponentFromTerraformModule(comp *Component, appName, ns string) (
 
 func baseGenerateComponent(pCtx process.Context, comp *Component, appName, ns string) (*types.ComponentManifest, error) {
 	var err error
+	// The component identity is already in place from PrepareProcessContext; a
+	// trait inherits it and adds its own type.
+	pCtx.PushData(velaprocess.ContextComponentName, comp.Name)
 	pCtx.PushData(velaprocess.ContextComponentType, comp.Type)
 	for _, tr := range comp.Traits {
+		// Trait.Name is the TraitDefinition's name - the trait's *type*. There is
+		// no instance name in the API to expose alongside it.
+		pCtx.PushData(velaprocess.ContextTraitType, tr.Name)
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, comp.Name)
 		}
@@ -572,11 +833,38 @@ func makeWorkloadWithContext(pCtx process.Context, comp *Component, ns, appName 
 	default:
 		workload, err = base.Unstructured()
 		if err != nil {
+			// Try to get the full workload template for comprehensive error analysis
+			if fullTemplateData := pCtx.GetData(definition.GetWorkloadTemplateKey(comp.Name)); fullTemplateData != nil {
+				if fullTemplate, ok := fullTemplateData.(cue.Value); ok {
+					if formattedErr := definition.FormatCUEError(err, "cannot generate manifests from", "component", comp.Name, &fullTemplate); formattedErr != nil {
+						return nil, formattedErr
+					}
+				}
+			}
+			// Fallback to using the base's value
+			val := base.Value()
+			if formattedErr := definition.FormatCUEError(err, "cannot generate manifests from", "component", comp.Name, &val); formattedErr != nil {
+				return nil, formattedErr
+			}
 			return nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", comp.Name, appName)
 		}
 	}
 	commonLabels := definition.GetCommonLabels(definition.GetBaseContextLabels(pCtx))
-	util.AddLabels(workload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: comp.Type}))
+	// Keep revisioned definition names such as "configmap-component-v1" in the
+	// label. Resolve to the installed definition name only for module references
+	// containing slashes (e.g. "s3/v1/bucket"), which are invalid label values.
+	// The name has to be non-empty to be preferred: a template loaded from a file
+	// or an application revision (dry-run, live-diff) carries a ComponentDefinition
+	// with no metadata.name, and taking it blindly would blank the label.
+	resolvedType := comp.Type
+	if strings.Contains(comp.Type, "/") && comp.FullTemplate != nil {
+		if comp.FullTemplate.ComponentDefinition != nil && comp.FullTemplate.ComponentDefinition.Name != "" {
+			resolvedType = comp.FullTemplate.ComponentDefinition.Name
+		} else if comp.FullTemplate.WorkloadDefinition != nil && comp.FullTemplate.WorkloadDefinition.Name != "" {
+			resolvedType = comp.FullTemplate.WorkloadDefinition.Name
+		}
+	}
+	util.AddLabels(workload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: resolvedType}))
 	return workload, nil
 }
 
@@ -729,14 +1017,74 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 	return nil
 }
 
+// WorkflowContextData builds the process context for workflow (non-component)
+// execution: what a workflow step's template sees as its context, before the
+// engine adds the step it is running. The goCtx parameter should contain any
+// policy additionalContext stored by ApplyApplicationScopeTransforms.
+func WorkflowContextData(goCtx context.Context, app *v1beta1.Application, appRev string) velaprocess.ContextData {
+	data := velaprocess.ContextData{
+		Namespace:       app.Namespace,
+		AppName:         app.Name,
+		CompName:        app.Name,
+		AppRevisionName: appRev,
+		Ctx:             goCtx,
+	}
+	if app.Annotations != nil {
+		data.WorkflowName = app.Annotations[oam.AnnotationWorkflowName]
+		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
+	}
+	// pass labels and annotations to workflow context
+	if len(app.Labels) > 0 {
+		data.AppLabels = app.Labels
+	}
+	if len(app.Annotations) > 0 {
+		data.AppAnnotations = app.Annotations
+	}
+	return data
+}
+
 // GenerateContextDataFromAppFile generates process context data from app file
 func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) velaprocess.ContextData {
 	data := velaprocess.ContextData{
-		Namespace:       appfile.Namespace,
-		AppName:         appfile.Name,
-		CompName:        wlName,
-		AppRevisionName: appfile.AppRevisionName,
-		Components:      appfile.Components,
+		// An unset cluster means the local one - multicluster.IsLocal treats "" and
+		// "local" alike, and routing relies on it. Nothing that compares or hashes
+		// the name does: ClusterObjectReference.Equal compares the string, and the
+		// source cache hashes it, so a caller that left this empty would key its
+		// sources on "" and take a second cache entry for a cluster that already
+		// has one. Callers rendering for a specific cluster overwrite this.
+		Cluster:              pkgmulticluster.Local,
+		Namespace:            appfile.Namespace,
+		AppName:              appfile.Name,
+		CompName:             wlName,
+		AppRevisionName:      appfile.AppRevisionName,
+		Components:           appfile.Components,
+		Ctx:                  appfile.Context,
+		Sources:              map[string]map[string]interface{}{},
+		SourceTypes:          map[string]string{},
+		SourceTemplates:      map[string]string{},
+		SourceSensitivePaths: map[string][]string{},
+		SourceCacheStore:     appfile.SourceCacheStore,
+	}
+	if data.SourceCacheStore == nil {
+		data.SourceCacheStore = sources.NewSecretSourceCacheStore(appfile.KubeClient)
+	}
+	// Front the persistent store (Layer 2) with the shared process-level LRU
+	// (Layer 1) so cache entries are shared across Applications and survive
+	// across reconciles. Keyed by the resolved storage.key.
+	data.SourceCacheStore = sources.NewLRUSourceCacheStore(data.SourceCacheStore)
+	for _, source := range appfile.Sources {
+		props := map[string]interface{}{}
+		if source.Properties != nil && len(source.Properties.Raw) > 0 {
+			_ = json.Unmarshal(source.Properties.Raw, &props)
+		}
+		data.Sources[source.Name] = props
+		data.SourceTypes[source.Name] = source.Type
+	}
+	for sourceType, def := range appfile.RelatedSourceDefinitions {
+		if def != nil && def.Spec.Schematic != nil && def.Spec.Schematic.CUE != nil {
+			data.SourceTemplates[sourceType] = def.Spec.Schematic.CUE.Template
+			data.SourceSensitivePaths[sourceType] = sources.ExtractSensitiveOutputPaths(def.Spec.Schematic.CUE.Template)
+		}
 	}
 	if appfile.AppAnnotations != nil {
 		data.WorkflowName = appfile.AppAnnotations[oam.AnnotationWorkflowName]
@@ -749,13 +1097,11 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) velaprocess
 	return data
 }
 
-// WorkflowClient cache retrieved workflow if ApplicationRevision not exists in appfile
-// else use the workflow in ApplicationRevision
 func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 	return velaclient.DelegatingHandlerClient{
 		Client: cli,
 		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
-			if wf, ok := obj.(*workflowv1alpha1.Workflow); ok {
+			if wf, ok := obj.(*wfTypesv1alpha1.Workflow); ok {
 				if af.AppRevision != nil {
 					if af.ExternalWorkflow != nil && af.ExternalWorkflow.Name == key.Name && af.ExternalWorkflow.Namespace == key.Namespace {
 						af.ExternalWorkflow.DeepCopyInto(wf)
@@ -766,7 +1112,7 @@ func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 				if err := cli.Get(ctx, key, obj); err != nil {
 					return err
 				}
-				af.ExternalWorkflow = obj.(*workflowv1alpha1.Workflow)
+				af.ExternalWorkflow = obj.(*wfTypesv1alpha1.Workflow)
 				return nil
 			}
 			return cli.Get(ctx, key, obj)

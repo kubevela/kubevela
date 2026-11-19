@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -81,8 +81,8 @@ func TestUnstructured(t *testing.T) {
 
 func TestGetGVKFromDef(t *testing.T) {
 	mapper := mock.NewClient(nil, map[schema.GroupVersionResource][]schema.GroupVersionKind{
-		schema.GroupVersionResource{Group: "example.com", Resource: "abcs"}:                {{Group: "example.com", Version: "v1", Kind: "Abc"}},
-		schema.GroupVersionResource{Group: "example.com", Resource: "abcs", Version: "v2"}: {{Group: "example.com", Version: "v2", Kind: "Abc"}},
+		{Group: "example.com", Resource: "abcs"}:                {{Group: "example.com", Version: "v1", Kind: "Abc"}},
+		{Group: "example.com", Resource: "abcs", Version: "v2"}: {{Group: "example.com", Version: "v2", Kind: "Abc"}},
 	}).RESTMapper()
 	gvk, err := util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com"})
 	assert.NoError(t, err)
@@ -992,6 +992,16 @@ func TestGetLatestDefinitionRevisionName(t *testing.T) {
 		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
 		return nil
 	}}
+	malformedListCli := test.MockClient{MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		defRevisionList := getMalformedComponentDefRevisionList()
+		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
+		return nil
+	}}
+	emptyVersionListCli := test.MockClient{MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		defRevisionList := getEmptyVersionComponentDefRevisionList()
+		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
+		return nil
+	}}
 
 	testcases := []struct {
 		name                    string
@@ -1052,6 +1062,24 @@ func TestGetLatestDefinitionRevisionName(t *testing.T) {
 			expectedDefRevisionName: "",
 			client:                  &traitListCli,
 			err:                     fmt.Errorf("error finding definition revision for Name: scaler-trait, Type: Trait"),
+		},
+		{
+			name:                    "Malformed Component version segment returns error not panic",
+			inputRevisionName:       "configmap-component-v1",
+			definitionName:          "configmap-component",
+			definitionType:          "Component",
+			expectedDefRevisionName: "",
+			client:                  &malformedListCli,
+			err:                     fmt.Errorf("error finding definition revision for Name: configmap-component, Type: Component"),
+		},
+		{
+			name:                    "Empty Component version segment returns error not panic",
+			inputRevisionName:       "configmap-component-v1",
+			definitionName:          "configmap-component",
+			definitionType:          "Component",
+			expectedDefRevisionName: "",
+			client:                  &emptyVersionListCli,
+			err:                     fmt.Errorf("error finding definition revision for Name: configmap-component, Type: Component"),
 		},
 	}
 	ctx := context.Background()
@@ -1221,6 +1249,36 @@ func getComponentDefRevisionList() v1beta1.DefinitionRevisionList {
 	return compRevisionList
 }
 
+func getMalformedComponentDefRevisionList() v1beta1.DefinitionRevisionList {
+	compDefRevision := componentDefinitionRevision.DeepCopy()
+	compDefRevision.Name = "configmap-component-v1.bad"
+
+	return v1beta1.DefinitionRevisionList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DefinitionRevision",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		Items: []v1beta1.DefinitionRevision{
+			*compDefRevision,
+		},
+	}
+}
+
+func getEmptyVersionComponentDefRevisionList() v1beta1.DefinitionRevisionList {
+	compDefRevision := componentDefinitionRevision.DeepCopy()
+	compDefRevision.Name = "configmap-component-"
+
+	return v1beta1.DefinitionRevisionList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DefinitionRevision",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		Items: []v1beta1.DefinitionRevision{
+			*compDefRevision,
+		},
+	}
+}
+
 func getTraitDefRevisionList() v1beta1.DefinitionRevisionList {
 	traitDefRevision1 := traitDefinitionRevision.DeepCopy()
 	traitDefRevision1.Spec.TraitDefinition.Spec.Version = "1.2.0"
@@ -1315,4 +1373,15 @@ var componentDefinitionRevision = v1beta1.DefinitionRevision{
 			},
 		},
 	},
+}
+
+// The revision search label was written as a literal rather than taken from the
+// constant, and the literal did not match: revisions are labelled
+// sourcedefinition.oam.dev/name, so a search for source.oam.dev/name found
+// none and source version selection returned nothing at all.
+func TestDefinitionKindToNameLabelMatchesWhatRevisionsCarry(t *testing.T) {
+	assert.Equal(t, oam.LabelSourceDefinitionName, util.DefinitionKindToNameLabel[common.SourceType])
+	for kind, label := range util.DefinitionKindToNameLabel {
+		assert.NotEmpty(t, label, "definition kind %q has no search label", kind)
+	}
 }

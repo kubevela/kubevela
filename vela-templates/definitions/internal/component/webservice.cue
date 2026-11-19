@@ -254,16 +254,32 @@ template: {
 						}
 
 						if parameter["cpu"] != _|_ {
-							resources: {
-								limits: cpu:   parameter.cpu
-								requests: cpu: parameter.cpu
+							if (parameter.limit.cpu != _|_) {
+								resources: {
+									requests: cpu: parameter.cpu
+									limits: cpu:   parameter.limit.cpu
+								}
+							}
+							if (parameter.limit.cpu == _|_) {
+								resources: {
+									limits: cpu:   parameter.cpu
+									requests: cpu: parameter.cpu
+								}
 							}
 						}
 
 						if parameter["memory"] != _|_ {
-							resources: {
-								limits: memory:   parameter.memory
-								requests: memory: parameter.memory
+							if (parameter.limit.memory != _|_) {
+								resources: {
+									limits: memory:   parameter.limit.memory
+									requests: memory: parameter.memory
+								}
+							}
+							if (parameter.limit.memory == _|_) {
+								resources: {
+									limits: memory:   parameter.memory
+									requests: memory: parameter.memory
+								}
 							}
 						}
 
@@ -467,6 +483,11 @@ template: {
 
 		// +usage=Specifies the attributes of the memory resource required for the container.
 		memory?: string
+
+		limit?: {
+			cpu?:    string
+			memory?: string
+		}
 
 		volumeMounts?: {
 			// +usage=Mount PVC type volume

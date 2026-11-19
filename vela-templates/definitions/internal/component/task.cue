@@ -44,6 +44,9 @@ template: {
 	output: {
 		apiVersion: "batch/v1"
 		kind:       "Job"
+		metadata: {
+			name: "\(context.appName)-\(context.name)"
+		}
 		spec: {
 			parallelism: parameter.count
 			completions: parameter.count
@@ -90,6 +93,13 @@ template: {
 								limits: memory:   parameter.memory
 								requests: memory: parameter.memory
 							}
+						}
+
+						if parameter["livenessProbe"] != _|_ {
+							livenessProbe: parameter.livenessProbe
+						}
+						if parameter["readinessProbe"] != _|_ {
+							readinessProbe: parameter.readinessProbe
 						}
 
 						if parameter["volumes"] != _|_ {

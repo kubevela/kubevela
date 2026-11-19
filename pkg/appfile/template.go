@@ -31,9 +31,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
+	"github.com/oam-dev/kubevela/pkg/module/naming"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -42,6 +47,8 @@ const (
 	UsageTag = "+usage="
 	// ShortTag is the short alias annotation
 	ShortTag = "+short"
+	// ImmutableTag marks a parameter field as immutable
+	ImmutableTag = "+immutable"
 )
 
 // Template is a helper struct for processing capability including
@@ -51,6 +58,7 @@ type Template struct {
 	TemplateStr        string
 	Health             string
 	CustomStatus       string
+	Details            string
 	CapabilityCategory types.CapabilityCategory
 	Reference          common.WorkloadTypeDescriptor
 	Terraform          *common.Terraform
@@ -61,6 +69,24 @@ type Template struct {
 
 	PolicyDefinition       *v1beta1.PolicyDefinition
 	WorkflowStepDefinition *v1beta1.WorkflowStepDefinition
+	SourceDefinition       *v1beta1.SourceDefinition
+
+	// Ancestors are the definitions this one extends, nearest parent first, in
+	// the form the render engine wants them.
+	Ancestors []inherit.Level
+	// AncestorComponentDefinitions and AncestorTraitDefinitions are those same
+	// ancestors as objects, keyed by the name the extending definition wrote.
+	//
+	// They are carried so the ApplicationRevision can record them: a render that
+	// went through a chain is only reproducible if every level it went through is
+	// written down beside it. Keying by the written name keeps
+	// `extends: webservice@v3` and a sibling component on plain `webservice` from
+	// fighting over one entry.
+	AncestorComponentDefinitions map[string]*v1beta1.ComponentDefinition
+	AncestorTraitDefinitions     map[string]*v1beta1.TraitDefinition
+	// AncestorStatus is each ancestor's status CUE, nearest parent first, so a
+	// health policy composes with the one it extends.
+	AncestorStatus []health.Snippets
 }
 
 // LoadTemplate gets the capability definition from cluster and resolve it.
@@ -68,6 +94,13 @@ type Template struct {
 // processing.
 func LoadTemplate(ctx context.Context, cli client.Client, capName string, capType types.CapType, annotations map[string]string) (*Template, error) {
 	ctx = multicluster.WithCluster(ctx, multicluster.Local)
+
+	resolved, err := ResolveModuleType(ctx, cli, capName, capType)
+	if err != nil {
+		return nil, err
+	}
+	capName = resolved
+
 	// Application Controller only loads template from ComponentDefinition and TraitDefinition
 	switch capType {
 	case types.TypeComponentDefinition, types.TypeWorkload:
@@ -100,7 +133,7 @@ func LoadTemplate(ctx context.Context, cli client.Client, capName string, capTyp
 			}
 			return nil, errors.WithMessagef(err, "load template from component definition [%s] ", capName)
 		}
-		tmpl, err := newTemplateOfCompDefinition(cd)
+		tmpl, err := newTemplateOfCompDefinition(ctx, cd, clusterComponentFetcher(cli, cd.Namespace, annotations))
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +145,7 @@ func LoadTemplate(ctx context.Context, cli client.Client, capName string, capTyp
 		if err != nil {
 			return nil, errors.WithMessagef(err, "load template from trait definition [%s] ", capName)
 		}
-		tmpl, err := newTemplateOfTraitDefinition(td)
+		tmpl, err := newTemplateOfTraitDefinition(ctx, td, clusterTraitFetcher(cli, td.Namespace, annotations))
 		if err != nil {
 			return nil, err
 		}
@@ -139,6 +172,17 @@ func LoadTemplate(ctx context.Context, cli client.Client, capName string, capTyp
 			return nil, err
 		}
 		return tmpl, nil
+	case types.TypeSource:
+		d := new(v1beta1.SourceDefinition)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName, annotations)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "load template from source definition [%s] ", capName)
+		}
+		tmpl, err := newTemplateOfSourceDefinition(d)
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
 	}
 	return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 }
@@ -148,9 +192,12 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 	if apprev == nil {
 		return nil, errors.Errorf("fail to find template for %s as app revision is empty", capName)
 	}
-	capName = verifyRevisionName(capName, capType, apprev)
+	capName, err := resolveRevisionCapabilityName(capName, capType, apprev)
+	if err != nil {
+		return nil, err
+	}
 	switch capType {
-	case types.TypeComponentDefinition:
+	case types.TypeComponentDefinition, types.TypeWorkload:
 		cd, ok := apprev.Spec.ComponentDefinitions[capName]
 		if !ok {
 			wd, ok := apprev.Spec.WorkloadDefinitions[capName]
@@ -176,7 +223,7 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 			}
 			return tmpl, nil
 		}
-		tmpl, err := newTemplateOfCompDefinition(cd.DeepCopy())
+		tmpl, err := newTemplateOfCompDefinition(context.Background(), cd.DeepCopy(), revisionComponentFetcher(apprev))
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +234,7 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 		if !ok {
 			return nil, errors.Errorf("TraitDefinition [%s] not found in app revision %s", capName, apprev.Name)
 		}
-		tmpl, err := newTemplateOfTraitDefinition(td.DeepCopy())
+		tmpl, err := newTemplateOfTraitDefinition(context.Background(), td.DeepCopy(), revisionTraitFetcher(apprev))
 		if err != nil {
 			return nil, err
 		}
@@ -212,9 +259,62 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 			return nil, err
 		}
 		return tmpl, nil
+	case types.TypeSource:
+		s, ok := apprev.Spec.SourceDefinitions[capName]
+		if !ok {
+			return nil, errors.Errorf("SourceDefinition [%s] not found in app revision %s", capName, apprev.Name)
+		}
+		tmpl, err := newTemplateOfSourceDefinition(s.DeepCopy())
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
 	default:
 		return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 	}
+}
+
+func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) (string, error) {
+	capName = verifyRevisionName(capName, capType, apprev)
+	if revisionCapabilityExists(capName, capType, apprev) {
+		return capName, nil
+	}
+	form, moduleName, apiVersion, shortName, err := parseTypeRef(capName)
+	if err != nil {
+		return "", err
+	}
+	if form == 3 {
+		resolved := naming.DefinitionName(moduleName, apiVersion, shortName)
+		if revisionCapabilityExists(resolved, capType, apprev) {
+			return resolved, nil
+		}
+	}
+	return capName, nil
+}
+
+func revisionCapabilityExists(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) bool {
+	switch capType {
+	case types.TypeComponentDefinition, types.TypeWorkload:
+		if _, ok := apprev.Spec.ComponentDefinitions[capName]; ok {
+			return true
+		}
+		if _, ok := apprev.Spec.WorkloadDefinitions[capName]; ok {
+			return true
+		}
+	case types.TypeTrait:
+		_, ok := apprev.Spec.TraitDefinitions[capName]
+		return ok
+	case types.TypePolicy:
+		_, ok := apprev.Spec.PolicyDefinitions[capName]
+		return ok
+	case types.TypeWorkflowStep:
+		_, ok := apprev.Spec.WorkflowStepDefinitions[capName]
+		return ok
+	case types.TypeSource:
+		_, ok := apprev.Spec.SourceDefinitions[capName]
+		return ok
+	}
+	return false
 }
 
 // IsNotFoundInAppRevision check if the error is `not found in app revision`
@@ -230,12 +330,19 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 		switch capType {
 		case types.TypeComponentDefinition:
 			_, ok = apprev.Spec.ComponentDefinitions[splitName]
+			if !ok {
+				_, ok = apprev.Spec.WorkloadDefinitions[splitName]
+			}
+		case types.TypeWorkload:
+			_, ok = apprev.Spec.WorkloadDefinitions[splitName]
 		case types.TypeTrait:
 			_, ok = apprev.Spec.TraitDefinitions[splitName]
 		case types.TypePolicy:
 			_, ok = apprev.Spec.PolicyDefinitions[splitName]
 		case types.TypeWorkflowStep:
 			_, ok = apprev.Spec.WorkflowStepDefinitions[splitName]
+		case types.TypeSource:
+			_, ok = apprev.Spec.SourceDefinitions[splitName]
 		default:
 			return capName
 		}
@@ -261,7 +368,7 @@ func DryRunTemplateLoader(defs []*unstructured.Unstructured) TemplateLoaderFn {
 				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, compDef); err != nil {
 					return nil, errors.Wrap(err, "invalid component definition")
 				}
-				tmpl, err := newTemplateOfCompDefinition(compDef)
+				tmpl, err := newTemplateOfCompDefinition(ctx, compDef, localComponentFetcher(defs, r, compDef.Namespace, annotations))
 				if err != nil {
 					return nil, errors.WithMessagef(err, "cannot load template of component definition %q", capName)
 				}
@@ -273,9 +380,21 @@ func DryRunTemplateLoader(defs []*unstructured.Unstructured) TemplateLoaderFn {
 				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, traitDef); err != nil {
 					return nil, errors.Wrap(err, "invalid trait definition")
 				}
-				tmpl, err := newTemplateOfTraitDefinition(traitDef)
+				tmpl, err := newTemplateOfTraitDefinition(ctx, traitDef, localTraitFetcher(defs, r, traitDef.Namespace, annotations))
 				if err != nil {
 					return nil, errors.WithMessagef(err, "cannot load template of trait definition %q", capName)
+				}
+				return tmpl, nil
+			}
+			if def.GetKind() == v1beta1.PolicyDefinitionKind &&
+				capType == types.TypePolicy && def.GetName() == capName {
+				policyDef := &v1beta1.PolicyDefinition{}
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, policyDef); err != nil {
+					return nil, errors.Wrap(err, "invalid policy definition")
+				}
+				tmpl, err := newTemplateOfPolicyDefinition(policyDef)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "cannot load template of policy definition %q", capName)
 				}
 				return tmpl, nil
 			}
@@ -290,7 +409,7 @@ func DryRunTemplateLoader(defs []*unstructured.Unstructured) TemplateLoaderFn {
 	}
 }
 
-func newTemplateOfCompDefinition(compDef *v1beta1.ComponentDefinition) (*Template, error) {
+func newTemplateOfCompDefinition(ctx context.Context, compDef *v1beta1.ComponentDefinition, fetch componentFetcher) (*Template, error) {
 	tmpl := &Template{
 		Reference:           compDef.Spec.Workload,
 		ComponentDefinition: compDef,
@@ -298,18 +417,24 @@ func newTemplateOfCompDefinition(compDef *v1beta1.ComponentDefinition) (*Templat
 	if err := loadSchematicToTemplate(tmpl, compDef.Spec.Status, compDef.Spec.Schematic, compDef.Spec.Extension); err != nil {
 		return nil, errors.WithMessage(err, "cannot load template")
 	}
+	if err := resolveComponentChain(ctx, tmpl, compDef, fetch); err != nil {
+		return nil, err
+	}
 	if compDef.Annotations["type"] == string(types.TerraformCategory) {
 		tmpl.CapabilityCategory = types.TerraformCategory
 	}
 	return tmpl, nil
 }
 
-func newTemplateOfTraitDefinition(traitDef *v1beta1.TraitDefinition) (*Template, error) {
+func newTemplateOfTraitDefinition(ctx context.Context, traitDef *v1beta1.TraitDefinition, fetch traitFetcher) (*Template, error) {
 	tmpl := &Template{
 		TraitDefinition: traitDef,
 	}
 	if err := loadSchematicToTemplate(tmpl, traitDef.Spec.Status, traitDef.Spec.Schematic, traitDef.Spec.Extension); err != nil {
 		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	if err := resolveTraitChain(ctx, tmpl, traitDef, fetch); err != nil {
+		return nil, err
 	}
 	return tmpl, nil
 }
@@ -345,11 +470,22 @@ func newTemplateOfWorkflowStepDefinition(def *v1beta1.WorkflowStepDefinition) (*
 	return tmpl, nil
 }
 
+func newTemplateOfSourceDefinition(def *v1beta1.SourceDefinition) (*Template, error) {
+	tmpl := &Template{
+		SourceDefinition: def,
+	}
+	if err := loadSchematicToTemplate(tmpl, nil, def.Spec.Schematic, nil); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	return tmpl, nil
+}
+
 // loadSchematicToTemplate loads common data that all kind definitions have.
 func loadSchematicToTemplate(tmpl *Template, status *common.Status, schematic *common.Schematic, ext *runtime.RawExtension) error {
 	if status != nil {
 		tmpl.CustomStatus = status.CustomStatus
 		tmpl.Health = status.HealthPolicy
+		tmpl.Details = status.Details
 	}
 
 	if schematic != nil {
@@ -397,4 +533,51 @@ func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension,
 		t.CueTemplate = capTemplate.TemplateStr
 	}
 	return t, nil
+}
+
+// definitionKind returns the upgrade.DefinitionKind for this template, derived from
+// whichever definition pointer is populated. Defaults to ComponentKind.
+func (t *Template) definitionKind() upgrade.DefinitionKind {
+	switch {
+	case t.TraitDefinition != nil:
+		return upgrade.TraitKind
+	case t.PolicyDefinition != nil:
+		return upgrade.PolicyKind
+	case t.WorkflowStepDefinition != nil:
+		return upgrade.WorkflowStepKind
+	default:
+		return upgrade.ComponentKind
+	}
+}
+
+func (t *Template) AsStatusRequest(parameter map[string]interface{}) *health.StatusRequest {
+	kind := t.definitionKind()
+	healthCUE, _ := upgrade.EnsureCueVersionCompatibility(t.Health, "health", kind, upgrade.TemplateAreaHealth)
+	customCUE, _ := upgrade.EnsureCueVersionCompatibility(t.CustomStatus, "customStatus", kind, upgrade.TemplateAreaCustomStatus)
+	detailsCUE, _ := upgrade.EnsureCueVersionCompatibility(t.Details, "statusDetails", kind, upgrade.TemplateAreaStatusDetail)
+	return &health.StatusRequest{
+		Health:    healthCUE,
+		Custom:    customCUE,
+		Details:   detailsCUE,
+		Parameter: parameter,
+		Ancestors: upgradedAncestors(t.AncestorStatus, kind),
+	}
+}
+
+// upgradedAncestors puts what a definition inherits through the same CUE
+// compatibility pass as its own. A parent was written against whatever CUE
+// shipped when it was authored, and extending it must not mean inheriting a
+// syntax error.
+func upgradedAncestors(ancestors []health.Snippets, kind upgrade.DefinitionKind) []health.Snippets {
+	if len(ancestors) == 0 {
+		return nil
+	}
+	out := make([]health.Snippets, 0, len(ancestors))
+	for _, a := range ancestors {
+		h, _ := upgrade.EnsureCueVersionCompatibility(a.Health, "health", kind, upgrade.TemplateAreaHealth)
+		c, _ := upgrade.EnsureCueVersionCompatibility(a.Custom, "customStatus", kind, upgrade.TemplateAreaCustomStatus)
+		d, _ := upgrade.EnsureCueVersionCompatibility(a.Details, "statusDetails", kind, upgrade.TemplateAreaStatusDetail)
+		out = append(out, health.Snippets{Health: h, Custom: c, Details: d})
+	}
+	return out
 }

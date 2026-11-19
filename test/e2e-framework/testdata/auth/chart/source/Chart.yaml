@@ -1,0 +1,6 @@
+apiVersion: v2
+name: podinfo
+description: Minimal chart for kubevela auth e2e
+type: application
+version: 1.0.0
+appVersion: "6.5.0"

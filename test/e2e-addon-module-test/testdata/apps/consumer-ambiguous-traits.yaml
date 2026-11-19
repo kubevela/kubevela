@@ -1,0 +1,13 @@
+# Rejected at admission once both modules are installed:
+# widget-kit and gadget-kit each ship a v1 trait called "labeler".
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: ambiguous-form1
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit/v1/widget
+      traits:
+        - type: labeler

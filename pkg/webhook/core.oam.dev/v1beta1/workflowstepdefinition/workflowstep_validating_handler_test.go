@@ -1,0 +1,431 @@
+/*
+Copyright 2024 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package workflowstepdefinition
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
+	admissionv1 "k8s.io/api/admission/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/kubevela/pkg/util/singleton"
+
+	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+)
+
+var handler ValidatingHandler
+var reqResource metav1.GroupVersionResource
+var decoder admission.Decoder
+var td v1beta1.WorkflowStepDefinition
+var validCueTemplate string
+var inValidCueTemplate string
+var legacyCueTemplate string
+var unusedImportCueTemplate string
+var velaOpCueTemplate string
+var cfg *rest.Config
+var testScheme = runtime.NewScheme()
+var testEnv *envtest.Environment
+
+func TestWorkflowStepDefinition(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Traitdefinition Suite")
+}
+
+var _ = BeforeSuite(func() {
+
+	validCueTemplate = "{hello: 'world'}"
+	inValidCueTemplate = "{hello: world}"
+	legacyCueTemplate = `
+parameter: {
+	items: [...string]
+	extra: [...string]
+}
+combined: parameter.items + parameter.extra
+`
+	unusedImportCueTemplate = "import \"vela/kube\"\n\nparameter: {\n\tname: string\n}\n"
+	velaOpCueTemplate = "import \"vela/op\"\n\nwait: op.#ConditionalWait & {\n\tcontinue: true\n}\n"
+
+	var yamlPath string
+	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
+		yamlPath = "../../../../../test/compatibility-test/testdata"
+	} else {
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
+	}
+
+	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		CRDDirectoryPaths:        []string{yamlPath},
+	}
+
+	err := core.AddToScheme(testScheme)
+	Expect(err).Should(BeNil())
+
+	cfg, err = testEnv.Start()
+	Expect(err).ToNot(HaveOccurred())
+	Expect(cfg).ToNot(BeNil())
+	decoder = admission.NewDecoder(testScheme)
+	Expect(err).Should(BeNil())
+
+	// Building the workflow compiler lists external Package CRDs through
+	// singleton.KubeConfig -> config.GetConfigOrDie(), which os.Exit(1)s with no
+	// ambient kubeconfig, and envtest hands back a *rest.Config rather than
+	// writing one to disk. Point the singleton at it so the lookup resolves.
+	singleton.KubeConfig.Set(cfg)
+
+	td = v1beta1.WorkflowStepDefinition{}
+	td.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+})
+
+var _ = AfterSuite(func() {
+	// Undo the BeforeSuite mutation so it doesn't leak out of this suite. Reset
+	// to nil rather than restoring the prior value: reading it back with
+	// singleton.KubeConfig.Get() would fire the very GetConfigOrDie() loader
+	// this file works around.
+	singleton.KubeConfig.Set(nil)
+
+	By("tearing down the test environment")
+	err := testEnv.Stop()
+	Expect(err).ToNot(HaveOccurred())
+})
+
+var _ = Describe("Test workflowstepdefinition validating handler", func() {
+	BeforeEach(func() {
+		cli, err := client.New(cfg, client.Options{})
+		Expect(err).Should(BeNil())
+		reqResource = metav1.GroupVersionResource{
+			Group:    v1beta1.Group,
+			Version:  v1beta1.Version,
+			Resource: "workflowstepdefinitions"}
+		handler = ValidatingHandler{Client: cli}
+		handler.InjectDecoder(decoder)
+	})
+
+	Context("Test create/update operation admission request", func() {
+		It("Test Version validation passed", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("Correctwsd")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Reference: common.DefinitionReference{Name: "testname", Version: "1"},
+				Version:   "1.10.1",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test Version validation passed", func() {
+			wrongWsd := v1beta1.WorkflowStepDefinition{}
+			wrongWsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wrongWsd.SetName("wrongwsd")
+			wrongWsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Version: "1.B.1",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongWsdRaw, _ := json.Marshal(wrongWsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongWsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Not a valid version"))
+		})
+
+		It("Test workflowstepdefinition has both spec.version and revision name annotation", func() {
+			wrongWsd := v1beta1.WorkflowStepDefinition{}
+			wrongWsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wrongWsd.SetName("wrongwsd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			wrongWsd.SetAnnotations(annotations)
+			wrongWsd.SetNamespace("default")
+			wrongWsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Version: "1.10.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wrongWsdRaw, _ := json.Marshal(wrongWsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wrongWsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(string(resp.Result.Message)).Should(ContainSubstring("Only one can be present"))
+		})
+
+		It("Test WorkflowStepDefinition with an invalid CUE template is denied", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd-invalid-cue")
+			wsd.SetNamespace("default")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: inValidCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+		})
+
+		// An identically broken ComponentDefinition was already rejected; issue
+		// #7277 is that this one was admitted.
+		It("Test WorkflowStepDefinition with an unused import is denied", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd-unused-import")
+			wsd.SetNamespace("default")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: unusedImportCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(resp.Result.Message).Should(ContainSubstring("imported and not used"))
+		})
+
+		It("Test WorkflowStepDefinition importing vela/op is admitted", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd-vela-op")
+			wsd.SetNamespace("default")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: velaOpCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test workflowstepdefinition without spec.version and with revision name annotation", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd")
+			annotations := map[string]string{
+				"definitionrevision.oam.dev/name": "v1.0.0",
+			}
+			wsd.SetAnnotations(annotations)
+			wsd.SetNamespace("default")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test workflowstepdefinition with spec.version and without revision name annotation", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Version: "1.10.0",
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: validCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test workflowstepdefinition with legacy CUE syntax emits a compatibility warning", func() {
+			original := *upgrade.EnableCUEVersionCompatibility
+			*upgrade.EnableCUEVersionCompatibility = true
+			DeferCleanup(func() { *upgrade.EnableCUEVersionCompatibility = original })
+
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("legacy-wsd")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: legacyCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+			Expect(resp.Warnings).Should(HaveLen(1))
+			Expect(resp.Warnings[0]).Should(ContainSubstring("legacy syntax"))
+		})
+	})
+})
+
+// The identity fields only make sense as a pair: a module without an apiVersion
+// (or the reverse) cannot name a versioned definition, so the handler rejects it.
+func TestHandleValidatesIdentityFields(t *testing.T) {
+	sc := runtime.NewScheme()
+	require.NoError(t, v1beta1.SchemeBuilder.AddToScheme(sc))
+	h := &ValidatingHandler{
+		Decoder: admission.NewDecoder(sc),
+		Client:  fake.NewClientBuilder().WithScheme(sc).Build(),
+	}
+
+	build := func(module, apiVersion string) admission.Request {
+		def := &v1beta1.WorkflowStepDefinition{
+			TypeMeta:   metav1.TypeMeta{Kind: "WorkflowStepDefinition", APIVersion: "core.oam.dev/v1beta1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "identity-step", Namespace: "vela-system"},
+			Spec:       v1beta1.WorkflowStepDefinitionSpec{Module: module, APIVersion: apiVersion},
+		}
+		raw, err := json.Marshal(def)
+		require.NoError(t, err)
+		return admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Operation: admissionv1.Create,
+			Resource: metav1.GroupVersionResource{
+				Group: workflowStepDefGVR.Group, Version: workflowStepDefGVR.Version, Resource: workflowStepDefGVR.Resource,
+			},
+			Object: runtime.RawExtension{Raw: raw},
+		}}
+	}
+
+	t.Run("module and apiVersion together are admitted", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build("s3", "v1"))
+		require.True(t, resp.Allowed, "%v", resp.Result)
+	})
+
+	t.Run("neither field is admitted", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build("", ""))
+		require.True(t, resp.Allowed, "%v", resp.Result)
+	})
+
+	t.Run("module without apiVersion is denied", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build("s3", ""))
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, "spec.apiVersion is empty")
+	})
+
+	t.Run("apiVersion without module is denied", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build("", "v1"))
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, "spec.module is empty")
+	})
+
+	t.Run("an update is validated too", func(t *testing.T) {
+		req := build("s3", "")
+		req.Operation = admissionv1.Update
+		resp := h.Handle(context.Background(), req)
+		require.False(t, resp.Allowed)
+	})
+}

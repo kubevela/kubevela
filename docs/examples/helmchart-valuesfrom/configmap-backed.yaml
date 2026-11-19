@@ -1,0 +1,33 @@
+# Minimal helmchart + valuesFrom example.
+# Apply this manifest — the ConfigMap sets replicaCount, the Application
+# references it, and podinfo deploys with 3 replicas.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: podinfo-values
+data:
+  values.yaml: |
+    replicaCount: 3
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: podinfo-cm-backed
+spec:
+  components:
+    - name: podinfo
+      type: helmchart
+      properties:
+        chart:
+          source: podinfo
+          repoURL: https://stefanprodan.github.io/podinfo
+          version: "6.11.1"
+        release:
+          name: podinfo
+          namespace: default
+        valuesFrom:
+          - kind: ConfigMap
+            name: podinfo-values
+        options:
+          createNamespace: true
+          skipTests: true

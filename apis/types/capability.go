@@ -46,6 +46,8 @@ const (
 	TypeWorkflowStep CapType = "workflowstep"
 	// TypePolicy represent OAM Policy
 	TypePolicy CapType = "policy"
+	// TypeSource represent OAM SourceDefinition
+	TypeSource CapType = "source"
 )
 
 // CapabilityConfigMapNamePrefix is the prefix for capability ConfigMap name
@@ -56,6 +58,17 @@ const (
 	OpenapiV3JSONSchema string = "openapi-v3-json-schema"
 	// UISchema is the key to store ui custom schema
 	UISchema string = "ui-schema"
+	// DefaultUISchema is the key to store the ui schema generated from a definition's parameter
+	DefaultUISchema string = "default-ui-schema"
+	// SourceOutputSchema is the key to store the OpenAPI schema of a SourceDefinition's `schema`,
+	// the value an Application reads with $(source.<name>)
+	SourceOutputSchema string = "source-output-schema"
+	// OutputSchema is the key to store the OpenAPI schema of a ComponentDefinition's `output`,
+	// the value an Application reads with $(component.<name>.output)
+	OutputSchema string = "output-schema"
+	// OutputsSchema is the key to store the OpenAPI schema of each resource in a component or
+	// trait template's `outputs`, by resource name, read with $(component.<name>.outputs.<resource>)
+	OutputsSchema string = "outputs-schema"
 	// VelaQLConfigmapKey is the key to store velaql view
 	VelaQLConfigmapKey string = "template"
 )
@@ -72,22 +85,28 @@ const (
 
 // Parameter defines a parameter for cli from capability template
 type Parameter struct {
-	Name     string      `json:"name"`
-	Short    string      `json:"short,omitempty"`
-	Required bool        `json:"required,omitempty"`
-	Default  interface{} `json:"default,omitempty"`
-	Usage    string      `json:"usage,omitempty"`
-	Ignore   bool        `json:"ignore,omitempty"`
-	Type     cue.Kind    `json:"type,omitempty"`
-	Alias    string      `json:"alias,omitempty"`
-	JSONType string      `json:"jsonType,omitempty"`
+	Name      string      `json:"name"`
+	Short     string      `json:"short,omitempty"`
+	Required  bool        `json:"required,omitempty"`
+	Default   interface{} `json:"default,omitempty"`
+	Usage     string      `json:"usage,omitempty"`
+	Ignore    bool        `json:"ignore,omitempty"`
+	Type      cue.Kind    `json:"type,omitempty"`
+	Alias     string      `json:"alias,omitempty"`
+	JSONType  string      `json:"jsonType,omitempty"`
+	Immutable bool        `json:"immutable,omitempty"`
 }
 
 // Capability defines the content of a capability
 type Capability struct {
-	Name           string             `json:"name"`
-	Type           CapType            `json:"type"`
-	CueTemplate    string             `json:"template,omitempty"`
+	Name        string  `json:"name"`
+	Type        CapType `json:"type"`
+	CueTemplate string  `json:"template,omitempty"`
+	// Extends names the definition this one builds on, if any. Carried so that
+	// documentation can resolve the chain: an extending definition's template
+	// does not compile on its own, and its parameters are its parent's plus its
+	// own.
+	Extends        string             `json:"extends,omitempty"`
 	CueTemplateURI string             `json:"templateURI,omitempty"`
 	Parameters     []Parameter        `json:"parameters,omitempty"`
 	CrdName        string             `json:"crdName,omitempty"`
@@ -100,6 +119,15 @@ type Capability struct {
 	// trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
 
+	// source only: the output contract (schema: block) a SourceDefinition
+	// provides back to consumers, and its caching (storage: block) fields.
+	SourceOutputs []Parameter          `json:"sourceOutputs,omitempty"`
+	SourceStorage []SourceStorageField `json:"sourceStorage,omitempty"`
+	// SourceSurfaces is every Application surface and whether this source can be
+	// consumed there. The unreachable ones are carried too: "traits: no" is the
+	// answer to a question, where a list that simply omits traits is silence.
+	SourceSurfaces []SourceSurface `json:"sourceSurfaces,omitempty"`
+
 	// Namespace represents it's a system-level or user-level capability.
 	Namespace string `json:"namespace,omitempty"`
 
@@ -110,4 +138,24 @@ type Capability struct {
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
 	ConfigurationType      string `json:"configurationType,omitempty"`
 	Path                   string `json:"path,omitempty"`
+}
+
+// SourceSurface is one Application surface and whether a source resolves there.
+type SourceSurface struct {
+	// Name is the surface in the plural, ready to print - "workflow steps".
+	Name string `json:"name"`
+	// Consumable reports whether this source can be consumed on that surface.
+	Consumable bool `json:"consumable"`
+	// Reason says why not, naming the context reads that surface cannot satisfy.
+	// Empty when the source is consumable there.
+	Reason string `json:"reason,omitempty"`
+}
+
+// SourceStorageField is one field of a SourceDefinition's storage: (caching)
+// block, e.g. {Name: "key", Value: "get-random-\(parameter.min)-..."}. The
+// value is the authored CUE expression, kept verbatim (interpolations are not
+// evaluated).
+type SourceStorageField struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }

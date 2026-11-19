@@ -104,14 +104,21 @@ variable "aaa" {
 		t.Run(name, func(t *testing.T) {
 			home, _ := os.UserHomeDir()
 			path := filepath.Join(home, ".vela", "terraform")
+			cacheRoot := filepath.Join(path, tc.args.name)
 			tmpPath := filepath.Join(path, tc.args.name, tc.args.path)
 			if len(tc.args.data) > 0 {
 				err := os.MkdirAll(tmpPath, os.ModePerm)
 				assert.NoError(t, err)
 				err = os.WriteFile(filepath.Clean(filepath.Join(tmpPath, tc.args.variableFile)), tc.args.data, 0644)
 				assert.NoError(t, err)
+				// Record the remote URL so the populated cache is reused. URL-keyed
+				// reuse was added for GHSA-fmgp-q6jx-gg3x; without the marker the
+				// loader would treat the cache as stale and attempt a real clone.
+				err = os.WriteFile(cacheRoot+cacheRemoteMarkerSuffix, []byte(tc.args.url), 0600)
+				assert.NoError(t, err)
 			}
-			defer os.RemoveAll(tmpPath)
+			defer os.RemoveAll(cacheRoot)
+			defer os.Remove(cacheRoot + cacheRemoteMarkerSuffix)
 
 			conf, err := GetTerraformConfigurationFromRemote(tc.args.name, tc.args.url, tc.args.path, nil)
 			if tc.want.errMsg != "" {

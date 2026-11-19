@@ -17,7 +17,36 @@ limitations under the License.
 package appfile
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
+
+	"cuelang.org/go/cue"
+	"github.com/jeremywohl/flatten/v2"
+	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/workflow/pkg/cue/model/value"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
+	cueutils "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
+
+	// Use WorkloadCompiler instead of the upstream cuex.DefaultCompiler.
+	// The upstream DefaultCompiler does not include provider packages like
+	// "vela/helm". Component templates (e.g., helmchart) import these packages,
+	// so CUE compilation fails with "field not found: parameter" when validated
+	// against a compiler that lacks them. WorkloadCompiler includes both upstream
+	// packages (base64, http, kube, cueext) and local provider packages (helm,
+	// config) and is initialized lazily (no init-time kubeconfig dependency).
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/features"
 
 	"github.com/pkg/errors"
 
@@ -26,34 +55,641 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 // ValidateCUESchematicAppfile validates CUE schematic workloads in an Appfile
 func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
+	// A guard: a render reached from here without the type-only marker would
+	// write cache entries for an apply that may yet be refused.
+	restore := a.SourceCacheStore
+	a.SourceCacheStore = sources.NewReadOnlySourceCacheStore(sourceCacheStoreFor(a))
+	defer func() { a.SourceCacheStore = restore }()
+
 	for _, wl := range a.ParsedComponents {
 		// because helm & kube schematic has no CUE template
 		// it only validates CUE schematic workload
 		if wl.CapabilityCategory != types.CUECategory || wl.Type == v1alpha1.RefObjectsComponentType {
 			continue
 		}
+
 		ctxData := GenerateContextDataFromAppFile(a, wl.Name)
-		pCtx, err := newValidationProcessContext(wl, ctxData)
+		// Set dry-run mode so provider functions (e.g., helm.#Render) perform
+		// client-only rendering instead of real cluster installs during validation.
+		if ctxData.Ctx == nil {
+			ctxData.Ctx = context.Background()
+		}
+		ctxData.Ctx = helm.WithDryRun(ctxData.Ctx)
+		// Same reasoning for the addon and module providers, which would
+		// otherwise resolve every type: addon and type: module component from
+		// its remote registry while the apiserver holds the admission request
+		// open.
+		//
+		// Not redundant with the caller that already marks the ctx it passes to
+		// GenerateAppFile: GenerateAppFileFromRevision takes no ctx and never
+		// sets Appfile.Context, so for a PublishVersion Application the marker
+		// would otherwise be lost and the fallback above would hand the
+		// providers a bare context.Background().
+		ctxData.Ctx = validation.WithValidationOnly(ctxData.Ctx)
+		// Covers every render this validation performs: the component's and
+		// each of its traits'.
+		ctxData.Ctx = sources.WithTypeOnly(ctxData.Ctx)
+
+		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
+			err := p.ValidateComponentParams(ctxData, wl, a)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Collect workflow-supplied params for this component upfront
+		workflowParams := getWorkflowAndPolicySuppliedParams(a)
+
+		// Only augment if component has traits AND workflow supplies params (issue 7022)
+		originalParams := wl.Params
+		if len(wl.Traits) > 0 && len(workflowParams) > 0 {
+			shouldSkip, augmented := p.augmentComponentParamsForValidation(wl, workflowParams, ctxData)
+			if shouldSkip {
+				// Component has complex validation that can't be handled, skip trait validation
+				fmt.Printf("INFO: Skipping trait validation for component %q due to workflow-supplied parameters with complex validation\n", wl.Name)
+				continue
+			}
+			wl.Params = augmented
+		}
+
+		evalParams := wl.Params
+		pCtx, err := newValidationProcessContext(wl, ctxData, "")
+		wl.Params = originalParams // Restore immediately
+
 		if err != nil {
 			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
 		}
-		for _, tr := range wl.Traits {
-			if tr.CapabilityCategory != types.CUECategory {
-				continue
-			}
+
+		// Under a validation-only context the addon and module providers return a
+		// placeholder Application instead of fetching the real one, so any trait
+		// evaluated here would be checked against content that does not exist yet
+		// and could reject an Application that renders correctly.
+		if rendersPlaceholderDuringValidation(wl) {
+			continue
+		}
+
+		traits := validatedTraits(wl)
+		for _, tr := range traits {
+			// The same identity baseGenerateComponent pushes on the real path.
+			// Trait.Name is the TraitDefinition's name - the trait's type.
+			pCtx.PushData(velaprocess.ContextTraitType, tr.Name)
 			if err := tr.EvalContext(pCtx); err != nil {
 				return errors.WithMessagef(err, "cannot evaluate trait %q", tr.Name)
+			}
+		}
+
+		if a.PolicyContext != nil {
+			pass := &ctxPass{wl: wl, ctxData: ctxData, view: a.PolicyContext, params: evalParams, traits: traits, chained: isChained(wl, traits)}
+			if err := pass.run(); err != nil {
+				return err
 			}
 		}
 	}
 	return nil
 }
 
-func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData) (process.Context, error) {
+// validatedTraits returns the traits admission evaluates: CUE ones, and not
+// PostDispatch ones, which may read fields populated only at runtime.
+func validatedTraits(wl *Component) []*Trait {
+	var out []*Trait
+	for _, tr := range wl.Traits {
+		if tr.CapabilityCategory != types.CUECategory {
+			continue
+		}
+		if tr.FullTemplate != nil &&
+			tr.FullTemplate.TraitDefinition.Spec.Stage == v1beta1.PostDispatch {
+			continue
+		}
+		out = append(out, tr)
+	}
+	return out
+}
+
+// isChained reports whether the component or a trait extends a definition.
+func isChained(wl *Component, traits []*Trait) bool {
+	if len(wl.FullTemplate.Ancestors) > 0 {
+		return true
+	}
+	for _, tr := range traits {
+		if tr.FullTemplate != nil && len(tr.FullTemplate.Ancestors) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// placeholderRenderedTypes are the ComponentDefinitions whose output is a
+// remote-fetch placeholder during admission (see validation.WithValidationOnly).
+var placeholderRenderedTypes = map[string]bool{
+	"addon":  true,
+	"module": true,
+}
+
+func rendersPlaceholderDuringValidation(wl *Component) bool {
+	if placeholderRenderedTypes[wl.Type] {
+		return true
+	}
+	if wl.FullTemplate != nil && wl.FullTemplate.ComponentDefinition != nil {
+		return placeholderRenderedTypes[wl.FullTemplate.ComponentDefinition.Name]
+	}
+	return false
+}
+
+// ValidateComponentParams performs CUE‑level validation for a Component’s
+// parameters and emits helpful, context‑rich errors.
+//
+// Flow
+//  1. Assemble a synthetic CUE document (template + params + app context).
+//  2. Compile it; if compilation fails, return the compiler error.
+//  3. When the EnableCueValidation gate is on, ensure *all* non‑optional,
+//     non‑defaulted parameters are provided—either in the Component.Params
+//     block or as workflow‑step inputs.
+//  4. Run cue.Value.Validate to enforce user‑supplied values against
+//     template constraints.
+func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Component, app *Appfile) error {
+	// ---------------------------------------------------------------------
+	// 1. Build synthetic CUE source
+	// ---------------------------------------------------------------------
+	ctx := velaprocess.NewContext(ctxData)
+
+	// The component's identity, as baseGenerateComponent pushes it. A source may
+	// key on componentName or componentType, so whatever the render supplies here
+	// this must supply too, or admission and render disagree about the same
+	// Application.
+	ctx.PushData(velaprocess.ContextComponentName, wl.Name)
+	ctx.PushData(velaprocess.ContextComponentType, wl.Type)
+
+	baseCtx, err := ctx.BaseContextFile()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// Under the type-only marker this types expressions from their schema
+	// instead of resolving them.
+	//
+	// An unresolved $(source...) reaches CUE as the string it is and collides
+	// with any non-string constraint, so something type-compatible has to take
+	// its place. A type and not a value: `replicas: int` unifies with a
+	// `>0 & int` constraint, while a sentinel 0 is refused as out of bound.
+	// Validate(Concrete(false)) below admits the non-concrete result.
+	params, err := sources.ResolveSourceExpressions(ctx, wl.Params, sources.SurfaceComponent)
+	if err != nil {
+		return errors.WithMessagef(err, "component %q: type source expressions", wl.Name)
+	}
+	resolvedParams, ok := params.(map[string]interface{})
+	if !ok {
+		resolvedParams = wl.Params
+	}
+	paramBody, err := sources.ParamsAsCUE(resolvedParams)
+	if err != nil {
+		return errors.WithMessagef(err, "component %q: invalid params", wl.Name)
+	}
+	paramSnippet := velaprocess.ParameterFieldName + ": " + paramBody
+
+	// Apply the cue compatibility upgrades so that the render path applies
+	templateStr, _ := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	if view := app.PolicyContext; view != nil {
+		if len(wl.FullTemplate.Ancestors) > 0 {
+			baseCtx += "\n" + view.SourceWithoutImports()
+		} else {
+			imports, custom := view.Source()
+			templateStr = withImports(templateStr, imports)
+			baseCtx += "\n" + custom
+		}
+	}
+	baseCtx += contextCustomPlaceholders(templateStr)
+
+	cueSrc := strings.Join([]string{
+		renderTemplate(templateStr),
+		paramSnippet,
+		baseCtx,
+	}, "\n")
+
+	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
+	if err != nil {
+		return errors.WithMessagef(err, "component %q: CUE compile error", wl.Name)
+	}
+
+	// ---------------------------------------------------------------------
+	// 2. Strict required‑field enforcement (feature‑gated)
+	// ---------------------------------------------------------------------
+	//
+	// resolvedParams, not wl.Params, for the same reason the snippet above uses
+	// them: filterMissing flattens what was provided, so an unresolved
+	// `meta: "$(source.x.meta)"` flattens to the single key `meta` and never
+	// satisfies the required `meta.region` and `meta.zone`.
+	//
+	// And a component that extends another declares only part of its parameters,
+	// so the chain is what says which are required, the same schema the
+	// undeclared check below reads. Judging one step against the child alone and
+	// the next against the chain asks two different questions of the same
+	// properties.
+	// The chain's root is used whole rather than having its `parameter` grafted
+	// onto `val`: each cuex CompileString builds its own cue.Context, so the two
+	// are different runtimes and unifying across them panics.
+	required := val
+	if len(wl.FullTemplate.Ancestors) > 0 {
+		root, schemaErr := componentParameterRoot(ctx.GetCtx(), wl, templateStr, baseCtx)
+		if schemaErr != nil {
+			klog.V(4).Infof("component %q: judging required parameters against its own template: %v", wl.Name, schemaErr)
+		} else {
+			required = root
+		}
+	}
+	if err := withoutContextDefaulted(enforceRequiredParams(required, resolvedParams, app), contextDefaultedParams(templateStr)); err != nil {
+		return errors.WithMessagef(explainMissingParams(ctx, wl, err), "component %q", wl.Name)
+	}
+
+	// ---------------------------------------------------------------------
+	// 3. Validate concrete values
+	// ---------------------------------------------------------------------
+	paramVal := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+	if err := paramVal.Validate(cue.Concrete(false)); err != nil {
+		return errors.WithMessagef(err, "component %q: parameter constraint violation", wl.Name)
+	}
+
+	// ---------------------------------------------------------------------
+	// 4. Reject undeclared parameters (feature-gated)
+	// ---------------------------------------------------------------------
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateUndeclaredParameters) {
+		// Read the schema WITHOUT user params, so it is the declaration alone.
+		paramSchema, schemaErr := componentParameterSchema(ctx.GetCtx(), wl, templateStr, baseCtx)
+		if schemaErr != nil {
+			klog.V(4).Infof("component %q: skipping undeclared parameter check: schema compilation failed: %v", wl.Name, schemaErr)
+		} else {
+			undeclared := findUndeclaredFields(paramSchema, wl.Params, "")
+
+			// Second pass: resolve conditional parameter declarations by
+			// re-compiling with only the base-declared params so CUE
+			// conditionals (e.g. if mode == "x" { field?: T }) evaluate.
+			if len(undeclared) > 0 {
+				baseDeclared := getDeclaredFieldNames(paramSchema)
+				if len(baseDeclared) > 0 {
+					filteredParams := make(map[string]any)
+					for k, v := range wl.Params {
+						if baseDeclared[k] {
+							filteredParams[k] = v
+						}
+					}
+					condSnippet, fErr := cueParamBlock(filteredParams)
+					if fErr == nil {
+						condSchema, condErr := componentParameterSchema(ctx.GetCtx(), wl,
+							strings.Join([]string{templateStr, condSnippet}, "\n"), baseCtx)
+						if condErr == nil {
+							undeclared = findUndeclaredFields(condSchema, wl.Params, "")
+						}
+					}
+				}
+			}
+
+			if len(undeclared) > 0 {
+				sort.Strings(undeclared)
+				return errors.WithMessagef(
+					fmt.Errorf("undeclared parameters: %s", strings.Join(undeclared, ",")),
+					"component %q", wl.Name)
+			}
+		}
+	}
+
+	return nil
+}
+
+// checkUndeclaredParams verifies that every key in params is declared in the
+// CUE parameter schema. Returns an error listing any undeclared field paths.
+func checkUndeclaredParams(schema cue.Value, params map[string]any) error {
+	if len(params) == 0 {
+		return nil
+	}
+	undeclared := findUndeclaredFields(schema, params, "")
+	if len(undeclared) > 0 {
+		sort.Strings(undeclared)
+		return fmt.Errorf("undeclared parameters: %s", strings.Join(undeclared, ","))
+	}
+	return nil
+}
+
+// findUndeclaredFields recursively walks the user-provided params and collects
+// field paths that are not declared in the CUE schema (including optional fields).
+func findUndeclaredFields(schema cue.Value, params map[string]any, prefix string) []string {
+	// If the schema has a pattern constraint ([string]: T), all string-keyed
+	// fields are valid at this level (e.g., labels?: [string]: string).
+	if schema.LookupPath(cue.MakePath(cue.AnyString)).Exists() {
+		return nil
+	}
+
+	// Collect declared field names from the schema (required + optional).
+	declared := make(map[string]cue.Value)
+	it, err := schema.Fields(cue.Optional(true), cue.Definitions(false), cue.Hidden(false))
+	if err != nil {
+		// Cannot enumerate schema fields; skip undeclared check at this level
+		// to avoid false positives when field iteration fails.
+		return nil
+	}
+	for it.Next() {
+		declared[cueutils.GetSelectorLabel(it.Selector())] = it.Value()
+	}
+
+	var undeclared []string
+	for key, val := range params {
+		path := key
+		if prefix != "" {
+			path = prefix + "." + key
+		}
+		fieldSchema, ok := declared[key]
+		if !ok {
+			undeclared = append(undeclared, path)
+			continue
+		}
+		// Recurse into nested structs.
+		if nested, isMap := val.(map[string]any); isMap && fieldSchema.IncompleteKind() == cue.StructKind {
+			undeclared = append(undeclared, findUndeclaredFields(fieldSchema, nested, path)...)
+		}
+		// Recurse into list elements that contain structs.
+		if items, isList := val.([]any); isList && fieldSchema.IncompleteKind() == cue.ListKind {
+			elemSchema := fieldSchema.LookupPath(cue.MakePath(cue.AnyIndex))
+			if elemSchema.Exists() && elemSchema.IncompleteKind() == cue.StructKind {
+				for i, item := range items {
+					if nested, isMap := item.(map[string]any); isMap {
+						elemPath := fmt.Sprintf("%s[%d]", path, i)
+						undeclared = append(undeclared, findUndeclaredFields(elemSchema, nested, elemPath)...)
+					}
+				}
+			}
+		}
+	}
+	return undeclared
+}
+
+// getDeclaredFieldNames returns the set of top-level field names declared in
+// the CUE schema (including optional fields).
+func getDeclaredFieldNames(schema cue.Value) map[string]bool {
+	declared := make(map[string]bool)
+	it, err := schema.Fields(cue.Optional(true), cue.Definitions(false), cue.Hidden(false))
+	if err != nil {
+		return declared
+	}
+	for it.Next() {
+		declared[cueutils.GetSelectorLabel(it.Selector())] = true
+	}
+	return declared
+}
+
+// cueParamBlock marshals the Params map into a `parameter:` block suitable
+// for inclusion in a CUE document.
+func cueParamBlock(params map[string]any) (string, error) {
+	if len(params) == 0 {
+		return velaprocess.ParameterFieldName + ": {}", nil
+	}
+	b, err := json.Marshal(params)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, string(b)), nil
+}
+
+// enforceRequiredParams checks that every required field declared in the
+// template’s `parameter:` stanza is satisfied either directly (Params) or
+// indirectly (workflow‑step inputs). It returns an error describing any
+// missing keys.
+func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) error {
+	requiredParams, err := requiredFields(root.LookupPath(value.FieldPath(velaprocess.ParameterFieldName)))
+	if err != nil {
+		return err
+	}
+
+	// filter out params that are initialized directly
+	requiredParams, err = filterMissing(requiredParams, params)
+	if err != nil {
+		return err
+	}
+
+	// if there are still required params not initialized
+	if len(requiredParams) > 0 {
+		// collect params that are initialized in workflow steps
+		wfInitParams := make(map[string]bool)
+		for _, step := range app.WorkflowSteps {
+			for _, in := range step.Inputs {
+				wfInitParams[in.ParameterKey] = true
+			}
+		}
+
+		for _, p := range app.Policies {
+			if p.Type != "override" {
+				continue
+			}
+
+			var spec overrideSpec
+			if err := json.Unmarshal(p.Properties.Raw, &spec); err != nil {
+				return fmt.Errorf("override policy %q: parse properties: %w", p.Name, err)
+			}
+
+			for _, c := range spec.Components {
+				if len(c.Properties) == 0 {
+					continue
+				}
+
+				flat, err := flatten.Flatten(c.Properties, "", flatten.DotStyle)
+				if err != nil {
+					return fmt.Errorf("override policy %q: flatten properties: %w", p.Name, err)
+				}
+
+				for k := range flat {
+					wfInitParams[k] = true // idempotent set-style insert
+				}
+			}
+		}
+
+		// collect required params that were not initialized even in workflow steps
+		var missingParams []string
+		for _, key := range requiredParams {
+			if !wfInitParams[key] {
+				missingParams = append(missingParams, key)
+			}
+		}
+
+		if len(missingParams) > 0 {
+			return &missingParamsError{names: missingParams}
+		}
+	}
+	return nil
+}
+
+// missingParamsError names the required parameters an Application did not
+// provide, so a caller able to explain one of them still has the names to work
+// from.
+type missingParamsError struct{ names []string }
+
+func (e *missingParamsError) Error() string {
+	return fmt.Sprintf("missing parameters: %v", strings.Join(e.names, ","))
+}
+
+// explainMissingParams appends, to a missing-parameter error, why each name a
+// source was to supply is absent.
+//
+// Without it the message reads as false: the parameter is set in the
+// properties, to a source read, and what the author has to change is the
+// source's schema or the parameter, neither of which the bare list points at.
+func explainMissingParams(ctx process.Context, wl *Component, err error) error {
+	var missing *missingParamsError
+	if !errors.As(err, &missing) {
+		return err
+	}
+	var clauses []string
+	for _, name := range missing.names {
+		binding, field, ok := sources.OptionalSourceField(ctx, wl.Params, name)
+		if !ok {
+			continue
+		}
+		clauses = append(clauses, fmt.Sprintf(
+			"source %q declares %s optional, so it may be unset: make it required in the SourceDefinition schema or optional in the parameter",
+			binding, field))
+	}
+	if len(clauses) == 0 {
+		return err
+	}
+	return fmt.Errorf("%s; %s", err.Error(), strings.Join(clauses, "; "))
+}
+
+type overrideSpec struct {
+	Components []struct {
+		Name       string         `json:"name"`
+		Properties map[string]any `json:"properties"`
+	} `json:"components"`
+}
+
+// requiredFields returns the list of "parameter" fields that must be supplied
+// by the caller.  Nested struct leaves are returned as dot-separated paths.
+//
+// Rules:
+//   - A field with a trailing '?' is optional -> ignore
+//   - A field that has a default (*value | …) is optional -> ignore
+//   - Everything else is required.
+//   - Traverses arbitrarily deep into structs.
+func requiredFields(v cue.Value) ([]string, error) {
+	var out []string
+	err := collect("", v, &out)
+	return out, err
+}
+
+func collect(prefix string, v cue.Value, out *[]string) error {
+	// Only structs can contain nested required fields.
+	if v.Kind() != cue.StructKind {
+		return nil
+	}
+	it, err := v.Fields(
+		cue.Optional(false),
+		cue.Definitions(false),
+		cue.Hidden(false),
+	)
+	if err != nil {
+		return err
+	}
+
+	for it.Next() {
+		// Skip fields that provide a default (*").
+		if _, hasDef := it.Value().Default(); hasDef {
+			continue
+		}
+
+		label := it.Selector().Unquoted()
+		path := label
+		if prefix != "" {
+			path = prefix + "." + label
+		}
+
+		// Recurse if the value itself is a struct; otherwise record the leaf.
+		if it.Value().Kind() == cue.StructKind {
+			if err := collect(path, it.Value(), out); err != nil {
+				return err
+			}
+		} else {
+			*out = append(*out, path)
+		}
+	}
+	return nil
+}
+
+// filterMissing removes every key that is already present in the provided map.
+//
+// It re‑uses the original slice’s backing array to avoid allocations.
+func filterMissing(keys []string, provided map[string]any) ([]string, error) {
+	flattenProvided, err := flatten.Flatten(provided, "", flatten.DotStyle)
+	if err != nil {
+		return nil, err
+	}
+	out := keys[:0]
+	for _, k := range keys {
+		if _, ok := flattenProvided[k]; !ok {
+			out = append(out, k)
+		}
+	}
+	return out, nil
+}
+
+// componentParameterSchema reads the parameter declaration a component is
+// judged against. One that extends another declares only part of its own
+// parameters, so the chain is what says which fields are valid.
+func componentParameterSchema(ctx context.Context, wl *Component, templateStr, baseCtx string) (cue.Value, error) {
+	if len(wl.FullTemplate.Ancestors) == 0 {
+		root, err := velacuex.WorkloadCompiler.Get().CompileString(ctx, strings.Join([]string{
+			renderTemplate(templateStr),
+			baseCtx,
+		}, "\n"))
+		if err != nil {
+			return cue.Value{}, err
+		}
+		return root.LookupPath(value.FieldPath(velaprocess.ParameterFieldName)), nil
+	}
+
+	root, err := inherit.SchemaValue(ctx,
+		inherit.Level{Name: wl.Name, Template: templateStr},
+		baseCtx, inherit.ComponentSurface, compileSchemaLevel)
+	if err != nil {
+		return cue.Value{}, err
+	}
+	return root.LookupPath(value.FieldPath(velaprocess.ParameterFieldName)), nil
+}
+
+// componentParameterRoot is componentParameterSchema before the lookup, for a
+// caller that needs the whole value rather than the parameter alone. Keeping it
+// whole is what keeps it in one cue.Context.
+func componentParameterRoot(ctx context.Context, wl *Component, templateStr, baseCtx string) (cue.Value, error) {
+	if len(wl.FullTemplate.Ancestors) == 0 {
+		return velacuex.WorkloadCompiler.Get().CompileString(ctx, strings.Join([]string{
+			renderTemplate(templateStr),
+			baseCtx,
+		}, "\n"))
+	}
+
+	return inherit.SchemaValue(ctx,
+		inherit.Level{Name: wl.Name, Template: templateStr},
+		baseCtx, inherit.ComponentSurface, compileSchemaLevel)
+}
+
+// compileSchemaLevel compiles one level of a chain for its parameters alone, so
+// provider functions stay unresolved: nothing is supplied for them to run on.
+func compileSchemaLevel(ctx context.Context, src string) (cue.Value, error) {
+	return velacuex.WorkloadCompiler.Get().CompileStringWithOptions(
+		ctx, renderTemplate(src), cuex.DisableResolveProviderFunctions{})
+}
+
+// renderTemplate appends the placeholders expected by KubeVela’s template
+// compiler so that the generated snippet is always syntactically complete.
+func renderTemplate(tmpl string) string {
+	return tmpl + `
+context: _
+parameter: _
+`
+}
+
+// newValidationProcessContext evaluates a component for validation. Extra CUE,
+// when given, joins the context file every template is evaluated with.
+func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData, extra string) (process.Context, error) {
 	baseHooks := []process.BaseHook{
 		// add more hook funcs here to validate CUE base
 	}
@@ -64,7 +700,18 @@ func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData) 
 
 	ctxData.BaseHooks = baseHooks
 	ctxData.AuxiliaryHooks = auxiliaryHooks
+
+	// Dry-run mode is already set on ctxData.Ctx by the caller
+	// (ValidateCUESchematicAppfile) so provider functions use client-only rendering.
 	pCtx := velaprocess.NewContext(ctxData)
+	if extra != "" {
+		pCtx = policyContextFile{Context: pCtx, extra: extra}
+	}
+	// The same identity PrepareProcessContext pushes on the real path. Without it
+	// this render is missing context the live one has, so an expression reading it
+	// fails here and works in production - the worst possible split.
+	pCtx.PushData(velaprocess.ContextComponentName, c.Name)
+	pCtx.PushData(velaprocess.ContextComponentType, c.Type)
 	if err := c.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
@@ -90,4 +737,272 @@ func validateAuxiliaryNameUnique() process.AuxiliaryHook {
 		}
 		return nil
 	})
+}
+
+// HasParamsSuppliedAtRuntime reports whether any component parameter of this
+// Application is filled in at runtime rather than written in the spec. Such a
+// component cannot be rendered outside the workflow that supplies the value, so
+// a caller that renders components on its own has to expect an incomplete
+// parameter and cannot read that failure as a fault of the component.
+func HasParamsSuppliedAtRuntime(app *Appfile) bool {
+	if len(getWorkflowAndPolicySuppliedParams(app)) > 0 {
+		return true
+	}
+	// A component can also take an input directly, without an explicit workflow;
+	// the generated workflow step carries it.
+	for _, comp := range app.Components {
+		if len(comp.Inputs) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// HasComponentParamsSuppliedAtRuntime reports whether the named component takes
+// runtime-only parameter input directly, through an apply-component workflow
+// step, or through an override policy. The component-local check avoids
+// suppressing health failures for unrelated components.
+func HasComponentParamsSuppliedAtRuntime(app *Appfile, componentName string) bool {
+	for _, comp := range app.Components {
+		if comp.Name == componentName {
+			if len(comp.Inputs) > 0 {
+				return true
+			}
+			break
+		}
+	}
+	for _, step := range app.WorkflowSteps {
+		if step.Type != "apply-component" || len(step.Inputs) == 0 || step.Properties == nil {
+			continue
+		}
+		var props struct {
+			Component string `json:"component"`
+		}
+		if json.Unmarshal(step.Properties.Raw, &props) == nil && props.Component == componentName {
+			return true
+		}
+	}
+	for _, p := range app.Policies {
+		if p.Type != "override" || p.Properties == nil {
+			continue
+		}
+		var spec overrideSpec
+		if err := json.Unmarshal(p.Properties.Raw, &spec); err != nil {
+			continue
+		}
+		for _, c := range spec.Components {
+			if c.Name == componentName && len(c.Properties) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// getWorkflowAndPolicySuppliedParams returns a set of parameter keys that will be
+// supplied by workflow steps or override policies at runtime.
+func getWorkflowAndPolicySuppliedParams(app *Appfile) map[string]bool {
+	result := make(map[string]bool)
+
+	// Collect from workflow step inputs
+	for _, step := range app.WorkflowSteps {
+		for _, in := range step.Inputs {
+			result[in.ParameterKey] = true
+		}
+	}
+
+	// Collect from override policies
+	for _, p := range app.Policies {
+		if p.Type != "override" {
+			continue
+		}
+
+		var spec overrideSpec
+		if err := json.Unmarshal(p.Properties.Raw, &spec); err != nil {
+			continue // Skip if we can't parse
+		}
+
+		for _, c := range spec.Components {
+			if len(c.Properties) == 0 {
+				continue
+			}
+
+			flat, err := flatten.Flatten(c.Properties, "", flatten.DotStyle)
+			if err != nil {
+				continue // Skip if we can't flatten
+			}
+
+			for k := range flat {
+				result[k] = true
+			}
+		}
+	}
+
+	return result
+}
+
+// getDefaultForMissingParameter checks if a parameter can be defaulted for validation
+// and returns an appropriate placeholder value.
+func getDefaultForMissingParameter(v cue.Value) (bool, any) {
+	if v.IsConcrete() {
+		return true, nil
+	}
+
+	if defaultVal, hasDefault := v.Default(); hasDefault {
+		return true, defaultVal
+	}
+
+	// Use Expr() to inspect the operation tree for complex validation
+	op, args := v.Expr()
+
+	switch op {
+	case cue.NoOp, cue.SelectorOp:
+		// No operation or field selector - simple type
+		// Use IncompleteKind for non-concrete values to get the correct type
+		return true, getTypeDefault(v.IncompleteKind())
+
+	case cue.AndOp:
+		// Conjunction (e.g., int & >0 & <100)
+		if len(args) > 1 {
+			// Check if any arg is NOT just a basic kind (indicates complex validation)
+			for _, arg := range args {
+				if arg.Kind() == cue.BottomKind {
+					return false, nil
+				}
+			}
+		}
+		return true, getTypeDefault(v.IncompleteKind())
+
+	case cue.OrOp:
+		// Disjunction (e.g., "value1" | "value2" | "value3") - likely an enum
+		if len(args) > 0 {
+			firstVal := args[0]
+			if firstVal.IsConcrete() {
+				var result any
+				if err := firstVal.Decode(&result); err == nil {
+					return true, result
+				}
+			}
+		}
+		return false, nil
+
+	default:
+		return false, nil
+	}
+}
+
+// getTypeDefault returns a simple default value based on the CUE Kind.
+func getTypeDefault(kind cue.Kind) any {
+	switch kind {
+	case cue.StringKind:
+		return "__workflow_supplied__"
+	case cue.FloatKind:
+		return 0.0
+	case cue.IntKind, cue.NumberKind:
+		return 0
+	case cue.BoolKind:
+		return false
+	case cue.ListKind:
+		return []any{}
+	case cue.StructKind:
+		return map[string]any{}
+	default:
+		return "__workflow_supplied__"
+	}
+}
+
+// augmentComponentParamsForValidation checks if workflow-supplied parameters
+// need to be augmented for trait validation. Returns (shouldSkip, augmentedParams).
+// If shouldSkip=true, the component has complex validation and should skip trait validation.
+// If shouldSkip=false, augmentedParams contains the original params plus simple defaults.
+func (p *Parser) augmentComponentParamsForValidation(wl *Component, workflowParams map[string]bool, ctxData velaprocess.ContextData) (bool, map[string]any) {
+	// Build CUE value to inspect the component's parameter schema
+	ctx := velaprocess.NewContext(ctxData)
+	baseCtx, err := ctx.BaseContextFile()
+	if err != nil {
+		return false, wl.Params // Can't inspect, proceed normally
+	}
+
+	paramSnippet, err := cueParamBlock(wl.Params)
+	if err != nil {
+		return false, wl.Params
+	}
+
+	templateStr, _ := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	cueSrc := strings.Join([]string{
+		renderTemplate(templateStr),
+		paramSnippet,
+		baseCtx,
+	}, "\n")
+
+	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
+	if err != nil {
+		return false, wl.Params // Can't compile, proceed normally
+	}
+
+	// Get the parameter schema
+	paramVal := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+
+	// Collect default values for workflow-supplied params that are missing
+	workflowParamDefaults := make(map[string]any)
+
+	for paramKey := range workflowParams {
+		// Skip if already provided
+		if _, exists := wl.Params[paramKey]; exists {
+			continue
+		}
+
+		// Check the field in the schema
+		fieldVal := paramVal.LookupPath(cue.ParsePath(paramKey))
+		if !fieldVal.Exists() {
+			continue // Not a parameter field
+		}
+
+		canDefault, defaultVal := getDefaultForMissingParameter(fieldVal)
+		if !canDefault {
+			// complex validation - skip
+			return true, nil
+		}
+
+		if defaultVal != nil {
+			workflowParamDefaults[paramKey] = defaultVal
+		}
+	}
+
+	if len(workflowParamDefaults) == 0 {
+		return false, wl.Params
+	}
+
+	// Create augmented params map
+	augmented := make(map[string]any)
+	for k, v := range wl.Params {
+		augmented[k] = v
+	}
+	for k, v := range workflowParamDefaults {
+		augmented[k] = v
+	}
+
+	fmt.Printf("INFO: Augmented component %q with workflow-supplied defaults for trait validation: %v\n",
+		wl.Name, getMapKeys(workflowParamDefaults))
+
+	return false, augmented
+}
+
+// getMapKeys returns the keys from a map as a slice
+func getMapKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// sourceCacheStoreFor returns the store an Appfile would resolve against,
+// falling back to the Secret store exactly as GenerateContextDataFromAppFile
+// does when nothing has been injected.
+func sourceCacheStoreFor(a *Appfile) velaprocess.SourceCacheStore {
+	if a.SourceCacheStore != nil {
+		return a.SourceCacheStore
+	}
+	return sources.NewSecretSourceCacheStore(a.KubeClient)
 }

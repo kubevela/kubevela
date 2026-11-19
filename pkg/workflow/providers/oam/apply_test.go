@@ -48,6 +48,7 @@ func setupClient(ctx context.Context, t *testing.T) client.Client {
 }
 
 func TestParser(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	act := &mock.Action{}
@@ -72,25 +73,25 @@ func TestParser(t *testing.T) {
 		Params: v,
 		RuntimeParams: oamprovidertypes.RuntimeParams{
 			Action: act,
-			ComponentApply: oamprovidertypes.ComponentApply(func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+			ComponentApply: oamprovidertypes.ComponentApply(func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 				return &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"name": comp.Name,
+						},
+					},
+				}, []*unstructured.Unstructured{
+					{
 						Object: map[string]interface{}{
 							"metadata": map[string]interface{}{
-								"name": comp.Name,
-							},
-						},
-					}, []*unstructured.Unstructured{
-						{
-							Object: map[string]interface{}{
-								"metadata": map[string]interface{}{
-									"name": "service",
-									"labels": map[string]interface{}{
-										"trait.oam.dev/resource": "service",
-									},
+								"name": "service",
+								"labels": map[string]interface{}{
+									"trait.oam.dev/resource": "service",
 								},
 							},
 						},
-					}, false, nil
+					},
+				}, false, "", nil
 			}),
 		},
 	})
@@ -106,7 +107,83 @@ func TestParser(t *testing.T) {
 	r.Equal(act.Phase, "Wait")
 }
 
+func TestRenderComponent(t *testing.T) {
+	t.Parallel()
+	r := require.New(t)
+	ctx := context.Background()
+	cuectx := cuecontext.New()
+	cli := setupClient(ctx, t)
+
+	v := cuectx.CompileString(`$params: {
+	value: {
+		name: "test-render",
+		type: "webservice",
+	}
+}`)
+	r.NoError(v.Err())
+
+	mockComponentRender := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		r.Equal("test-render", comp.Name)
+		workload := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]interface{}{
+					"name": "test-workload",
+				},
+			},
+		}
+		trait := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "Service",
+				"metadata": map[string]interface{}{
+					"name": "test-trait",
+					"labels": map[string]interface{}{
+						"trait.oam.dev/resource": "mytrait",
+					},
+				},
+			},
+		}
+		return workload, []*unstructured.Unstructured{trait}, nil
+	}
+
+	res, err := RenderComponent(ctx, &oamprovidertypes.Params[cue.Value]{
+		Params: v,
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			KubeClient:      cli,
+			ComponentRender: mockComponentRender,
+		},
+	})
+	r.NoError(err)
+
+	output, err := res.LookupPath(cue.ParsePath("$returns.output.metadata.name")).String()
+	r.NoError(err)
+	r.Equal("test-workload", output)
+
+	outputs, err := res.LookupPath(cue.ParsePath("$returns.outputs.mytrait.metadata.name")).String()
+	r.NoError(err)
+	r.Equal("test-trait", outputs)
+
+	// Traits but no workload: the traits still fill their slots.
+	res, err = RenderComponent(ctx, &oamprovidertypes.Params[cue.Value]{
+		Params: v,
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			KubeClient: cli,
+			ComponentRender: func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+				_, traits, err := mockComponentRender(ctx, comp, patcher, clusterName, overrideNamespace)
+				return nil, traits, err
+			},
+		},
+	})
+	r.NoError(err)
+	outputs, err = res.LookupPath(cue.ParsePath("$returns.outputs.mytrait.metadata.name")).String()
+	r.NoError(err)
+	r.Equal("test-trait", outputs)
+}
+
 func TestLoadComponent(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	act := &mock.Action{}
@@ -171,6 +248,7 @@ func TestLoadComponent(t *testing.T) {
 }
 
 func TestLoadComponentInOrder(t *testing.T) {
+	t.Parallel()
 	r := require.New(t)
 	ctx := context.Background()
 	act := &mock.Action{}
@@ -204,4 +282,25 @@ func TestLoadComponentInOrder(t *testing.T) {
 	b, err := json.Marshal(res.Returns.Value)
 	r.NoError(err)
 	r.Equal(string(b), `[{"name":"c1","type":"test","properties":{"image":"busybox"}},{"name":"c2","type":"test","properties":{"image":"busybox"}}]`)
+}
+
+// A component waiting on a read was not applied, so its step waits, with the
+// reason, whether or not it asked to wait for health.
+func TestApplyComponentWaitsOnARead(t *testing.T) {
+	r := require.New(t)
+	act := &mock.Action{}
+	v := cuecontext.New().CompileString(`$params: value: {name: "api", type: "webservice"}
+waitHealthy: false`)
+	_, err := ApplyComponent(context.Background(), &oamprovidertypes.Params[cue.Value]{
+		Params: v,
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			Action: act,
+			ComponentApply: func(context.Context, common.ApplicationComponent, *cue.Value, string, string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+				return nil, nil, false, `waiting for component "db" in east to be healthy`, nil
+			},
+		},
+	})
+	r.NoError(err)
+	r.Equal("Wait", act.Phase)
+	r.Equal(`waiting for component "db" in east to be healthy`, act.Msg)
 }

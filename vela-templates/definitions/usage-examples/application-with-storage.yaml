@@ -1,0 +1,24 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-with-storage
+spec:
+  components:
+    - name: busybox-runner2
+      type: webservice
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000'
+      traits:
+        - type: storage
+          properties:
+            pvc:
+              - name: "busybox-pvc2"
+                storageClassName: local-path
+                resources:
+                  requests:
+                    storage: "2Gi"
+                mountPath: "/tmp"
+

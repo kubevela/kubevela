@@ -224,7 +224,7 @@ func (o *AppfileOptions) ApplyApp(app *corev1beta1.Application, scopes []oam.Obj
 	if err := o.apply(app, scopes); err != nil {
 		return err
 	}
-	o.IO.Infof(Info(app))
+	o.IO.Infof("%s", Info(app))
 	return nil
 }
 
@@ -262,7 +262,7 @@ func ApplyApplication(app corev1beta1.Application, ioStream cmdutil.IOStreams, c
 	if err != nil {
 		return err
 	}
-	ioStream.Infof(Info(&app))
+	ioStream.Infof("%s", Info(&app))
 	return nil
 }
 

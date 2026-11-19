@@ -1,0 +1,60 @@
+apiVersion: core.oam.dev/v1beta1
+kind: SourceDefinition
+metadata:
+  name: tenant-profile
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Who this namespace belongs to, from platform-managed labels. Keyed per cluster and namespace."
+    # Which inference policy generated $internal below. Admission loads the rules
+    # with this hash rather than the current ones, so a later policy does not
+    # invalidate a definition already committed.
+    definition.oam.dev/cache-key-rules: "6ac674fa"
+    definition.oam.dev/cache-key-rules-version: v1
+spec:
+  schematic:
+    cue:
+      template: |
+        import "vela/kube"
+
+        // Generated from the context this template reads - do not edit. Admission re-derives these and rejects a mismatch.
+        $internal: {
+        	key: "tenant-profile-\(context.cluster)-\(context.namespace)"
+        	keyInputs: ["cluster", "namespace"]
+        }
+
+        // A tenant's identity, derived from labels the platform puts on the namespace.
+        // The application author never learns that namespace labels are the mechanism.
+        schema: {
+        	team:        string
+        	costCentre:  string
+        	environment: string
+        	// Quota the platform grants this tenant.
+        	maxReplicas: int
+        	// Only set for tenants who have opted into mesh routing.
+        	meshDomain?: string
+        }
+
+        storage: {
+        	storageTTL:     "15m"
+        	onStaleFailure: "use-stale"
+        }
+
+        parameter: {}
+
+        _ns: kube.#Get & {
+        	$params: {
+        		cluster: context.cluster
+        		resource: {
+        			apiVersion: "v1"
+        			kind:       "Namespace"
+        			metadata: name: context.namespace
+        		}
+        	}
+        }
+
+        output: {
+        	team:        _ns.$returns.metadata.labels["platform.io/team"]
+        	costCentre:  _ns.$returns.metadata.labels["platform.io/cost-centre"]
+        	environment: _ns.$returns.metadata.labels["platform.io/environment"]
+        	maxReplicas: 6
+        }

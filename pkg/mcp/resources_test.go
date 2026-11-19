@@ -1,0 +1,399 @@
+/*
+Copyright 2026 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package mcp
+
+import (
+	"context"
+	"errors"
+	"io"
+	"strings"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	apitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+
+	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
+)
+
+// managedFixtures is the web Application with a versioned ResourceTracker
+// that owns a Deployment and a Secret, the Deployment's ReplicaSet and two Pods, plus
+// an unmanaged Deployment in the same namespace.
+func managedFixtures() []client.Object {
+	app := webApp()
+	labels := map[string]string{oam.LabelAppName: "web", oam.LabelAppComponent: "web"}
+	rt := &v1beta1.ResourceTracker{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "web-team-a",
+			Labels: map[string]string{oam.LabelAppName: "web", oam.LabelAppNamespace: "team-a"},
+		},
+		Spec: v1beta1.ResourceTrackerSpec{
+			// Versioned and matching the Application generation, so it is the
+			// current tracker and its resources report Latest.
+			Type:                  v1beta1.ResourceTrackerTypeVersioned,
+			ApplicationGeneration: 3,
+			ManagedResources: []v1beta1.ManagedResource{
+				{
+					ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "team-a", Name: "web"}},
+					OAMObjectReference:     oamcommon.OAMObjectReference{Component: "web"},
+				},
+				{
+					ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "v1", Kind: "Secret", Namespace: "team-a", Name: "web-creds"}},
+					OAMObjectReference:     oamcommon.OAMObjectReference{Component: "web"},
+				},
+			},
+		},
+	}
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "team-a", UID: "dep-uid", Labels: labels, ResourceVersion: "77"},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: ptr.To[int32](2),
+			Selector: &metav1.LabelSelector{MatchLabels: labels},
+			Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: labels}, Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "web", Image: "nginx"}}}},
+		},
+		Status: appsv1.DeploymentStatus{Replicas: 2, UpdatedReplicas: 2, ReadyReplicas: 2, AvailableReplicas: 2, ObservedGeneration: 1},
+	}
+	rsOwner := metav1.OwnerReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "web", UID: "dep-uid", Controller: ptr.To(true)}
+	rs := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "web-abc", Namespace: "team-a", UID: "rs-uid", Labels: labels, OwnerReferences: []metav1.OwnerReference{rsOwner}},
+		Spec:       appsv1.ReplicaSetSpec{Replicas: ptr.To[int32](2), Selector: &metav1.LabelSelector{MatchLabels: labels}},
+		Status:     appsv1.ReplicaSetStatus{Replicas: 2, ReadyReplicas: 2, AvailableReplicas: 2},
+	}
+	podOwner := metav1.OwnerReference{APIVersion: "apps/v1", Kind: "ReplicaSet", Name: "web-abc", UID: "rs-uid", Controller: ptr.To(true)}
+	pod := func(name string) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "team-a", UID: apitypes.UID("pod-" + name), Labels: labels, OwnerReferences: []metav1.OwnerReference{podOwner}},
+			Spec:       corev1.PodSpec{RestartPolicy: corev1.RestartPolicyAlways, Containers: []corev1.Container{{Name: "web", Image: "nginx"}, {Name: "sidecar", Image: "envoy"}}},
+			Status: corev1.PodStatus{Phase: corev1.PodRunning, Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: corev1.ConditionTrue}}, ContainerStatuses: []corev1.ContainerStatus{
+				{Name: "web", Ready: true, State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+				{Name: "sidecar", Ready: true, State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+			}},
+		}
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "web-creds", Namespace: "team-a", Labels: labels},
+		Type:       corev1.SecretTypeOpaque,
+		Data:       map[string][]byte{"password": []byte("hunter2")},
+	}
+	rogue := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "rogue", Namespace: "team-a"}}
+	return append(platformFixtures(), app, rt, deploy, rs, pod("web-abc-1"), pod("web-abc-2"), secret, rogue)
+}
+
+// forbidDeploymentWeb refuses the tree pass's read of the managed
+// Deployment, as RBAC would, so it is recorded but not read.
+var forbidDeploymentWeb = &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if u, ok := obj.(*unstructured.Unstructured); ok && u.GetKind() == "Deployment" && key.Name == "web" {
+		return apierrors.NewForbidden(schema.GroupResource{Group: "apps", Resource: "deployments"}, key.Name, errors.New("denied"))
+	}
+	return c.Get(ctx, key, obj, opts...)
+}}
+
+// jobFixtures adds to managedFixtures a Job the web component manages, with
+// one pod that failed and was retried and one that is still running.
+func jobFixtures() []client.Object {
+	return jobFixturesWith(corev1.PodFailed, corev1.PodRunning)
+}
+
+// jobFixturesWith is jobFixtures with the phases of its two pods.
+func jobFixturesWith(first, second corev1.PodPhase) []client.Object {
+	objs := managedFixtures()
+	for _, o := range objs {
+		if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+			rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+				ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "batch/v1", Kind: "Job", Namespace: "team-a", Name: "migrate"}},
+				OAMObjectReference:     oamcommon.OAMObjectReference{Component: "web"},
+			})
+		}
+	}
+	labels := map[string]string{"batch.kubernetes.io/controller-uid": "job-uid"}
+	owner := metav1.OwnerReference{APIVersion: "batch/v1", Kind: "Job", Name: "migrate", UID: "job-uid", Controller: ptr.To(true)}
+	pod := func(name string, phase corev1.PodPhase) *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "team-a", UID: apitypes.UID("pod-" + name), Labels: labels, OwnerReferences: []metav1.OwnerReference{owner}},
+			Spec:       corev1.PodSpec{RestartPolicy: corev1.RestartPolicyNever, Containers: []corev1.Container{{Name: "migrate", Image: "migrate"}}},
+			Status:     corev1.PodStatus{Phase: phase},
+		}
+	}
+	return append(objs,
+		&batchv1.Job{
+			ObjectMeta: metav1.ObjectMeta{Name: "migrate", Namespace: "team-a", UID: "job-uid"},
+			Spec: batchv1.JobSpec{
+				Selector: &metav1.LabelSelector{MatchLabels: labels},
+				Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Labels: labels}, Spec: corev1.PodSpec{RestartPolicy: corev1.RestartPolicyNever}},
+			},
+			Status: batchv1.JobStatus{Active: 1, Failed: 1},
+		},
+		pod("migrate-1", first),
+		pod("migrate-2", second),
+	)
+}
+
+var _ = Describe("get_managed_resource", func() {
+	var h *harness
+
+	AfterEach(func() {
+		if h != nil {
+			h.close()
+			h = nil
+		}
+	})
+
+	It("returns every managed resource with its live tree and health", func() {
+		h = startHarness(Options{}, managedFixtures()...)
+		var out GetManagedResourceOutput
+		res := h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a"}, &out)
+		Expect(res.IsError).To(BeFalse())
+		Expect(out.Resources).To(HaveLen(2))
+		var deploy, secret *ManagedResource
+		for i := range out.Resources {
+			switch out.Resources[i].Kind {
+			case "Deployment":
+				deploy = &out.Resources[i]
+			case "Secret":
+				secret = &out.Resources[i]
+			}
+		}
+		Expect(deploy).NotTo(BeNil())
+		Expect(deploy.Cluster).To(Equal("local"))
+		Expect(deploy.Component).To(Equal("web"))
+		Expect(deploy.Latest).To(BeTrue())
+		Expect(deploy.Object).To(BeEmpty(), "no live object unless one resource was selected")
+		Expect(deploy.Tree).To(HaveLen(4), "Deployment, ReplicaSet and two Pods")
+		root := deploy.Tree[0]
+		Expect(root.Kind).To(Equal("Deployment"))
+		Expect(root.Depth).To(Equal(0))
+		Expect(root.Parent).To(BeEmpty())
+		Expect(root.Health.Status).To(Equal("Healthy"))
+		rs := deploy.Tree[1]
+		Expect(rs.Kind).To(Equal("ReplicaSet"))
+		Expect(rs.Depth).To(Equal(1))
+		Expect(rs.Parent).To(Equal("Deployment/web"))
+		pod := deploy.Tree[2]
+		Expect(pod.Kind).To(Equal("Pod"))
+		Expect(pod.Depth).To(Equal(2))
+		Expect(pod.Parent).To(Equal("ReplicaSet/web-abc"))
+		Expect(pod.Health.Status).To(Equal("Healthy"))
+		Expect(deploy.Tree[3].Kind).To(Equal("Pod"))
+		Expect(secret).NotTo(BeNil())
+		Expect(secret.Object).To(BeEmpty())
+	})
+
+	It("returns the live object for a single selection, redacted", func() {
+		objs := managedFixtures()
+		for _, o := range objs {
+			if d, ok := o.(*appsv1.Deployment); ok && d.Name == "web" {
+				d.Spec.Template.Spec.Containers[0].Env = []corev1.EnvVar{{Name: "DB_PASSWORD", Value: "hunter2"}}
+			}
+		}
+		// The fake client drops managedFields on create, so the live read
+		// adds them the way an API server returns them.
+		served := false
+		withManagedFields := &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if err := c.Get(ctx, key, obj, opts...); err != nil {
+				return err
+			}
+			if u, ok := obj.(*unstructured.Unstructured); ok && u.GetKind() == "Deployment" && key.Name == "web" {
+				u.SetManagedFields([]metav1.ManagedFieldsEntry{{Manager: "kubevela", Operation: metav1.ManagedFieldsOperationApply, APIVersion: "apps/v1", FieldsType: "FieldsV1", FieldsV1: &metav1.FieldsV1{Raw: []byte(`{"f:spec":{}}`)}}})
+				served = true
+			}
+			return nil
+		}}
+		h = startHarnessIntercepted(Options{}, nil, withManagedFields, objs...)
+		var out GetManagedResourceOutput
+		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Deployment", "resourceName": "web"}, &out)
+		Expect(out.Resources).To(HaveLen(1))
+		Expect(served).To(BeTrue(), "the live object carried managedFields, so their absence below is redaction")
+		obj := out.Resources[0].Object
+		Expect(obj).To(HaveKeyWithValue("kind", "Deployment"))
+		meta := obj["metadata"].(map[string]any)
+		Expect(meta).NotTo(HaveKey("managedFields"))
+		Expect(toJSON(obj)).NotTo(ContainSubstring("hunter2"))
+		Expect(toJSON(obj)).To(ContainSubstring(`"name":"DB_PASSWORD","value":"` + redactedValue + `"`))
+		Expect(out.Evidence).To(ContainElement(ContainSubstring("Deployment team-a/web in cluster local resourceVersion 77")))
+	})
+
+	It("says a recorded resource it could not read is recorded, not unmanaged", func() {
+		h = startHarnessIntercepted(Options{}, nil, forbidDeploymentWeb, managedFixtures()...)
+		res := h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Deployment", "resourceName": "web"}, nil)
+		text := errorText(res)
+		Expect(text).NotTo(ContainSubstring("not managed"))
+		Expect(text).To(SatisfyAll(ContainSubstring("recorded"), ContainSubstring("could not be read"), ContainSubstring("Deployment team-a/web")))
+	})
+
+	It("does not turn a Job unhealthy because of its finished or running pods", func() {
+		h = startHarness(Options{}, jobFixtures()...)
+		var out GetManagedResourceOutput
+		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Job"}, &out)
+		Expect(out.Resources).To(HaveLen(1))
+		tree := out.Resources[0].Tree
+		Expect(len(tree)).To(BeNumerically(">", 1), "the Job's pods are in its tree: %s", toJSON(tree))
+		Expect(tree[0].Kind).To(Equal("Job"))
+		Expect(tree[0].Health.Derived).To(BeFalse(), toJSON(tree[0]))
+		Expect(tree[0].Health.Status).To(Equal("Healthy"))
+	})
+
+	It("marks a Job unhealthy when every one of its pods failed", func() {
+		h = startHarness(Options{}, jobFixturesWith(corev1.PodFailed, corev1.PodFailed)...)
+		var out GetManagedResourceOutput
+		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Job"}, &out)
+		Expect(out.Resources).To(HaveLen(1))
+		root := out.Resources[0].Tree[0]
+		Expect(root.Kind).To(Equal("Job"))
+		Expect(root.Health.Status).To(Equal("UnHealthy"), toJSON(root))
+		Expect(root.Health.Derived).To(BeTrue())
+		Expect(root.Health.Reason).To(Equal("2 of 2 pods are not healthy"))
+
+		var explained ExplainApplicationOutput
+		res := h.call("explain_application", map[string]any{"name": "web", "namespace": "team-a"}, &explained)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		messages := []string{}
+		for _, f := range explained.Findings {
+			messages = append(messages, f.Severity+": "+f.Message)
+		}
+		Expect(messages).To(ContainElement(`error: component "web": Job migrate is UnHealthy`))
+	})
+
+	It("returns only metadata for a Secret, read through the metadata API", func() {
+		metadataReads := 0
+		funcs := &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if pm, partial := obj.(*metav1.PartialObjectMetadata); partial && pm.GetObjectKind().GroupVersionKind().Kind == "Secret" {
+				metadataReads++
+			}
+			return c.Get(ctx, key, obj, opts...)
+		}}
+		h = startHarnessIntercepted(Options{}, nil, funcs, managedFixtures()...)
+		var out GetManagedResourceOutput
+		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Secret", "resourceName": "web-creds"}, &out)
+		Expect(out.Resources).To(HaveLen(1))
+		obj := out.Resources[0].Object
+		Expect(obj).To(HaveKey("metadata"))
+		Expect(obj).NotTo(HaveKey("data"))
+		Expect(obj).NotTo(HaveKey("stringData"))
+		Expect(out.Resources[0].ObjectNote).To(ContainSubstring("metadata only"))
+		Expect(metadataReads).To(Equal(1), "the live read of the Secret asks for metadata only")
+		Expect(toJSON(out)).NotTo(ContainSubstring("hunter2"), "no Secret value appears anywhere in the result")
+	})
+
+	It("refuses objects the application does not manage", func() {
+		h = startHarness(Options{}, managedFixtures()...)
+		res := h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Deployment", "resourceName": "rogue"}, nil)
+		Expect(errorText(res)).To(ContainSubstring("not managed by application team-a/web"))
+	})
+
+	It("filters by component and by kind", func() {
+		h = startHarness(Options{}, managedFixtures()...)
+		var out GetManagedResourceOutput
+		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "component": "db"}, &out)
+		Expect(out.Resources).To(BeEmpty())
+		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "secret"}, &out)
+		Expect(out.Resources).To(HaveLen(1))
+		Expect(out.Resources[0].Kind).To(Equal("Secret"))
+	})
+})
+
+var _ = Describe("get_logs", func() {
+	var (
+		h        *harness
+		requests []string
+	)
+
+	fakeLogs := func(_ context.Context, _ *rest.Config, cluster, namespace, pod string, opts *corev1.PodLogOptions) (io.ReadCloser, error) {
+		requests = append(requests, cluster+"/"+namespace+"/"+pod+"/"+opts.Container)
+		body := "started\nAuthorization: Bearer eyJhbGciOi.payload.sig\npassword=hunter2 user=app\nAKIAABCDEFGHIJKLMNOP used\nready\n"
+		if opts.Previous {
+			body = "crashed: panic\n"
+		}
+		return io.NopCloser(strings.NewReader(body)), nil
+	}
+
+	BeforeEach(func() { requests = nil })
+
+	AfterEach(func() {
+		if h != nil {
+			h.close()
+			h = nil
+		}
+	})
+
+	It("tails every pod of the application with secrets removed", func() {
+		h = startHarness(Options{PodLogs: fakeLogs}, managedFixtures()...)
+		var out GetLogsOutput
+		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a"}, &out)
+		Expect(res.IsError).To(BeFalse())
+		Expect(out.Pods).To(HaveLen(2))
+		Expect(requests).To(ConsistOf("local/team-a/web-abc-1/web", "local/team-a/web-abc-2/web"))
+		p := out.Pods[0]
+		Expect(p.Pod).To(Equal("web-abc-1"))
+		Expect(p.Component).To(Equal("web"))
+		Expect(p.Container).To(Equal("web"))
+		Expect(p.Containers).To(Equal([]string{"web", "sidecar"}))
+		Expect(p.Phase).To(Equal("Running"))
+		Expect(p.Lines).To(Equal([]string{
+			"started",
+			"Authorization: Bearer " + redactedValue,
+			"password=" + redactedValue + " user=app",
+			"AKIA" + redactedValue + " used",
+			"ready",
+		}))
+		Expect(p.Truncated).To(BeFalse())
+		Expect(out.Meta.Truncated).To(BeFalse())
+		Expect(out.Evidence).To(ContainElement("Pod team-a/web-abc-1 container web in cluster local"))
+	})
+
+	It("selects one pod and container and honours previous", func() {
+		h = startHarness(Options{PodLogs: fakeLogs}, managedFixtures()...)
+		var out GetLogsOutput
+		h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "web-abc-2", "container": "sidecar", "previous": true, "tailLines": 10}, &out)
+		Expect(out.Pods).To(HaveLen(1))
+		Expect(requests).To(Equal([]string{"local/team-a/web-abc-2/sidecar"}))
+		Expect(out.Pods[0].Lines).To(Equal([]string{"crashed: panic"}))
+	})
+
+	It("refuses pods the application does not manage and reports empty matches", func() {
+		h = startHarness(Options{PodLogs: fakeLogs}, managedFixtures()...)
+		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "other"}, nil)
+		Expect(errorText(res)).To(ContainSubstring("not managed by application"))
+		res = h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "component": "db"}, nil)
+		Expect(errorText(res)).To(ContainSubstring("no pods matching"))
+	})
+
+	It("says pods may be under a recorded resource it could not read instead of denying they exist", func() {
+		h = startHarnessIntercepted(Options{PodLogs: fakeLogs}, nil, forbidDeploymentWeb, managedFixtures()...)
+		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a"}, nil)
+		text := errorText(res)
+		Expect(text).NotTo(ContainSubstring("has no pods"))
+		Expect(text).To(SatisfyAll(ContainSubstring("could not be read"), ContainSubstring("Deployment team-a/web")))
+
+		res = h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "web-abc-1"}, nil)
+		text = errorText(res)
+		Expect(text).NotTo(ContainSubstring("not managed"))
+		Expect(text).To(SatisfyAll(ContainSubstring("could not be read"), ContainSubstring("Deployment team-a/web")))
+		Expect(requests).To(BeEmpty())
+	})
+})

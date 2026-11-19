@@ -17,22 +17,30 @@ limitations under the License.
 package definition
 
 import (
+	"context"
+	"strings"
 	"testing"
+
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
+
+	"github.com/oam-dev/kubevela/pkg/sources"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/kubevela/workflow/pkg/cue/model"
 	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
-
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	featuregatetesting "k8s.io/component-base/featuregate/testing"
-
-	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 func TestWorkloadTemplateComplete(t *testing.T) {
@@ -239,6 +247,39 @@ output:{
 				"kind":       "Ingress",
 			}},
 		},
+		"using errs field in workload": {
+			workloadTemplate: `
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: context.name
+}
+errs: parameter.errs
+parameter: { errs: [...string] }`,
+			params: map[string]interface{}{
+				"errs": []string{"custom workload error"},
+			},
+			hasCompileErr: true,
+		},
+		"user errors and validation errors together": {
+			workloadTemplate: `
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: context.name
+	spec: replicas: parameter.replicas
+}
+errs: (if parameter.replicas < 1 {["replicas must be at least 1"]} else {[]})
+parameter: {
+	replicas: int
+	required: string  // This will cause a validation error
+}`,
+			params: map[string]interface{}{
+				"replicas": 0,
+				// missing "required" field
+			},
+			hasCompileErr: true,
+		},
 	}
 
 	for _, v := range testCases {
@@ -250,7 +291,7 @@ output:{
 			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
 		})
 		wt := NewWorkloadAbstractEngine("testWorkload")
-		err := wt.Complete(ctx, v.workloadTemplate, v.params)
+		err := wt.Complete(ctx, v.workloadTemplate, v.params /* use default validation */)
 		hasError := err != nil
 		assert.Equal(t, v.hasCompileErr, hasError)
 		if v.hasCompileErr {
@@ -725,7 +766,7 @@ parameter: {
         }
       }
       outputs: ingress: {
-        apiVersion: "networking.k8s.io/v1beta1"
+        apiVersion: "networking.k8s.io/v1"
         kind: "Ingress"
         metadata:
           name: context.name
@@ -736,9 +777,14 @@ parameter: {
             http: {
               paths: [{
                   path: parameter.path
+                  pathType: "Prefix"
                   backend: {
-                    serviceName: context.name
-                    servicePort: parameter.exposePort
+                    service: {
+                      name: context.name
+                      port: {
+                        number: parameter.exposePort
+                      }
+                    }
                   }
               }]
             }
@@ -781,7 +827,7 @@ parameter: {
 						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
 				},
 				"t3service": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "spec": map[string]interface{}{"ports": []interface{}{map[string]interface{}{"port": int64(1080), "targetPort": int64(443)}}, "selector": map[string]interface{}{"app": "test"}}}},
-				"t3ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "networking.k8s.io/v1beta1", "kind": "Ingress", "labels": map[string]interface{}{"config": "enemies-data"}, "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"host": "example.com", "http": map[string]interface{}{"paths": []interface{}{map[string]interface{}{"backend": map[string]interface{}{"serviceName": "test", "servicePort": int64(1080)}, "path": "ping"}}}}}}}},
+				"t3ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "networking.k8s.io/v1", "kind": "Ingress", "labels": map[string]interface{}{"config": "enemies-data"}, "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"host": "example.com", "http": map[string]interface{}{"paths": []interface{}{map[string]interface{}{"path": "ping", "pathType": "Prefix", "backend": map[string]interface{}{"service": map[string]interface{}{"name": "test", "port": map[string]interface{}{"number": int64(1080)}}}}}}}}}}},
 			},
 		},
 		"outputs trait with schema": {
@@ -1287,205 +1333,6 @@ outputs: abc :{
 	}
 }
 
-func TestCheckHealth(t *testing.T) {
-	cases := map[string]struct {
-		tpContext  map[string]interface{}
-		healthTemp string
-		parameter  interface{}
-		exp        bool
-	}{
-		"normal-equal": {
-			tpContext: map[string]interface{}{
-				"output": map[string]interface{}{
-					"status": map[string]interface{}{
-						"readyReplicas": 4,
-						"replicas":      4,
-					},
-				},
-			},
-			healthTemp: "isHealth:  context.output.status.readyReplicas == context.output.status.replicas",
-			parameter:  nil,
-			exp:        true,
-		},
-		"normal-false": {
-			tpContext: map[string]interface{}{
-				"output": map[string]interface{}{
-					"status": map[string]interface{}{
-						"readyReplicas": 4,
-						"replicas":      5,
-					},
-				},
-			},
-			healthTemp: "isHealth: context.output.status.readyReplicas == context.output.status.replicas",
-			parameter:  nil,
-			exp:        false,
-		},
-		"array-case-equal": {
-			tpContext: map[string]interface{}{
-				"output": map[string]interface{}{
-					"status": map[string]interface{}{
-						"conditions": []interface{}{
-							map[string]interface{}{"status": "True"},
-						},
-					},
-				},
-			},
-			healthTemp: `isHealth: context.output.status.conditions[0].status == "True"`,
-			parameter:  nil,
-			exp:        true,
-		},
-		"parameter-false": {
-			tpContext: map[string]interface{}{
-				"output": map[string]interface{}{
-					"status": map[string]interface{}{
-						"replicas": 4,
-					},
-				},
-				"outputs": map[string]interface{}{
-					"my": map[string]interface{}{
-						"status": map[string]interface{}{
-							"readyReplicas": 4,
-						},
-					},
-				},
-			},
-			healthTemp: "isHealth: context.outputs[parameter.res].status.readyReplicas == context.output.status.replicas",
-			parameter: map[string]string{
-				"res": "my",
-			},
-			exp: true,
-		},
-	}
-	for message, ca := range cases {
-		healthy, err := checkHealth(ca.tpContext, ca.healthTemp, ca.parameter)
-		assert.NoError(t, err, message)
-		assert.Equal(t, ca.exp, healthy, message)
-	}
-}
-
-func TestGetStatus(t *testing.T) {
-	cases := map[string]struct {
-		tpContext  map[string]interface{}
-		parameter  interface{}
-		statusTemp string
-		expMessage string
-	}{
-		"field-with-array-and-outputs": {
-			tpContext: map[string]interface{}{
-				"outputs": map[string]interface{}{
-					"service": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"type":      "NodePort",
-							"clusterIP": "10.0.0.1",
-							"ports": []interface{}{
-								map[string]interface{}{
-									"port": 80,
-								},
-							},
-						},
-					},
-					"ingress": map[string]interface{}{
-						"rules": []interface{}{
-							map[string]interface{}{
-								"host": "example.com",
-							},
-						},
-					},
-				},
-			},
-			statusTemp: `message: "type: " + context.outputs.service.spec.type + " clusterIP:" + context.outputs.service.spec.clusterIP + " ports:" + "\(context.outputs.service.spec.ports[0].port)" + " domain:" + context.outputs.ingress.rules[0].host`,
-			expMessage: "type: NodePort clusterIP:10.0.0.1 ports:80 domain:example.com",
-		},
-		"complex status": {
-			tpContext: map[string]interface{}{
-				"outputs": map[string]interface{}{
-					"ingress": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"rules": []interface{}{
-								map[string]interface{}{
-									"host": "example.com",
-								},
-							},
-						},
-						"status": map[string]interface{}{
-							"loadBalancer": map[string]interface{}{
-								"ingress": []interface{}{
-									map[string]interface{}{
-										"ip": "10.0.0.1",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			statusTemp: `if len(context.outputs.ingress.status.loadBalancer.ingress) > 0 {
-	message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + context.outputs.ingress.status.loadBalancer.ingress[0].ip
-}
-if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
-	message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
-}`,
-			expMessage: "Visiting URL: example.com, IP: 10.0.0.1",
-		},
-		"status use parameter field": {
-			tpContext: map[string]interface{}{
-				"outputs": map[string]interface{}{
-					"test-name": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"type":      "NodePort",
-							"clusterIP": "10.0.0.1",
-							"ports": []interface{}{
-								map[string]interface{}{
-									"port": 80,
-								},
-							},
-						},
-					},
-				},
-			},
-			parameter: map[string]interface{}{
-				"configInfo": map[string]string{
-					"name": "test-name",
-				},
-			},
-			statusTemp: `message: parameter.configInfo.name + ".type: " + context.outputs["\(parameter.configInfo.name)"].spec.type`,
-			expMessage: "test-name.type: NodePort",
-		},
-		"import package in template": {
-			tpContext: map[string]interface{}{
-				"outputs": map[string]interface{}{
-					"service": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"type":      "NodePort",
-							"clusterIP": "10.0.0.1",
-							"ports": []interface{}{
-								map[string]interface{}{
-									"port": 80,
-								},
-							},
-						},
-					},
-					"ingress": map[string]interface{}{
-						"rules": []interface{}{
-							map[string]interface{}{
-								"host": "example.com",
-							},
-						},
-					},
-				},
-			},
-			statusTemp: `import "strconv"
-      message: "ports: " + strconv.FormatInt(context.outputs.service.spec.ports[0].port,10)`,
-			expMessage: "ports: 80",
-		},
-	}
-	for message, ca := range cases {
-		gotMessage, err := getStatusMessage(ca.tpContext, ca.statusTemp, ca.parameter)
-		assert.NoError(t, err, message)
-		assert.Equal(t, ca.expMessage, gotMessage, message)
-	}
-}
-
 func TestTraitPatchSingleOutput(t *testing.T) {
 	baseTemplate := `
 	output: {
@@ -1540,6 +1387,35 @@ func TestTraitPatchSingleOutput(t *testing.T) {
 	r.Equal("val", val)
 }
 
+func TestTraitOutputsCarryTypeLabel(t *testing.T) {
+	traitTemplate := `
+	outputs: note: {
+		apiVersion: "v1"
+		kind:       "ConfigMap"
+		metadata: name: context.name + "-note"
+	}
+	parameter: {}
+`
+	for name, tc := range map[string]struct {
+		engine AbstractEngine
+		want   string
+	}{
+		"plain trait uses its name":            {engine: NewTraitAbstractEngine("note"), want: "note"},
+		"module trait uses the installed name": {engine: NewTraitAbstractEngineWithTypeLabel("note", "widget-kit-v1-note"), want: "widget-kit-v1-note"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			ctx := process.NewContext(process.ContextData{AppName: "myapp", CompName: "test", Namespace: "default", AppRevisionName: "myapp-v1"})
+			r.NoError(NewWorkloadAbstractEngine("-").Complete(ctx, `output: {apiVersion: "v1", kind: "ConfigMap"}
+parameter: {}`, map[string]interface{}{}))
+			r.NoError(tc.engine.Complete(ctx, traitTemplate, map[string]interface{}{}))
+			_, assists := ctx.Output()
+			r.Len(assists, 1)
+			r.Equal(tc.want, assists[0].Type)
+		})
+	}
+}
+
 func TestTraitCompleteErrorCases(t *testing.T) {
 	cases := map[string]struct {
 		ctx       wfprocess.Context
@@ -1571,270 +1447,475 @@ parameter: {
 	}
 }
 
-func TestWorkloadParamsValidations(t *testing.T) {
-	defer featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.EnableCueValidation, true)()
+func TestValidationErrorFormatting(t *testing.T) {
 	testCases := map[string]struct {
-		workloadTemplate string
-		params           map[string]interface{}
-		expectObj        runtime.Object
-		expAssObjs       map[string]runtime.Object
-		category         types.CapabilityCategory
-		hasCompileErr    bool
-		errorString      string
+		name       string
+		template   string
+		params     map[string]interface{}
+		isWorkload bool
+		wantErr    string
 	}{
-		"Missing Required Param that is used in template": {
-			workloadTemplate: `
-output:{
-	apiVersion: "apps/v1"
-    kind: "Deployment"
-	metadata: name: context.name
-    spec: {
-		replicas: parameter.replicas
-		host: parameter.requiredParam
-	}
-}
+		"workload validation with parameter errors": {
+			name: "my-workload",
+			template: `
 parameter: {
-	replicas: *1 | int
-	type: string
-	requiredParam!: string
+	name: string
+	replicas: int & >=1
 }
-`,
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: parameter.name
+	spec: replicas: parameter.replicas
+}`,
 			params: map[string]interface{}{
-				"replicas": 2,
-				"type":     "ClusterIP",
+				"name":     123,
+				"replicas": -1,
 			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
-				"apiVersion": "apps/v1",
-				"kind":       "Deployment",
-				"metadata":   map[string]interface{}{"name": "test"},
-				"spec":       map[string]interface{}{"replicas": int64(2)},
-			}},
-			hasCompileErr: true,
-			errorString:   "parameter error for testWorkload: parameter.requiredParam: field is required but not present",
+			isWorkload: true,
+			wantErr:    "validation failed for workload my-workload:\n\nParameter errors:\n  parameter.name: conflicting values string and 123 (mismatched types string and int)\n  parameter.replicas: invalid value -1 (out of bound >=1)",
 		},
-		// Missing Required Param that is not used in template
-		"Missing Required Param that is not used in template": {
-			workloadTemplate: `
-output:{
-	apiVersion: "apps/v1"
-    kind: "Deployment"
-	metadata: name: context.name
-    spec: {
-		replicas: parameter.replicas
-	}
-}
+		"trait validation with parameter errors": {
+			name: "my-trait",
+			template: `
 parameter: {
-	replicas: *1 | int
-	type: string
-	requiredParam!: string
+	port: int & >=1 & <=65535
+	protocol: "TCP" | "UDP"
 }
-`,
+outputs: service: {
+	apiVersion: "v1"
+	kind: "Service"
+	spec: {
+		ports: [{
+			port: parameter.port
+			protocol: parameter.protocol
+		}]
+	}
+}`,
 			params: map[string]interface{}{
-				"replicas": 2,
-				"type":     "ClusterIP",
+				"port":     70000,
+				"protocol": "INVALID",
 			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
-				"apiVersion": "apps/v1",
-				"kind":       "Deployment",
-				"metadata":   map[string]interface{}{"name": "test"},
-				"spec":       map[string]interface{}{"replicas": int64(2)},
-			}},
-			hasCompileErr: true,
-			errorString:   "parameter error for testWorkload: parameter.requiredParam: field is required but not present",
+			isWorkload: false,
+			wantErr:    "validation failed for trait my-trait:\n\nParameter errors:\n  parameter.port: invalid value 70000 (out of bound <=65535)\n  parameter.protocol: 2 errors in empty disjunction:\n  parameter.protocol: conflicting values \"TCP\" and \"INVALID\"\n  parameter.protocol: conflicting values \"UDP\" and \"INVALID\"",
 		},
-		//required param that is nested
-		"required param that is nested": {
-			workloadTemplate: `
-output:{
-	apiVersion: "apps/v1"
-    kind: "Deployment"
-	metadata: name: context.name
-    spec: {
-		replicas: parameter.replicas
-	}
-}
+		"mixed parameter and template errors": {
+			name: "test-workload",
+			template: `
 parameter: {
-	replicas: *1 | int
-	type: string
-	host: requiredParam!: string
+	image: string
 }
-`,
-			params: map[string]interface{}{
-				"replicas": 2,
-				"type":     "ClusterIP",
-				"host":     map[string]string{},
-			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
-				"apiVersion": "apps/v1",
-				"kind":       "Deployment",
-				"metadata":   map[string]interface{}{"name": "test"},
-				"spec":       map[string]interface{}{"replicas": int64(2)},
-			}},
-			hasCompileErr: true,
-			errorString:   "parameter error for testWorkload: parameter.host.requiredParam: field is required but not present",
-		},
-		//required params that are provided
-		"required params that are provided": {
-			workloadTemplate: `
-output:{
+output: {
 	apiVersion: "apps/v1"
-    kind: "Deployment"
-	metadata: name: context.name
-    spec: {
-		replicas: parameter.replicas
-		host: parameter.host.requiredParam
+	kind: "Deployment"
+	spec: {
+		replicas: "invalid"
+		template: spec: containers: [{
+			image: parameter.image
+		}]
 	}
-}
-parameter: {
-	replicas: *1 | int
-	type: string
-	host: requiredParam!: string
-	param1!: string
-}
-`,
+}`,
 			params: map[string]interface{}{
-				"replicas": 2,
-				"type":     "ClusterIP",
-				"host":     map[string]interface{}{"requiredParam": "example.com"},
-				"param1":   "newparam",
+				"image": 123,
 			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
-				"apiVersion": "apps/v1",
-				"kind":       "Deployment",
-				"metadata":   map[string]interface{}{"name": "test"},
-				"spec":       map[string]interface{}{"replicas": int64(2), "host": "example.com"},
-			}},
-			hasCompileErr: false,
-			errorString:   "",
-		},
-		//optional and regular param with default value should not give error
-		"optional and regular param with default value should not give error": {
-			workloadTemplate: `
-output:{
-	apiVersion: "apps/v1"
-    kind: "Deployment"
-	metadata: name: context.name
-    spec: {
-		replicas: parameter.replicas
-	}
-}
-parameter: {
-	replicas: *1 | int
-	type: string
-	requiredParam!: string
-	optionalParam?: string
-	regularParam: string | *""
-}
-`,
-			params: map[string]interface{}{
-				"replicas":      2,
-				"type":          "ClusterIP",
-				"requiredParam": "example.com",
-			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
-				"apiVersion": "apps/v1",
-				"kind":       "Deployment",
-				"metadata":   map[string]interface{}{"name": "test"},
-				"spec":       map[string]interface{}{"replicas": int64(2)},
-			}},
-			hasCompileErr: false,
-			errorString:   "",
-		},
-		// regular param should give error
-		"regular param should give error": {
-			workloadTemplate: `
-output:{
-	apiVersion: "apps/v1"
-    kind: "Deployment"
-	metadata: name: context.name
-    spec: {
-		replicas: parameter.replicas
-	}
-}
-parameter: {
-	replicas: *1 | int
-	type: string
-	requiredParam!: string
-	regularParam: string
-}
-`,
-			params: map[string]interface{}{
-				"replicas":      2,
-				"type":          "ClusterIP",
-				"requiredParam": "example.com",
-			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
-				"apiVersion": "apps/v1",
-				"kind":       "Deployment",
-				"metadata":   map[string]interface{}{"name": "test"},
-				"spec":       map[string]interface{}{"replicas": int64(2)},
-			}},
-			hasCompileErr: true,
-			errorString:   "parameter error for testWorkload: parameter.regularParam: incomplete value string",
-		},
-
-		// multiple errors
-		"multiple errors": {
-			workloadTemplate: `
-output:{
-	apiVersion: "apps/v1"
-    kind: "Deployment"
-	metadata: name: context.name
-    spec: {
-		replicas: parameter.replicas
-	}
-}
-parameter: {
-	replicas: *1 | int
-	type: string
-	requiredParam!: string
-	regularParam: string
-}
-`,
-			params: map[string]interface{}{
-				"replicas": 2,
-				"type":     "ClusterIP",
-			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
-				"apiVersion": "apps/v1",
-				"kind":       "Deployment",
-				"metadata":   map[string]interface{}{"name": "test"},
-				"spec":       map[string]interface{}{"replicas": int64(2)},
-			}},
-			hasCompileErr: true,
-			errorString:   "parameter error for testWorkload: parameter.requiredParam: field is required but not present (and 1 more errors)",
+			isWorkload: true,
+			wantErr:    "validation failed for workload test-workload:\n\nParameter errors:\n  parameter.image: conflicting values string and 123 (mismatched types string and int)",
 		},
 	}
 
-	for _, v := range testCases {
-		ctx := process.NewContext(process.ContextData{
-			AppName:         "myapp",
-			CompName:        "test",
-			Namespace:       "default",
-			AppRevisionName: "myapp-v1",
-			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
-		})
-		wt := NewWorkloadAbstractEngine("testWorkload")
-		err := wt.Complete(ctx, v.workloadTemplate, v.params)
-		hasError := err != nil
-		assert.Equal(t, v.hasCompileErr, hasError)
-		if v.hasCompileErr {
-			if err != nil {
-				assert.Equal(t, err.Error(), v.errorString)
+	for testName, tc := range testCases {
+		t.Run(testName, func(t *testing.T) {
+			ctx := process.NewContext(process.ContextData{
+				AppName:  "test-app",
+				CompName: "test-comp",
+			})
+
+			var err error
+			if tc.isWorkload {
+				wd := NewWorkloadAbstractEngine(tc.name)
+				err = wd.Complete(ctx, tc.template, tc.params)
+			} else {
+				td := NewTraitAbstractEngine(tc.name)
+				err = td.Complete(ctx, tc.template, tc.params)
 			}
-			continue
-		}
-		base, assists := ctx.Output()
-		assert.Equal(t, len(v.expAssObjs), len(assists))
-		assert.NotNil(t, base)
-		baseObj, err := base.Unstructured()
-		assert.Equal(t, nil, err)
-		assert.Equal(t, v.expectObj, baseObj)
-		for _, ss := range assists {
-			assert.Equal(t, AuxiliaryWorkload, ss.Type)
-			got, err := ss.Ins.Unstructured()
-			assert.NoError(t, err)
-			assert.Equal(t, got, v.expAssObjs[ss.Name])
-		}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+
+			errStr := err.Error()
+			if strings.Contains(tc.template, "parameter:") {
+				assert.True(t,
+					strings.Contains(errStr, "Parameter errors:") ||
+						strings.Contains(errStr, "Template errors:"),
+					"Error should contain grouped error sections")
+			}
+		})
 	}
+}
+
+func TestWorkloadGetTemplateContext(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	workload := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]interface{}{
+				"name":      "test-workload",
+				"namespace": "default",
+			},
+		},
+	}
+	auxSvc := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Service",
+			"metadata": map[string]interface{}{
+				"name":      "test-aux-svc",
+				"namespace": "default",
+			},
+		},
+	}
+
+	baseCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "test",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+
+	workloadTemplate := `
+output: {
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: {
+		name: "test-workload"
+		namespace: "default"
+	}
+}
+outputs: service: {
+	apiVersion: "v1"
+    kind: "Service"
+	metadata: {
+		name: "test-aux-svc"
+		namespace: "default"
+	}
+}
+`
+	wt := NewWorkloadAbstractEngine("testWorkload")
+	err := wt.Complete(baseCtx, workloadTemplate, nil)
+	require.NoError(t, err)
+
+	testCases := map[string]struct {
+		reason    string
+		cli       client.Client
+		ctx       wfprocess.Context
+		wantErr   bool
+		checkFunc func(t *testing.T, templateContext map[string]interface{})
+	}{
+		"successfully get template context": {
+			reason: "Should successfully get the template context with both output and outputs.",
+			cli:    fake.NewClientBuilder().WithScheme(scheme).WithObjects(workload, auxSvc).Build(),
+			ctx:    baseCtx,
+			checkFunc: func(t *testing.T, templateContext map[string]interface{}) {
+				require.NotNil(t, templateContext)
+				output, ok := templateContext[OutputFieldName]
+				require.True(t, ok)
+				outputMap, ok := output.(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "test-workload", outputMap["metadata"].(map[string]interface{})["name"])
+
+				outputs, ok := templateContext[OutputsFieldName]
+				require.True(t, ok)
+				outputsMap, ok := outputs.(map[string]interface{})
+				require.True(t, ok)
+				svc, ok := outputsMap["service"]
+				require.True(t, ok)
+				svcMap, ok := svc.(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "test-aux-svc", svcMap["metadata"].(map[string]interface{})["name"])
+			},
+		},
+		"resource not found": {
+			reason:  "Should return an error when a resource is not found in the cluster.",
+			cli:     fake.NewClientBuilder().WithScheme(scheme).Build(),
+			ctx:     baseCtx,
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			wd := &workloadDef{def: def{name: "test"}}
+			accessor := util.NewApplicationResourceNamespaceAccessor("default", "")
+			templateContext, err := wd.GetTemplateContext(tc.ctx, tc.cli, accessor)
+
+			if tc.wantErr {
+				require.Error(t, err, tc.reason)
+			} else {
+				require.NoError(t, err, tc.reason)
+				if tc.checkFunc != nil {
+					tc.checkFunc(t, templateContext)
+				}
+			}
+		})
+	}
+}
+
+func TestTraitGetTemplateContext(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+
+	traitOutput := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"name":      "test-trait-output",
+				"namespace": "default",
+			},
+		},
+	}
+
+	traitName := "my-trait"
+	baseCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "test",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+
+	traitTemplate := `
+outputs: myconfig: {
+	apiVersion: "v1"
+    kind: "ConfigMap"
+	metadata: {
+		name: "test-trait-output"
+		namespace: "default"
+	}
+}
+`
+	td := NewTraitAbstractEngine(traitName)
+	err := td.Complete(baseCtx, traitTemplate, nil)
+	require.NoError(t, err)
+
+	emptyCtx := process.NewContext(process.ContextData{
+		AppName:         "myapp",
+		CompName:        "test",
+		Namespace:       "default",
+		AppRevisionName: "myapp-v1",
+	})
+
+	testCases := map[string]struct {
+		reason    string
+		cli       client.Client
+		ctx       wfprocess.Context
+		traitName string
+		wantErr   bool
+		checkFunc func(t *testing.T, templateContext map[string]interface{})
+	}{
+		"successfully get template context for trait": {
+			reason:    "Should successfully get the template context for a trait with outputs.",
+			cli:       fake.NewClientBuilder().WithScheme(scheme).WithObjects(traitOutput).Build(),
+			ctx:       baseCtx,
+			traitName: traitName,
+			checkFunc: func(t *testing.T, templateContext map[string]interface{}) {
+				require.NotNil(t, templateContext)
+				outputs, ok := templateContext[OutputsFieldName]
+				require.True(t, ok)
+				outputsMap, ok := outputs.(map[string]interface{})
+				require.True(t, ok)
+				cm, ok := outputsMap["myconfig"]
+				require.True(t, ok)
+				cmMap, ok := cm.(map[string]interface{})
+				require.True(t, ok)
+				require.Equal(t, "test-trait-output", cmMap["metadata"].(map[string]interface{})["name"])
+			},
+		},
+		"trait resource not found": {
+			reason:    "Should return an error when a trait's output resource is not found.",
+			cli:       fake.NewClientBuilder().WithScheme(scheme).Build(),
+			ctx:       baseCtx,
+			traitName: traitName,
+			wantErr:   true,
+		},
+		"trait with no outputs": {
+			reason:    "Should successfully get a context for a trait that produces no outputs.",
+			cli:       fake.NewClientBuilder().WithScheme(scheme).Build(),
+			ctx:       emptyCtx,
+			traitName: traitName,
+			checkFunc: func(t *testing.T, templateContext map[string]interface{}) {
+				require.NotNil(t, templateContext)
+				_, ok := templateContext[OutputsFieldName]
+				require.False(t, ok)
+			},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			traitDef := &traitDef{def: def{name: tc.traitName}}
+			accessor := util.NewApplicationResourceNamespaceAccessor("default", "")
+			templateContext, err := traitDef.GetTemplateContext(tc.ctx, tc.cli, accessor)
+
+			if tc.wantErr {
+				require.Error(t, err, tc.reason)
+			} else {
+				require.NoError(t, err, tc.reason)
+				if tc.checkFunc != nil {
+					tc.checkFunc(t, templateContext)
+				}
+			}
+		})
+	}
+}
+
+func TestGetCommonLabels(t *testing.T) {
+	type want struct {
+		labels map[string]string
+	}
+	cases := map[string]struct {
+		reason string
+		input  map[string]string
+		want   want
+	}{
+		"TestConvert": {
+			reason: "Test that context labels are correctly converted to OAM labels",
+			input: map[string]string{
+				process.ContextAppName:     "my-app",
+				process.ContextName:        "my-comp",
+				process.ContextAppRevision: "v1",
+				process.ContextReplicaKey:  "rep-key",
+				"other-label":              "other-value",
+			},
+			want: want{
+				labels: map[string]string{
+					"app.oam.dev/name":        "my-app",
+					"app.oam.dev/component":   "my-comp",
+					"app.oam.dev/appRevision": "v1",
+					"app.oam.dev/replicaKey":  "rep-key",
+				},
+			},
+		},
+		"TestEmpty": {
+			reason: "Test that an empty input map results in an empty output map",
+			input:  map[string]string{},
+			want: want{
+				labels: map[string]string{},
+			},
+		},
+		"TestNoConvert": {
+			reason: "Test that labels with no OAM equivalent are ignored",
+			input: map[string]string{
+				"other-label": "other-value",
+			},
+			want: want{
+				labels: map[string]string{},
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			got := GetCommonLabels(tc.input)
+			r.Equal(tc.want.labels, got, tc.reason)
+		})
+	}
+}
+
+func TestGetBaseContextLabels(t *testing.T) {
+	type want struct {
+		labels map[string]string
+	}
+	cases := map[string]struct {
+		reason string
+		ctx    wfprocess.Context
+		want   want
+	}{
+		"TestWithAppNameAndRevision": {
+			reason: "Test that app name and revision are added to the base context labels",
+			ctx: process.NewContext(process.ContextData{
+				AppName:         "my-app",
+				AppRevisionName: "v1",
+				CompName:        "my-comp",
+			}),
+			want: want{
+				labels: map[string]string{
+					process.ContextAppName:     "my-app",
+					process.ContextAppRevision: "v1",
+					process.ContextName:        "my-comp",
+				},
+			},
+		},
+		"TestWithoutAppNameAndRevision": {
+			reason: "Test that the base context labels are returned when app name and revision are missing",
+			ctx: process.NewContext(process.ContextData{
+				CompName: "my-comp",
+			}),
+			want: want{
+				labels: map[string]string{
+					process.ContextAppName:     "",
+					process.ContextAppRevision: "",
+					process.ContextName:        "my-comp",
+				},
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			got := GetBaseContextLabels(tc.ctx)
+			r.Equal(tc.want.labels, got, tc.reason)
+		})
+	}
+}
+
+// A real render has nothing to prune, and paying for a walk of every rendered
+// resource on every reconcile is the cost this guard exists to avoid.
+func TestConcreteForRenderOnlyTouchesAValidation(t *testing.T) {
+	cuectx := cuecontext.New()
+	v := cuectx.CompileString(`{image: string, replicas: 2}`)
+	require.NoError(t, v.Err())
+
+	render := wfprocess.NewContext(wfprocess.ContextData{Ctx: context.Background()})
+	require.Equal(t, v, concreteForRender(render, v), "a real render is handed back its own value")
+
+	validation := wfprocess.NewContext(wfprocess.ContextData{
+		Ctx: sources.WithTypeOnly(context.Background()),
+	})
+	pruned := concreteForRender(validation, v)
+	require.False(t, pruned.LookupPath(cue.ParsePath("image")).Exists(),
+		"an unknowable leaf is pruned so the value can be marshalled")
+	replicas, err := pruned.LookupPath(cue.ParsePath("replicas")).Int64()
+	require.NoError(t, err, "a concrete leaf survives")
+	require.Equal(t, int64(2), replicas)
+	_, err = pruned.MarshalJSON()
+	require.NoError(t, err)
+}
+
+// A trait's typed parameter patched into an auxiliary lands as an open leaf, and
+// unifying the auxiliary with a pruned copy of itself keeps that leaf: pruning
+// has to replace the instance for the auxiliary to marshal.
+func TestRepruneAuxiliaryReplacesTheOpenLeaf(t *testing.T) {
+	v := cuecontext.New().CompileString(`{apiVersion: "v1", kind: "Service", metadata: name: "svc", spec: port: int}`)
+	require.NoError(t, v.Err())
+	other, err := model.NewOther(v)
+	require.NoError(t, err)
+
+	validation := wfprocess.NewContext(wfprocess.ContextData{Ctx: sources.WithTypeOnly(context.Background())})
+	require.NoError(t, validation.AppendAuxiliaries(wfprocess.Auxiliary{Ins: other, Name: "svc"}))
+	_, auxiliaries := validation.Output()
+	require.NoError(t, repruneAuxiliary(validation, auxiliaries, 0))
+
+	_, auxiliaries = validation.Output()
+	got := auxiliaries[0].Ins.Value()
+	require.False(t, got.LookupPath(cue.ParsePath("spec.port")).Exists(), "the open leaf is gone")
+	require.Equal(t, "Service", func() string { s, _ := got.LookupPath(cue.ParsePath("kind")).String(); return s }(),
+		"and what was concrete stays")
+	_, err = got.MarshalJSON()
+	require.NoError(t, err)
 }

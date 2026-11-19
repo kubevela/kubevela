@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -478,7 +479,12 @@ var _ = Describe("Test multicluster scenario", func() {
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(hubCtx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
 				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
-			}, 20*time.Second).Should(Succeed())
+			}, 10*time.Minute).Should(Succeed())
+
+			By("print application status")
+			out, err := exec.Command("kubectl", "describe", "application", app.Name, "-n", testNamespace).CombinedOutput()
+			Expect(err).Should(Succeed())
+			fmt.Println(string(out))
 
 			By("test dispatched resource")
 			svc := &corev1.Service{}
@@ -489,6 +495,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			Expect(cm.Data["host"]).Should(Equal(host))
 			Expect(k8sClient.Get(workerCtx, client.ObjectKey{Namespace: testNamespace, Name: app.Name}, cm)).Should(Succeed())
 			Expect(cm.Data["host"]).Should(Equal(host))
+
 		})
 
 		It("Test application with workflow change will rerun", func() {

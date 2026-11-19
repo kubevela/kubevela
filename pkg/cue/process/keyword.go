@@ -35,6 +35,22 @@ const (
 	ContextAppLabels = "appLabels"
 	// ContextAppAnnotations is the annotations of app of context
 	ContextAppAnnotations = "appAnnotations"
+	// ContextAppComponents is the components array of the app
+	ContextAppComponents = "appComponents"
+	// ContextAppWorkflow is the workflow object of the app
+	ContextAppWorkflow = "appWorkflow"
+	// ContextAppPolicies is the policies array of the app
+	ContextAppPolicies = "appPolicies"
+	// ContextAppSources is the source binding map.
+	ContextAppSources = "appSources"
+	// ContextAppSourceTypes maps source binding name to source definition type.
+	ContextAppSourceTypes = "appSourceTypes"
+	// ContextAppSourceTemplates maps source definition type to CUE template.
+	ContextAppSourceTemplates = "appSourceTemplates"
+	// ContextAppSourceSensitivePaths maps source definition type to platform-sensitive paths.
+	ContextAppSourceSensitivePaths = "appSourceSensitivePaths"
+	// ContextAppSourceCacheStore stores the source cache store used for source cache access.
+	ContextAppSourceCacheStore = "appSourceCacheStore"
 	// ContextNamespace is the namespace of the app
 	ContextNamespace = "namespace"
 	// ContextCluster is the cluster currently focusing on
@@ -51,10 +67,33 @@ const (
 	ContextCompRevisionName = "revision"
 	// ContextComponents is the components of app
 	ContextComponents = "components"
+	// ContextComponentName is the component being rendered. It is what
+	// context.name means in a component's own template, named explicitly so a
+	// trait - and a source resolving on either - can ask for the component
+	// rather than for whatever "name" happens to mean where it is read.
+	ContextComponentName = "componentName"
+	// ContextTraitType is the trait being rendered. Traits have no instance name
+	// in the API - spec.components[].traits[] carries only a type - so there is
+	// no traitName to expose.
+	ContextTraitType = "traitType"
+	// ContextStepName is the workflow step being rendered.
+	ContextStepName = "stepName"
+	// ContextStepType is that step's definition type.
+	ContextStepType = "stepType"
 	// ContextComponentType is the component type of current trait binding with
 	ContextComponentType = "componentType"
 	// ContextDataArtifacts is used to store unstructured resources of components
 	ContextDataArtifacts = "artifacts"
 	// ContextReplicaKey is the key of replication in context
 	ContextReplicaKey = "replicaKey"
+	// ContextPolicyName is the instance name of the currently executing policy (from spec.policies[].name)
+	ContextPolicyName = "policyName"
+	// ContextPolicyType is the definition type of the currently executing policy (from spec.policies[].type)
+	ContextPolicyType = "policyType"
+	// ContextPolicyRevisionName is the DefinitionRevision name if versioned
+	ContextPolicyRevisionName = "policyRevisionName"
+	// ContextPolicyRevision is the revision number
+	ContextPolicyRevision = "policyRevision"
+	// ContextPolicyRevisionHash is the template content hash
+	ContextPolicyRevisionHash = "policyRevisionHash"
 )

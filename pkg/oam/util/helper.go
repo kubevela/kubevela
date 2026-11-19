@@ -27,6 +27,9 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/kubevela/pkg/multicluster"
+	"github.com/kubevela/workflow/pkg/cue/model"
+	"github.com/kubevela/workflow/pkg/cue/process"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -131,6 +134,7 @@ var DefinitionKindToNameLabel = map[common.DefinitionType]string{
 	common.TraitType:        oam.LabelTraitDefinitionName,
 	common.PolicyType:       oam.LabelPolicyDefinitionName,
 	common.WorkflowStepType: oam.LabelWorkflowStepDefinitionName,
+	common.SourceType:       oam.LabelSourceDefinitionName,
 }
 
 // A ConditionedObject is an Object type with condition field
@@ -238,6 +242,20 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 
 		return GetDefinition(ctx, cli, definition, definitionName)
 	}
+	// A DefinitionRevision is named "<definition>-v<n>" with no kind in it, so
+	// definitions of different kinds sharing a name share revision names too -
+	// KubeVela ships a "configmap" trait, and a SourceDefinition named after what
+	// it reads collides with it. Without this check the mismatch is silent: the
+	// switch below copies the field for the kind asked for, which on a revision
+	// of another kind is a zero struct, so the caller gets an empty definition
+	// and no error. That surfaces much later as "declares no parameters" or
+	// "undefined field", neither of which points at the collision.
+	if defRev.Spec.DefinitionType != definitionType {
+		return fmt.Errorf("definition revision %q holds a %s definition, but %s was requested as a %s; "+
+			"revision names do not carry the kind, so definitions of different kinds sharing the name %q share revisions",
+			defRev.Name, defRev.Spec.DefinitionType, definitionName, definitionType,
+			strings.Split(definitionName, "@")[0])
+	}
 	switch def := definition.(type) {
 	case *v1beta1.ComponentDefinition:
 		*def = defRev.Spec.ComponentDefinition
@@ -247,6 +265,8 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 		*def = defRev.Spec.PolicyDefinition
 	case *v1beta1.WorkflowStepDefinition:
 		*def = defRev.Spec.WorkflowStepDefinition
+	case *v1beta1.SourceDefinition:
+		*def = defRev.Spec.SourceDefinition
 	default:
 	}
 	return nil
@@ -263,6 +283,8 @@ func getDefinitionType(definition client.Object) (common.DefinitionType, error) 
 		definitionType = common.PolicyType
 	case *v1beta1.WorkflowStepDefinition:
 		definitionType = common.WorkflowStepType
+	case *v1beta1.SourceDefinition:
+		definitionType = common.SourceType
 	default:
 		return definitionType, fmt.Errorf("invalid definition type for %v", definition.GetName())
 	}
@@ -351,10 +373,10 @@ func getMatchingDefinitionRevision(exactRevisionName, definitionName string, rev
 		if strings.HasPrefix(revision.Name, revisionPrefix) {
 			version := strings.Split(revision.Name, definitionName+"-")[1]
 			v, err := semver.NewVersion(version)
-			orignalVersions[v.String()] = version
 			if err != nil {
 				return "", err
 			}
+			orignalVersions[v.String()] = version
 			definitionVersions = append(definitionVersions, v)
 		}
 	}
@@ -834,4 +856,43 @@ func (accessor *applicationResourceNamespaceAccessor) Namespace() string {
 // NewApplicationResourceNamespaceAccessor create namespace accessor for resource in application
 func NewApplicationResourceNamespaceAccessor(appNs, overrideNs string) NamespaceAccessor {
 	return &applicationResourceNamespaceAccessor{applicationNamespace: appNs, overrideNamespace: overrideNs}
+}
+
+func WithCluster(ctx context.Context, o client.Object) context.Context {
+	if cluster := oam.GetCluster(o); cluster != "" {
+		return multicluster.WithCluster(ctx, cluster)
+	}
+	return ctx
+}
+
+func GetResourceFromObj(ctx context.Context, pctx process.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
+	if outputsResource != "" {
+		labels[oam.TraitResource] = outputsResource
+	}
+	if obj.GetName() != "" {
+		u, err := GetObjectGivenGVKAndName(ctx, client, obj.GroupVersionKind(), namespace, obj.GetName())
+		if err != nil {
+			return nil, err
+		}
+		return u.Object, nil
+	}
+	if ctxName, ok := pctx.GetData(model.ContextName).(string); ok && ctxName != "" {
+		u, err := GetObjectGivenGVKAndName(ctx, client, obj.GroupVersionKind(), namespace, ctxName)
+		if err == nil {
+			return u.Object, nil
+		}
+	}
+	list, err := GetObjectsGivenGVKAndLabels(ctx, client, obj.GroupVersionKind(), namespace, labels)
+	if err != nil {
+		return nil, err
+	}
+	if len(list.Items) == 1 {
+		return list.Items[0].Object, nil
+	}
+	for _, v := range list.Items {
+		if v.GetLabels()[oam.TraitResource] == outputsResource {
+			return v.Object, nil
+		}
+	}
+	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
 }

@@ -1,0 +1,18 @@
+name: config-store
+version: 1.0.0
+description: Installs a shared ConfigMap and registers a config-store component type.
+icon: https://kubevela.io/img/logo.svg
+url: https://kubevela.io
+
+tags:
+  - config
+  - e2e
+
+deployTo:
+  control_plane: true
+  runtime_cluster: false
+
+dependencies: []
+
+# Deliberately no `system:` block; see the note in echo-server/metadata.yaml.
+invisible: false

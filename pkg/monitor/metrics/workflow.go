@@ -15,10 +15,13 @@ package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	velametrics "github.com/kubevela/pkg/monitor/metrics"
+
+	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 var (
@@ -53,10 +56,38 @@ var collectorGroup = []prometheus.Collector{
 	ClusterCPUUsageGauge,
 }
 
+var (
+	applicationStatusMetricsRegistered = false
+)
+
 func init() {
 	for _, collector := range collectorGroup {
 		if err := metrics.Registry.Register(collector); err != nil {
 			klog.Error(err)
 		}
+	}
+}
+
+// RegisterApplicationStatusMetrics registers the application status metrics
+// This should be called after the feature gate system is initialized
+func RegisterApplicationStatusMetrics() {
+	if applicationStatusMetricsRegistered {
+		return
+	}
+
+	if feature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationStatusMetrics) {
+		statusMetrics := []prometheus.Collector{
+			ApplicationHealthStatus,
+			ApplicationPhase,
+			WorkflowPhase,
+		}
+
+		for _, metric := range statusMetrics {
+			if err := metrics.Registry.Register(metric); err != nil {
+				klog.Errorf("Failed to register application status metric: %v", err)
+			}
+		}
+
+		applicationStatusMetricsRegistered = true
 	}
 }

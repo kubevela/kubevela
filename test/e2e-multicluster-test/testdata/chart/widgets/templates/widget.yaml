@@ -1,0 +1,6 @@
+apiVersion: e2e.kubevela.io/v1
+kind: Widget
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  size: {{ .Values.size }}

@@ -1,11 +1,11 @@
 
 .PHONY: vela-cli
 vela-cli:
-	$(GOBUILD_ENV) go build -o bin/vela -a -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
+	$(GOBUILD_ENV) go build -o bin/vela -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
 
 .PHONY: kubectl-vela
 kubectl-vela:
-	$(GOBUILD_ENV) go build -o bin/kubectl-vela -a -ldflags $(LDFLAGS) ./cmd/plugin/main.go
+	$(GOBUILD_ENV) go build -o bin/kubectl-vela -ldflags $(LDFLAGS) ./cmd/plugin/main.go
 
 # Build the docker image
 .PHONY: docker-build

@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 
@@ -96,18 +96,23 @@ vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 			types.TagCommandOrder: order,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				// We need to return an error only if not in offline mode
 				if !o.OfflineMode {
 					return err
 				}
-
-				// Set the namespace to default to match behavior of `GetFlagNamespaceOrEnv`
-				namespace = types.DefaultAppNamespace
 			}
 
-			buff, err := DryRunApplication(o, c, namespace)
+			namespaceEnv, err := GetNamespaceFromEnv(cmd, c)
+			if err != nil {
+				// We need to return an error only if not in offline mode
+				if !o.OfflineMode {
+					return err
+				}
+			}
+
+			buff, err := DryRunApplication(o, c, namespace, namespaceEnv)
 			if err != nil {
 				return err
 			}
@@ -127,9 +132,9 @@ vela dry-run -f app.yaml -f policy.yaml -f workflow.yaml
 }
 
 // DryRunApplication will dry-run an application and return the render result
-func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace string) (bytes.Buffer, error) {
+func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace string, namespaceEnv string) (bytes.Buffer, error) {
 	var err error
-	var buff = bytes.Buffer{}
+	buff := bytes.Buffer{}
 
 	var objs []*unstructured.Unstructured
 	if cmdOption.DefinitionFile != "" {
@@ -176,6 +181,23 @@ func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace str
 	if err != nil {
 		return buff, errors.WithMessagef(err, "read application files: %s", cmdOption.ApplicationFiles)
 	}
+
+	if app.Namespace != "" && namespace != "" && app.Namespace != namespace {
+		// Overwrite application namespace with flag-provided namespace (change replicated from upstream PR #6855)
+		app.Namespace = namespace
+	}
+
+	switch {
+	case namespace == "" && app.Namespace == "":
+		ctx = oamutil.SetNamespaceInCtx(ctx, namespaceEnv)
+	case namespace != "" && app.Namespace == "":
+		ctx = oamutil.SetNamespaceInCtx(ctx, namespace)
+	case namespace == "" && app.Namespace != "":
+		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	default:
+		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	}
+
 	err = dryRunOpt.ExecuteDryRunWithPolicies(ctx, app, &buff)
 	if err != nil {
 		return buff, err
@@ -230,7 +252,7 @@ func ReadDefinitionsFromFile(path string, io cmdutil.IOStreams) ([]*unstructured
 			io.Errorf("failed to walk dir %s: %v", path, err)
 			return nil
 		}
-		if e.IsDir() {
+		if e.IsDir() || utils.IsCUETestFile(path) {
 			return nil
 		}
 		fileType := filepath.Ext(e.Name())
@@ -273,7 +295,7 @@ func readApplicationFromFile(filename string) (*corev1beta1.Application, error) 
 func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (*corev1beta1.Application, error) {
 	var app *corev1beta1.Application
 	var policies []*v1alpha1.Policy
-	var wf *wfv1alpha1.Workflow
+	var wf *wfTypesv1alpha1.Workflow
 	policyNameMap := make(map[string]struct{})
 
 	for _, filename := range cmdOption.ApplicationFiles {
@@ -320,7 +342,7 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 				if wf != nil {
 					return nil, errors.New("more than one external workflow provided")
 				}
-				wf = new(wfv1alpha1.Workflow)
+				wf = new(wfTypesv1alpha1.Workflow)
 				err = json.Unmarshal(jsonFileContent, wf)
 				if err != nil {
 					return nil, err
@@ -370,9 +392,8 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 	return app, nil
 }
 
-func getPolicyNameFromWorkflow(wf *wfv1alpha1.Workflow, policyNameMap map[string]struct{}) error {
-
-	checkPolicy := func(wfsb wfv1alpha1.WorkflowStepBase, policyNameMap map[string]struct{}) error {
+func getPolicyNameFromWorkflow(wf *wfTypesv1alpha1.Workflow, policyNameMap map[string]struct{}) error {
+	checkPolicy := func(wfsb wfTypesv1alpha1.WorkflowStepBase, policyNameMap map[string]struct{}) error {
 		workflowStepSpec := &step.DeployWorkflowStepSpec{}
 		if err := utils.StrictUnmarshal(wfsb.Properties.Raw, workflowStepSpec); err != nil {
 			return err
@@ -427,7 +448,8 @@ var deployDefinition = &corev1beta1.WorkflowStepDefinition{
 	},
 	Spec: corev1beta1.WorkflowStepDefinitionSpec{
 		Schematic: &apicommon.Schematic{
-			CUE: &apicommon.CUE{Template: `
+			CUE: &apicommon.CUE{
+				Template: `
 import (
 	"vela/op"
 )

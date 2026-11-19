@@ -20,6 +20,15 @@ package mods
 type Options struct {
 	Path          string
 	Location      string
+	SitePath      string
 	DefDirs       []string
 	ForceExamples bool
+}
+
+// SiteBase returns the base path of the docs site, defaulting to ../kubevela.io
+func (o Options) SiteBase() string {
+	if o.SitePath != "" {
+		return o.SitePath
+	}
+	return "../kubevela.github.io"
 }

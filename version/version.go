@@ -24,6 +24,23 @@ var GitRevision = "UNKNOWN"
 // VelaVersion is the version of cli.
 var VelaVersion = "UNKNOWN"
 
+// defaultModuleRequireVersion is the kubevela SDK version written into
+// scaffolded go.mod files when the running binary was built without a release
+// version (e.g. VelaVersion is the default "UNKNOWN" or the Makefile's
+// "master"). Bump alongside each release.
+const defaultModuleRequireVersion = "v1.11.0"
+
+// ModuleRequireVersion returns a semver suitable for a scaffolded go.mod
+// `require github.com/oam-dev/kubevela <ver>` line. It prefers the running
+// binary's build-time VelaVersion and falls back to defaultModuleRequireVersion
+// when VelaVersion is not a valid semver (dev builds without ldflags).
+func ModuleRequireVersion() string {
+	if IsOfficialKubeVelaVersion(VelaVersion) {
+		return VelaVersion
+	}
+	return defaultModuleRequireVersion
+}
+
 // IsOfficialKubeVelaVersion checks whether the provided version string follows a KubeVela version pattern
 func IsOfficialKubeVelaVersion(versionStr string) bool {
 	_, err := version.NewSemver(versionStr)

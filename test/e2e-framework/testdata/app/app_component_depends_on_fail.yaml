@@ -1,0 +1,22 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-component-depends-on-fail
+spec:
+  components:
+    - name: failing-database
+      type: webservice
+      properties:
+        image: ""  # This will fail to pull
+        ports:
+          - port: 3306
+            expose: false
+    - name: dependent-backend
+      type: webservice
+      dependsOn:
+        - failing-database
+      properties:
+        image: "nginx:1.20"
+        ports:
+          - port: 8080
+            expose: false

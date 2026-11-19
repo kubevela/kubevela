@@ -425,7 +425,7 @@ spec:
         }
         
         outputs: ingress: {
-        	apiVersion: "networking.k8s.io/v1beta1"
+        	apiVersion: "networking.k8s.io/v1"
         	kind:       "Ingress"
         	metadata:
         		name: context.name
@@ -436,9 +436,14 @@ spec:
         				paths: [
         					for k, v in parameter.http {
         						path: k
+        						pathType: "Prefix"
         						backend: {
-        							serviceName: context.name
-        							servicePort: v
+        							service: {
+        								name: context.name
+        								port: {
+        									number: v
+        								}
+        							}
         						}
         					},
         				]
@@ -561,7 +566,7 @@ spec:
 `
 
 var dryRunResult = `---
-# Application(test-vela-app) -- Component(express-server) 
+# Application(test-vela-app) -- Component(express-server)
 ---
 
 apiVersion: apps/v1
@@ -593,7 +598,7 @@ spec:
         - containerPort: 80
 
 ---
-## From the trait test-ingress 
+## From the trait test-ingress
 apiVersion: v1
 kind: Service
 metadata:
@@ -616,8 +621,8 @@ spec:
     app.oam.dev/component: express-server
 
 ---
-## From the trait test-ingress 
-apiVersion: networking.k8s.io/v1beta1
+## From the trait test-ingress
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations: {}
@@ -637,9 +642,12 @@ spec:
     http:
       paths:
       - backend:
-          serviceName: express-server
-          servicePort: 80
+          service:
+            name: express-server
+            port:
+              number: 80
         path: /
+        pathType: Prefix
 
 ---
 `
@@ -648,7 +656,6 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
   apiVersion: core.oam.dev/v1beta1
   kind: Application
   metadata:
-    creationTimestamp: null
 -   finalizers:
 -   - app.oam.dev/resource-tracker-finalizer
     name: test-vela-app
@@ -721,7 +728,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 -     app.oam.dev/component: express-server
   
 * Component (express-server) / Trait (test-ingress/ingress) has been removed(-)
-- apiVersion: networking.k8s.io/v1beta1
+- apiVersion: networking.k8s.io/v1
 - kind: Ingress
 - metadata:
 -   labels:
@@ -739,9 +746,12 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 -     http:
 -       paths:
 -       - backend:
--           serviceName: express-server
--           servicePort: 80
+-           service:
+-             name: express-server
+-             port:
+-               number: 80
 -         path: /
+-         pathType: Prefix
   
 * Component (new-express-server) has been added(+)
 + apiVersion: apps/v1
@@ -796,7 +806,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 +     app.oam.dev/component: new-express-server
   
 * Component (new-express-server) / Trait (test-ingress/ingress) has been added(+)
-+ apiVersion: networking.k8s.io/v1beta1
++ apiVersion: networking.k8s.io/v1
 + kind: Ingress
 + metadata:
 +   labels:
@@ -814,9 +824,12 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 +     http:
 +       paths:
 +       - backend:
-+           serviceName: new-express-server
-+           servicePort: 8080
++           service:
++             name: new-express-server
++             port:
++               number: 8080
 +         path: /
++         pathType: Prefix
 `
 
 var testShowComponentDef = `
@@ -893,26 +906,26 @@ spec:
 `
 
 var showCdResult = `# Specification
-+---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
-|  NAME   |                                           DESCRIPTION                                            |   TYPE   | REQUIRED | DEFAULT |
-+---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
-| count   | specify number of tasks to run in parallel.                                                      | int      | false    |       1 |
-| image   | Which image would you like to use for your service.                                              | string   | true     |         |
-| restart | Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never. | string   | false    | Never   |
-| cmd     | Commands to run in the container.                                                                | []string | false    |         |
-+---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
++---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+-----------+
+|  NAME   |                                           DESCRIPTION                                            |   TYPE   | REQUIRED | DEFAULT | IMMUTABLE |
++---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+-----------+
+| count   | specify number of tasks to run in parallel.                                                      | int      | false    |       1 |           |
+| image   | Which image would you like to use for your service.                                              | string   | true     |         |           |
+| restart | Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never. | string   | false    | Never   |           |
+| cmd     | Commands to run in the container.                                                                | []string | false    |         |           |
++---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+-----------+
 
 
 `
 
 var showTdResult = `# Specification
-+---------+-------------+----------+----------+---------+
-|  NAME   | DESCRIPTION |   TYPE   | REQUIRED | DEFAULT |
-+---------+-------------+----------+----------+---------+
-| name    |             | string   | true     |         |
-| image   |             | string   | true     |         |
-| command |             | []string | false    |         |
-+---------+-------------+----------+----------+---------+
++---------+-------------+----------+----------+---------+-----------+
+|  NAME   | DESCRIPTION |   TYPE   | REQUIRED | DEFAULT | IMMUTABLE |
++---------+-------------+----------+----------+---------+-----------+
+| name    |             | string   | true     |         |           |
+| image   |             | string   | true     |         |           |
+| command |             | []string | false    |         |           |
++---------+-------------+----------+----------+---------+-----------+
 
 
 `

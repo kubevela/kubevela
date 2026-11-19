@@ -17,20 +17,24 @@ limitations under the License.
 package cue
 
 import (
+	"context"
 	"errors"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/kubevela/pkg/cue/cuex"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // ErrParameterNotExist represents the parameter field is not exist in CUE template
 var ErrParameterNotExist = errors.New("parameter not exist")
 
 // GetParameters get parameter from cue template
+// Deprecated: Use GetParametersWithCuex for templates with cuex imports
 func GetParameters(templateStr string) ([]types.Parameter, error) {
 	template := cuecontext.New().CompileString(templateStr + BaseTemplate)
 	paramVal := template.LookupPath(cue.ParsePath(process.ParameterFieldName))
@@ -48,7 +52,7 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 			continue
 		}
 		var param = types.Parameter{
-			Name:     iter.Label(),
+			Name:     util.GetIteratorLabel(*iter),
 			Required: !iter.IsOptional(),
 		}
 		val := iter.Value()
@@ -61,7 +65,52 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 		if param.Default == nil {
 			param.Default = getDefaultByKind(param.Type)
 		}
-		param.Short, param.Usage, param.Alias, param.Ignore = RetrieveComments(val)
+		param.Short, param.Usage, param.Alias, param.Ignore, param.Immutable = RetrieveComments(val)
+
+		params = append(params, param)
+	}
+	return params, nil
+}
+
+// GetParametersWithCuex get parameter from cue template with cuex support for package imports
+func GetParametersWithCuex(ctx context.Context, templateStr string) ([]types.Parameter, error) {
+	template, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(
+		ctx,
+		templateStr+BaseTemplate,
+		cuex.DisableResolveProviderFunctions{},
+	)
+	if err != nil {
+		return nil, err
+	}
+	paramVal := template.LookupPath(cue.ParsePath(process.ParameterFieldName))
+	if !paramVal.Exists() {
+		return nil, ErrParameterNotExist
+	}
+	iter, err := paramVal.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
+	if err != nil {
+		return nil, err
+	}
+	// parse each fields in the parameter fields
+	var params []types.Parameter
+	for iter.Next() {
+		if iter.Selector().IsDefinition() {
+			continue
+		}
+		var param = types.Parameter{
+			Name:     util.GetIteratorLabel(*iter),
+			Required: !iter.IsOptional(),
+		}
+		val := iter.Value()
+		param.Type = val.IncompleteKind()
+		if def, ok := val.Default(); ok && def.IsConcrete() {
+			param.Required = false
+			param.Type = def.Kind()
+			param.Default = GetDefault(def)
+		}
+		if param.Default == nil {
+			param.Default = getDefaultByKind(param.Type)
+		}
+		param.Short, param.Usage, param.Alias, param.Ignore, param.Immutable = RetrieveComments(val)
 
 		params = append(params, param)
 	}
@@ -123,12 +172,12 @@ const (
 	AliasPrefix = "+alias="
 	// IgnorePrefix defines parameter in system level which we don't want our end user to see for KubeVela CLI
 	IgnorePrefix = "+ignore"
+	// ImmutablePrefix marks a parameter field as immutable after initial set
+	ImmutablePrefix = "+immutable"
 )
 
-// RetrieveComments will retrieve Usage, Short, Alias and Ignore from CUE Value
-func RetrieveComments(value cue.Value) (string, string, string, bool) {
-	var short, usage, alias string
-	var ignore bool
+// RetrieveComments will retrieve Usage, Short, Alias, Ignore and Immutable from CUE Value
+func RetrieveComments(value cue.Value) (short, usage, alias string, ignore, immutable bool) {
 	docs := value.Doc()
 	for _, doc := range docs {
 		lines := strings.Split(doc.Text(), "\n")
@@ -148,9 +197,12 @@ func RetrieveComments(value cue.Value) (string, string, string, bool) {
 			if strings.HasPrefix(line, AliasPrefix) {
 				alias = strings.TrimPrefix(line, AliasPrefix)
 			}
+			if strings.HasPrefix(line, ImmutablePrefix) {
+				immutable = true
+			}
 		}
 	}
-	return short, usage, alias, ignore
+	return short, usage, alias, ignore, immutable
 }
 
 // IsFieldNotExist check whether the error type is the field not found

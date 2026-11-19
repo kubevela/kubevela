@@ -21,10 +21,11 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -123,9 +124,9 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			cache:      newResourceCache(cli, newAppOwner(app)),
 		}
 
 		h._currentRT = &v1beta1.ResourceTracker{
@@ -170,6 +171,75 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		Expect(err.Error()).Should(ContainSubstring("failed to re-apply"))
 	})
 
+	It("Test StateKeep apply-once does not re-create externally deleted resource and cleans up stale RT entry", func() {
+		cli := testClient
+
+		// Resource tracked in the resource tracker but not present in the cluster,
+		// simulating a resource that was externally deleted (e.g. Job garbage-collected by TTL)
+		// With an apply-once policy matching this resource, state-keep should skip it
+		cm := createConfigMap("cm-apply-once-gc", "value")
+		cm.SetLabels(map[string]string{
+			oam.LabelAppName:      "app-apply-once-gc",
+			oam.LabelAppNamespace: "default",
+			oam.LabelAppComponent: "my-task",
+		})
+		cmRaw, err := json.Marshal(cm)
+		Expect(err).Should(Succeed())
+
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app-apply-once-gc", Namespace: "default"}}
+		h := &resourceKeeper{
+			Client:     cli,
+			owner:      newAppOwner(app),
+			applicator: apply.NewAPIApplicator(cli),
+			cache:      newResourceCache(cli, newAppOwner(app)),
+			policies: Policies{ApplyOnce: &v1alpha1.ApplyOncePolicySpec{
+				Enable: true,
+				Rules: []v1alpha1.ApplyOncePolicyRule{{
+					Selector: v1alpha1.ResourcePolicyRuleSelector{
+						CompNames: []string{"my-task"},
+					},
+					Strategy: &v1alpha1.ApplyOnceStrategy{Path: []string{"*"}},
+				}},
+			}},
+		}
+
+		// Create the ResourceTracker in the API server so the stale-entry
+		// cleanup can persist its update.
+		rt := &v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-apply-once-gc-rt",
+				Labels: map[string]string{
+					oam.LabelAppName:      "app-apply-once-gc",
+					oam.LabelAppNamespace: "default",
+				},
+			},
+			Spec: v1beta1.ResourceTrackerSpec{
+				Type: v1beta1.ResourceTrackerTypeVersioned,
+				ManagedResources: []v1beta1.ManagedResource{{
+					ClusterObjectReference: createConfigMapClusterObjectReference("cm-apply-once-gc"),
+					OAMObjectReference:     common.NewOAMObjectReferenceFromObject(cm),
+					Data:                   &runtime.RawExtension{Raw: cmRaw},
+				}},
+			},
+		}
+		Expect(cli.Create(context.Background(), rt)).Should(Succeed())
+		h._currentRT = rt
+
+		Expect(h.StateKeep(context.Background())).Should(Succeed())
+
+		// Verify the resource was not re-created
+		got := &unstructured.Unstructured{}
+		got.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+		err = cli.Get(context.Background(), client.ObjectKeyFromObject(cm), got)
+		Expect(err).Should(HaveOccurred())
+		Expect(kerrors.IsNotFound(err)).Should(BeTrue())
+
+		// Verify the stale entry was removed from the ResourceTracker
+		updatedRT := &v1beta1.ResourceTracker{}
+		Expect(cli.Get(context.Background(), client.ObjectKeyFromObject(rt), updatedRT)).Should(Succeed())
+		Expect(updatedRT.Spec.ManagedResources).Should(BeEmpty())
+	})
+
 	It("Test StateKeep for shared resources", func() {
 		cli := testClient
 		ctx := context.Background()
@@ -183,11 +253,11 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "test-shared"}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			cache:      newResourceCache(cli, newAppOwner(app)),
 		}
-		h.sharedResourcePolicy = &v1alpha1.SharedResourcePolicySpec{Rules: []v1alpha1.SharedResourcePolicyRule{{
+		h.policies.SharedResource = &v1alpha1.SharedResourcePolicySpec{Rules: []v1alpha1.SharedResourcePolicyRule{{
 			Selector: v1alpha1.ResourcePolicyRuleSelector{ResourceTypes: []string{"ConfigMap"}},
 		}}}
 		h._currentRT = &v1beta1.ResourceTracker{
@@ -323,10 +393,10 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 			}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
-			applyOncePolicy: &v1alpha1.ApplyOncePolicySpec{
+			cache:      newResourceCache(cli, newAppOwner(app)),
+			policies: Policies{ApplyOnce: &v1alpha1.ApplyOncePolicySpec{
 				Enable: true,
 				Rules: []v1alpha1.ApplyOncePolicyRule{{
 					Selector: v1alpha1.ResourcePolicyRuleSelector{
@@ -336,7 +406,7 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 					Strategy: &v1alpha1.ApplyOnceStrategy{Path: []string{"spec.replicas"}},
 				},
 				},
-			},
+			}},
 		}
 		h._currentRT = &v1beta1.ResourceTracker{
 			Spec: v1beta1.ResourceTrackerSpec{
@@ -346,7 +416,7 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 				}},
 			},
 		}
-		applyOnceStrategy := h.applyOncePolicy.FindStrategy(deploy)
+		applyOnceStrategy := h.policies.ApplyOnce.FindStrategy(deploy)
 		Expect(applyOnceStrategy.Path).Should(Equal([]string{"spec.replicas"}))
 	})
 })

@@ -42,6 +42,6 @@ spec:
       repoType: helm
       retries: 3
       secretRef: kubevela-core
-      url: https://charts.kubevela.net/core
+      url: "https://kubevela.github.io/charts"
     type: helm
 ```

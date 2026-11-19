@@ -30,14 +30,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/oam-dev/kubevela/pkg/utils"
+
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-github/v32/github"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -47,7 +51,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
+	httpoption "github.com/oam-dev/kubevela/pkg/utils/common"
 	version2 "github.com/oam-dev/kubevela/version"
 )
 
@@ -378,7 +384,8 @@ func TestGetAddonStatus(t *testing.T) {
 	})
 
 	cli := test.MockClient{
-		MockGet: getFunc,
+		MockGet:  getFunc,
+		MockList: listFunc,
 	}
 
 	cases := []struct {
@@ -408,6 +415,10 @@ func TestGetAddonStatus(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, addonStatus.AddonPhase, s.expectStatus)
 	}
+}
+
+func listFunc(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	return nil
 }
 
 func TestGetAddonVersionMeetSystemRequirement(t *testing.T) {
@@ -695,10 +706,7 @@ func TestGetPatternFromItem(t *testing.T) {
 	gitItemType := FileType
 	gitItemPath := "addons/terraform/resources/parameter.cue"
 
-	viewOSSR := localReader{
-		dir:  "./testdata/test-view",
-		name: "test-view",
-	}
+	viewOSSR := component.NewLocalReader("./testdata/test-view", "test-view")
 	viewPath := filepath.Join("./testdata/test-view/views/pod-view.cue", "pod-view.cue")
 
 	testCases := []struct {
@@ -709,12 +717,8 @@ func TestGetPatternFromItem(t *testing.T) {
 		r           AsyncReader
 	}{
 		{
-			caseName: "OSS case",
-			item: OSSItem{
-				tp:   FileType,
-				path: "terraform/resources/parameter.cue",
-				name: "parameter.cue",
-			},
+			caseName:    "OSS case",
+			item:        component.NewOSSItem(FileType, "terraform/resources/parameter.cue", "parameter.cue"),
 			root:        "terraform",
 			meetPattern: "resources/parameter.cue",
 			r:           ossR,
@@ -727,12 +731,8 @@ func TestGetPatternFromItem(t *testing.T) {
 			r:           gitR,
 		},
 		{
-			caseName: "views case",
-			item: OSSItem{
-				tp:   FileType,
-				path: viewPath,
-				name: "pod-view.cue",
-			},
+			caseName:    "views case",
+			item:        component.NewOSSItem(FileType, viewPath, "pod-view.cue"),
 			root:        "test-view",
 			meetPattern: "views",
 			r:           viewOSSR,
@@ -939,75 +939,13 @@ func TestCheckAddonVersionMeetRequired(t *testing.T) {
 	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=1.2.4"}, k8sClient, nil))
 }
 
-var testUnmarshalToContent1 = `
-{
-  "type": "file",
-  "encoding": "",
-  "size": 651,
-  "name": "metadata.yaml",
-  "path": "example/metadata.yaml",
-  "content": "name: example\r\nversion: 1.0.0\r\ndescription: Extended workload to do continuous and progressive delivery\r\nicon: https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png\r\nurl: https://fluxcd.io\r\n\r\ntags:\r\n  - extended_workload\r\n  - gitops\r\n  - only_example\r\n\r\ndeployTo:\r\n  control_plane: true\r\n  runtime_cluster: false\r\n\r\ndependencies: []\r\n#- name: addon_name\r\n\r\n# set invisible means this won't be list and will be enabled when depended on\r\n# for example, terraform-alibaba depends on terraform which is invisible,\r\n# when terraform-alibaba is enabled, terraform will be enabled automatically\r\n# default: false\r\ninvisible: false\r\n"
-}`
-var testUnmarshalToContent2 = `
-[
-  {
-    "type": "dir",
-    "name": "example",
-    "path": "example"
-  },
-  {
-    "type": "dir",
-    "name": "local",
-    "path": "local"
-  },
-  {
-    "type": "dir",
-    "name": "terraform",
-    "path": "terraform"
-  },
-  {
-    "type": "dir",
-    "name": "terraform-alibaba",
-    "path": "terraform-alibaba"
-  },
-  {
-    "type": "dir",
-    "name": "test-error-addon",
-    "path": "test-error-addon"
-  }
-]`
-var testUnmarshalToContent3 = `
-[
-  {
-    "type": "dir",
-    "name": "example",
-  },
-  {
-    "type": "dir",
-    "name": "local",
-    "path": "local"
-  }
-]`
-var testUnmarshalToContent4 = ``
-
-func TestUnmarshalToContent(t *testing.T) {
-	_, _, err1 := unmarshalToContent([]byte(testUnmarshalToContent1))
-	assert.NoError(t, err1)
-	_, _, err2 := unmarshalToContent([]byte(testUnmarshalToContent2))
-	assert.NoError(t, err2)
-	_, _, err3 := unmarshalToContent([]byte(testUnmarshalToContent3))
-	assert.Error(t, err3, "unmarshalling failed for both file and directory content: invalid character '}' looking for beginnin")
-	_, _, err4 := unmarshalToContent([]byte(testUnmarshalToContent4))
-	assert.Error(t, err4, "unmarshalling failed for both file and directory content: unexpected end of JSON input and unexpecte")
-}
-
 // Test readResFile, only accept .cue and .yaml/.yml
 func TestReadResFile(t *testing.T) {
 
 	// setup test data
 	testAddonName := "example"
 	testAddonDir := fmt.Sprintf("./testdata/%s", testAddonName)
-	reader := localReader{dir: testAddonDir, name: testAddonName}
+	reader := component.NewLocalReader(testAddonDir, testAddonName)
 	metas, err := reader.ListAddonMeta()
 	testAddonMeta := metas[testAddonName]
 	assert.NoError(t, err)
@@ -1031,7 +969,7 @@ func TestReadDefFile(t *testing.T) {
 	// setup test data
 	testAddonName := "example"
 	testAddonDir := fmt.Sprintf("./testdata/%s", testAddonName)
-	reader := localReader{dir: testAddonDir, name: testAddonName}
+	reader := component.NewLocalReader(testAddonDir, testAddonName)
 	metas, err := reader.ListAddonMeta()
 	testAddonMeta := metas[testAddonName]
 	assert.NoError(t, err)
@@ -1058,7 +996,7 @@ func TestReadViewFile(t *testing.T) {
 	// setup test data
 	testAddonName := "test-view"
 	testAddonDir := fmt.Sprintf("./testdata/%s", testAddonName)
-	reader := localReader{dir: testAddonDir, name: testAddonName}
+	reader := component.NewLocalReader(testAddonDir, testAddonName)
 	metas, err := reader.ListAddonMeta()
 	testAddonMeta := metas[testAddonName]
 	assert.NoError(t, err)
@@ -1493,8 +1431,8 @@ func TestListAvailableAddons(t *testing.T) {
 		},
 	}
 	res, err := listAvailableAddons(registries)
+	require.NoError(t, err)
 
-	assert.NoError(t, err)
 	expected := itemInfoMap{
 		// addon1 versions are merged
 		"addon1": {
@@ -1511,6 +1449,102 @@ func TestListAvailableAddons(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, res)
+}
+
+func TestGetAddonMetaClassifiesBrokenRegistryAsFetchError(t *testing.T) {
+	// Port 1 on loopback refuses immediately, so the classification is exercised
+	// without reaching the network. Pointing this at github.com made a unit test
+	// depend on live connectivity, and a slow or blocked fetch would still have
+	// satisfied the assertion -- for the wrong reason.
+	h := &Installer{
+		r: &Registry{
+			Name: "mygit",
+			Git:  &GitAddonSource{URL: "http://127.0.0.1:1/owner/repo", Path: ""},
+		},
+	}
+	_, err := h.getAddonMeta()
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrFetch), "expected error to be classified as ErrFetch, got: %v", err)
+}
+
+func TestVersionedRegistryLoadAddonClassifiesBrokenRegistryAsFetchError(t *testing.T) {
+	registry := BuildVersionedRegistry("myhelm", "/path/does/not/exist", &httpoption.HTTPOption{})
+	_, err := registry.GetAddonInstallPackage(context.Background(), "some-addon", "")
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrFetch), "expected error to be classified as ErrFetch, got: %v", err)
+}
+
+func TestInstallDependencySkipsRegistryScanWhenNoDependencies(t *testing.T) {
+	h := &Installer{
+		ctx: context.Background(),
+		// h.cli and h.r are left nil on purpose: if installDependency lists
+		// installed addons or scans registries even though the addon has no
+		// dependencies, calling List/ListAddonInfo on a nil client/registry
+		// pointer panics.
+	}
+	addon := &InstallPackage{Meta: Meta{Name: "velaux"}}
+
+	assert.NotPanics(t, func() {
+		err := h.installDependency(context.Background(), addon)
+		assert.NoError(t, err)
+	})
+}
+
+func TestListAvailableAddonsSkipsFailingRegistry(t *testing.T) {
+	registries := []ItemInfoLister{
+		// A registry that simply cannot serve the addon is skipped so one broken
+		// registry does not break the whole listing. It has to be a skippable
+		// error: anything else is a real misconfiguration and must surface.
+		&AddonInfoListerMock{
+			expectedErr: fmt.Errorf("registry unreachable: %w", ErrFetch),
+		},
+		&AddonInfoListerMock{
+			expectedData: itemInfoMap{
+				"velaux": {
+					Name:              "velaux",
+					AvailableVersions: []string{"1.0.0"},
+				},
+			},
+		},
+	}
+	res, err := listAvailableAddons(registries)
+	require.NoError(t, err)
+
+	expected := itemInfoMap{
+		"velaux": {
+			Name:              "velaux",
+			AvailableVersions: []string{"1.0.0"},
+		},
+	}
+	assert.Equal(t, expected, res)
+}
+
+func TestListAvailableAddonsPropagatesFatalError(t *testing.T) {
+	// Bad credentials is not a "this registry cannot serve the addon" condition.
+	// Swallowing it made dependency resolution report "addon ... cannot be found"
+	// instead of the real 401, so it has to reach the caller.
+	registries := []ItemInfoLister{
+		&AddonInfoListerMock{expectedErr: fmt.Errorf("401 Bad credentials")},
+		&AddonInfoListerMock{expectedData: itemInfoMap{"velaux": {Name: "velaux"}}},
+	}
+	res, err := listAvailableAddons(registries)
+
+	require.Error(t, err)
+	assert.Nil(t, res)
+	assert.Contains(t, err.Error(), "401 Bad credentials")
+}
+
+func TestListAvailableAddonsSkipsEveryUnreachableRegistry(t *testing.T) {
+	// All registries unreachable is still not fatal: the caller gets an empty set
+	// and decides, which is what keeps one bad registry from breaking listing.
+	registries := []ItemInfoLister{
+		&AddonInfoListerMock{expectedErr: fmt.Errorf("down: %w", ErrFetch)},
+		&AddonInfoListerMock{expectedErr: fmt.Errorf("absent: %w", ErrNotExist)},
+	}
+	res, err := listAvailableAddons(registries)
+
+	require.NoError(t, err)
+	assert.Equal(t, itemInfoMap{}, res)
 }
 
 type AddonInfoListerMock struct {
@@ -1567,4 +1601,121 @@ func TestListInstalledAddons(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, res)
+}
+
+// TestLoadInstallPackage covers the branch loadInstallPackage now takes: OCI
+// and Helm registries are resolved through ToVersionedRegistry, everything
+// else keeps going through the registry-meta + reader path.
+func TestLoadInstallPackage(t *testing.T) {
+	t.Run("OCI registry takes the versioned path and fails fast against an unreachable host", func(t *testing.T) {
+		h := &Installer{
+			ctx: context.Background(),
+			r:   &Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://127.0.0.1:1/addon"}},
+		}
+		_, err := h.loadInstallPackage("fluxcd", "1.0.0")
+		require.Error(t, err)
+	})
+
+	t.Run("non-versioned registry with no source info fails getting addon meta", func(t *testing.T) {
+		h := &Installer{
+			ctx:   context.Background(),
+			r:     &Registry{Name: "bare"},
+			cache: NewCache(nil),
+		}
+		_, err := h.loadInstallPackage("fluxcd", "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "fail to get addon meta")
+	})
+}
+
+// TestInstallDependencyListInstalledAddonsError covers the first step past the
+// no-dependencies early return: a listInstalledAddons failure for an addon
+// that does declare a dependency must be propagated as-is.
+func TestInstallDependencyListInstalledAddonsError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	h := &Installer{ctx: context.Background(), cli: kubeClient}
+	addonPkg := &InstallPackage{Meta: Meta{Name: "demo", Dependencies: []*Dependency{{Name: "dep-addon"}}}}
+
+	err := h.installDependency(context.Background(), addonPkg)
+	require.Error(t, err)
+}
+
+// A registry URL of the form https://github.com/<owner>/<repo>/tree/<branch>/<path>
+// pins a branch, and utils.Parse fills GithubContent.Ref from it. readRepo used
+// to pass nil options to GetContents and read the default branch instead, so a
+// pinned registry silently served the wrong content - a bug Gitee and GitLab did
+// not have, because they already pass their Ref through.
+func TestGitHelperReadRepoUsesTheParsedRef(t *testing.T) {
+	_, content, err := utils.Parse("https://github.com/kubevela/catalog/tree/fix_clusters/addons")
+	if err != nil {
+		t.Fatalf("parsing a branch-pinned registry URL: %v", err)
+	}
+	if content.GithubContent.Ref != "fix_clusters" {
+		t.Fatalf("expected the branch to be parsed out of the URL, got %q", content.GithubContent.Ref)
+	}
+
+	// The URL form without /tree/ leaves the ref empty, which means "default
+	// branch" - and must stay empty rather than becoming a literal.
+	_, plain, err := utils.Parse("https://github.com/kubevela/catalog/addons")
+	if err != nil {
+		t.Fatalf("parsing an unpinned registry URL: %v", err)
+	}
+	if plain.GithubContent.Ref != "" {
+		t.Errorf("an unpinned URL must leave the ref empty, got %q", plain.GithubContent.Ref)
+	}
+}
+
+func TestClassifyItemByPatternSkipsCUETestFiles(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "example")
+	files := map[string]string{
+		MetadataFileName:                     "name: example\nversion: 1.0.0\n",
+		"resources/web.cue":                  "output: {}",
+		"resources/web_test.cue":             "x: 1",
+		"definitions/trait.cue":              "x: 1",
+		"definitions/trait_test.cue":         "x: 1",
+		"views/pods.cue":                     "x: 1",
+		"views/pods_test.cue":                "x: 1",
+		"config-templates/registry.cue":      "x: 1",
+		"config-templates/registry_test.cue": "x: 1",
+	}
+	for f, src := range files {
+		assert.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, f)), 0o700))
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, f), []byte(src), 0o600))
+	}
+	reader := component.NewLocalReader(dir, "example")
+	metas, err := reader.ListAddonMeta()
+	assert.NoError(t, err)
+	meta := metas["example"]
+	var classified []string
+	for _, items := range ClassifyItemByPattern(&meta, reader) {
+		for _, it := range items {
+			classified = append(classified, filepath.Base(it.GetPath()))
+		}
+	}
+	assert.Subset(t, classified, []string{"web.cue", "trait.cue", "pods.cue", "registry.cue"})
+	for _, name := range classified {
+		assert.False(t, strings.HasSuffix(name, "_test.cue"), "%s is a test file and must not be read into the addon", name)
+	}
+}
+
+func TestLoadLocalInstallPackage(t *testing.T) {
+	pkg, err := LoadLocalInstallPackage("example", "./testdata/example")
+	require.NoError(t, err)
+	assert.Equal(t, "example", pkg.Name)
+	assert.Equal(t, "1.0.1", pkg.Version)
+	assert.NotEmpty(t, pkg.AppCueTemplate.Data, "template.cue is read")
+	assert.NotEmpty(t, pkg.CUETemplates, "resources/ is read")
+}
+
+// A parameter both generators reject is reported with the schema generator's
+// cause, not the CUE encoder's.
+func TestGenAddonAPISchemaReportsTheGeneratorsError(t *testing.T) {
+	addon := &UIData{Parameters: `parameter: {ns: int & context.namespace}`}
+	err := genAddonAPISchema(addon)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicting values int and string")
 }

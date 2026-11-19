@@ -16,6 +16,8 @@ limitations under the License.
 
 package oam
 
+import "strings"
+
 // Label key strings.
 // AppConfig controller will add these labels into workloads.
 const (
@@ -40,6 +42,16 @@ const (
 	// LabelAppUID records the uid of Application
 	LabelAppUID = "app.oam.dev/uid"
 
+	// LabelOwnerKind records the kind of a non-Application owner (e.g. Component) of a
+	// ResourceTracker or of a resource it dispatched
+	LabelOwnerKind = "owner.oam.dev/kind"
+	// LabelOwnerName records the name of a non-Application owner
+	LabelOwnerName = "owner.oam.dev/name"
+	// LabelOwnerNamespace records the namespace of a non-Application owner
+	LabelOwnerNamespace = "owner.oam.dev/namespace"
+	// LabelOwnerUID records the uid of a non-Application owner
+	LabelOwnerUID = "owner.oam.dev/uid"
+
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"
 	// TraitTypeLabel indicates the type of the traitDefinition
@@ -49,6 +61,9 @@ const (
 
 	// LabelComponentDefinitionName records the name of ComponentDefinition
 	LabelComponentDefinitionName = "componentdefinition.oam.dev/name"
+
+	// LabelSourceDefinitionName records the name of SourceDefinition
+	LabelSourceDefinitionName = "sourcedefinition.oam.dev/name"
 	// LabelTraitDefinitionName records the name of TraitDefinition
 	LabelTraitDefinitionName = "trait.oam.dev/name"
 	// LabelManageWorkloadTrait indicates if the trait will manage the lifecycle of the workload
@@ -147,6 +162,25 @@ const (
 	// AnnotationDefinitionRevisionName is used to specify the name of DefinitionRevision in component/trait definition
 	AnnotationDefinitionRevisionName = "definitionrevision.oam.dev/name"
 
+	// AnnotationRestrictNamespaces limits the namespaces whose Applications may use a
+	// definition, as a comma-separated list of namespace names or globs. It is the
+	// channel for definitions whose spec you do not own, such as the builtins helm
+	// installs. A label cannot carry this: label values reject "*" and ",".
+	//
+	// Names only. Restricting by namespace label is spec.restrictions.namespaceSelector
+	// and nothing else, so the annotation stays a flat list with no parsing to get
+	// wrong.
+	AnnotationRestrictNamespaces = "definition.oam.dev/restrict-namespaces"
+
+	// AnnotationQuotaExempt, set to "true" on a Namespace, lifts every definition
+	// quota for that namespace. It is for getting out of the way of an incident,
+	// not for carving out a permanent exception, so each use is logged.
+	//
+	// Namespaces are cluster scoped, so setting this needs cluster level RBAC. It
+	// lifts quotas only; which definitions a namespace may use at all is not
+	// something a namespace gets to decide about itself.
+	AnnotationQuotaExempt = "definition.oam.dev/quota-exempt"
+
 	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
 	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
 
@@ -159,8 +193,73 @@ const (
 	// AnnotationAutoUpdate is annotation that let application auto update when it finds definition changes
 	AnnotationAutoUpdate = "app.oam.dev/autoUpdate"
 
+	// AnnotationCelExpressions opts one Application in to $( ) property
+	// expressions while RequireCelExpressionOptIn is on. Any value other than
+	// "true" leaves the Application as it was.
+	//
+	// Per-Application rather than per-namespace because the thing being opted in
+	// to is a reading of the Application's own property values: a $(VAR) that used
+	// to reach the container verbatim now has to be written $$(VAR). Whoever owns
+	// the Application is who can answer for that.
+	//
+	// Named for the expressions and not for sources: $(context.appName) needs no
+	// SourceDefinition, and what an Application opts in to here is having its
+	// properties read for $( ) at all. Sources are the first thing expressions
+	// made worth having, not the boundary of what they will be used for.
+	AnnotationCelExpressions = "app.oam.dev/cel-expressions"
+
+	// AnnotationAutoRevision controls whether policy-rendered spec changes create new ApplicationRevisions.
+	// When set to "true", policies can modify Application.Spec and trigger new revisions.
+	// This is orthogonal to AnnotationAutoUpdate which controls definition version updates.
+	// Like the other policy rollout annotations it takes "true", "false" or a comma-separated
+	// list of PolicyDefinition names; without it the controller default applies.
+	AnnotationAutoRevision = "policy.oam.dev/auto-revision"
+
+	// AnnotationApplyPolicyUpdates controls whether an Application adopts new versions of the
+	// Application-scoped policies it runs ("true", "false" or a list of PolicyDefinition names).
+	AnnotationApplyPolicyUpdates = "policy.oam.dev/apply-policy-updates"
+
+	// AnnotationApplyDataChanges controls whether an Application takes changed output from an
+	// unchanged policy version, such as values the policy reads from the cluster ("true",
+	// "false" or a list of PolicyDefinition names).
+	AnnotationApplyDataChanges = "policy.oam.dev/apply-data-changes"
+
+	// AnnotationPolicyContextHash records, on an Application's current ResourceTracker, a hash of
+	// each policy instance's context output when its components were last applied: a
+	// JSON map from policy instance (global:<name>, or the spec.policies name) to hash. A change for
+	// a policy with apply-data-changes on re-applies the components without a new revision.
+	AnnotationPolicyContextHash = "app.oam.dev/policy-context-hash"
+
+	// AnnotationAppGeneration records, on an ApplicationRevision, the generation of the Application
+	// it was last written for. A revision stores the spec after policy transforms, so this tells an
+	// author edit apart from a spec-rewriting policy.
+	AnnotationAppGeneration = "app.oam.dev/application-generation"
+
+	// AnnotationSourceResolvedHash records per-source hashes of the source
+	// values a component consumed at dispatch time (JSON map of source name ->
+	// hash). It is stamped on the dispatched workload so a later reconcile can
+	// detect that a source re-resolved to a different value (which the raw spec
+	// comparison cannot see) and re-dispatch.
+	AnnotationSourceResolvedHash = "source.oam.dev/resolved-hash"
+
+	// AnnotationSkipGlobalPolicies controls whether global (vela-system) policies are skipped for an Application.
+	// When set to "true", only explicitly declared spec.policies are evaluated.
+	AnnotationSkipGlobalPolicies = "policy.oam.dev/skip-global"
+	// AnnotationForceParamMutations bypasses all immutable parameter field validation when set to "true".
+	AnnotationForceParamMutations = "app.oam.dev/force-param-mutations"
+
 	// AnnotationWorkflowName specifies the workflow name for execution.
 	AnnotationWorkflowName = "app.oam.dev/workflowName"
+
+	// AnnotationWorkflowRestart triggers a workflow restart when set. Supported values:
+	// - "true": Immediate restart (sets restart time to current time + 1 second).
+	//   Annotation is automatically removed after being processed.
+	// - RFC3339 timestamp (e.g., "2025-01-15T14:30:00Z"): One-time restart at specified time.
+	//   Annotation is automatically removed after being processed.
+	// - Duration (e.g., "5m", "1h", "30s"): Recurring restart with minimum interval after each completion.
+	//   Annotation persists; automatically reschedules after each workflow completion.
+	// All modes are GitOps-safe: the schedule is stored in status.workflowRestartScheduledAt.
+	AnnotationWorkflowRestart = "app.oam.dev/restart-workflow"
 
 	// AnnotationAppName specifies the name for application in db.
 	// Note: the annotation is only created by velaUX, please don't use it in other Source of Truth.
@@ -195,8 +294,22 @@ const (
 	// AnnotationAddonDefinitionBondCompKey indicates the definition in addon bond component.
 	AnnotationAddonDefinitionBondCompKey = "addon.oam.dev/bind-component"
 
+	// AnnotationModuleInstallNamespace is set by the addon renderer on an owned
+	// addon Application to the namespace of the Application that installed the
+	// addon. The owned Application itself always lives in vela-system, so a
+	// type: module component inside it installs its definitions here instead.
+	// The module definition honors it only on Applications carrying
+	// LabelAddonName.
+	AnnotationModuleInstallNamespace = "modules.oam.dev/install-namespace"
+
 	// AnnotationSkipResume annotation indicates that the resource does not need to be resumed.
 	AnnotationSkipResume = "controller.core.oam.dev/skip-resume"
+
+	// AnnotationReconcileInterval overrides the global ApplicationReSyncPeriod on a
+	// per-application basis.  The value must be a valid Go duration string (e.g.
+	// "1m", "15m", "30s").  Values below 10s are ignored and fall back to the
+	// global default.  Invalid values are also ignored.
+	AnnotationReconcileInterval = "app.oam.dev/reconcile-interval"
 )
 
 const (
@@ -213,3 +326,45 @@ const (
 	// resources instead of deleting them
 	FinalizerOrphanResource = "app.oam.dev/orphan-resource"
 )
+
+// policyContextKeyType is a private type for Go context keys, preventing collisions.
+type policyContextKeyType string
+
+// PolicyAdditionalContextKey is the Go context key for storing policy output.ctx data.
+const PolicyAdditionalContextKey policyContextKeyType = "kubevela.oam.dev/policy-additional-context"
+
+// internalMetadataPrefixes lists key prefixes that are stripped when exposing Application
+// labels/annotations to policy CUE templates. Add prefixes here to prevent policies from
+// reading internal platform metadata.
+var internalMetadataPrefixes = map[string]struct{}{
+	"app.oam.dev/":           {},
+	"owner.oam.dev/":         {},
+	"oam.dev/":               {},
+	"kubectl.kubernetes.io/": {},
+	"kubernetes.io/":         {},
+	"k8s.io/":                {},
+	"helm.sh/":               {},
+	"app.kubernetes.io/":     {},
+	"modules.oam.dev/":       {},
+}
+
+// FilterInternalMetadata returns a copy of metadata with internal platform keys removed.
+// Returns nil when the result would be empty.
+func FilterInternalMetadata(metadata map[string]string) map[string]string {
+	if len(metadata) == 0 {
+		return nil
+	}
+	filtered := make(map[string]string, len(metadata))
+	for k, v := range metadata {
+		if idx := strings.IndexByte(k, '/'); idx > 0 {
+			if _, isInternal := internalMetadataPrefixes[k[:idx+1]]; isInternal {
+				continue
+			}
+		}
+		filtered[k] = v
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
+}

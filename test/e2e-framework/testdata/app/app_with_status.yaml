@@ -1,0 +1,10 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-with-status
+spec:
+  components:
+    - name: deployment-with-status
+      type: deployment-with-status
+      traits:
+        - type: trait-with-status

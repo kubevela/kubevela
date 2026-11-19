@@ -26,7 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
-	yaml3 "gopkg.in/yaml.v3"
+	yaml3 "go.yaml.in/yaml/v3"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
@@ -466,7 +467,7 @@ var _ = Describe("test enable addon in local dir", func() {
 
 	It("test enable addon by local dir", func() {
 		ctx := context.Background()
-		_, err := EnableAddonByLocalDir(ctx, "example", "./testdata/example", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
+		_, err := EnableAddonByLocalDir(ctx, "example", "./testdata/example", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"}, false)
 		Expect(err).Should(BeNil())
 		app := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-example"}, &app)).Should(BeNil())
@@ -491,11 +492,11 @@ var _ = Describe("test dry-run addon from local dir", func() {
 	It("test dry-run enable addon from local dir", func() {
 		ctx := context.Background()
 
-		r := localReader{dir: "./testdata/example", name: "addon-example"}
+		r := component.NewLocalReader("./testdata/example", "addon-example")
 		metas, err := r.ListAddonMeta()
 		Expect(err).Should(BeNil())
 
-		meta := metas[r.name]
+		meta := metas[r.Name()]
 		UIData, err := GetUIDataFromReader(r, &meta, UIMetaOptions)
 		Expect(err).Should(BeNil())
 
@@ -534,7 +535,7 @@ var _ = Describe("test enable addon which applies the views independently", func
 
 	It("test enable addon which applies the views independently", func() {
 		ctx := context.Background()
-		_, err := EnableAddonByLocalDir(ctx, "test-view", "./testdata/test-view", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"})
+		_, err := EnableAddonByLocalDir(ctx, "test-view", "./testdata/test-view", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, map[string]interface{}{"example": "test"}, false)
 		Expect(err).Should(BeNil())
 		app := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-test-view"}, &app)).Should(BeNil())
@@ -558,7 +559,7 @@ var _ = Describe("test enable addon with notes", func() {
 		addonInputArgs[InstallerRuntimeOption] = map[string]interface{}{
 			"upgrade": false,
 		}
-		notes, err := EnableAddonByLocalDir(ctx, "test-notes", "./testdata/test-notes", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, addonInputArgs)
+		notes, err := EnableAddonByLocalDir(ctx, "test-notes", "./testdata/test-notes", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, addonInputArgs, false)
 		Expect(err).Should(BeNil())
 		app := v1beta1.Application{}
 		Expect(k8sClient.Get(ctx, types2.NamespacedName{Namespace: "vela-system", Name: "addon-test-notes"}, &app)).Should(BeNil())
@@ -573,7 +574,7 @@ Please refer to URL.`))
 		addonInputArgs[InstallerRuntimeOption] = map[string]interface{}{
 			"upgrade": true,
 		}
-		notes, err := EnableAddonByLocalDir(ctx, "test-notes-upgrade", "./testdata/test-notes", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, addonInputArgs)
+		notes, err := EnableAddonByLocalDir(ctx, "test-notes-upgrade", "./testdata/test-notes", k8sClient, dc, apply.NewAPIApplicator(k8sClient), cfg, addonInputArgs, false)
 		Expect(err).Should(BeNil())
 		Expect(notes).Should(ContainSubstring(`Thank you for your upgrade!
 Please refer to URL.`))

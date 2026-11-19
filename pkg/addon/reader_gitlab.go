@@ -19,7 +19,7 @@ package addon
 import (
 	"encoding/base64"
 
-	"github.com/xanzy/go-gitlab"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -52,6 +52,9 @@ func (g GitLabItem) GetType() string {
 
 // GetPath get addon's sub item path
 func (g GitLabItem) GetPath() string {
+	if g.basePath == "" {
+		return g.path
+	}
 	return g.path[len(g.basePath)+1:]
 }
 
@@ -151,7 +154,7 @@ func (g *gitlabReader) ReadFile(path string) (content string, err error) {
 	ref := g.GetRef()
 	getFile, _, err := g.h.Client.RepositoryFiles.GetFile(g.GetProjectID(), g.GetProjectPath()+"/"+path, &gitlab.GetFileOptions{Ref: &ref})
 	if err != nil {
-		return "", err
+		return "", asNotFound(err, path)
 	}
 	decodeString, err := base64.StdEncoding.DecodeString(getFile.Content)
 	if err != nil {

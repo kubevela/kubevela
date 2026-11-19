@@ -17,10 +17,28 @@ limitations under the License.
 package cuex
 
 import (
-	"github.com/kubevela/pkg/cue/cuex"
-	"github.com/kubevela/pkg/util/singleton"
+	"context"
+	"sync"
 
+	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/cue/cuex/providers/base64"
+	cueext "github.com/kubevela/pkg/cue/cuex/providers/cue"
+	"github.com/kubevela/pkg/cue/cuex/providers/kube"
+	cuexutil "github.com/kubevela/pkg/cue/cuex/providers/util"
+	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
+	"github.com/kubevela/pkg/util/singleton"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
+
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/addon"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/guardedhttp"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/kuberead"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/module"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/registry"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
+	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
 )
 
 // ConfigCompiler ...
@@ -30,3 +48,140 @@ var ConfigCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compile
 	)
 	return compiler
 })
+
+// SourcePackages are the CueX packages a SourceDefinition may import.
+//
+// A source is a cached, shared read: one resolution serves every Application
+// with the same key, and the value outlives the render in a Config. So the set
+// is what fetches, not what acts.
+//
+// helm and addon are excluded for that reason rather than for tidiness.
+// helm.#Render calls installOrUpgradeChart outside dry-run, and the render path
+// sets no dry-run, so a source importing vela/helm would install a real release
+// on every cache miss. config is excluded too: it validates registry
+// credentials, which is not a fetch.
+//
+// Adding one here widens what every SourceDefinition on the cluster can do.
+// TestSourceCompilerPackageSetIsDeliberate fails when this drifts from
+// WorkloadCompiler, so the choice has to be made rather than inherited.
+func SourcePackages() []cuexruntime.Package {
+	return []cuexruntime.Package{
+		// vela/kube with #Apply and #Patch removed. The package set alone is not
+		// enough: kube carries reads and writes under one name, so a source could
+		// otherwise apply arbitrary resources on every cache miss.
+		kuberead.Package,
+		guardedhttp.Package,
+		base64.Package,
+		registry.Package,
+		velaconfig.Package,
+		cueext.Package,
+	}
+}
+
+func sourceCompilerPackageNames() []string {
+	names := make([]string, 0, len(SourcePackages()))
+	for _, p := range SourcePackages() {
+		names = append(names, p.GetName())
+	}
+	return names
+}
+
+// SourceCompiler is the compiler a SourceDefinition's template is resolved with.
+var SourceCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
+	compiler := cuex.NewCompilerWithInternalPackages(SourcePackages()...)
+	// Guarded for the same reason as WorkloadCompiler below.
+	if cuex.EnableExternalPackageForDefaultCompiler {
+		if err := kubeconfig.CheckFor("external CUE packages for the source compiler"); err != nil {
+			return compiler
+		}
+		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
+			klog.Errorf("failed to load external packages for source compiler: %v", err.Error())
+		}
+	}
+	return compiler
+})
+
+// WorkloadPackages are the packages a component or trait template can import.
+func WorkloadPackages() []cuexruntime.Package {
+	return []cuexruntime.Package{
+		config.Package,
+		helm.Package,
+		base64.Package,
+		guardedhttp.Package,
+		kube.Package,
+		cueext.Package,
+		addon.Package,
+		// SourceDefinitions compile against this compiler, so a source can read
+		// a file from a registry the platform has configured, or the properties
+		// of a Config the platform has created.
+		registry.Package,
+		velaconfig.Package,
+		module.Package,
+	}
+}
+
+// WorkloadCompiler is the compiler for workload/component definitions
+var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
+	compiler := cuex.NewCompilerWithInternalPackages(WorkloadPackages()...)
+	// See the note in pkg/workflow/providers/compiler.go: LoadExternalPackages
+	// and ListenExternalPackages reach config.GetConfigOrDie, which exits the
+	// process instead of returning an error when no kubeconfig exists.
+	if cuex.EnableExternalPackageForDefaultCompiler || cuex.EnableExternalPackageWatchForDefaultCompiler {
+		if err := kubeconfig.CheckFor("external CUE packages for the workload compiler"); err != nil {
+			return compiler
+		}
+	}
+	if cuex.EnableExternalPackageForDefaultCompiler {
+		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
+			klog.Errorf("failed to load external packages for workload compiler: %v", err.Error())
+		}
+	}
+	if cuex.EnableExternalPackageWatchForDefaultCompiler {
+		go compiler.ListenExternalPackages(nil)
+	}
+	return compiler
+})
+
+// DefaultPackages are the packages of the upstream cuex.DefaultCompiler, with
+// vela/http replaced by the guarded variant.
+func DefaultPackages() []cuexruntime.Package {
+	return []cuexruntime.Package{
+		base64.Package,
+		guardedhttp.Package,
+		kube.Package,
+		cueext.Package,
+		cuexutil.Package,
+	}
+}
+
+// GuardDefaultCompiler replaces the upstream cuex.DefaultCompiler, which policy
+// rendering, CUE conversion and the webhook use, with one built from
+// DefaultPackages, so a vela/http call there goes through the outbound HTTP
+// guard too. It loads external packages the way the upstream compiler does.
+// It runs once; later calls do nothing, so a repeated configuration sync
+// does not start a second external-package watcher.
+func GuardDefaultCompiler() {
+	guardDefaultCompilerOnce.Do(guardDefaultCompiler)
+}
+
+var guardDefaultCompilerOnce sync.Once
+
+// guardDefaultCompiler builds and installs the guarded default compiler.
+func guardDefaultCompiler() {
+	compiler := cuex.NewCompilerWithInternalPackages(DefaultPackages()...)
+	if cuex.EnableExternalPackageForDefaultCompiler || cuex.EnableExternalPackageWatchForDefaultCompiler {
+		if err := kubeconfig.CheckFor("external CUE packages for the default compiler"); err != nil {
+			cuex.DefaultCompiler.Set(compiler)
+			return
+		}
+	}
+	if cuex.EnableExternalPackageForDefaultCompiler {
+		if err := compiler.LoadExternalPackages(context.Background()); err != nil && !kerrors.IsNotFound(err) {
+			klog.Errorf("failed to load external packages for cuex default compiler: %s", err.Error())
+		}
+	}
+	if cuex.EnableExternalPackageWatchForDefaultCompiler {
+		go compiler.ListenExternalPackages(nil)
+	}
+	cuex.DefaultCompiler.Set(compiler)
+}

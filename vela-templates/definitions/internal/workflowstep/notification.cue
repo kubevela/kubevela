@@ -158,6 +158,14 @@ template: {
 				body: string
 			}
 		}
+		// +usage=The timeout of HTTP notifications (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted. Invalid values fail when the step runs.
+		timeout?: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
+	}
+
+	httpRequestOpts: {
+		if parameter.timeout != _|_ {
+			timeout: parameter.timeout
+		}
 	}
 
 	block: {
@@ -189,9 +197,7 @@ template: {
 			multiline?:          bool
 			min_length?:         int
 			max_length?:         int
-			dispatch_action_config?: {
-				trigger_actions_on?: [...string]
-			}
+			dispatch_action_config?: trigger_actions_on?: [...string]
 			initial_time?: string
 		}]
 	}
@@ -214,14 +220,14 @@ template: {
 	ding: {
 		if parameter.dingding != _|_ {
 			if parameter.dingding.url.value != _|_ {
-				ding1: http.#Do & {
+				ding1: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    parameter.dingding.url.value
 						request: {
 							body: json.Marshal(parameter.dingding.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}
@@ -240,14 +246,14 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.dingding.url.secretRef.key])}
-				ding2: http.#Do & {
+				ding2: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    stringValue.$returns.str
 						request: {
 							body: json.Marshal(parameter.dingding.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}
@@ -257,14 +263,14 @@ template: {
 	lark: {
 		if parameter.lark != _|_ {
 			if parameter.lark.url.value != _|_ {
-				lark1: http.#Do & {
+				lark1: http.#HTTPDo & {
 					$params: {
 						method: "POST"
-						url:    parameter.lark.message
+						url:    parameter.lark.url.value
 						request: {
 							body: json.Marshal(parameter.lark.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}
@@ -283,14 +289,14 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.lark.url.secretRef.key])}
-				lark2: http.#Do & {
+				lark2: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    stringValue.$returns.str
 						request: {
 							body: json.Marshal(parameter.lark.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 
@@ -301,14 +307,14 @@ template: {
 	slack: {
 		if parameter.slack != _|_ {
 			if parameter.slack.url.value != _|_ {
-				slack1: http.#Do & {
+				slack1: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    parameter.slack.url.value
 						request: {
 							body: json.Marshal(parameter.slack.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}
@@ -327,14 +333,14 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.slack.url.secretRef.key])}
-				slack2: http.#Do & {
+				slack2: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    stringValue.$returns.str
 						request: {
 							body: json.Marshal(parameter.slack.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}
@@ -383,7 +389,7 @@ template: {
 							if parameter.email.from.alias != _|_ {
 								alias: parameter.email.from.alias
 							}
-							password: stringValue.str
+							password: stringValue.$returns.str
 							host:     parameter.email.from.host
 							port:     parameter.email.from.port
 						}

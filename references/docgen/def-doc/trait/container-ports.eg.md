@@ -1,5 +1,5 @@
 It's used to define Pod networks directly. hostPort routes the container's port directly to the port on the scheduled node, so that you can access the Pod through the host's IP plus hostPort.
-Don't specify a hostPort for a Pod unless it is absolutely necessary(run `DaemonSet` service). When you bind a Pod to a hostPort, it limits the number of places the Pod can be scheduled, because each <hostIP, hostPort, protocol> combination must be unique. If you don't specify the hostIP and protocol explicitly, Kubernetes will use 0.0.0.0 as the default hostIP and TCP as the default protocol.
+Don't specify a hostPort for a Pod unless it is absolutely necessary(run `DaemonSet` service). When you bind a Pod to a hostPort, it limits the number of places the Pod can be scheduled, because each `<hostIP, hostPort, protocol>` combination must be unique. If you don't specify the hostIP and protocol explicitly, Kubernetes will use 0.0.0.0 as the default hostIP and TCP as the default protocol.
 If you explicitly need to expose a Pod's port on the node, consider using `expose` or `gateway` trait, or exposeType and ports parameter of `webservice` component before resorting to `container-ports` trait.
 ```yaml
 apiVersion: core.oam.dev/v1beta1

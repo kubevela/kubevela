@@ -17,6 +17,7 @@ limitations under the License.
 package docgen
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -24,7 +25,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -248,7 +248,9 @@ func TestWalkParameterSchema(t *testing.T) {
 		swagger, err := openapi3.NewLoader().LoadFromData(json.RawMessage(parameterJSON))
 		assert.Equal(t, nil, err)
 		parameters := swagger.Components.Schemas["parameter"].Value
-		WalkParameterSchema(parameters, Specification, 0)
+		err = WalkParameterSchema(parameters, Specification, 0)
+		assert.Nil(t, err)
+
 		refs := make(map[string]map[string]ReferenceParameter)
 		for _, items := range commonRefs {
 			refs[items.Name] = make(map[string]ReferenceParameter)
@@ -257,103 +259,6 @@ func TestWalkParameterSchema(t *testing.T) {
 			}
 		}
 		assert.Equal(t, true, reflect.DeepEqual(cases.ExpectRefs, refs))
-	}
-}
-
-func TestGenerateTerraformCapabilityProperties(t *testing.T) {
-	ref := &ConsoleReference{}
-	type args struct {
-		cap types.Capability
-	}
-
-	type want struct {
-		tableName1 string
-		tableName2 string
-		errMsg     string
-	}
-	testcases := map[string]struct {
-		args args
-		want want
-	}{
-		"normal": {
-			args: args{
-				cap: types.Capability{
-					TerraformConfiguration: `
-resource "alicloud_oss_bucket" "bucket-acl" {
-  bucket = var.bucket
-  acl = var.acl
-}
-
-output "BUCKET_NAME" {
-  value = "${alicloud_oss_bucket.bucket-acl.bucket}.${alicloud_oss_bucket.bucket-acl.extranet_endpoint}"
-}
-
-variable "bucket" {
-  description = "OSS bucket name"
-  default = "vela-website"
-  type = string
-}
-
-variable "acl" {
-  description = "OSS bucket ACL, supported 'private', 'public-read', 'public-read-write'"
-  default = "private"
-  type = string
-}
-`,
-				},
-			},
-			want: want{
-				errMsg:     "",
-				tableName1: "",
-				tableName2: "#### writeConnectionSecretToRef",
-			},
-		},
-		"configuration is in git remote": {
-			args: args{
-				cap: types.Capability{
-					Name:                   "ecs",
-					TerraformConfiguration: "https://github.com/wonderflow/terraform-alicloud-ecs-instance.git",
-					ConfigurationType:      "remote",
-				},
-			},
-			want: want{
-				errMsg:     "",
-				tableName1: "",
-				tableName2: "#### writeConnectionSecretToRef",
-			},
-		},
-		"configuration is not valid": {
-			args: args{
-				cap: types.Capability{
-					TerraformConfiguration: `abc`,
-				},
-			},
-			want: want{
-				errMsg: "failed to generate capability properties: :1,1-4: Argument or block definition required; An " +
-					"argument or block definition is required here. To set an argument, use the equals sign \"=\" to " +
-					"introduce the argument value.",
-			},
-		},
-	}
-	for name, tc := range testcases {
-		consoleRef, err := ref.GenerateTerraformCapabilityProperties(tc.args.cap)
-		var errMsg string
-		if err != nil {
-			errMsg = err.Error()
-			if diff := cmp.Diff(tc.want.errMsg, errMsg, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want error, +got error:\n%s\n", name, diff)
-			}
-		} else {
-			if diff := cmp.Diff(len(consoleRef), 2); diff != "" {
-				t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
-			}
-			if diff := cmp.Diff(tc.want.tableName1, consoleRef[0].TableName); diff != "" {
-				t.Errorf("\n%s\nGenerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
-			}
-			if diff := cmp.Diff(tc.want.tableName2, consoleRef[1].TableName); diff != "" {
-				t.Errorf("\n%s\nGexnerateTerraformCapabilityProperties(...): -want, +got:\n%s\n", name, diff)
-			}
-		}
 	}
 }
 
@@ -574,18 +479,18 @@ func TestExtractParameter(t *testing.T) {
 }`,
 			contains: `### normal-case
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- str |  | string | true |  
- itr |  | int | true |  
- btr |  | bool | true |  
- ct |  | [ct](#ct) | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ str |  | string | true |  |  
+ itr |  | int | true |  |  
+ btr |  | bool | true |  |  
+ ct |  | [ct](#ct) | true |  |  
 
 
 #### ct
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
  cts |  | string | true |`,
 		},
 		"normal-map-string-string": {
@@ -594,8 +499,8 @@ func TestExtractParameter(t *testing.T) {
 }`,
 			contains: `### normal-map-string-string
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
  envMappings |  | map[string]string | true |  `,
 		},
 		"normal-map-case": {
@@ -609,16 +514,16 @@ func TestExtractParameter(t *testing.T) {
 }`,
 			contains: `### normal-map-case
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- envMappings | The mapping of environment variables to secret. | map[string]KeySecret(#keysecret) | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ envMappings | The mapping of environment variables to secret. | map[string]KeySecret(#keysecret) | true |  |  
 
 
 #### KeySecret
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | false |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ key |  | string | false |  |  
  secret |  | string | true |`,
 		},
 		"or-case-with-type": {
@@ -637,24 +542,24 @@ func TestExtractParameter(t *testing.T) {
 	   	}`,
 			contains: `### or-case-with-type
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |  |  
 
 
 #### KeyConfig
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | true |  
- config |  | string | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ key |  | string | true |  |  
+ config |  | string | true |  |  
 
 
 #### KeySecret
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ key |  | string | true |  |  
  secret |  | string | true | `,
 		},
 		"or-type-with-const-str": {
@@ -663,8 +568,8 @@ func TestExtractParameter(t *testing.T) {
 }`,
 			contains: `### or-type-with-const-str
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
  type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
 		},
 		"or-type-with-const-and-string": {
@@ -673,8 +578,8 @@ func TestExtractParameter(t *testing.T) {
 }`,
 			contains: `### or-type-with-const-and-string
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
  type |  | string | false | configMap`,
 		},
 		"var-or-with-struct-var": {
@@ -694,31 +599,46 @@ func TestExtractParameter(t *testing.T) {
 	   	}`,
 			contains: `### var-or-with-struct-var
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ orValue |  | [KeyConfig](#keyconfig) or [KeySecret](#keysecret) | true |  |  
 
 
 #### KeyConfig
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | true |  
- config |  | string | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ key |  | string | true |  |  
+ config |  | string | true |  |  
 
 
 #### KeySecret
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- key |  | string | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ key |  | string | true |  |  
  secret |  | string | true | `,
+		},
+		"immutable-field": {
+			cueTemplate: `parameter: {
+	// +usage=The image to use
+	// +immutable
+	image: string
+	// +usage=The replica count
+	replicas: *1 | int
+}`,
+			contains: `### immutable-field
+
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ image | The image to use. | string | true |  | true 
+ replicas | The replica count. | int | false | 1 |  `,
 		},
 	}
 
 	ref := &MarkdownReference{}
 	for key, ca := range testcases {
-		cueValue, _ := common.GetCUEParameterValue(ca.cueTemplate)
+		cueValue, _ := common.GetCUExParameterValue(context.Background(), ca.cueTemplate)
 		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
 		assert.NoError(t, err, key)
 		assert.Contains(t, out, ca.contains, key)
@@ -735,98 +655,106 @@ func TestExtractParameterFromFiles(t *testing.T) {
 			path: "testdata/parameter/env.cue",
 			contains: `### env
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
-  |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+  |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |  |  
 
 
 #### PatchParams
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
- replace | Specify if replacing the whole environment settings for the container. | bool | false | false 
- env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  
- unset | Specify which existing environment variables to unset. | []string | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty |  
+ replace | Specify if replacing the whole environment settings for the container. | bool | false | false |  
+ env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  |  
+ unset | Specify which existing environment variables to unset. | list | true |  |  
 
 
 #### type-option-2
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- containers | Specify the environment variables for multiple containers. | [[]containers](#containers) | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ containers | Specify the environment variables for multiple containers. | [[]containers](#containers) | true |  |  
 
 
 ##### containers
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
- replace | Specify if replacing the whole environment settings for the container. | bool | false | false 
- env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  
- unset | Specify which existing environment variables to unset. | []string | true |`,
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty |  
+ replace | Specify if replacing the whole environment settings for the container. | bool | false | false |  
+ env | Specify the  environment variables to merge, if key already existing, override its value. | map[string]string | true |  |  
+ unset | Specify which existing environment variables to unset. | list | true |`,
 		},
 		"command": {
 			path: "testdata/parameter/command.cue",
 			contains: `### command
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
-  |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+  |  | [PatchParams](#patchparams) or [type-option-2](#type-option-2) | false |  |  
 
 
 #### PatchParams
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
- command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |  
- args | Specify the args to use in the target container, if set, it will override existing args. | null | true |  
- addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |  
- delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty |  
+ command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |  |  
+ args | Specify the args to use in the target container, if set, it will override existing args. | null | true |  |  
+ addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |  |  
+ delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |  |  
 
 
 #### type-option-2
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- containers | Specify the commands for multiple containers. | [[]containers](#containers) | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ containers | Specify the commands for multiple containers. | [[]containers](#containers) | true |  |  
 
 
 ##### containers
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty 
- command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |  
- args | Specify the args to use in the target container, if set, it will override existing args. | null | true |  
- addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ containerName | Specify the name of the target container, if not set, use the component name. | string | false | empty |  
+ command | Specify the command to use in the target container, if not set, it will not be changed. | null | true |  |  
+ args | Specify the args to use in the target container, if set, it will override existing args. | null | true |  |  
+ addArgs | Specify the args to add in the target container, existing args will be kept, cannot be used with args. | null | true |  |  
  delArgs | Specify the existing args to delete in the target container, cannot be used with args. | null | true |`,
 		},
 		"condition": {
 			path: "testdata/parameter/condition.cue",
 			contains: `### condition
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- volumes |  | [[]volumes](#volumes) | true |  
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ volumes |  | [[]volumes](#volumes) | true |  |  
 
 
 #### volumes
 
- Name | Description | Type | Required | Default 
- ---- | ----------- | ---- | -------- | ------- 
- name |  | string | true |  
- defaultMode | only works when type equals configmap. | int | false | 420 
- type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap`,
+ Name | Description | Type | Required | Default | Immutable 
+ ---- | ----------- | ---- | -------- | ------- | --------- 
+ name |  | string | true |  |  
+ type |  | "configMap" or "secret" or "emptyDir" or "ephemeral" | false | configMap |  
+ defaultMode | only works when type equals configmap. | int | false | 420 `,
 		},
 	}
 	for key, ca := range testcases {
 		content, err := os.ReadFile(ca.path)
 		assert.NoError(t, err, ca.path)
-		cueValue, _ := common.GetCUEParameterValue(string(content))
+		cueValue, _ := common.GetCUExParameterValue(context.Background(), string(content))
 		out, _, err := ref.parseParameters("", cueValue, key, 0, false)
 		assert.NoError(t, err, key)
 		assert.Contains(t, out, ca.contains, key)
 	}
+}
+
+func TestParseLocalFilesSkipsCUETestFiles(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "web_test.cue"), []byte(`import "vela/test"`), 0o600))
+	caps, err := ParseLocalFiles(dir, common.Args{})
+	assert.NoError(t, err)
+	assert.Empty(t, caps)
 }

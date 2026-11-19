@@ -179,3 +179,80 @@ func TestParseClusterVersion(t *testing.T) {
 	got = parseClusterVersion(types.ClusterVersion{})
 	assert.Equal(t, got["minor"], int64(22))
 }
+
+func TestPolicyVersionContextFields(t *testing.T) {
+	policyName := "my-policy"
+	policyType := "my-policy-type"
+	policyRevisionName := "my-policy-v3"
+	policyRevision := int64(3)
+	policyRevisionHash := "abc123def456"
+
+	ctx := NewContext(ContextData{
+		AppName:         "myapp",
+		CompName:        "mycomp",
+		Namespace:       "myns",
+		AppRevisionName: "myapp-v1",
+	})
+	ctx.PushData(ContextPolicyName, policyName)
+	ctx.PushData(ContextPolicyType, policyType)
+	ctx.PushData(ContextPolicyRevisionName, policyRevisionName)
+	ctx.PushData(ContextPolicyRevision, policyRevision)
+	ctx.PushData(ContextPolicyRevisionHash, policyRevisionHash)
+
+	c, err := ctx.BaseContextFile()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	ctxInst := cuecontext.New().CompileString(c)
+
+	// Verify policyName
+	gotPolicyName, err := ctxInst.LookupPath(value.FieldPath("context", ContextPolicyName)).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, policyName, gotPolicyName)
+
+	// Verify policyType
+	gotPolicyType, err := ctxInst.LookupPath(value.FieldPath("context", ContextPolicyType)).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, policyType, gotPolicyType)
+
+	// Verify policyRevisionName
+	gotRevisionName, err := ctxInst.LookupPath(value.FieldPath("context", ContextPolicyRevisionName)).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, policyRevisionName, gotRevisionName)
+
+	// Verify policyRevision
+	gotRevision, err := ctxInst.LookupPath(value.FieldPath("context", ContextPolicyRevision)).Int64()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, policyRevision, gotRevision)
+
+	// Verify policyRevisionHash
+	gotHash, err := ctxInst.LookupPath(value.FieldPath("context", ContextPolicyRevisionHash)).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, policyRevisionHash, gotHash)
+}
+
+func TestNewContextNilLabelsAndAnnotations(t *testing.T) {
+	// When AppLabels/AppAnnotations are nil (e.g. app has no labels),
+	// context.appLabels and context.appAnnotations must be empty structs,
+	// not null — so CUE field access like context.appLabels["key"] does not error.
+	ctx := NewContext(ContextData{
+		AppName:  "myapp",
+		CompName: "mycomp",
+		// AppLabels and AppAnnotations intentionally omitted (nil)
+	})
+
+	c, err := ctx.BaseContextFile()
+	assert.NoError(t, err)
+
+	v := cuecontext.New().CompileString(c)
+
+	labels := v.LookupPath(value.FieldPath("context", ContextAppLabels))
+	assert.True(t, labels.Exists(), "context.appLabels should exist")
+	assert.NoError(t, labels.Err(), "context.appLabels should not be an error value")
+
+	annotations := v.LookupPath(value.FieldPath("context", ContextAppAnnotations))
+	assert.True(t, annotations.Exists(), "context.appAnnotations should exist")
+	assert.NoError(t, annotations.Err(), "context.appAnnotations should not be an error value")
+}

@@ -1,0 +1,7 @@
+# No annotation, and not under hub/, so this follows the module default: runtime.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: store-defaults
+data:
+  role: defaults

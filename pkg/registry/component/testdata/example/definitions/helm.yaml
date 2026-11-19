@@ -1,0 +1,62 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: helm release is a group of K8s resources
+      from either git repository or helm repo
+  name: helm-example
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: "output: {\n\tapiVersion: \"source.toolkit.fluxcd.io/v1beta1\"\n\tmetadata:
+        {\n\t\tname: context.name\n\t}\n\tif parameter.repoType == \"git\" {\n\t\tkind:
+        \"GitRepository\"\n\t\tspec: {\n\t\t\turl: parameter.url\n\t\t\tif parameter.git.branch
+        != _|_ {\n\t\t\t\tref: branch: parameter.git.branch\n\t\t\t}\n\t\t\t_secret\n\t\t\t_sourceCommonArgs\n\t\t}\n\t}\n\tif
+        parameter.repoType == \"oss\" {\n\t\tkind: \"Bucket\"\n\t\tspec: {\n\t\t\tendpoint:
+        \  parameter.url\n\t\t\tbucketName: parameter.oss.bucketName\n\t\t\tprovider:
+        \  parameter.oss.provider\n\t\t\tif parameter.oss.region != _|_ {\n\t\t\t\tregion:
+        parameter.oss.region\n\t\t\t}\n\t\t\t_secret\n\t\t\t_sourceCommonArgs\n\t\t}\n\t}\n\tif
+        parameter.repoType == \"helm\" {\n\t\tkind: \"HelmRepository\"\n\t\tspec:
+        {\n\t\t\turl: parameter.url\n\t\t\t_secret\n\t\t\t_sourceCommonArgs\n\t\t}\n\t}\n}\n\noutputs:
+        release: {\n\tapiVersion: \"helm.toolkit.fluxcd.io/v2beta1\"\n\tkind:
+        \      \"HelmRelease\"\n\tmetadata: {\n\t\tname: context.name\n\t}\n\tspec:
+        {\n\t\tinterval: parameter.pullInterval\n\t\tchart: {\n\t\t\tspec: {\n\t\t\t\tchart:
+        \  parameter.chart\n\t\t\t\tversion: parameter.version\n\t\t\t\tsourceRef:
+        {\n\t\t\t\t\tif parameter.repoType == \"git\" {\n\t\t\t\t\t\tkind: \"GitRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif
+        parameter.repoType == \"helm\" {\n\t\t\t\t\t\tkind: \"HelmRepository\"\n\t\t\t\t\t}\n\t\t\t\t\tif
+        parameter.repoType == \"oss\" {\n\t\t\t\t\t\tkind: \"Bucket\"\n\t\t\t\t\t}\n\t\t\t\t\tname:
+        \     context.name\n\t\t\t\t\tnamespace: context.namespace\n\t\t\t\t}\n\t\t\t\tinterval:
+        parameter.pullInterval\n\t\t\t}\n\t\t}\n\t\tif parameter.targetNamespace
+        != _|_ {\n\t\t\ttargetNamespace: parameter.targetNamespace\n\t\t}\n\t\tif
+        parameter.releaseName != _|_ {\n\t\t\treleaseName: parameter.releaseName\n\t\t}\n\t\tif
+        parameter.values != _|_ {\n\t\t\tvalues: parameter.values\n\t\t}\n\t}\n}\n\n_secret:
+        {\n\tif parameter.secretRef != _|_ {\n\t\tsecretRef: {\n\t\t\tname:
+        parameter.secretRef\n\t\t}\n\t}\n}\n\n_sourceCommonArgs: {\n\tinterval:
+        parameter.pullInterval\n\tif parameter.timeout != _|_ {\n\t\ttimeout:
+        parameter.timeout\n\t}\n}\n\nparameter: {\n\trepoType: *\"helm\" | \"git\"
+        | \"oss\"\n\t// +usage=The interval at which to check for repository/bucket
+        and relese updates, default to 5m\n\tpullInterval: *\"5m\" | string\n\t//
+        +usage=The Git or Helm repository URL, OSS endpoint, accept HTTP/S or
+        SSH address as git url,\n\turl: string\n\t// +usage=The name of the
+        secret containing authentication credentials\n\tsecretRef?: string\n\t//
+        +usage=The timeout for operations like download index/clone repository,
+        optional\n\ttimeout?: string\n\n\tgit?: {\n\t\t// +usage=The Git reference
+        to checkout and monitor for changes, defaults to master branch\n\t\tbranch:
+        string\n\t}\n\toss?: {\n\t\t// +usage=The bucket's name, required if
+        repoType is oss\n\t\tbucketName: string\n\t\t// +usage=\"generic\" for
+        Minio, Amazon S3, Google Cloud Storage, Alibaba Cloud OSS, \"aws\" for
+        retrieve credentials from the EC2 service when credentials not specified,
+        default \"generic\"\n\t\tprovider: *\"generic\" | \"aws\"\n\t\t// +usage=The
+        bucket region, optional\n\t\tregion?: string\n\t}\n\n\t// +usage=1.The
+        relative path to helm chart for git/oss source. 2. chart name for helm
+        resource 3. relative path for chart package(e.g. ./charts/podinfo-1.2.3.tgz)\n\tchart:
+        string\n\t// +usage=Chart version\n\tversion: *\"*\" | string\n\t//
+        +usage=The namespace for helm chart, optional\n\ttargetNamespace?: string\n\t//
+        +usage=The release name\n\treleaseName?: string\n\t// +usage=Chart values\n\tvalues?:
+        #nestedmap\n}\n\n#nestedmap: {\n\t...\n}\n"
+  status:
+    healthPolicy: 'isHealth: len(context.outputs.release.status.conditions)
+      != 0 && context.outputs.release.status.conditions[0]["status"]=="True"'
+  workload:
+    type: autodetects.core.oam.dev

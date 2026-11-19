@@ -80,7 +80,7 @@ func LoadDataFromPath(ctx context.Context, path string, pathFilter func(string) 
 	}
 	bs, e := os.ReadFile(filepath.Clean(path))
 	if e != nil {
-		return nil, fmt.Errorf("failed to read file %s: %w", path, err)
+		return nil, fmt.Errorf("failed to read file %s: %w", path, e)
 	}
 	return []FileData{{Path: path, Data: bs}}, nil
 }
@@ -91,6 +91,15 @@ func IsJSONYAMLorCUEFile(path string) bool {
 		strings.HasSuffix(path, ".yaml") ||
 		strings.HasSuffix(path, ".yml") ||
 		strings.HasSuffix(path, ".cue")
+}
+
+// CUETestFileSuffix marks a CUE file as definition tests, run by `vela def test`.
+const CUETestFileSuffix = "_test.cue"
+
+// IsCUETestFile reports whether path is a CUE definition test file. Tools that
+// read definitions from a directory skip these, as the cue loader does.
+func IsCUETestFile(path string) bool {
+	return strings.HasSuffix(filepath.Base(path), CUETestFileSuffix)
 }
 
 // IsCUEFile check if the path is a cue file

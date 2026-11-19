@@ -17,8 +17,9 @@ limitations under the License.
 package policy
 
 import (
+	"slices"
+
 	"github.com/pkg/errors"
-	"k8s.io/kubectl/pkg/util/slice"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -30,7 +31,7 @@ import (
 func selectReplicateComponents(components []common.ApplicationComponent, selectors []string) ([]common.ApplicationComponent, error) {
 	var compToReplicate = make([]common.ApplicationComponent, 0)
 	for _, comp := range components {
-		if slice.ContainsString(selectors, comp.Name, nil) {
+		if slices.Contains(selectors, comp.Name) {
 			compToReplicate = append(compToReplicate, comp)
 		}
 	}

@@ -17,67 +17,94 @@ limitations under the License.
 package appfile
 
 import (
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"context"
+	"fmt"
+	"testing"
 
+	"cuelang.org/go/cue"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
-var _ = Describe("Test validate CUE schematic Appfile", func() {
+func TestHasComponentParamsSuppliedAtRuntime(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{{Name: "myweb1"}, {Name: "myweb2"}},
+		WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+			Type:       "apply-component",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+			Inputs:     wfTypesv1alpha1.StepInputs{{From: "image", ParameterKey: "image"}},
+		}}},
+	}
+	assert.True(t, HasComponentParamsSuppliedAtRuntime(app, "myweb1"))
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "myweb2"))
+}
+
+func TestHasComponentParamsSuppliedAtRuntimeCoversOverridePolicies(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{
+			{Name: "web", Properties: &runtime.RawExtension{Raw: []byte(`{"port":80}`)}},
+			{Name: "sidecar"},
+		},
+		Policies: []v1beta1.AppPolicy{{
+			Name: "image",
+			Type: "override",
+			Properties: &runtime.RawExtension{Raw: []byte(`{
+				"components": [{"name": "web", "properties": {"image": "nginx:alpine"}}]
+			}`)},
+		}},
+	}
+	assert.True(t, HasComponentParamsSuppliedAtRuntime(app, "web"),
+		"web's image comes from the override policy")
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "sidecar"),
+		"an unrelated component must not be exempted just because some override policy exists")
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "web-not-present"),
+		"a component the Appfile doesn't even have is not supplied by anything")
+}
+
+func TestHasComponentParamsSuppliedAtRuntimeIgnoresMalformedOrEmptyOverridePolicies(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{{Name: "web"}},
+		Policies: []v1beta1.AppPolicy{
+			{Name: "broken", Type: "override", Properties: &runtime.RawExtension{Raw: []byte(`{"components": [`)}},
+			{Name: "no-props", Type: "override", Properties: nil},
+			{Name: "empty", Type: "override", Properties: &runtime.RawExtension{Raw: []byte(`{
+				"components": [{"name": "web", "properties": {}}]
+			}`)}},
+			{Name: "unrelated-type", Type: "topology", Properties: &runtime.RawExtension{Raw: []byte(`{
+				"components": [{"name": "web", "properties": {"image": "nginx"}}]
+			}`)}},
+		},
+	}
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "web"))
+}
+
+func TestTrait_EvalContext_OutputNameUniqueness(t *testing.T) {
 	type SubTestCase struct {
+		name          string
 		compDefTmpl   string
 		traitDefTmpl1 string
 		traitDefTmpl2 string
 		wantErrMsg    string
 	}
 
-	DescribeTable("Test validate outputs name unique", func(tc SubTestCase) {
-		Expect("").Should(BeEmpty())
-		wl := &Component{
-			Name:               "myweb",
-			Type:               "worker",
-			CapabilityCategory: types.CUECategory,
-			Traits: []*Trait{
-				{
-					Name:               "myscaler",
-					CapabilityCategory: types.CUECategory,
-					Template:           tc.traitDefTmpl1,
-					engine:             definition.NewTraitAbstractEngine("myscaler"),
-				},
-				{
-					Name:               "myingress",
-					CapabilityCategory: types.CUECategory,
-					Template:           tc.traitDefTmpl2,
-					engine:             definition.NewTraitAbstractEngine("myingress"),
-				},
-			},
-			FullTemplate: &Template{
-				TemplateStr: tc.compDefTmpl,
-			},
-			engine: definition.NewWorkloadAbstractEngine("myweb"),
-		}
-
-		ctxData := GenerateContextDataFromAppFile(&Appfile{
-			Name:            "myapp",
-			Namespace:       "test-ns",
-			AppRevisionName: "myapp-v1",
-		}, wl.Name)
-		pCtx, err := newValidationProcessContext(wl, ctxData)
-		Expect(err).Should(BeNil())
-		Eventually(func() string {
-			for _, tr := range wl.Traits {
-				if err := tr.EvalContext(pCtx); err != nil {
-					return err.Error()
-				}
-			}
-			return ""
-		}).Should(ContainSubstring(tc.wantErrMsg))
-	},
-		Entry("Succeed", SubTestCase{
+	testCases := []SubTestCase{
+		{
+			name: "Succeed",
 			compDefTmpl: `
 			output: {
-				apiVersion: "apps/v1" 
+				apiVersion: "apps/v1"
 				kind: "Deployment"
 				}
 			outputs: mysvc: {
@@ -98,11 +125,12 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 			}
 			`,
 			wantErrMsg: "",
-		}),
-		Entry("CompDef and TraitDef have same outputs", SubTestCase{
+		},
+		{
+			name: "CompDef and TraitDef have same outputs",
 			compDefTmpl: `
 			output: {
-				apiVersion: "apps/v1" 
+				apiVersion: "apps/v1"
 				kind: "Deployment"
 				}
 			outputs: mysvc1: {
@@ -123,11 +151,12 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 			}
 			`,
 			wantErrMsg: `auxiliary "mysvc1" already exits`,
-		}),
-		Entry("TraitDefs have same outputs", SubTestCase{
+		},
+		{
+			name: "TraitDefs have same outputs",
 			compDefTmpl: `
 			output: {
-				apiVersion: "apps/v1" 
+				apiVersion: "apps/v1"
 				kind: "Deployment"
 				}
 			outputs: mysvc: {
@@ -148,6 +177,2078 @@ var _ = Describe("Test validate CUE schematic Appfile", func() {
 			}
 			`,
 			wantErrMsg: `auxiliary "mysvc1" already exits`,
-		}),
-	)
-})
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			wl := &Component{
+				Name:               "myweb",
+				Type:               "worker",
+				CapabilityCategory: types.CUECategory,
+				Traits: []*Trait{
+					{
+						Name:               "myscaler",
+						CapabilityCategory: types.CUECategory,
+						Template:           tc.traitDefTmpl1,
+						engine:             definition.NewTraitAbstractEngine("myscaler"),
+					},
+					{
+						Name:               "myingress",
+						CapabilityCategory: types.CUECategory,
+						Template:           tc.traitDefTmpl2,
+						engine:             definition.NewTraitAbstractEngine("myingress"),
+					},
+				},
+				FullTemplate: &Template{
+					TemplateStr: tc.compDefTmpl,
+				},
+				engine: definition.NewWorkloadAbstractEngine("myweb"),
+			}
+
+			ctxData := GenerateContextDataFromAppFile(&Appfile{
+				Name:            "myapp",
+				Namespace:       "test-ns",
+				AppRevisionName: "myapp-v1",
+			}, wl.Name)
+			pCtx, err := newValidationProcessContext(wl, ctxData, "")
+			assert.NoError(t, err)
+
+			var evalErr error
+			for _, tr := range wl.Traits {
+				if err := tr.EvalContext(pCtx); err != nil {
+					evalErr = err
+					break
+				}
+			}
+
+			if tc.wantErrMsg != "" {
+				assert.Error(t, evalErr)
+				assert.Contains(t, evalErr.Error(), tc.wantErrMsg)
+			} else {
+				assert.NoError(t, evalErr)
+			}
+		})
+	}
+}
+
+func TestParser_ValidateComponentParams(t *testing.T) {
+	testCases := []struct {
+		name     string
+		compName string
+		template string
+		params   map[string]interface{}
+		wantErr  string
+		setup    func(t *testing.T)
+	}{
+		{
+			name:     "valid params and template",
+			compName: "valid",
+			template: `
+			parameter: {
+				replicas: int | *1
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+			}
+			`,
+			params: map[string]interface{}{
+				"replicas": 2,
+			},
+			wantErr: "",
+		},
+		{
+			name:     "invalid CUE in template",
+			compName: "invalid-cue",
+			template: `
+			parameter: {
+				replicas: int | *1
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+				invalidField: {
+			}
+			`,
+			params: map[string]interface{}{
+				"replicas": 2,
+			},
+			wantErr: "CUE compile error",
+		},
+		{
+			name:     "missing required parameter",
+			compName: "missing-required",
+			template: `
+			parameter: {
+				replicas: int
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+			}
+			`,
+			params:  map[string]interface{}{},
+			wantErr: "component \"missing-required\": missing parameters: replicas",
+		},
+		{
+			name:     "parameter constraint violation",
+			compName: "constraint-violation",
+			template: `
+			parameter: {
+				replicas: int & >0
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+			}
+			`,
+			params: map[string]interface{}{
+				"replicas": -1,
+			},
+			wantErr: "parameter constraint violation",
+		},
+		{
+			name:     "invalid parameter block",
+			compName: "invalid-param-block",
+			template: `
+			parameter: {
+				replicas: int | *1
+			}
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+			}
+			`,
+			params: map[string]interface{}{
+				"replicas": "not-an-int",
+			},
+			wantErr: "parameter constraint violation",
+		},
+		{
+			name:     "legacy list-arithmetic syntax is accepted when flag enabled",
+			compName: "legacy-list",
+			template: `
+			envWithDefaults: parameter.env + [{name: "MANAGED_BY", value: "kubevela"}]
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+				spec: containers: [{env: envWithDefaults}]
+			}
+			parameter: {
+				env: *[] | [...{name: string, value?: string}]
+			}
+			`,
+			params:  map[string]interface{}{},
+			wantErr: "",
+			setup: func(t *testing.T) {
+				prev := *upgrade.EnableCUEVersionCompatibility
+				*upgrade.EnableCUEVersionCompatibility = true
+				t.Cleanup(func() { *upgrade.EnableCUEVersionCompatibility = prev })
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.setup != nil {
+				tc.setup(t)
+			}
+			wl := &Component{
+				Name:         tc.compName,
+				Type:         "worker",
+				FullTemplate: &Template{TemplateStr: tc.template},
+				Params:       tc.params,
+			}
+			app := &Appfile{
+				Name:      "myapp",
+				Namespace: "test-ns",
+			}
+			ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+			parser := &Parser{}
+			err := parser.ValidateComponentParams(ctxData, wl, app)
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidationHelpers(t *testing.T) {
+	t.Run("renderTemplate", func(t *testing.T) {
+		tmpl := "output: {}"
+		expected := "output: {}\ncontext: _\nparameter: _\n"
+		assert.Equal(t, expected, renderTemplate(tmpl))
+	})
+
+	t.Run("cueParamBlock", func(t *testing.T) {
+		t.Run("should handle empty params", func(t *testing.T) {
+			out, err := cueParamBlock(map[string]any{})
+			assert.NoError(t, err)
+			assert.Equal(t, "parameter: {}", out)
+		})
+
+		t.Run("should handle valid params", func(t *testing.T) {
+			params := map[string]any{"key": "value"}
+			out, err := cueParamBlock(params)
+			assert.NoError(t, err)
+			assert.Equal(t, `parameter: {"key":"value"}`, out)
+		})
+
+		t.Run("should return error for unmarshallable params", func(t *testing.T) {
+			params := map[string]any{"key": make(chan int)}
+			_, err := cueParamBlock(params)
+			assert.Error(t, err)
+		})
+	})
+
+	t.Run("filterMissing", func(t *testing.T) {
+		t.Run("should filter missing keys", func(t *testing.T) {
+			keys := []string{"a", "b.c", "d"}
+			provided := map[string]any{
+				"a": 1,
+				"b": map[string]any{
+					"c": 2,
+				},
+			}
+			out, err := filterMissing(keys, provided)
+			assert.NoError(t, err)
+			assert.Equal(t, []string{"d"}, out)
+		})
+
+		t.Run("should handle no missing keys", func(t *testing.T) {
+			keys := []string{"a"}
+			provided := map[string]any{"a": 1}
+			out, err := filterMissing(keys, provided)
+			assert.NoError(t, err)
+			assert.Empty(t, out)
+		})
+	})
+
+	t.Run("requiredFields", func(t *testing.T) {
+		t.Run("should identify required fields", func(t *testing.T) {
+			cueStr := `
+			parameter: {
+				name: string
+				age: int
+				nested: {
+					field1: string
+					field2: bool
+				}
+			}
+			`
+			var r cue.Runtime
+			inst, err := r.Compile("", cueStr)
+			assert.NoError(t, err)
+			val := inst.Value()
+			paramVal := val.LookupPath(cue.ParsePath("parameter"))
+
+			fields, err := requiredFields(paramVal)
+			assert.NoError(t, err)
+			assert.ElementsMatch(t, []string{"name", "age", "nested.field1", "nested.field2"}, fields)
+		})
+
+		t.Run("should ignore optional and default fields", func(t *testing.T) {
+			cueStr := `
+			parameter: {
+				name: string
+				age?: int
+				location: string | *"unknown"
+				nested: {
+					field1: string
+					field2?: bool
+				}
+			}
+			`
+			var r cue.Runtime
+			inst, err := r.Compile("", cueStr)
+			assert.NoError(t, err)
+			val := inst.Value()
+			paramVal := val.LookupPath(cue.ParsePath("parameter"))
+
+			fields, err := requiredFields(paramVal)
+			assert.NoError(t, err)
+			assert.ElementsMatch(t, []string{"name", "nested.field1"}, fields)
+		})
+	})
+}
+
+func TestEnforceRequiredParams(t *testing.T) {
+	var r cue.Runtime
+	cueStr := `
+		parameter: {
+			image: string
+			replicas: int
+			port: int
+			data: {
+				key: string
+				value: string
+			}
+		}
+		`
+	inst, err := r.Compile("", cueStr)
+	assert.NoError(t, err)
+	root := inst.Value()
+
+	t.Run("should pass if all params are provided directly", func(t *testing.T) {
+		params := map[string]any{
+			"image":    "nginx",
+			"replicas": 2,
+			"port":     80,
+			"data": map[string]any{
+				"key":   "k",
+				"value": "v",
+			},
+		}
+		app := &Appfile{}
+		err := enforceRequiredParams(root, params, app)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should fail if params are missing", func(t *testing.T) {
+		params := map[string]any{
+			"image": "nginx",
+		}
+		app := &Appfile{}
+		err := enforceRequiredParams(root, params, app)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing parameters: replicas,port,data.key,data.value")
+	})
+}
+
+func TestParser_ValidateCUESchematicAppfile(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=false"))
+	})
+
+	t.Run("should validate a valid CUE schematic appfile", func(t *testing.T) {
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-comp",
+					Type:               "worker",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"image": "nginx",
+					},
+					FullTemplate: &Template{
+						TemplateStr: `
+							parameter: {
+								image: string
+							}
+							output: {
+								apiVersion: "apps/v1"
+								kind: "Deployment"
+								spec: {
+									template: {
+										spec: {
+											containers: [{
+												name: "my-container"
+												image: parameter.image
+											}]
+										}
+									}
+								}
+							}
+						`,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-comp"),
+					Traits: []*Trait{
+						{
+							Name:               "my-trait",
+							CapabilityCategory: types.CUECategory,
+							Template: `
+								parameter: {
+								domain: string
+							}
+							patch: {}
+						`,
+							Params: map[string]any{
+								"domain": "example.com",
+							},
+							engine: definition.NewTraitAbstractEngine("my-trait"),
+						},
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error for invalid trait evaluation", func(t *testing.T) {
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-comp",
+					Type:               "worker",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"image": "nginx",
+					},
+					FullTemplate: &Template{
+						TemplateStr: `
+							parameter: {
+								image: string
+							}
+							output: {
+								apiVersion: "apps/v1"
+								kind: "Deployment"
+							}
+						`,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-comp"),
+					Traits: []*Trait{
+						{
+							Name:               "my-trait",
+							CapabilityCategory: types.CUECategory,
+							Template: `
+								// invalid CUE template
+								parameter: {
+									domain: string
+								}
+							patch: {
+									invalid: {
+							}
+						`,
+							Params: map[string]any{
+								"domain": "example.com",
+							},
+							engine: definition.NewTraitAbstractEngine("my-trait"),
+						},
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot evaluate trait \"my-trait\"")
+	})
+
+	t.Run("should return error for missing parameters", func(t *testing.T) {
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-comp",
+					Type:               "worker",
+					CapabilityCategory: types.CUECategory,
+					Params:             map[string]any{}, // no params provided
+					FullTemplate: &Template{
+						TemplateStr: `
+							parameter: {
+								image: string
+							}
+							output: {
+								apiVersion: "apps/v1"
+								kind: "Deployment"
+							}
+						`,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-comp"),
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "missing parameters: image")
+	})
+
+	t.Run("should skip traits on placeholder-rendered components", func(t *testing.T) {
+		for _, compType := range []string{"addon", "module"} {
+			t.Run(compType, func(t *testing.T) {
+				appfile := &Appfile{
+					Name:      "test-app",
+					Namespace: "test-ns",
+					ParsedComponents: []*Component{
+						{
+							Name:               "my-comp",
+							Type:               compType,
+							CapabilityCategory: types.CUECategory,
+							Params:             map[string]any{},
+							FullTemplate: &Template{
+								TemplateStr: `
+									parameter: {}
+									output: {
+										apiVersion: "core.oam.dev/v1beta1"
+										kind: "Application"
+										spec: components: []
+									}
+								`,
+							},
+							engine: definition.NewWorkloadAbstractEngine("my-comp"),
+							Traits: []*Trait{
+								{
+									Name:               "reads-rendered-components",
+									CapabilityCategory: types.CUECategory,
+									Template: `
+										parameter: {}
+										patch: metadata: labels: first: context.output.spec.components[0].name
+									`,
+									Params: map[string]any{},
+									engine: definition.NewTraitAbstractEngine("reads-rendered-components"),
+								},
+							},
+						},
+					},
+				}
+
+				err := (&Parser{}).ValidateCUESchematicAppfile(appfile)
+				assert.NoError(t, err)
+			})
+		}
+	})
+
+	t.Run("should skip non-CUE components", func(t *testing.T) {
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-comp",
+					Type:               "helm",
+					CapabilityCategory: types.TerraformCategory,
+				},
+			},
+		}
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.NoError(t, err)
+	})
+}
+
+func TestCheckUndeclaredParams(t *testing.T) {
+	var r cue.Runtime
+
+	t.Run("undeclared top-level parameter", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name":            "test",
+			"otherUndeclared": "bad",
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "undeclared parameters")
+		assert.Contains(t, err.Error(), "otherUndeclared")
+	})
+
+	t.Run("undeclared nested parameter", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { data: { key: string } }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"data": map[string]any{
+				"key":   "ok",
+				"extra": "bad",
+			},
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "data.extra")
+	})
+
+	t.Run("all valid parameters", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, count: int }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name":  "test",
+			"count": 1,
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("empty parameters", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("optional parameters omitted", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, label?: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name": "test",
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("optional parameter provided is valid", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, label?: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name":  "test",
+			"label": "ok",
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("pattern constraint at top level allows any keys", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: [string]: string`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"anyKey":     "value1",
+			"anotherKey": "value2",
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("nested pattern constraint allows any keys", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, labels?: [string]: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name": "test",
+			"labels": map[string]any{
+				"app":     "myapp",
+				"version": "v1",
+			},
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("webservice-like schema with labels and annotations", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: {
+			image: string
+			labels?: [string]: string
+			annotations?: [string]: string
+		}`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"image": "nginx",
+			"labels": map[string]any{
+				"app": "myapp",
+			},
+			"annotations": map[string]any{
+				"note": "test",
+			},
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("undeclared fields sorted in error message", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name":  "test",
+			"zebra": "z",
+			"alpha": "a",
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "alpha,zebra")
+	})
+}
+
+func TestValidateUndeclaredParams_FeatureGate(t *testing.T) {
+	prevCue := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation)
+	prevUndeclared := utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateUndeclaredParameters)
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			fmt.Sprintf("%s=%t,%s=%t",
+				string(features.EnableCueValidation), prevCue,
+				string(features.ValidateUndeclaredParameters), prevUndeclared)))
+	})
+
+	t.Run("gate disabled - undeclared params allowed", func(t *testing.T) {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=true,"+
+				string(features.ValidateUndeclaredParameters)+"=false"))
+
+		wl := &Component{
+			Name: "my-comp",
+			Type: "worker",
+			FullTemplate: &Template{TemplateStr: `
+				parameter: { name: string }
+				output: { apiVersion: "v1", kind: "ConfigMap" }
+			`},
+			Params: map[string]any{"name": "test", "extra": "bad"},
+		}
+		app := &Appfile{Name: "myapp", Namespace: "test-ns"}
+		ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+		err := (&Parser{}).ValidateComponentParams(ctxData, wl, app)
+		assert.NoError(t, err, "Should allow undeclared params when gate is disabled")
+	})
+
+	t.Run("gate enabled - undeclared params rejected", func(t *testing.T) {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=true,"+
+				string(features.ValidateUndeclaredParameters)+"=true"))
+
+		wl := &Component{
+			Name: "my-comp",
+			Type: "worker",
+			FullTemplate: &Template{TemplateStr: `
+				parameter: { name: string }
+				output: { apiVersion: "v1", kind: "ConfigMap" }
+			`},
+			Params: map[string]any{"name": "test", "extra": "bad"},
+		}
+		app := &Appfile{Name: "myapp", Namespace: "test-ns"}
+		ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+		err := (&Parser{}).ValidateComponentParams(ctxData, wl, app)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "undeclared parameters")
+		assert.Contains(t, err.Error(), "extra")
+	})
+}
+
+// TestValidateCUESchematicAppfile_WorkflowSuppliedParams tests validation with workflow-supplied parameters (issue #7022)
+func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
+	prevCue := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation)
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			fmt.Sprintf("%s=%t", string(features.EnableCueValidation), prevCue)))
+	})
+
+	componentTemplate := `
+		parameter: {
+			image: string
+			port: int | *80
+		}
+		output: {
+			apiVersion: "apps/v1"
+			kind: "Deployment"
+			spec: {
+				template: {
+					spec: {
+						containers: [{
+							name: "main"
+							image: parameter.image
+							ports: [{
+								containerPort: parameter.port
+							}]
+						}]
+					}
+				}
+			}
+		}
+	`
+
+	traitTemplate := `
+		parameter: {
+			key: string
+			value: string
+		}
+		patch: {
+			metadata: {
+				labels: {
+					(parameter.key): parameter.value
+				}
+			}
+		}
+	`
+
+	t.Run("workflow supplies param - NO traits - should PASS", func(t *testing.T) {
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-webservice",
+					Type:               "webservice",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"port": 80,
+					},
+					FullTemplate: &Template{
+						TemplateStr: componentTemplate,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-webservice"),
+				},
+			},
+			WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+						Name: "apply-microservice",
+						Type: "apply-component",
+						Inputs: wfTypesv1alpha1.StepInputs{
+							{
+								From:         "dynamicValue",
+								ParameterKey: "image",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.NoError(t, err, "Should pass when workflow supplies missing param and NO traits present")
+	})
+
+	t.Run("workflow supplies param - WITH traits - should PASS", func(t *testing.T) {
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-webservice",
+					Type:               "webservice",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"port": 80,
+					},
+					FullTemplate: &Template{
+						TemplateStr: componentTemplate,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-webservice"),
+					Traits: []*Trait{
+						{
+							Name:               "labels",
+							CapabilityCategory: types.CUECategory,
+							Template:           traitTemplate,
+							Params: map[string]any{
+								"key":   "release",
+								"value": "stable",
+							},
+							engine: definition.NewTraitAbstractEngine("labels"),
+						},
+					},
+				},
+			},
+			WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+						Name: "apply-microservice",
+						Type: "apply-component",
+						Inputs: wfTypesv1alpha1.StepInputs{
+							{
+								From:         "dynamicValue",
+								ParameterKey: "image",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.NoError(t, err, "Should pass when workflow supplies missing param even WITH traits")
+	})
+
+	t.Run("workflow supplies param with ENUM - should use first enum value", func(t *testing.T) {
+		enumComponentTemplate := `
+		parameter: {
+			image: "nginx:latest" | "apache:latest" | "httpd:latest"
+			port: int | *80
+		}
+		output: {
+			apiVersion: "apps/v1"
+			kind: "Deployment"
+			spec: {
+				template: {
+					spec: {
+						containers: [{
+							name: "main"
+							image: parameter.image
+							ports: [{
+								containerPort: parameter.port
+							}]
+						}]
+					}
+				}
+			}
+		}
+	`
+
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-webservice",
+					Type:               "webservice",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"port": 80,
+					},
+					FullTemplate: &Template{
+						TemplateStr: enumComponentTemplate,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-webservice"),
+					Traits: []*Trait{
+						{
+							Name:               "labels",
+							CapabilityCategory: types.CUECategory,
+							Template:           traitTemplate,
+							Params: map[string]any{
+								"key":   "release",
+								"value": "stable",
+							},
+							engine: definition.NewTraitAbstractEngine("labels"),
+						},
+					},
+				},
+			},
+			WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+						Name: "apply-microservice",
+						Type: "apply-component",
+						Inputs: wfTypesv1alpha1.StepInputs{
+							{
+								From:         "dynamicValue",
+								ParameterKey: "image",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.NoError(t, err, "Should use first enum value as default")
+	})
+
+	t.Run("param missing everywhere - should FAIL", func(t *testing.T) {
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-webservice",
+					Type:               "webservice",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"port": 80,
+					},
+					FullTemplate: &Template{
+						TemplateStr: componentTemplate,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-webservice"),
+					Traits: []*Trait{
+						{
+							Name:               "labels",
+							CapabilityCategory: types.CUECategory,
+							Template:           traitTemplate,
+							Params: map[string]any{
+								"key":   "release",
+								"value": "stable",
+							},
+							engine: definition.NewTraitAbstractEngine("labels"),
+						},
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.Error(t, err, "Should fail when param is missing everywhere")
+		assert.Contains(t, err.Error(), "missing parameters: image")
+	})
+
+	t.Run("override policy supplies param - WITH traits - should PASS", func(t *testing.T) {
+		policyJSON := `{
+			"components": [{
+				"properties": {
+					"image": "nginx:1.20"
+				}
+			}]
+		}`
+
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-webservice",
+					Type:               "webservice",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"port": 80,
+					},
+					FullTemplate: &Template{
+						TemplateStr: componentTemplate,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-webservice"),
+					Traits: []*Trait{
+						{
+							Name:               "labels",
+							CapabilityCategory: types.CUECategory,
+							Template:           traitTemplate,
+							Params: map[string]any{
+								"key":   "release",
+								"value": "stable",
+							},
+							engine: definition.NewTraitAbstractEngine("labels"),
+						},
+					},
+				},
+			},
+			Policies: []v1beta1.AppPolicy{
+				{
+					Name: "override-policy",
+					Type: "override",
+					Properties: &runtime.RawExtension{
+						Raw: []byte(policyJSON),
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.NoError(t, err, "Should pass when override policy supplies missing param")
+	})
+
+	t.Run("workflow supplies different param types - should use correct defaults", func(t *testing.T) {
+		multiTypeTemplate := `
+		parameter: {
+			count: int
+			enabled: bool
+			tags: [...string]
+			port: int | *80
+		}
+		output: {
+			apiVersion: "v1"
+			kind: "ConfigMap"
+			data: {
+				count: "\(parameter.count)"
+				enabled: "\(parameter.enabled)"
+				port: "\(parameter.port)"
+			}
+			metadata: {
+				labels: {
+					for i, tag in parameter.tags {
+						"tag-\(i)": tag
+					}
+				}
+			}
+		}
+	`
+
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-config",
+					Type:               "raw",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"port": 80,
+					},
+					FullTemplate: &Template{
+						TemplateStr: multiTypeTemplate,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-config"),
+					Traits: []*Trait{
+						{
+							Name:               "labels",
+							CapabilityCategory: types.CUECategory,
+							Template:           traitTemplate,
+							Params: map[string]any{
+								"key":   "env",
+								"value": "test",
+							},
+							engine: definition.NewTraitAbstractEngine("labels"),
+						},
+					},
+				},
+			},
+			WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+						Name: "apply-config",
+						Type: "apply-component",
+						Inputs: wfTypesv1alpha1.StepInputs{
+							{From: "dynamicCount", ParameterKey: "count"},
+							{From: "dynamicEnabled", ParameterKey: "enabled"},
+							{From: "dynamicTags", ParameterKey: "tags"},
+						},
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.NoError(t, err, "Should handle int, bool, list types with correct defaults")
+	})
+
+	t.Run("workflow supplies param with numeric bounds - should skip validation", func(t *testing.T) {
+		// Component with complex validation that can't be easily defaulted
+		complexTemplate := `
+		parameter: {
+			port: int & >1024 & <65535
+			image: string
+		}
+		output: {
+			apiVersion: "v1"
+			kind: "Service"
+			spec: {
+				ports: [{
+					port: parameter.port
+				}]
+			}
+		}
+	`
+
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-service",
+					Type:               "service",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"image": "nginx:latest",
+					},
+					FullTemplate: &Template{
+						TemplateStr: complexTemplate,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-service"),
+					Traits: []*Trait{
+						{
+							Name:               "labels",
+							CapabilityCategory: types.CUECategory,
+							Template:           traitTemplate,
+							Params: map[string]any{
+								"key":   "version",
+								"value": "v1",
+							},
+							engine: definition.NewTraitAbstractEngine("labels"),
+						},
+					},
+				},
+			},
+			WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+						Name: "apply-service",
+						Type: "apply-component",
+						Inputs: wfTypesv1alpha1.StepInputs{
+							{From: "dynamicPort", ParameterKey: "port"},
+						},
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		// Should pass by skipping validation due to complex constraints
+		assert.NoError(t, err, "Should skip validation when complex constraints cannot be satisfied")
+	})
+
+	t.Run("workflow param already provided in component - should not augment", func(t *testing.T) {
+		appfile := &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{
+				{
+					Name:               "my-webservice",
+					Type:               "webservice",
+					CapabilityCategory: types.CUECategory,
+					Params: map[string]any{
+						"image": "custom-image:v1.0",
+						"port":  8080,
+					},
+					FullTemplate: &Template{
+						TemplateStr: componentTemplate,
+					},
+					engine: definition.NewWorkloadAbstractEngine("my-webservice"),
+					Traits: []*Trait{
+						{
+							Name:               "labels",
+							CapabilityCategory: types.CUECategory,
+							Template:           traitTemplate,
+							Params: map[string]any{
+								"key":   "app",
+								"value": "myapp",
+							},
+							engine: definition.NewTraitAbstractEngine("labels"),
+						},
+					},
+				},
+			},
+			WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+						Name: "apply-webservice",
+						Type: "apply-component",
+						Inputs: wfTypesv1alpha1.StepInputs{
+							{From: "dynamicImage", ParameterKey: "image"},
+						},
+					},
+				},
+			},
+		}
+
+		p := &Parser{}
+		err := p.ValidateCUESchematicAppfile(appfile)
+		assert.NoError(t, err, "Should use existing param value, not augment from workflow")
+	})
+}
+
+func TestGetTypeDefault(t *testing.T) {
+	tests := []struct {
+		name     string
+		kind     cue.Kind
+		expected interface{}
+	}{
+		{"string", cue.StringKind, "__workflow_supplied__"},
+		{"float", cue.FloatKind, 0.0},
+		{"int", cue.IntKind, 0},
+		{"number", cue.NumberKind, 0},
+		{"bool", cue.BoolKind, false},
+		{"list", cue.ListKind, []interface{}{}},
+		{"struct", cue.StructKind, map[string]interface{}{}},
+		{"bottom (unknown)", cue.BottomKind, "__workflow_supplied__"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getTypeDefault(tc.kind)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestGetDefaultForMissingParameter(t *testing.T) {
+	var r cue.Runtime
+
+	t.Run("simple string type should return string default", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.name"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Equal(t, "__workflow_supplied__", defaultVal)
+	})
+
+	t.Run("simple int type should return 0", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { count: int }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.count"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Equal(t, 0, defaultVal)
+	})
+
+	t.Run("simple bool type should return false", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { enabled: bool }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.enabled"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Equal(t, false, defaultVal)
+	})
+
+	t.Run("field with default should use default", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { port: int | *80 }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.port"))
+		canDefault, _ := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+	})
+
+	t.Run("concrete value should return true with nil default", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { port: 80 }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.port"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Nil(t, defaultVal)
+	})
+
+	t.Run("enum disjunction should return first value", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { image: "nginx:latest" | "apache:latest" }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.image"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Equal(t, "nginx:latest", defaultVal)
+	})
+
+	t.Run("list type should be defaultable", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { tags: [...string] }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.tags"))
+		canDefault, _ := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+	})
+}
+
+func TestGetMapKeys(t *testing.T) {
+	t.Run("should return all keys", func(t *testing.T) {
+		m := map[string]interface{}{
+			"a": 1,
+			"b": 2,
+			"c": 3,
+		}
+		keys := getMapKeys(m)
+		assert.Len(t, keys, 3)
+		assert.ElementsMatch(t, []string{"a", "b", "c"}, keys)
+	})
+
+	t.Run("should return empty slice for empty map", func(t *testing.T) {
+		keys := getMapKeys(map[string]interface{}{})
+		assert.Empty(t, keys)
+	})
+}
+
+func TestGetWorkflowAndPolicySuppliedParams(t *testing.T) {
+	t.Run("should collect from workflow step inputs", func(t *testing.T) {
+		app := &Appfile{
+			WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+						Name: "step1",
+						Type: "apply-component",
+						Inputs: wfTypesv1alpha1.StepInputs{
+							{From: "dynamic", ParameterKey: "image"},
+							{From: "dynamic", ParameterKey: "port"},
+						},
+					},
+				},
+			},
+		}
+		result := getWorkflowAndPolicySuppliedParams(app)
+		assert.True(t, result["image"])
+		assert.True(t, result["port"])
+		assert.False(t, result["other"])
+	})
+
+	t.Run("should collect from override policies", func(t *testing.T) {
+		policyJSON := `{"components": [{"properties": {"image": "nginx:1.20", "replicas": 3}}]}`
+		app := &Appfile{
+			Policies: []v1beta1.AppPolicy{
+				{
+					Name: "override",
+					Type: "override",
+					Properties: &runtime.RawExtension{
+						Raw: []byte(policyJSON),
+					},
+				},
+			},
+		}
+		result := getWorkflowAndPolicySuppliedParams(app)
+		assert.True(t, result["image"])
+		assert.True(t, result["replicas"])
+	})
+
+	t.Run("should skip non-override policies", func(t *testing.T) {
+		app := &Appfile{
+			Policies: []v1beta1.AppPolicy{
+				{
+					Name: "topology",
+					Type: "topology",
+					Properties: &runtime.RawExtension{
+						Raw: []byte(`{"clusters": ["local"]}`),
+					},
+				},
+			},
+		}
+		result := getWorkflowAndPolicySuppliedParams(app)
+		assert.Empty(t, result)
+	})
+
+	t.Run("should return empty for empty appfile", func(t *testing.T) {
+		result := getWorkflowAndPolicySuppliedParams(&Appfile{})
+		assert.Empty(t, result)
+	})
+
+	t.Run("should skip malformed policy JSON gracefully", func(t *testing.T) {
+		app := &Appfile{
+			Policies: []v1beta1.AppPolicy{
+				{
+					Name: "bad-override",
+					Type: "override",
+					Properties: &runtime.RawExtension{
+						Raw: []byte(`{invalid json`),
+					},
+				},
+			},
+		}
+		result := getWorkflowAndPolicySuppliedParams(app)
+		assert.Empty(t, result)
+	})
+}
+
+func TestGetDeclaredFieldNames(t *testing.T) {
+	var r cue.Runtime
+
+	t.Run("should return all declared field names including optional", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, label?: string, count: int }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		declared := getDeclaredFieldNames(schema)
+		assert.True(t, declared["name"])
+		assert.True(t, declared["label"])
+		assert.True(t, declared["count"])
+		assert.False(t, declared["nonexistent"])
+	})
+
+	t.Run("should return empty map for non-struct", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: string`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		declared := getDeclaredFieldNames(schema)
+		assert.Empty(t, declared)
+	})
+}
+
+func TestValidateCUESchematicAppfile_LegacySyntax(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=false"))
+	})
+
+	legacyTemplate := `
+		envWithDefaults: parameter.env + [{name: "MANAGED_BY", value: "kubevela"}]
+		output: {
+			apiVersion: "apps/v1"
+			kind: "Deployment"
+			spec: containers: [{env: envWithDefaults}]
+		}
+		parameter: {
+			env: *[] | [...{name: string, value?: string}]
+		}
+	`
+
+	newAppfile := func(template string) *Appfile {
+		return &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{{
+				Name:               "my-comp",
+				Type:               "worker",
+				CapabilityCategory: types.CUECategory,
+				Params:             map[string]any{},
+				FullTemplate:       &Template{TemplateStr: template},
+				engine:             definition.NewWorkloadAbstractEngine("my-comp"),
+			}},
+		}
+	}
+
+	t.Run("legacy list-arithmetic is accepted when flag enabled", func(t *testing.T) {
+		original := *upgrade.EnableCUEVersionCompatibility
+		*upgrade.EnableCUEVersionCompatibility = true
+		t.Cleanup(func() { *upgrade.EnableCUEVersionCompatibility = original })
+
+		err := (&Parser{}).ValidateCUESchematicAppfile(newAppfile(legacyTemplate))
+		assert.NoError(t, err)
+	})
+
+	t.Run("legacy list-arithmetic is rejected when flag disabled", func(t *testing.T) {
+		original := *upgrade.EnableCUEVersionCompatibility
+		*upgrade.EnableCUEVersionCompatibility = false
+		t.Cleanup(func() { *upgrade.EnableCUEVersionCompatibility = original })
+
+		err := (&Parser{}).ValidateCUESchematicAppfile(newAppfile(legacyTemplate))
+		assert.Error(t, err)
+	})
+}
+
+// A source expression feeding a typed parameter must survive CUE validation.
+//
+// ValidateComponentParams builds a synthetic CUE document from the component's
+// params and validates it against the template's parameter block. Those params
+// are the *authored* ones, so an unresolved `$(source...)` reaches CUE as the
+// literal string it is and collides with any non-string constraint:
+//
+//	parameter.replicas: conflicting values int and "$(source.config.replicas)"
+//	(mismatched types int and string)
+//
+// The render path substitutes before it evaluates; this path did not, so the
+// feature worked with EnableCueValidation off and failed with it on. The gate
+// defaults to false, which is why every test and every local run missed it.
+func TestValidateComponentParamsResolvesSourceExpressions(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
+	defer func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=false"))
+	}()
+
+	wl := &Component{
+		Name: "web",
+		Type: "sized",
+		FullTemplate: &Template{TemplateStr: `
+output: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: name: context.name
+}
+parameter: {
+	replicas: int
+	image:    string
+}
+`},
+		Params: map[string]interface{}{
+			"replicas": "$(source.config.replicas)",
+			"image":    "$(source.config.image)",
+		},
+	}
+
+	app := &Appfile{
+		Name:      "myapp",
+		Namespace: "test-ns",
+		Sources: []v1beta1.ApplicationSource{
+			{Name: "config", Type: "cfg-src"},
+		},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"cfg-src": {
+				Spec: v1beta1.SourceDefinitionSpec{Schematic: &common.Schematic{CUE: &common.CUE{Template: `
+schema: {replicas: int, image: string}
+$internal: {key: "cfg-src", keyInputs: []}
+output: {replicas: 3, image: "nginx"}
+parameter: {}
+`}}},
+			},
+		},
+	}
+
+	ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+	err := (&Parser{}).ValidateComponentParams(ctxData, wl, app)
+	assert.NoError(t, err, "an int from a source must satisfy an int parameter")
+}
+
+// The same expression in a string parameter, and one combined with text.
+//
+// Only the typed case failed visibly - a string parameter accepts the literal
+// expression text, so the bug was silent there: validation passed and the render
+// substituted, hiding that the two disagreed about what was being checked.
+func TestValidateComponentParamsResolvesEveryShape(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
+	defer func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=false"))
+	}()
+
+	app := &Appfile{
+		Name: "myapp", Namespace: "test-ns",
+		Sources: []v1beta1.ApplicationSource{{Name: "config", Type: "cfg-src"}},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"cfg-src": {Spec: v1beta1.SourceDefinitionSpec{Schematic: &common.Schematic{CUE: &common.CUE{Template: `
+schema: {replicas: int, image: string, enabled: bool}
+$internal: {key: "cfg-src", keyInputs: []}
+output: {replicas: 3, image: "nginx", enabled: true}
+parameter: {}
+`}}}},
+		},
+	}
+
+	for _, tc := range []struct {
+		name   string
+		params map[string]interface{}
+	}{
+		{"int into int", map[string]interface{}{"replicas": "$(source.config.replicas)"}},
+		{"bool into bool", map[string]interface{}{"enabled": "$(source.config.enabled)"}},
+		{"string into string", map[string]interface{}{"image": "$(source.config.image)"}},
+		{"expression joined with text", map[string]interface{}{"image": "$(source.config.image):v1"}},
+		{"context into a string", map[string]interface{}{"image": "$(context.appName)"}},
+		{"nested in a struct", map[string]interface{}{
+			"nested": map[string]interface{}{"count": "$(source.config.replicas)"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wl := &Component{
+				Name: "web", Type: "sized",
+				FullTemplate: &Template{TemplateStr: `
+output: {apiVersion: "v1", kind: "ConfigMap", metadata: name: context.name}
+parameter: {
+	replicas?: int
+	image?:    string
+	enabled?:  bool
+	nested?: {count: int}
+}
+`},
+				Params: tc.params,
+			}
+			ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+			assert.NoError(t, (&Parser{}).ValidateComponentParams(ctxData, wl, app))
+		})
+	}
+}
+
+// Admission type-checks an expression-fed parameter from the SourceDefinition's
+// schema, without resolving the source.
+//
+// The source here cannot resolve, since its template reads a cluster that is
+// not there, so the validation passing is the proof that it never tried.
+func TestValidateComponentParamsTypesFromSchemaWithoutResolving(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	// Reads a ConfigMap through vela/kube: resolving needs a live cluster.
+	const unresolvable = `
+import "vela/kube"
+$internal: {key: "demo", keyInputs: []}
+schema: {replicas: int, image: string}
+parameter: {name: string}
+_cm: kube.#Get & {$params: resource: {apiVersion: "v1", kind: "ConfigMap", metadata: {name: parameter.name, namespace: "default"}}}
+output: {replicas: 3, image: _cm.$returns.data.image}
+`
+	appFor := func(paramType string) (*Appfile, *Component) {
+		af := &Appfile{
+			Name: "myapp", Namespace: "test-ns",
+			AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+			Sources: []v1beta1.ApplicationSource{
+				{Name: "cfg", Type: "demo", Properties: &runtime.RawExtension{Raw: []byte(`{"name":"app-config"}`)}},
+			},
+			RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+				"demo": {Spec: v1beta1.SourceDefinitionSpec{
+					Schematic: &common.Schematic{CUE: &common.CUE{Template: unresolvable}},
+				}},
+			},
+		}
+		wl := &Component{
+			Name: "my-comp", Type: "worker",
+			FullTemplate: &Template{TemplateStr: `
+				parameter: { replicas: ` + paramType + ` }
+				output: { apiVersion: "v1", kind: "ConfigMap" }
+			`},
+			Params: map[string]any{"replicas": "$(source.cfg.replicas)"},
+		}
+		return af, wl
+	}
+
+	t.Run("an int-typed read satisfies an int parameter", func(t *testing.T) {
+		af, wl := appFor("int")
+		ctxData := typeOnlyContextData(af, wl.Name)
+		assert.NoError(t, (&Parser{}).ValidateComponentParams(ctxData, wl, af))
+	})
+
+	// A mismatch is still refused.
+	t.Run("an int-typed read is refused by a string parameter", func(t *testing.T) {
+		af, wl := appFor("string")
+		ctxData := typeOnlyContextData(af, wl.Name)
+		err := (&Parser{}).ValidateComponentParams(ctxData, wl, af)
+		assert.ErrorContains(t, err, "parameter constraint violation", "an int read feeding a string parameter must not pass")
+	})
+
+	// A value constraint cannot be judged from a type: a sentinel 0 would refuse
+	// this outright.
+	t.Run("a value constraint is left to the render", func(t *testing.T) {
+		af, wl := appFor(">0 & int")
+		ctxData := typeOnlyContextData(af, wl.Name)
+		assert.NoError(t, (&Parser{}).ValidateComponentParams(ctxData, wl, af))
+	})
+}
+
+// A struct read keeps its shape. The required-field check flattens what was
+// provided and looks for "meta.region", so one opaque value satisfies nothing.
+func TestValidateComponentParamsKeepsTheShapeOfAStructRead(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	const template = `
+$internal: {key: "demo", keyInputs: []}
+schema: {meta: {region: string, zone: string}, tags: [...string]}
+parameter: {}
+output: {meta: {region: "eu", zone: "a"}, tags: ["x"]}
+`
+	af := &Appfile{
+		Name: "myapp", Namespace: "test-ns",
+		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+		Sources:        []v1beta1.ApplicationSource{{Name: "cfg", Type: "demo"}},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"demo": {Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &common.Schematic{CUE: &common.CUE{Template: template}},
+			}},
+		},
+	}
+	wl := &Component{
+		Name: "my-comp", Type: "worker",
+		FullTemplate: &Template{TemplateStr: `
+			parameter: {
+				meta: {region: string, zone: string}
+				tags: [...string]
+			}
+			output: { apiVersion: "v1", kind: "ConfigMap" }
+		`},
+		Params: map[string]any{
+			"meta": "$(source.cfg.meta)",
+			"tags": "$(source.cfg.tags)",
+		},
+	}
+	ctxData := typeOnlyContextData(af, wl.Name)
+	assert.NoError(t, (&Parser{}).ValidateComponentParams(ctxData, wl, af),
+		"a struct read must satisfy the required fields its schema declares")
+
+	// And the shape is what reaches the required-field check, not one opaque key.
+	pCtx := velaprocess.NewContext(ctxData)
+	typed, err := sources.TypedParams(pCtx, wl.Params, sources.SurfaceComponent)
+	assert.NoError(t, err)
+	meta, ok := typed["meta"].(map[string]any)
+	assert.True(t, ok, "a struct read expands to its fields, got %T", typed["meta"])
+	assert.Contains(t, meta, "region")
+	assert.Contains(t, meta, "zone")
+	assert.Equal(t, sources.CUEType("[...string]"), typed["tags"], "a list keeps its element type")
+}
+
+// The whole validation, not just the parameter check: the component and each of
+// its traits are rendered too.
+//
+// The source cannot resolve, so this passing is the proof that admission
+// performs no source I/O at all.
+func TestValidateCUESchematicAppfileDoesNoSourceIO(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	const unresolvable = `
+import "vela/kube"
+$internal: {key: "demo", keyInputs: []}
+schema: {image: string, domain: string}
+parameter: {name: string}
+_cm: kube.#Get & {$params: resource: {apiVersion: "v1", kind: "ConfigMap", metadata: {name: parameter.name, namespace: "default"}}}
+output: {image: _cm.$returns.data.image, domain: _cm.$returns.data.domain}
+`
+	af := &Appfile{
+		Name: "test-app", Namespace: "test-ns",
+		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+		Sources: []v1beta1.ApplicationSource{
+			{Name: "cfg", Type: "demo", Properties: &runtime.RawExtension{Raw: []byte(`{"name":"app-config"}`)}},
+		},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"demo": {Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &common.Schematic{CUE: &common.CUE{Template: unresolvable}},
+			}},
+		},
+		ParsedComponents: []*Component{{
+			Name: "my-comp", Type: "worker",
+			CapabilityCategory: types.CUECategory,
+			Params:             map[string]any{"image": "$(source.cfg.image)"},
+			FullTemplate: &Template{TemplateStr: `
+				parameter: { image: string }
+				output: {
+					apiVersion: "apps/v1"
+					kind: "Deployment"
+					spec: template: spec: containers: [{name: "c", image: parameter.image}]
+				}
+			`},
+			engine: definition.NewWorkloadAbstractEngine("my-comp"),
+			Traits: []*Trait{{
+				Name:               "my-trait",
+				CapabilityCategory: types.CUECategory,
+				Params:             map[string]any{"domain": "$(source.cfg.domain)"},
+				Template: `
+					parameter: { domain: string }
+					patch: {}
+				`,
+				engine: definition.NewTraitAbstractEngine("my-trait"),
+			}},
+		}},
+	}
+
+	assert.NoError(t, (&Parser{}).ValidateCUESchematicAppfile(af),
+		"validation must type from the schema rather than resolve the source")
+}
+
+// typeOnlyContextData is what ValidateCUESchematicAppfile hands each component.
+// A test calling ValidateComponentParams directly has to mark it the same way,
+// or it exercises the render path instead.
+func typeOnlyContextData(af *Appfile, compName string) velaprocess.ContextData {
+	ctxData := GenerateContextDataFromAppFile(af, compName)
+	if ctxData.Ctx == nil {
+		ctxData.Ctx = context.Background()
+	}
+	ctxData.Ctx = sources.WithTypeOnly(ctxData.Ctx)
+	return ctxData
+}
+
+// A schema can constrain its output, not just type it, and the resolver
+// enforces that guarantee. Two constraints unify to bottom exactly when no
+// value satisfies both, so a rejection here means the pairing can never work.
+func TestValidateComponentParamsCarriesSchemaConstraints(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	appFor := func(schemaType, paramType string) (*Appfile, *Component) {
+		af := &Appfile{
+			Name: "myapp", Namespace: "test-ns",
+			AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+			Sources:        []v1beta1.ApplicationSource{{Name: "cfg", Type: "demo"}},
+			RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+				"demo": {Spec: v1beta1.SourceDefinitionSpec{Schematic: &common.Schematic{CUE: &common.CUE{
+					Template: "$internal: {key: \"demo\", keyInputs: []}\nschema: {v: " + schemaType + "}\nparameter: {}\noutput: {v: 1}\n",
+				}}}},
+			},
+		}
+		wl := &Component{
+			Name: "my-comp", Type: "worker",
+			FullTemplate: &Template{TemplateStr: "parameter: { v: " + paramType + " }\noutput: { apiVersion: \"v1\", kind: \"ConfigMap\" }"},
+			Params:       map[string]any{"v": "$(source.cfg.v)"},
+		}
+		return af, wl
+	}
+
+	for _, tc := range []struct {
+		name, schema, param string
+		refused             bool
+	}{
+		{name: "a narrower source satisfies a wider parameter", schema: ">5 & int", param: ">0 & int"},
+		{name: "a wider source is not proof of failure", schema: ">0 & int", param: ">5 & int"},
+		{name: "overlapping enums are possible", schema: `"a" | "b"`, param: `"a" | "c"`},
+		{name: "a source that can never satisfy the parameter", schema: "<0 & int", param: ">0 & int", refused: true},
+		{name: "disjoint enums can never meet", schema: `"a" | "b"`, param: `"c" | "d"`, refused: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			af, wl := appFor(tc.schema, tc.param)
+			err := (&Parser{}).ValidateComponentParams(typeOnlyContextData(af, wl.Name), wl, af)
+			if tc.refused {
+				assert.Error(t, err, "no value satisfies both, so this can never work")
+				return
+			}
+			assert.NoError(t, err, "a value satisfying both exists, so admission must not guess")
+		})
+	}
+}
+
+// A trait patches the base the component rendered, and under type-only
+// validation a source-fed field of that base has no value yet. Leaving it out
+// is what lets the patch land; a zero value in its place would conflict with
+// the literal and refuse an Application that renders fine.
+func TestValidateCUESchematicAppfileTraitPatchesASourceFedField(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	const unresolvable = `
+import "vela/kube"
+$internal: {key: "demo", keyInputs: []}
+schema: {image: string}
+parameter: {name: string}
+_cm: kube.#Get & {$params: resource: {apiVersion: "v1", kind: "ConfigMap", metadata: {name: parameter.name, namespace: "default"}}}
+output: {image: _cm.$returns.data.image}
+`
+	appfile := &Appfile{
+		Name: "myapp", Namespace: "test-ns",
+		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+		Sources: []v1beta1.ApplicationSource{
+			{Name: "cfg", Type: "demo", Properties: &runtime.RawExtension{Raw: []byte(`{"name":"app-config"}`)}},
+		},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"demo": {Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &common.Schematic{CUE: &common.CUE{Template: unresolvable}},
+			}},
+		},
+		ParsedComponents: []*Component{
+			{
+				Name: "my-comp", Type: "worker",
+				CapabilityCategory: types.CUECategory,
+				FullTemplate: &Template{TemplateStr: `
+					parameter: { image: string }
+					output: {
+						apiVersion: "apps/v1"
+						kind:       "Deployment"
+						spec: template: spec: containers: [{name: "c", image: parameter.image}]
+					}
+				`},
+				Params: map[string]any{"image": "$(source.cfg.image)"},
+				engine: definition.NewWorkloadAbstractEngine("my-comp"),
+				Traits: []*Trait{
+					{
+						Name:               "override-image",
+						CapabilityCategory: types.CUECategory,
+						Template: `
+							parameter: { image: string }
+							patch: spec: template: spec: containers: [{name: "c", image: parameter.image}]
+						`,
+						Params: map[string]any{"image": "nginx"},
+						engine: definition.NewTraitAbstractEngine("override-image"),
+					},
+				},
+			},
+		},
+	}
+
+	assert.NoError(t, (&Parser{}).ValidateCUESchematicAppfile(appfile),
+		"a trait patching a source-fed field must not be refused at admission")
+}
+
+// A trait's patch goes into the base, and the base is what the next trait is
+// handed as JSON. A source-fed trait parameter is a type at validation, so
+// without pruning the patch the second trait cannot render at all.
+func TestValidateCUESchematicAppfileSecondTraitAfterASourceFedPatch(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	const unresolvable = `
+import "vela/kube"
+$internal: {key: "demo", keyInputs: []}
+schema: {replicas: int}
+parameter: {name: string}
+_cm: kube.#Get & {$params: resource: {apiVersion: "v1", kind: "ConfigMap", metadata: {name: parameter.name, namespace: "default"}}}
+output: {replicas: _cm.$returns.data.replicas}
+`
+	appfile := &Appfile{
+		Name: "myapp", Namespace: "test-ns",
+		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+		Sources: []v1beta1.ApplicationSource{
+			{Name: "cfg", Type: "demo", Properties: &runtime.RawExtension{Raw: []byte(`{"name":"app-config"}`)}},
+		},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"demo": {Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &common.Schematic{CUE: &common.CUE{Template: unresolvable}},
+			}},
+		},
+		ParsedComponents: []*Component{
+			{
+				Name: "my-comp", Type: "worker",
+				CapabilityCategory: types.CUECategory,
+				FullTemplate: &Template{TemplateStr: `
+					parameter: { image: string }
+					output: {
+						apiVersion: "apps/v1"
+						kind:       "Deployment"
+						spec: template: spec: containers: [{name: "c", image: parameter.image}]
+					}
+				`},
+				Params: map[string]any{"image": "nginx"},
+				engine: definition.NewWorkloadAbstractEngine("my-comp"),
+				Traits: []*Trait{
+					{
+						Name:               "scaler",
+						CapabilityCategory: types.CUECategory,
+						Template: `
+							parameter: { replicas: int }
+							patch: spec: replicas: parameter.replicas
+						`,
+						Params: map[string]any{"replicas": "$(source.cfg.replicas)"},
+						engine: definition.NewTraitAbstractEngine("scaler"),
+					},
+					{
+						Name:               "labeler",
+						CapabilityCategory: types.CUECategory,
+						Template: `
+							parameter: { key: string }
+							patch: spec: template: metadata: labels: (parameter.key): "v"
+						`,
+						Params: map[string]any{"key": "team"},
+						engine: definition.NewTraitAbstractEngine("labeler"),
+					},
+				},
+			},
+		},
+	}
+
+	assert.NoError(t, (&Parser{}).ValidateCUESchematicAppfile(appfile),
+		"a trait following a source-fed patch must still render")
+}
+
+// A required parameter fed by a source field the schema marks optional reads as
+// a parameter the Application forgot, which it did not: the expression is right
+// there in the properties. The message has to name the field the source only
+// optionally provides, and both ways out.
+func TestAMissingParamFromAnOptionalSourceFieldSaysWhy(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	const template = `
+$internal: {key: "demo", keyInputs: []}
+schema: {meta: {region?: string, zone: string}}
+parameter: {name: string}
+output: {meta: {region: "eu-west-1", zone: "a"}}
+`
+	af := &Appfile{
+		Name: "myapp", Namespace: "test-ns",
+		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+		Sources: []v1beta1.ApplicationSource{
+			{Name: "cfg", Type: "demo", Properties: &runtime.RawExtension{Raw: []byte(`{"name":"c"}`)}},
+		},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"demo": {Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &common.Schematic{CUE: &common.CUE{Template: template}},
+			}},
+		},
+	}
+	wl := &Component{
+		Name: "my-comp", Type: "worker",
+		FullTemplate: &Template{TemplateStr: `
+			parameter: { meta: {region: string, zone: string} }
+			output: { apiVersion: "v1", kind: "ConfigMap" }
+		`},
+		Params: map[string]any{"meta": "$(source.cfg.meta)"},
+	}
+
+	err := (&Parser{}).ValidateComponentParams(typeOnlyContextData(af, wl.Name), wl, af)
+	assert.Error(t, err)
+	msg := err.Error()
+	assert.Contains(t, msg, `meta.region`, "names the field")
+	assert.Contains(t, msg, `source "cfg"`, "names the binding it comes from")
+	assert.Contains(t, msg, "optional", "says why it is absent")
+	assert.Contains(t, msg, "SourceDefinition", "offers the schema fix")
+	assert.Contains(t, msg, "optional in the parameter", "and the parameter fix")
+
+	// A parameter genuinely left out still reads as it did.
+	plain := &Component{
+		Name: "plain-comp", Type: "worker",
+		FullTemplate: &Template{TemplateStr: `
+			parameter: { image: string }
+			output: { apiVersion: "v1", kind: "ConfigMap" }
+		`},
+		Params: map[string]any{},
+	}
+	err = (&Parser{}).ValidateComponentParams(typeOnlyContextData(af, plain.Name), plain, af)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "missing parameters: image")
+	assert.NotContains(t, err.Error(), "optional", "nothing to explain, so nothing is explained")
+}

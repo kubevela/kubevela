@@ -64,8 +64,10 @@ func setup() (client *github.Client, mux *http.ServeMux, teardown func()) {
 	return client, mux, server.Close
 }
 
-func TestGitHubReader(t *testing.T) {
+func TestGitHubReader_ReadFile(t *testing.T) {
 	client, mux, teardown := setup()
+	defer teardown()
+
 	githubPattern := "/repos/o/r/contents/"
 	mux.HandleFunc(githubPattern, func(rw http.ResponseWriter, req *http.Request) {
 		queryPath := strings.TrimPrefix(req.URL.Path, githubPattern)
@@ -76,6 +78,7 @@ func TestGitHubReader(t *testing.T) {
 			content := &github.RepositoryContent{Type: String("file"), Name: String(path.Base(queryPath)), Size: Int(len(file)), Encoding: String(""), Path: String(queryPath), Content: String(string(file))}
 			res, _ := json.Marshal(content)
 			rw.Write(res)
+			return
 		}
 
 		// otherwise, it could be directory
@@ -91,11 +94,11 @@ func TestGitHubReader(t *testing.T) {
 			}
 			dRes, _ := json.Marshal(contents)
 			rw.Write(dRes)
+			return
 		}
 
-		rw.Write([]byte("invalid github query"))
+		rw.WriteHeader(http.StatusNotFound)
 	})
-	defer teardown()
 
 	gith := &gitHelper{
 		Client: client,
@@ -107,7 +110,95 @@ func TestGitHubReader(t *testing.T) {
 	var r AsyncReader = &gitReader{gith}
 	_, err := r.ReadFile("example/metadata.yaml")
 	assert.NoError(t, err)
+}
 
+func TestGitReader_RelativePath(t *testing.T) {
+	testCases := map[string]struct {
+		basePath     string
+		itemPath     string
+		expectedPath string
+	}{
+		"No base path": {
+			basePath:     "",
+			itemPath:     "fluxcd/metadata.yaml",
+			expectedPath: "fluxcd/metadata.yaml",
+		},
+		"With base path": {
+			basePath:     "addons",
+			itemPath:     "addons/fluxcd/metadata.yaml",
+			expectedPath: "fluxcd/metadata.yaml",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			gith := &gitHelper{
+				Meta: &utils.Content{GithubContent: utils.GithubContent{
+					Path: tc.basePath,
+				}},
+			}
+			r := &gitReader{h: gith}
+			item := &github.RepositoryContent{Path: &tc.itemPath}
+
+			result := r.RelativePath(item)
+			assert.Equal(t, tc.expectedPath, result)
+		})
+	}
+}
+
+func TestGitReader_ListAddonMeta(t *testing.T) {
+	client, mux, teardown := setup()
+	defer teardown()
+
+	githubPattern := "/repos/o/r/contents/"
+	mux.HandleFunc(githubPattern, func(rw http.ResponseWriter, req *http.Request) {
+		var contents []*github.RepositoryContent
+		queryPath := strings.TrimPrefix(req.URL.Path, githubPattern)
+
+		switch queryPath {
+		case "": // Root directory
+			contents = []*github.RepositoryContent{
+				{Type: String("dir"), Name: String("fluxcd"), Path: String("fluxcd")},
+				{Type: String("file"), Name: String("README.md"), Path: String("README.md")},
+			}
+		case "fluxcd":
+			contents = []*github.RepositoryContent{
+				{Type: String("file"), Name: String("metadata.yaml"), Path: String("fluxcd/metadata.yaml")},
+				{Type: String("dir"), Name: String("resources"), Path: String("fluxcd/resources")},
+				{Type: String("file"), Name: String("template.cue"), Path: String("fluxcd/template.cue")},
+			}
+		case "fluxcd/resources":
+			contents = []*github.RepositoryContent{
+				{Type: String("file"), Name: String("parameter.cue"), Path: String("fluxcd/resources/parameter.cue")},
+			}
+		default:
+			rw.WriteHeader(http.StatusNotFound)
+			return
+		}
+		res, _ := json.Marshal(contents)
+		rw.Write(res)
+	})
+
+	gith := &gitHelper{
+		Client: client,
+		Meta: &utils.Content{GithubContent: utils.GithubContent{
+			Owner: "o",
+			Repo:  "r",
+		}},
+	}
+	r := &gitReader{h: gith}
+
+	meta, err := r.ListAddonMeta()
+	assert.NoError(t, err)
+	assert.NotNil(t, meta)
+	assert.Equal(t, 1, len(meta), "Expected to find 1 addon, root files should be ignored")
+
+	t.Run("fluxcd addon discovery", func(t *testing.T) {
+		addon, ok := meta["fluxcd"]
+		assert.True(t, ok, "fluxcd addon should be discovered")
+		assert.Equal(t, "fluxcd", addon.Name)
+		assert.Equal(t, 3, len(addon.Items), "fluxcd should contain 3 files")
+	})
 }
 
 // Int is a helper routine that allocates a new int value

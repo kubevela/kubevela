@@ -41,7 +41,8 @@ func main() {
 	location := flag.String("location", "", "path of output")
 	defdir := flag.String("def-dir", "", "path of definition dir")
 	tp := flag.String("type", "", "choose one of the definition to print")
-	i18nfile := flag.String("i18n", "../kubevela.io/static/reference-i18n.json", "file path of i18n data")
+	baseDir := flag.String("base-dir", "../kubevela.github.io", "base path of the kubevela docs site")
+	i18nfile := flag.String("i18n", "", "file path of i18n data (if not specified, i18n translations are not loaded)")
 	forceExample := flag.Bool("force-example-doc", false, "example must be provided for definitions")
 	flag.Parse()
 
@@ -57,6 +58,7 @@ func main() {
 	opt := mods.Options{
 		Path:          *path,
 		Location:      *location,
+		SitePath:      *baseDir,
 		DefDirs:       make([]string, 0),
 		ForceExamples: *forceExample,
 	}

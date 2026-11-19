@@ -18,6 +18,8 @@ package rollout
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -73,9 +75,176 @@ var _ = Describe("Kruise rollout test", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
 		r.Spec.Strategy.Paused = true
 		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
-		Expect(RollbackRollout(ctx, k8sClient, &app, nil))
-		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r))
+		r.Status.Phase = kruisev1alpha1.RolloutPhaseHealthy
+		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
+			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
+		}
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		modified, err := RollbackRollout(ctx, k8sClient, &app, nil)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeTrue())
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
 		Expect(r.Spec.Strategy.Paused).Should(BeEquivalentTo(false))
+		Expect(r.Status.CanaryStatus.CurrentStepState).Should(BeEquivalentTo(kruisev1alpha1.CanaryStepStateReady))
+	})
+
+	It("Rollback rollout with writer covers log output path", func() {
+		r := kruisev1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		r.Spec.Strategy.Paused = true
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		r.Status.Phase = kruisev1alpha1.RolloutPhaseHealthy
+		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
+			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
+		}
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		buf := &strings.Builder{}
+		modified, err := RollbackRollout(ctx, k8sClient, &app, buf)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeTrue())
+		Expect(buf.String()).Should(ContainSubstring("rollback"))
+	})
+
+	It("Rollback rollout waits for OpenKruise to settle before correcting canary status", func() {
+		r := kruisev1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		r.Spec.Strategy.Paused = true
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		r.Status.Phase = kruisev1alpha1.RolloutPhaseProgressing
+		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
+			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
+		}
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		// simulate the OpenKruise controller: once KubeVela unpauses the spec,
+		// settle the rollout by leaving the Progressing phase with the canary
+		// step state still stale at StepPaused (the exact race being fixed).
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			settleWhenUnpaused := func() bool {
+				deadline := time.Now().Add(10 * time.Second)
+				for time.Now().Before(deadline) {
+					var rr kruisev1alpha1.Rollout
+					if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &rr); err == nil && !rr.Spec.Strategy.Paused {
+						rr.Status.Phase = kruisev1alpha1.RolloutPhaseHealthy
+						if err := k8sClient.Status().Update(ctx, &rr); err == nil {
+							return true
+						}
+					}
+					time.Sleep(50 * time.Millisecond)
+				}
+				return false
+			}
+			settleWhenUnpaused()
+		}()
+
+		modified, err := RollbackRollout(ctx, k8sClient, &app, nil)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeTrue())
+		Eventually(done).WithTimeout(10 * time.Second).WithPolling(50 * time.Millisecond).Should(BeClosed())
+
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		Expect(r.Spec.Strategy.Paused).Should(BeEquivalentTo(false))
+		Expect(r.Status.CanaryStatus.CurrentStepState).Should(BeEquivalentTo(kruisev1alpha1.CanaryStepStateReady))
+	})
+
+	It("Rollback rollout proceeds best-effort when OpenKruise does not settle within timeout", func() {
+		oldInterval, oldTimeout := rolloutSettleInterval, rolloutSettleTimeout
+		rolloutSettleInterval = 300 * time.Millisecond
+		rolloutSettleTimeout = 1 * time.Second
+		defer func() { rolloutSettleInterval, rolloutSettleTimeout = oldInterval, oldTimeout }()
+
+		r := kruisev1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		r.Spec.Strategy.Paused = true
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		r.Status.Phase = kruisev1alpha1.RolloutPhaseProgressing
+		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
+			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
+		}
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		modified, err := RollbackRollout(ctx, k8sClient, &app, nil)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeTrue())
+
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		Expect(r.Spec.Strategy.Paused).Should(BeEquivalentTo(false))
+		Expect(r.Status.CanaryStatus.CurrentStepState).Should(BeEquivalentTo(kruisev1alpha1.CanaryStepStateReady))
+	})
+
+	It("Rollback rollout returns an error when the rollout disappears while settling", func() {
+		r := kruisev1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		r.Spec.Strategy.Paused = true
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		r.Status.Phase = kruisev1alpha1.RolloutPhaseProgressing
+		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
+			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
+		}
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		// simulate the rollout being deleted while the rollback waits for the
+		// OpenKruise controller to settle, so the poll surfaces a real error.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			deadline := time.Now().Add(10 * time.Second)
+			for time.Now().Before(deadline) {
+				var rr kruisev1alpha1.Rollout
+				if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &rr); err == nil && !rr.Spec.Strategy.Paused {
+					_ = k8sClient.Delete(ctx, &rr)
+					return
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+		}()
+
+		modified, err := RollbackRollout(ctx, k8sClient, &app, nil)
+		Expect(err).Should(HaveOccurred())
+		Expect(modified).Should(BeFalse())
+		Eventually(done).WithTimeout(10 * time.Second).WithPolling(50 * time.Millisecond).Should(BeClosed())
+	})
+
+	It("Resume rollout with only CanaryStatus paused (spec not paused)", func() {
+		r := kruisev1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		// spec is NOT paused, only canaryStatus is paused
+		r.Spec.Strategy.Paused = false
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
+			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
+		}
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		modified, err := ResumeRollout(ctx, k8sClient, &app, nil)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeTrue())
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		Expect(r.Status.CanaryStatus.CurrentStepState).Should(BeEquivalentTo(kruisev1alpha1.CanaryStepStateReady))
+	})
+
+	It("Resume rollout that is already not paused returns modified=false", func() {
+		r := kruisev1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		r.Spec.Strategy.Paused = false
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		// no canary status set — fully unpaused
+		r.Status.CanaryStatus = nil
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		modified, err := ResumeRollout(ctx, k8sClient, &app, nil)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeFalse())
+	})
+
+	It("test get associated rollout deduplication", func() {
+		rollouts, err := getAssociatedRollouts(ctx, k8sClient, &app, true)
+		Expect(err).Should(BeNil())
+		Expect(len(rollouts)).Should(BeEquivalentTo(1))
 	})
 })
 
@@ -111,6 +280,20 @@ var rt = v1beta1.ResourceTracker{
 		ApplicationGeneration: 1,
 		Type:                  v1beta1.ResourceTrackerTypeVersioned,
 		ManagedResources: []v1beta1.ManagedResource{
+			{
+				ClusterObjectReference: common.ClusterObjectReference{
+					ObjectReference: v1.ObjectReference{
+						APIVersion: "rollouts.kruise.io/v1alpha1",
+						Kind:       "Rollout",
+						Name:       "my-rollout",
+						Namespace:  "default",
+					},
+				},
+				OAMObjectReference: common.OAMObjectReference{
+					Component: "my-rollout",
+				},
+			},
+			// Duplicate entry for my-rollout to exercise the seen[key] deduplication branch
 			{
 				ClusterObjectReference: common.ClusterObjectReference{
 					ObjectReference: v1.ObjectReference{

@@ -22,7 +22,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
+
+	ast2 "github.com/oam-dev/kubevela/pkg/definition/ast"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -41,12 +44,13 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/pkg/cue/cuex"
-	"github.com/kubevela/workflow/pkg/cue/model/sets"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/definition/cachekey"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -67,6 +71,7 @@ const (
 	traitDefType        = "trait"
 	policyDefType       = "policy"
 	workflowStepDefType = "workflow-step"
+	sourceDefType       = "source"
 	workloadDefType     = "workload"
 )
 
@@ -80,6 +85,7 @@ var (
 		policyDefType:       v1beta1.PolicyDefinitionKind,
 		workloadDefType:     v1beta1.WorkloadDefinitionKind,
 		workflowStepDefType: v1beta1.WorkflowStepDefinitionKind,
+		sourceDefType:       v1beta1.SourceDefinitionKind,
 	}
 	// StringToDefinitionType converts user input to DefinitionType used in DefinitionRevisions
 	StringToDefinitionType = map[string]common.DefinitionType{
@@ -91,6 +97,8 @@ var (
 		policyDefType: common.PolicyType,
 		// workflow-step
 		workflowStepDefType: common.WorkflowStepType,
+		// source
+		sourceDefType: common.SourceType,
 	}
 	// DefinitionKindToNameLabel records DefinitionRevision types and labels to search its name
 	DefinitionKindToNameLabel = map[common.DefinitionType]string{
@@ -98,6 +106,7 @@ var (
 		common.TraitType:        oam.LabelTraitDefinitionName,
 		common.PolicyType:       oam.LabelPolicyDefinitionName,
 		common.WorkflowStepType: oam.LabelWorkflowStepDefinitionName,
+		common.SourceType:       oam.LabelSourceDefinitionName,
 	}
 	// DefinitionKindToType maps the definition kinds to a shorter type
 	DefinitionKindToType = map[string]string{
@@ -106,6 +115,7 @@ var (
 		v1beta1.PolicyDefinitionKind:       policyDefType,
 		v1beta1.WorkloadDefinitionKind:     workloadDefType,
 		v1beta1.WorkflowStepDefinitionKind: workflowStepDefType,
+		v1beta1.SourceDefinitionKind:       sourceDefType,
 	}
 )
 
@@ -200,7 +210,22 @@ func (def *Definition) ToCUEString() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	metadataString, err := sets.ToString(*val)
+
+	var metadataString string
+	syntax := val.Syntax()
+	if sl, ok := syntax.(*ast.StructLit); ok {
+		field, err := findAndDecodeFieldByLabel(sl, def.GetName())
+		if err != nil {
+			return "", err
+		}
+		if field != nil {
+			metadataString, err = formatFieldToString(field)
+			if err != nil {
+				return "", errors.Wrapf(err, "failed to format metadata field %s", def.GetName())
+			}
+		}
+	}
+
 	if err != nil {
 		return "", err
 	}
@@ -209,18 +234,29 @@ func (def *Definition) ToCUEString() (string, error) {
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse template cue string")
 	}
+
+	// Extract imports from original file; fix.File may drop unreferenced ones.
+	importPaths := extractImportsFromFile(f)
+
 	f = fix.File(f)
-	var importDecls, templateDecls []ast.Decl
+
+	// Merge any new imports added by fix.File (e.g. "list" when rewriting list arithmetic).
+	importPaths = mergeImports(importPaths, extractImportsFromFile(f))
+
+	var templateDecls []ast.Decl
 	for _, decl := range f.Decls {
-		if importDecl, ok := decl.(*ast.ImportDecl); ok {
-			importDecls = append(importDecls, importDecl)
-		} else {
+		if _, ok := decl.(*ast.ImportDecl); !ok {
 			templateDecls = append(templateDecls, decl)
 		}
 	}
-	importString, err := encodeDeclsToString(importDecls)
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to encode import decls")
+	var importString string
+	if len(importPaths) > 0 {
+		// Reconstruct import statements from extracted paths
+		var importLines []string
+		for _, importPath := range importPaths {
+			importLines = append(importLines, fmt.Sprintf("import %s", importPath))
+		}
+		importString = strings.Join(importLines, "\n") + "\n"
 	}
 	templateString, err = encodeDeclsToString(templateDecls)
 	if err != nil {
@@ -228,7 +264,12 @@ func (def *Definition) ToCUEString() (string, error) {
 	}
 	templateString = fmt.Sprintf("template: {\n%s}", templateString)
 
-	completeCUEString := importString + "\n" + metadataString + "\n" + templateString
+	var completeCUEString string
+	if importString != "" {
+		completeCUEString = importString + "\n" + metadataString + "\n" + templateString
+	} else {
+		completeCUEString = metadataString + "\n" + templateString
+	}
 	if completeCUEString, err = formatCUEString(completeCUEString); err != nil {
 		return "", errors.Wrapf(err, "failed to format cue format string")
 	}
@@ -264,7 +305,7 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 		return err
 	}
 	for fields.Next() {
-		definitionName := fields.Label()
+		definitionName := util.GetIteratorLabel(*fields)
 		v := fields.Value()
 		if nameFlag {
 			return fmt.Errorf("duplicated definition name found, %s and %s", def.GetName(), definitionName)
@@ -275,8 +316,21 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 		if err != nil {
 			return err
 		}
+		// `extends` and `abstract` are spec fields that may also be written at
+		// the top level. Whichever the loop reads last would win, silently, so
+		// declaring one twice is refused instead. Judged before the loop, since
+		// CUE hands fields back in the order they were written and the answer
+		// must not depend on that.
+		for _, field := range []string{"extends", "abstract"} {
+			if v.LookupPath(cue.ParsePath(field)).Exists() &&
+				v.LookupPath(cue.MakePath(cue.Str("attributes"), cue.Str(field))).Exists() {
+				return fmt.Errorf(
+					"%s is declared twice, at the top level and under attributes; keep one", field)
+			}
+		}
+
 		for _fields.Next() {
-			_key := _fields.Label()
+			_key := util.GetIteratorLabel(*_fields)
 			_value := _fields.Value()
 			switch _key {
 			case "type":
@@ -287,6 +341,26 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 				if err = def.SetType(_type); err != nil {
 					return err
 				}
+			case "extends":
+				// `extends` is a spec field, so `attributes: extends: "..."`
+				// already reaches it. Accepting it at the top level too is not
+				// only sugar: an unrecognised key here is dropped in silence, so
+				// without this the definition applies cleanly and inherits
+				// nothing, which is the hardest kind of mistake to notice.
+				extends, err := _value.String()
+				if err != nil {
+					return fmt.Errorf("extends must be the name of a definition, optionally with a revision as \"webservice@v3\": %w", err)
+				}
+				spec["extends"] = extends
+			case "abstract":
+				// Same reasoning as `extends`: a top-level key nobody recognises
+				// is dropped in silence, and a definition that was meant to be
+				// extend-only and quietly is not defeats the point of saying so.
+				abstract, err := _value.Bool()
+				if err != nil {
+					return fmt.Errorf("abstract must be true or false: %w", err)
+				}
+				spec["abstract"] = abstract
 			case "alias":
 				alias, err := _value.String()
 				if err != nil {
@@ -330,6 +404,20 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 			}
 		}
 	}
+	// A SourceDefinition's cache key is generated, not authored: infer it from the
+	// context the template reads and write it into storage.key, recording which
+	// rules were used so the same ones validate it later. Doing this here rather
+	// than in a command covers every path that builds a definition from CUE.
+	if def.GetType() == sourceDefType {
+		stamped, rules, err := cachekey.Stamp(def.GetName(), templateString)
+		if err != nil {
+			return fmt.Errorf("deriving the cache key for SourceDefinition %s: %w", def.GetName(), err)
+		}
+		templateString = stamped
+		annotations[cachekey.RulesAnnotation] = rules.Hash
+		annotations[cachekey.RulesVersionAnnotation] = rules.Version
+	}
+
 	def.SetAnnotations(annotations)
 	def.SetLabels(labels)
 	if err := unstructured.SetNestedField(spec, templateString, DefinitionTemplateKeys[1:]...); err != nil {
@@ -357,6 +445,8 @@ func validateSpec(spec map[string]interface{}, t string) error {
 		tpl = &v1beta1.PolicyDefinitionSpec{}
 	case workflowStepDefType:
 		tpl = &v1beta1.WorkflowStepDefinitionSpec{}
+	case sourceDefType:
+		tpl = &v1beta1.SourceDefinitionSpec{}
 	default:
 	}
 	if tpl != nil {
@@ -378,6 +468,16 @@ func (def *Definition) FromYAML(data []byte) error {
 	return yaml.Unmarshal(data, def)
 }
 
+// ValidDefinitionTypes return the list of valid definition types
+func ValidDefinitionTypes() []string {
+	var types []string
+	for k := range DefinitionTypeToKind {
+		types = append(types, k)
+	}
+	sort.Strings(types)
+	return types
+}
+
 // FromCUEString converts cue string into Definition
 func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 	// cuectx := cuecontext.New()
@@ -385,9 +485,8 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 	if err != nil {
 		return err
 	}
-	n := fix.File(f)
 	var importDecls, metadataDecls, templateDecls []ast.Decl
-	for _, decl := range n.Decls {
+	for _, decl := range f.Decls {
 		if importDecl, ok := decl.(*ast.ImportDecl); ok {
 			importDecls = append(importDecls, importDecl)
 		} else if field, ok := decl.(*ast.Field); ok {
@@ -408,6 +507,10 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 					return errors.Errorf("unexpected decl found in template: %v", decl)
 				}
 			} else {
+				err := ast2.EncodeMetadata(field)
+				if err != nil {
+					return errors.Wrapf(err, "failed to parse metadata %s", label)
+				}
 				metadataDecls = append(metadataDecls, field)
 			}
 		}
@@ -434,23 +537,18 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 	if err != nil {
 		return err
 	}
-	templateString, err = formatCUEString(importString + templateString)
+	// Validate by compiling the upgraded template; store the original user-supplied syntax.
+	upgradedTemplate, err := formatCUEString(importString + templateString)
 	if err != nil {
 		return err
 	}
-	if _, err := providers.DefaultCompiler.Get().CompileStringWithOptions(context.Background(), templateString+"\n"+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{}); err != nil {
+	if _, err := providers.DefaultCompiler.Get().CompileStringWithOptions(context.Background(), upgradedTemplate+"\n"+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{}); err != nil {
 		return err
 	}
-	return def.FromCUE(&inst, templateString)
-}
-
-// ValidDefinitionTypes return the list of valid definition types
-func ValidDefinitionTypes() []string {
-	var types []string
-	for k := range DefinitionTypeToKind {
-		types = append(types, k)
+	if imp := strings.TrimSpace(importString); imp != "" {
+		return def.FromCUE(&inst, imp+"\n"+templateString)
 	}
-	return types
+	return def.FromCUE(&inst, templateString)
 }
 
 // SearchDefinition search the Definition in k8s by traversing all possible results across types or namespaces
@@ -580,6 +678,8 @@ func GetDefinitionFromDefinitionRevision(rev *v1beta1.DefinitionRevision) (*Defi
 		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.PolicyDefinition)
 	case common.WorkflowStepType:
 		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.WorkflowStepDefinition)
+	case common.SourceType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.SourceDefinition)
 	default:
 		return nil, fmt.Errorf("unsupported definition type: %s", rev.Spec.DefinitionType)
 	}
@@ -627,15 +727,110 @@ func GetDefinitionDefaultSpec(kind string) map[string]interface{} {
 	return map[string]interface{}{}
 }
 
+// extractImportsFromFile extracts import paths from an AST file before fix.File() clears them.
+// This is necessary because fix.File() removes import declarations that are not directly used.
+// Returns a slice of import paths, where named imports are formatted as "name path".
+func extractImportsFromFile(f *ast.File) []string {
+	var importPaths []string
+	for _, decl := range f.Decls {
+		if importDecl, ok := decl.(*ast.ImportDecl); ok {
+			for _, spec := range importDecl.Specs {
+				if spec.Path != nil {
+					importPath := spec.Path.Value
+					if spec.Name != nil {
+						// Handle named imports
+						importPaths = append(importPaths, fmt.Sprintf("%s %s", spec.Name.Name, importPath))
+					} else {
+						importPaths = append(importPaths, importPath)
+					}
+				}
+			}
+		}
+	}
+	return importPaths
+}
+
+// mergeImports appends any paths from additional that are not already in base.
+func mergeImports(base, additional []string) []string {
+	for _, p := range additional {
+		found := false
+		for _, existing := range base {
+			if existing == p {
+				found = true
+				break
+			}
+		}
+		if !found {
+			base = append(base, p)
+		}
+	}
+	return base
+}
+
 func formatCUEString(cueString string) (string, error) {
 	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse file during format cue string")
 	}
-	n := fix.File(f)
-	b, err := format.Node(n, format.Simplify())
+
+	// Extract imports from original file; fix.File may drop unreferenced ones.
+	importPaths := extractImportsFromFile(f)
+
+	fixed := fix.File(f)
+
+	// Merge any new imports added by fix.File (e.g. "list" when rewriting list arithmetic).
+	importPaths = mergeImports(importPaths, extractImportsFromFile(fixed))
+
+	var nonImportDecls []ast.Decl
+	for _, decl := range fixed.Decls {
+		if _, ok := decl.(*ast.ImportDecl); !ok {
+			nonImportDecls = append(nonImportDecls, decl)
+		}
+	}
+
+	var result strings.Builder
+
+	// Add imports first
+	if len(importPaths) > 0 {
+		for _, importPath := range importPaths {
+			result.WriteString(fmt.Sprintf("import %s\n", importPath))
+		}
+		result.WriteString("\n")
+	}
+
+	// Format and add other declarations
+	if len(nonImportDecls) > 0 {
+		b, err := format.Node(&ast.File{Decls: nonImportDecls}, format.Simplify())
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to format node during formating cue string")
+		}
+		result.WriteString(string(b))
+	}
+
+	return result.String(), nil
+}
+
+func findAndDecodeFieldByLabel(slit *ast.StructLit, targetLabel string) (*ast.Field, error) {
+	for _, decl := range slit.Elts {
+		field, ok := decl.(*ast.Field)
+		if !ok {
+			continue
+		}
+		label := ast2.GetFieldLabel(field.Label)
+		if label == targetLabel {
+			if err := ast2.DecodeMetadata(field); err != nil {
+				return nil, err
+			}
+			return field, nil
+		}
+	}
+	return nil, nil
+}
+
+func formatFieldToString(field *ast.Field) (string, error) {
+	b, err := format.Node(field)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to format node during formating cue string")
+		return "", errors.Wrap(err, "failed to format field")
 	}
 	return string(b), nil
 }

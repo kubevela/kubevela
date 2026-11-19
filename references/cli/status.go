@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -36,6 +35,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
@@ -46,13 +46,14 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgappfile "github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	types2 "github.com/oam-dev/kubevela/pkg/utils/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
+	"github.com/oam-dev/kubevela/references/cli/resourcetree"
 	references "github.com/oam-dev/kubevela/references/common"
 )
 
@@ -108,9 +109,16 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 			}
 			appName := args[0]
 			// get namespace
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 			if printTree, err := cmd.Flags().GetBool("tree"); err == nil && printTree {
 				return printApplicationTree(c, cmd, appName, namespace)
@@ -154,6 +162,20 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				return printMetrics(newClient, restConf, appName, namespace)
 			}
 
+			if showSources, err := cmd.Flags().GetBool("sources"); showSources && err == nil {
+				component, _ := cmd.Flags().GetString("component")
+				cluster, _ := cmd.Flags().GetString("cluster")
+				return printAppSources(newClient, namespace, appName, Filter{
+					Component: component,
+					Cluster:   cluster,
+				}, outputFormat, cmd.OutOrStdout())
+			}
+
+			if showDeps, err := cmd.Flags().GetBool("dependencies"); showDeps && err == nil {
+				component, _ := cmd.Flags().GetString("component")
+				return printAppDependencies(newClient, namespace, appName, Filter{Component: component}, outputFormat, cmd.OutOrStdout())
+			}
+
 			if outputFormat != "" {
 				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
@@ -172,8 +194,10 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().BoolP("pod", "", false, "show pod list of the application")
 	cmd.Flags().BoolVarP(&detail, "detail", "d", false, "display more details in the application like input/output data in context. Note that if you want to show the realtime details of application resources, please use it with --tree")
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "raw Application output format. One of: (json, yaml, jsonpath)")
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "output format, also applies to --sources. One of: (json, yaml, jsonpath)")
 	cmd.Flags().BoolP("metrics", "m", false, "show resource quota and consumption metrics of the application")
+	cmd.Flags().BoolP("dependencies", "", false, "show what each component depends on: dependsOn, inputs, and the components its property expressions read")
+	cmd.Flags().BoolP("sources", "", false, "show what the application read from its declared sources, and which component, trait or workflow step used each value")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -183,18 +207,29 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	if err != nil {
 		return err
 	}
+	healthStatusEmoji := emojiSucceed
+	if !getAppHealth(app) {
+		healthStatusEmoji = emojiFail
+	}
 
 	cmd.Printf("About:\n\n")
 	table := newUITable()
 	table.AddRow("  Name:", appName)
 	table.AddRow("  Namespace:", namespace)
 	table.AddRow("  Created at:", app.CreationTimestamp.String())
-	table.AddRow("  Status:", getAppPhaseColor(app.Status.Phase).Sprint(app.Status.Phase))
+	table.AddRow("  Healthy:", healthStatusEmoji)
+	table.AddRow("  Details:", getAppPhaseColor(app.Status.Phase).Sprint(app.Status.Phase))
 	cmd.Printf("%s\n\n", table.String())
 	if err := printWorkflowStatus(c, ioStreams, appName, namespace, detail); err != nil {
 		return err
 	}
-	return loopCheckStatus(c, ioStreams, appName, namespace)
+	if err := loopCheckStatus(c, ioStreams, appName, namespace); err != nil {
+		return err
+	}
+	// After Services: a source feeds components, so it reads as context for what
+	// is above it rather than as a preamble to the workflow.
+	printSourcesOverview(ioStreams, app)
+	return nil
 }
 
 func formatEndpoints(endpoints []types2.ServiceEndpoint) [][]string {
@@ -249,7 +284,7 @@ func getComponentType(app *v1beta1.Application, name string) string {
 			return c.Type
 		}
 	}
-	return "webservice"
+	return "unknown"
 }
 
 func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, detail bool) error {
@@ -257,7 +292,7 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 	if err != nil {
 		return err
 	}
-	outputs := make(map[string]workflowv1alpha1.StepOutputs)
+	outputs := make(map[string]wfTypesv1alpha1.StepOutputs)
 	var v cue.Value
 	if detail {
 		for _, c := range remoteApp.Spec.Components {
@@ -304,7 +339,7 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 	return nil
 }
 
-func printWorkflowStepStatus(indent string, step workflowv1alpha1.StepStatus, ioStreams cmdutil.IOStreams, detail bool, outputs map[string]workflowv1alpha1.StepOutputs, v cue.Value) {
+func printWorkflowStepStatus(indent string, step workflowv1alpha1.StepStatus, ioStreams cmdutil.IOStreams, detail bool, outputs map[string]wfTypesv1alpha1.StepOutputs, v cue.Value) {
 	ioStreams.Infof("%s- id: %s\n", indent[0:len(indent)-2], step.ID)
 	ioStreams.Infof("%sname: %s\n", indent, step.Name)
 	ioStreams.Infof("%stype: %s\n", indent, step.Type)
@@ -337,6 +372,20 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 	if err != nil {
 		return err
 	}
+
+	// Use the ApplicationRevision spec for component type lookup — it reflects
+	// policy-transformed components that were actually deployed.
+	specApp := remoteApp
+	if remoteApp.Status.LatestRevision != nil && remoteApp.Status.LatestRevision.Name != "" {
+		appRev := &v1beta1.ApplicationRevision{}
+		if err := c.Get(context.Background(), client.ObjectKey{
+			Name:      remoteApp.Status.LatestRevision.Name,
+			Namespace: namespace,
+		}, appRev); err == nil {
+			specApp = appRev.Spec.Application.DeepCopy()
+		}
+	}
+
 	if len(remoteApp.Status.Services) > 0 {
 		ioStreams.Infof("Services:\n\n")
 	}
@@ -349,26 +398,28 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		if comp.Cluster == "" {
 			comp.Cluster = "local"
 		}
-		nsStat := ""
+		ioStreams.Infof("%s", fmt.Sprintf("  - Name: %s  %s\n", compName, envStat))
+		ioStreams.Infof("%s", fmt.Sprintf("    Cluster: %s\n", comp.Cluster))
 		if comp.Namespace != "" {
-			nsStat = "Namespace: " + comp.Namespace
+			ioStreams.Infof("%s", fmt.Sprintf("    Namespace: %s\n", comp.Namespace))
 		}
-		ioStreams.Infof(fmt.Sprintf("  - Name: %s  %s\n", compName, envStat))
-		ioStreams.Infof(fmt.Sprintf("    Cluster: %s  %s\n", comp.Cluster, nsStat))
-		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
-		healthColor := getHealthStatusColor(comp.Healthy)
-		healthInfo := strings.ReplaceAll(comp.Message, "\n", "\n\t") // format healthInfo output
-		healthstats := "Healthy"
-		if !comp.Healthy {
-			healthstats = "Unhealthy"
-		}
-		ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthstats), healthColor.Sprint(healthInfo))
+		ioStreams.Infof("    Type: %s\n", getComponentType(specApp, compName))
 
-		// load it again after health check
-		remoteApp, err = loadRemoteApplication(c, namespace, appName)
-		if err != nil {
-			return err
+		var healthEmoji = emojiSucceed
+		if !comp.Healthy {
+			healthEmoji = emojiFail
 		}
+		ioStreams.Infof("    Health: %s\n", healthEmoji)
+		if comp.Message != "" {
+			ioStreams.Infof("      Message: %s\n", comp.Message)
+		}
+		if len(comp.Details) > 0 {
+			ioStreams.Infof("      Status Details: \n")
+			for k, v := range comp.Details {
+				ioStreams.Infof("        %s: %s\n", k, v)
+			}
+		}
+
 		// workload Must found
 		if len(comp.Traits) > 0 {
 			ioStreams.Infof("    Traits:\n")
@@ -376,16 +427,21 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 			ioStreams.Infof("    No trait applied\n")
 		}
 		for _, tr := range comp.Traits {
-			traitBase := ""
-			if tr.Healthy {
-				traitBase = fmt.Sprintf("      %s%s", emojiSucceed, white.Sprint(tr.Type))
-			} else {
-				traitBase = fmt.Sprintf("      %s%s", emojiFail, white.Sprint(tr.Type))
+			ioStreams.Infof("      %s: %s\n", "Type", tr.Type)
+			var trHealthEmoji = emojiSucceed
+			if !tr.Healthy {
+				trHealthEmoji = emojiFail
 			}
+			ioStreams.Infof("      %s: %s\n", "Health", trHealthEmoji)
 			if tr.Message != "" {
-				traitBase += ": " + tr.Message
+				ioStreams.Infof("        %s: %s\n", "Message", tr.Message)
 			}
-			ioStreams.Infof(traitBase)
+			if len(tr.Details) > 0 {
+				ioStreams.Infof("        %s:\n", "Status Details")
+				for k, v := range tr.Details {
+					ioStreams.Infof("          %s: %s\n", k, v)
+				}
+			}
 		}
 		ioStreams.Info("")
 	}
@@ -435,13 +491,6 @@ func TrackDeployStatus(c common.Args, appName string, namespace string) (commont
 	return appObj.Status.Phase, nil
 }
 
-func getHealthStatusColor(s bool) *color.Color {
-	if s {
-		return green
-	}
-	return yellow
-}
-
 func getWfStepColor(phase workflowv1alpha1.WorkflowStepPhase) *color.Color {
 	switch phase {
 	case workflowv1alpha1.WorkflowStepPhaseSucceeded:
@@ -454,10 +503,69 @@ func getWfStepColor(phase workflowv1alpha1.WorkflowStepPhase) *color.Color {
 }
 
 func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
-	if appPhase == commontypes.ApplicationRunning {
+	switch appPhase {
+	case commontypes.ApplicationUnhealthy:
+		return red
+	case commontypes.ApplicationWorkflowSuspending:
+		return blue
+	case commontypes.ApplicationRunning:
 		return green
+	default:
+		return yellow
 	}
-	return yellow
+}
+
+func getAppHealth(app *v1beta1.Application) bool {
+	// Terminal and unhealthy phases must never report as healthy, including when
+	// no component services were recorded - a CUE parameter error fails the
+	// workflow before any service status is written, and an empty Services list
+	// would otherwise be vacuously healthy.
+	switch app.Status.Phase {
+	case commontypes.ApplicationWorkflowFailed,
+		commontypes.ApplicationWorkflowTerminated,
+		commontypes.ApplicationUnhealthy,
+		commontypes.ApplicationDeleting:
+		return false
+	default:
+		// Other phases (starting/rendering/runningWorkflow/running/...) continue
+		// with service and workflow-step health checks below.
+	}
+
+	// A failed workflow step (or substep in a step-group) means the app is not
+	// healthy, even while the controller is still retrying (phase may still be
+	// runningWorkflow).
+	if app.Status.Workflow != nil {
+		for i := range app.Status.Workflow.Steps {
+			step := &app.Status.Workflow.Steps[i]
+			if step.Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+				return false
+			}
+			for j := range step.SubStepsStatus {
+				if step.SubStepsStatus[j].Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+					return false
+				}
+			}
+		}
+	}
+
+	// No service status yet: cannot claim the application is healthy.
+	// This covers intermediate phases and edge cases where phase is running
+	// but services were never populated.
+	if len(app.Status.Services) == 0 {
+		return false
+	}
+
+	for _, s := range app.Status.Services {
+		if !s.Healthy {
+			return false
+		}
+		for _, t := range s.Traits {
+			if !t.Healthy {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, appNs string) error {
@@ -476,7 +584,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 		return err
 	}
 	ctx := context.Background()
-	_, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, cli, app)
+	_, currentRT, historyRTs, _, err := appkeeper.ListApplicationResourceTrackers(ctx, cli, app)
 	if err != nil {
 		return err
 	}
@@ -496,10 +604,10 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if w, _, err := term.GetSize(0); err == nil && w > 0 {
 		maxWidth = ptr.To(w)
 	}
-	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
+	options := resourcetree.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
 	printDetails, _ := cmd.Flags().GetBool("detail")
 	if printDetails {
-		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(config)
+		msgRetriever, err := resourcetree.RetrieveKubeCtlGetMessageGenerator(config)
 		if err != nil {
 			return err
 		}

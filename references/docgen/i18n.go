@@ -176,6 +176,10 @@ var i18nDoc = map[string]map[Language]string{
 		LangZh: "类型",
 		LangEn: "Type",
 	},
+	"Value": {
+		LangZh: "值",
+		LangEn: "Value",
+	},
 	"Required": {
 		LangZh: "是否必须",
 		LangEn: "Required",
@@ -183,6 +187,10 @@ var i18nDoc = map[string]map[Language]string{
 	"Default": {
 		LangZh: "默认值",
 		LangEn: "Default",
+	},
+	"Immutable": {
+		LangZh: "不可变",
+		LangEn: "Immutable",
 	},
 	"Apply To Component Types": {
 		LangZh: "适用于组件类型",

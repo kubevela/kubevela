@@ -11,16 +11,15 @@ on:
       - master
       - release-*
 
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
 
 env:
   # Common versions
-  GO_VERSION: '1.22'
-  GOLANGCI_VERSION: 'v1.54.2'
+  GO_VERSION: "1.27.1"
+  GOLANGCI_VERSION: "v2.14.0"
 
 jobs:
-
   detect-noop:
     runs-on: ubuntu-22.04
     outputs:
@@ -44,12 +43,12 @@ jobs:
 
     steps:
       - name: Setup Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Checkout
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           submodules: true
 
@@ -64,17 +63,17 @@ jobs:
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
     permissions:
-      contents: read  # for actions/checkout to fetch code
-      pull-requests: read  # for golangci/golangci-lint-action to fetch pull requests
+      contents: read # for actions/checkout to fetch code
+      pull-requests: read # for golangci/golangci-lint-action to fetch pull requests
 
     steps:
       - name: Setup Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Checkout
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           submodules: true
 
@@ -83,7 +82,7 @@ jobs:
       # version, but we prefer this action because it leaves 'annotations' (i.e.
       # it comments on PRs to point out linter violations).
       - name: Lint
-        uses: golangci/golangci-lint-action@2226d7cb06a077cd73e56eedd38eecad18e5d837 # v6.5.0
+        uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_VERSION }}
 
@@ -94,43 +93,64 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           submodules: true
 
-      - name: Setup Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
-        with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Setup node
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
-        with:
-          node-version: '14'
-
-      - name: Cache Go Dependencies
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84
-        with:
-          path: .work/pkg
-          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-pkg-
-
-      - name: Setup KinD
+      - name: Free Disk Space
         run: |
-          go install sigs.k8s.io/kind@v0.19.0
-          kind delete cluster --name kind || true
-          kind create cluster --name kind --image=kindest/node:v1.26.4 --kubeconfig ~/.kube/config
+          echo "Disk space before cleanup:"
+          df -h
+
+          # Remove unnecessary software to free up disk space
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Setup Env
+        uses: ./.github/actions/env-setup
+        
+      - name: Setup node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "14"
+
+      - name: Setup kinD
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          # Nothing in check-diff deploys vela-core, so skip building its image.
+          load-image: 'false'
 
       - name: Run cross-build
         run: make cross-build
+
+      - name: Free Disk Space After Cross-Build
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+
+          # Remove cross-build artifacts to free up space
+          # (make build will rebuild binaries for current platform)
+          rm -rf _bin
+
+          # Clean Go build cache and test cache
+          go clean -cache -testcache
+
+          # Remove Docker build cache
+          sudo docker builder prune --all --force || true
+
+          echo "Disk space after cleanup:"
+          df -h
 
       - name: Check Diff
         run: |
           export PATH=$(pwd)/bin/:$PATH
           make check-diff
-              
-      - name: Cleanup binary
-        run: make build-cleanup
 
   check-windows:
     runs-on: windows-latest
@@ -139,17 +159,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           submodules: true
 
       - name: Setup Go
-        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Cache Go Dependencies
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84
+        uses: actions/cache@v4
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
@@ -170,15 +190,15 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           submodules: true
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
       - name: Build Test for vela core
-        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
         with:
           context: .
           file: Dockerfile
@@ -190,15 +210,15 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
         with:
           submodules: true
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
-      - name: Build Test for CLI
-        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
+      - name: Build Test for CLI 
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83
         with:
           context: .
           file: Dockerfile.cli

@@ -255,4 +255,107 @@ var _ = Describe("Test Application Validator", func() {
 		resp := handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeTrue())
 	})
+
+	It("Test Application Update with validation errors - duplicate workflow steps", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Update,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"application-sample","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}],"workflow":{"steps":[{"name":"suspend","type":"suspend"},{"name":"suspend","type":"suspend"}]}}}
+`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"application-sample","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application Update with invalid workflow timeout", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Update,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-update-test","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}],"workflow":{"steps":[{"name":"group","type":"suspend","timeout":"invalid-timeout"}]}}}
+`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"workflow-update-test","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application Update with deletion timestamp should skip validation", func() {
+		now := metav1.Now()
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Update,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"application-sample","namespace":"default","deletionTimestamp":"` + now.Format("2006-01-02T15:04:05Z") + `"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}],"workflow":{"steps":[{"name":"suspend","type":"suspend"},{"name":"suspend","type":"suspend"}]}}}
+`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"application-sample","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		// Even with duplicate workflow steps (which would normally fail), it should pass because of deletion timestamp
+		Expect(resp.Allowed).Should(BeTrue())
+	})
+
+	It("Test Application Update decode old object error", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Update,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"application-sample","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}]}}
+`),
+				},
+				OldObject: runtime.RawExtension{Raw: []byte("invalid json")},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application Update successful case", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Update,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"application-sample","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"nginx"}}]}}
+`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"application-sample","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+	})
 })

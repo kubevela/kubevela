@@ -23,10 +23,9 @@ import (
 	"net/http/httptest"
 	"os"
 
+	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/core/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -131,10 +130,31 @@ var _ = Describe("Test helm helper", func() {
 		Expect(values).ShouldNot(BeNil())
 	})
 
+	It("Test GetIndexInfo cache hit", func() {
+		helper := NewHelperWithCache()
+		Expect(helper.cache).ShouldNot(BeNil())
+		idx1, err := helper.GetIndexInfo("./testdata", false, nil)
+		Expect(err).Should(BeNil())
+		Expect(idx1).ShouldNot(BeNil())
+		idx2, err := helper.GetIndexInfo("./testdata", false, nil)
+		Expect(err).Should(BeNil())
+		Expect(idx2).Should(Equal(idx1))
+	})
+
+	It("Test GetValuesFromChart cache hit", func() {
+		helper := NewHelperWithCache()
+		values1, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0", false, "helm", nil)
+		Expect(err).Should(BeNil())
+		Expect(values1).ShouldNot(BeNil())
+		values2, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0", false, "helm", nil)
+		Expect(err).Should(BeNil())
+		Expect(values2).Should(Equal(values1))
+	})
+
 	It("Test validate helm repo", func() {
 		helper := NewHelper()
 		helmRepo := &Repository{
-			URL: "https://charts.kubevela.net/core",
+			URL: "https://kubevela.github.io/charts",
 		}
 		ok, err := helper.ValidateRepo(ctx, helmRepo)
 		Expect(err).Should(BeNil())

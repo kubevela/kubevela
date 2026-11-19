@@ -38,6 +38,11 @@ import (
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+)
+
+const (
+	velaAddonChartPath = "https://kubevela.github.io/catalog/official"
 )
 
 var _ = Describe("Output of listing addons tests", func() {
@@ -61,7 +66,7 @@ var _ = Describe("Output of listing addons tests", func() {
 		reg := &pkgaddon.Registry{
 			Name: "KubeVela",
 			Helm: &pkgaddon.HelmSource{
-				URL: "https://addons.kubevela.net",
+				URL: velaAddonChartPath,
 			},
 		}
 		ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -155,7 +160,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: velaAddonChartPath,
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -218,7 +223,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: velaAddonChartPath,
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -319,7 +324,7 @@ var _ = Describe("Addon status or info", func() {
 				reg := &pkgaddon.Registry{
 					Name: "KubeVela",
 					Helm: &pkgaddon.HelmSource{
-						URL: "https://addons.kubevela.net",
+						URL: velaAddonChartPath,
 					},
 				}
 				ds := pkgaddon.NewRegistryDataStore(k8sClient)
@@ -416,7 +421,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Not enough args", func() {
 			args := []string{}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with missing args, instead got nil")
@@ -424,7 +429,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Bad chart path", func() {
 			args := []string{"/this/this/not/a/chart", "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with bad chart path, instead got nil")
@@ -432,7 +437,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Bad repo name", func() {
 			args := []string{testTarballPath, "this-is-not-a-valid-repo"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with bad repo name, instead got nil")
@@ -440,7 +445,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Valid tar, repo name", func() {
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())
@@ -448,7 +453,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Valid tar, repo URL", func() {
 			args := []string{testTarballPath, ts.URL}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())
@@ -458,7 +463,7 @@ var _ = Describe("Addon push command", func() {
 			statusCode = 409
 			body = "{\"error\": \"package already exists\"}"
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with 409, instead got nil")
@@ -468,7 +473,7 @@ var _ = Describe("Addon push command", func() {
 			statusCode = 500
 			body = "duiasnhioasd"
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with bad response body, instead got nil")
@@ -523,7 +528,7 @@ var _ = Describe("Addon push command", func() {
 			_ = os.Unsetenv("HELM_REPO_CERT_FILE")
 			_ = os.Unsetenv("HELM_REPO_KEY_FILE")
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expected non nil error but got nil when run cmd without certificate option")
@@ -534,10 +539,103 @@ var _ = Describe("Addon push command", func() {
 			_ = os.Setenv("HELM_REPO_CERT_FILE", testClientCertPath)
 			_ = os.Setenv("HELM_REPO_KEY_FILE", testClientKeyPath)
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())
 		})
+	})
+})
+
+var _ = Describe("Addon upgrade command with a registry-prefixed addon name", func() {
+	var c common.Args
+	var fluxcd v1beta1.Application
+
+	BeforeEach(func() {
+		c.SetClient(k8sClient)
+		c.SetConfig(cfg)
+
+		fluxcd = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)).To(Succeed())
+		Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
+	})
+
+	It("should strip the registry prefix instead of using it to build the addon's k8s resource name", func() {
+		args := []string{"myregistry/fluxcd"}
+		cmd := NewAddonUpgradeCommand(c, cmdutil.IOStreams{})
+		cmd.SetArgs(args)
+		err := cmd.RunE(cmd, args)
+		Expect(err).ShouldNot(Succeed())
+		// Before the fix, the un-split "myregistry/fluxcd" was used to build the
+		// addon's k8s resource name, which fails fast with an invalid name error.
+		Expect(err.Error()).ToNot(ContainSubstring("may not contain '/'"))
+		Expect(err.Error()).ToNot(ContainSubstring("cannot fetch addon related addon"))
+		// After the fix, lookups use the plain addon name, so the command proceeds
+		// to resolving the registry, which legitimately fails since "myregistry" is unregistered.
+		Expect(err.Error()).To(ContainSubstring("specified registry myregistry not exist"))
+	})
+})
+
+var _ = Describe("Addon status command with a registry-prefixed addon name", func() {
+	var c common.Args
+	var fluxcd v1beta1.Application
+
+	BeforeEach(func() {
+		c.SetClient(k8sClient)
+		c.SetConfig(cfg)
+
+		fluxcd = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)).To(Succeed())
+		Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
+	})
+
+	It("should strip the registry prefix instead of using it to build the addon's k8s resource name", func() {
+		args := []string{"myregistry/fluxcd"}
+		cmd := NewAddonStatusCommand(c, cmdutil.IOStreams{})
+		cmd.SetArgs(args)
+		err := cmd.RunE(cmd, args)
+		// Before the fix, the un-split "myregistry/fluxcd" was used to build the
+		// addon's k8s resource name, which fails fast with an invalid name error.
+		if err != nil {
+			Expect(err.Error()).ToNot(ContainSubstring("may not contain '/'"))
+		}
+	})
+})
+
+var _ = Describe("Addon disable command with a registry-prefixed addon name", func() {
+	var c common.Args
+	var fluxcd v1beta1.Application
+
+	BeforeEach(func() {
+		c.SetClient(k8sClient)
+		c.SetConfig(cfg)
+
+		fluxcd = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)).To(Succeed())
+		Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(context.Background(), &fluxcd)).Should(SatisfyAny(Succeed(), util.NotFoundMatcher{}))
+	})
+
+	It("should strip the registry prefix instead of using it to build the addon's k8s resource name", func() {
+		args := []string{"myregistry/fluxcd"}
+		cmd := NewAddonDisableCommand(c, cmdutil.IOStreams{})
+		cmd.SetArgs(args)
+		err := cmd.RunE(cmd, args)
+		// Before the fix, the un-split "myregistry/fluxcd" was used to build the
+		// addon's k8s resource name, which fails fast with an invalid name error.
+		if err != nil {
+			Expect(err.Error()).ToNot(ContainSubstring("may not contain '/'"))
+		}
 	})
 })

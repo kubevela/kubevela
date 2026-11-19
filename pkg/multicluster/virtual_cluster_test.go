@@ -18,6 +18,7 @@ package multicluster
 
 import (
 	"context"
+	"encoding/json"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -155,6 +156,109 @@ var _ = Describe("Test Virtual Cluster", func() {
 		Expect(cv.Major).Should(BeEquivalentTo("1"))
 	})
 
+	It("Test virtual cluster helpers", func() {
+		By("Test FullName")
+		vcWithAlias := &VirtualCluster{Name: "test", Alias: "alias"}
+		Expect(vcWithAlias.FullName()).To(Equal("test (alias)"))
+		vcWithoutAlias := &VirtualCluster{Name: "test"}
+		Expect(vcWithoutAlias.FullName()).To(Equal("test"))
+
+		By("Test get/set cluster alias")
+		secret := &v1.Secret{}
+		setClusterAlias(secret, "my-alias")
+		Expect(getClusterAlias(secret)).To(Equal("my-alias"))
+		annots := secret.GetAnnotations()
+		Expect(annots).ToNot(BeNil())
+		Expect(annots[v1alpha1.AnnotationClusterAlias]).To(Equal("my-alias"))
+
+		By("Test NewVirtualClusterFromLocal")
+		vc := NewVirtualClusterFromLocal()
+		Expect(vc.Name).To(Equal(ClusterLocalName))
+		Expect(vc.Accepted).To(BeTrue())
+		Expect(vc.EndPoint).To(Equal(types.ClusterBlankEndpoint))
+
+		By("Test MatchVirtualClusterLabels")
+		ClusterGatewaySecretNamespace = "vela-system" // as set in other test
+		labels := MatchVirtualClusterLabels{"key": "val"}
+		opts := &client.ListOptions{}
+		labels.ApplyToList(opts)
+		Expect(opts.Namespace).To(Equal(ClusterGatewaySecretNamespace))
+		Expect(opts.LabelSelector).NotTo(BeNil())
+		Expect(opts.LabelSelector.String()).To(ContainSubstring("key=val"))
+		Expect(opts.LabelSelector.String()).To(ContainSubstring(clustercommon.LabelKeyClusterCredentialType))
+
+		delOpts := &client.DeleteAllOfOptions{}
+		labels.ApplyToDeleteAllOf(delOpts)
+		Expect(delOpts.ListOptions.Namespace).To(Equal(ClusterGatewaySecretNamespace))
+		Expect(delOpts.ListOptions.LabelSelector).NotTo(BeNil())
+		Expect(delOpts.ListOptions.LabelSelector.String()).To(ContainSubstring("key=val"))
+
+		By("Test get/set cluster version")
+		versionedSecret := &v1.Secret{}
+		cv := types.ClusterVersion{Major: "1", Minor: "20", GitVersion: "v1.20.0"}
+		setClusterVersion(versionedSecret, cv)
+
+		newCV, err := getClusterVersionFromObject(versionedSecret)
+		Expect(err).To(Succeed())
+		Expect(newCV).To(Equal(cv))
+
+		versionedSecret.Annotations = nil
+		_, err = getClusterVersionFromObject(versionedSecret)
+		Expect(err).ToNot(Succeed())
+
+		secretWithEmptyAnnotation := &v1.Secret{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{}}}
+		_, err = getClusterVersionFromObject(secretWithEmptyAnnotation)
+		Expect(err).ToNot(Succeed())
+	})
+
+	It("Test GetVersionInfoFromObject", func() {
+		ClusterGatewaySecretNamespace = "vela-system3"
+		ctx := context.Background()
+		ns := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ClusterGatewaySecretNamespace}}
+		Expect(k8sClient.Create(ctx, ns)).Should(Succeed())
+		defer func() {
+			Expect(k8sClient.Delete(ctx, ns)).Should(Succeed())
+		}()
+
+		By("Setup a secret with version info")
+		cv := types.ClusterVersion{Major: "1", Minor: "21", GitVersion: "v1.21.0"}
+		cvJSON, err := json.Marshal(cv)
+		Expect(err).To(Succeed())
+		secret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster-with-version",
+				Namespace: ClusterGatewaySecretNamespace,
+				Labels:    map[string]string{clustercommon.LabelKeyClusterCredentialType: "X509"},
+				Annotations: map[string]string{
+					types.AnnotationClusterVersion: string(cvJSON),
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, secret)).Should(Succeed())
+
+		By("Test getting version from the secret")
+		retrievedCV := GetVersionInfoFromObject(ctx, k8sClient, "cluster-with-version")
+		Expect(retrievedCV).To(Equal(cv))
+
+		By("Test with a cluster that doesn't exist, should fallback to control plane version")
+		originalCPVersion := types.ControlPlaneClusterVersion
+		types.ControlPlaneClusterVersion = types.ClusterVersion{GitVersion: "v1.22.0"}
+		defer func() { types.ControlPlaneClusterVersion = originalCPVersion }()
+		retrievedCV = GetVersionInfoFromObject(ctx, k8sClient, "non-existent-cluster")
+		Expect(retrievedCV).To(Equal(types.ControlPlaneClusterVersion))
+
+		By("Test with a secret without version info, should fallback")
+		secretNoVersion := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cluster-no-version",
+				Namespace: ClusterGatewaySecretNamespace,
+				Labels:    map[string]string{clustercommon.LabelKeyClusterCredentialType: "X509"},
+			},
+		}
+		Expect(k8sClient.Create(ctx, secretNoVersion)).Should(Succeed())
+		retrievedCV = GetVersionInfoFromObject(ctx, k8sClient, "cluster-no-version")
+		Expect(retrievedCV).To(Equal(types.ControlPlaneClusterVersion))
+	})
 })
 
 type fakeClient struct {

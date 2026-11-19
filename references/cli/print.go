@@ -30,7 +30,9 @@ var (
 	red    = color.New(color.FgRed)
 	green  = color.New(color.FgGreen)
 	yellow = color.New(color.FgYellow)
-	white  = color.New(color.Bold, color.FgWhite)
+	blue   = color.New(color.FgBlue)
+	// white is not currently used, but kept for future needs - commenting out to pass checks
+	// white := color.New(color.Bold, color.FgWhite)
 )
 
 // emoji used in vela cmd for printing

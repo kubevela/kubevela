@@ -27,6 +27,8 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // GenerateProvidersMarkdown generates markdown documentation for providers.
@@ -100,7 +102,8 @@ func GenerateProviderMarkdown(provider io.Reader, w io.Writer) error {
 		}
 
 		// header
-		fmt.Fprintf(docs, "## %s\n", iter.Label())
+		label := util.GetIteratorLabel(*iter)
+		fmt.Fprintf(docs, "## %s\n", label)
 
 		doc, _, err := ref.parseParameters("", item.LookupPath(cue.ParsePath(paramsKey)), "*Params*", 0, true)
 		if err != nil {

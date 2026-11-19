@@ -1,0 +1,264 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package application
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
+
+	monitorContext "github.com/kubevela/pkg/monitor/context"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
+)
+
+// handleWorkflowRestartAnnotation processes the app.oam.dev/restart-workflow annotation
+// and converts it to status.workflowRestartScheduledAt for GitOps safety.
+// For timestamps, it deletes the annotation after copying to status (persisted via Client.Update).
+// For durations, it keeps the annotation and reschedules after each execution based on time comparison.
+func (r *Reconciler) handleWorkflowRestartAnnotation(ctx context.Context, app *v1beta1.Application) {
+	if !metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationWorkflowRestart) {
+		return
+	}
+
+	restartValue := app.Annotations[oam.AnnotationWorkflowRestart]
+
+	var scheduledTime time.Time
+	var isDuration bool
+	var statusFieldNeedsUpdate bool
+
+	if restartValue == "true" {
+		// "true" is a convenience value supplied for an immediate restart
+		scheduledTime = time.Now()
+		isDuration = false
+		statusFieldNeedsUpdate = true
+	} else if parsedTime, err := time.Parse(time.RFC3339, restartValue); err == nil {
+		// explicit timestamp - restart on first reconcile > time
+		scheduledTime = parsedTime
+		isDuration = false
+		statusFieldNeedsUpdate = true
+	} else if duration, err := time.ParseDuration(restartValue); err == nil {
+		// recurring duration - calculate relative to last successful workflow completion
+		baseTime := time.Now()
+		if app.Status.Workflow != nil && app.Status.Workflow.Finished && !app.Status.Workflow.EndTime.IsZero() {
+			baseTime = app.Status.Workflow.EndTime.Time
+		}
+		scheduledTime = baseTime.Add(duration)
+		isDuration = true
+
+		// Only update if status is nil OR the calculated value differs from current status
+		statusFieldNeedsUpdate = app.Status.WorkflowRestartScheduledAt == nil ||
+			!app.Status.WorkflowRestartScheduledAt.Time.Equal(scheduledTime)
+	} else {
+		klog.Warningf("Invalid workflow restart annotation value for Application %s/%s: %q. Expected 'true', RFC3339 timestamp, or duration (e.g., '5m', '1h')",
+			app.Namespace, app.Name, restartValue)
+		return
+	}
+
+	if statusFieldNeedsUpdate {
+		app.Status.WorkflowRestartScheduledAt = &metav1.Time{Time: scheduledTime}
+		if err := r.Status().Update(ctx, app); err != nil {
+			klog.Errorf("Failed to update workflow restart status for Application %s/%s: %v. Will retry on next reconcile.",
+				app.Namespace, app.Name, err)
+			// Don't fail reconciliation - will retry naturally on next reconcile
+		}
+	}
+
+	// For timestamps, delete the annotation (one-time behavior)
+	// For durations, keep the annotation (recurring behavior)
+	if !isDuration {
+		delete(app.Annotations, oam.AnnotationWorkflowRestart)
+		if err := r.Client.Update(ctx, app); err != nil {
+			klog.Errorf("Failed to remove workflow restart annotation for Application %s/%s: %v. Will retry on next reconcile.",
+				app.Namespace, app.Name, err)
+			// Don't fail reconciliation - will retry naturally on next reconcile
+		}
+	}
+}
+
+// scheduledRestart is what the scheduled restart, if any, should do now.
+type scheduledRestart int
+
+const (
+	// restartNotYet: nothing scheduled, its time has not come, or the run it
+	// waits for has not finished.
+	restartNotYet scheduledRestart = iota
+	// restartDue: the time has passed and the finished run started before it,
+	// so the run never saw this request.
+	restartDue
+	// restartSuperseded: the finished run started after the requested time, so
+	// it already answered the request.
+	restartSuperseded
+)
+
+// scheduledRestartState reads the scheduled restart against the last run. A
+// request made while a run is executing or waiting is answered once that run
+// finishes. The run is placed by its start; one with no recorded start is
+// placed by its end.
+func scheduledRestartState(app *v1beta1.Application) scheduledRestart {
+	if app.Status.WorkflowRestartScheduledAt == nil || app.Status.Workflow == nil || !app.Status.Workflow.Finished {
+		return restartNotYet
+	}
+	restartTime := app.Status.WorkflowRestartScheduledAt.Time
+	if time.Now().Before(restartTime) {
+		return restartNotYet
+	}
+	run := app.Status.Workflow.StartTime.Time
+	if run.IsZero() {
+		run = app.Status.Workflow.EndTime.Time
+	}
+	if run.IsZero() || restartTime.After(run) {
+		return restartDue
+	}
+	return restartSuperseded
+}
+
+// checkWorkflowRestart checks if application workflow needs restart.
+// Handles three restart scenarios:
+// 1. Scheduled restart (via workflowRestartScheduledAt status field)
+// 2. PublishVersion annotation change
+// 3. Application revision change
+func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1beta1.Application, handler *AppHandler) {
+	// A scheduled restart that is not due leaves the revision check below to
+	// run, so a new application still starts and a new revision still restarts.
+	switch scheduledRestartState(app) {
+	case restartNotYet:
+	case restartSuperseded:
+		// The last run already answered it; clearing it keeps a stale request
+		// from showing as pending.
+		app.Status.WorkflowRestartScheduledAt = nil
+		if err := r.Status().Update(ctx, app); err != nil {
+			ctx.Error(err, "failed to clear a superseded workflow restart")
+		}
+	case restartDue:
+		app.Status.WorkflowRestartScheduledAt = nil
+		if err := r.Status().Update(ctx, app); err != nil {
+			ctx.Error(err, "failed to clear workflow restart scheduled time")
+			return
+		}
+		if app.Status.Workflow != nil {
+			if handler.latestAppRev != nil && handler.latestAppRev.Status.Workflow == nil {
+				app.Status.Workflow.Terminated = true
+				app.Status.Workflow.Finished = true
+				if app.Status.Workflow.EndTime.IsZero() {
+					app.Status.Workflow.EndTime = metav1.Now()
+				}
+				handler.UpdateApplicationRevisionStatus(ctx, handler.latestAppRev, app.Status.Workflow)
+			}
+		}
+
+		app.Status.Services = nil
+		app.Status.AppliedResources = nil
+		var reservedConditions []condition.Condition
+		for i, cond := range app.Status.Conditions {
+			condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
+			if err == nil {
+				if condTpy <= common.RenderCondition {
+					reservedConditions = append(reservedConditions, app.Status.Conditions[i])
+				}
+			}
+		}
+		app.Status.Conditions = reservedConditions
+		app.Status.Workflow = &common.WorkflowStatus{
+			AppRevision: handler.currentAppRev.Name,
+		}
+		return
+	}
+
+	// Check for revision-based restart (publishVersion or normal revision change)
+	desiredRev, currentRev := handler.currentAppRev.Name, ""
+	if app.Status.Workflow != nil {
+		currentRev = app.Status.Workflow.AppRevision
+	}
+	publishVersionPinned := metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion)
+	if publishVersionPinned {
+		desiredRev = app.GetAnnotations()[oam.AnnotationPublishVersion]
+	} else { // nolint
+		// backward compatibility
+		// legacy versions use <rev>:<hash> as currentRev, extract <rev>
+		if idx := strings.LastIndexAny(currentRev, ":"); idx >= 0 {
+			currentRev = currentRev[:idx]
+		}
+	}
+	// Append a content fingerprint of any helmchart valuesFrom sources so
+	// external ConfigMap/Secret edits move desiredRev and trigger a workflow
+	// restart on the next reconcile. The suffix only appears for Applications
+	// that declare valuesFrom on a helmchart component; all other Applications
+	// observe identical behaviour to before this change.
+	//
+	// Suppressed when publishVersion is set: an explicit pin from the user is
+	// hard, so a CM/Secret edit must not move the revision until the user bumps
+	// the pin. This preserves GitOps semantics for users who rely on the
+	// publishVersion annotation as a stable rollout token.
+	//
+	// On a transient fingerprint computation error (e.g. API hiccup), if the
+	// previous reconcile already persisted a "<base>-vf-..." revision in
+	// status.workflow.appRevision, reuse it so the gate still matches and the
+	// workflow does not flap. The error is logged at V(2) rather than Error so
+	// a persistent failure (e.g. RBAC change deleting CM read) does not produce
+	// alert-storms across the fleet — the persistent failure surfaces during
+	// the next Render() with a clearer error than could be produced here.
+	if !publishVersionPinned {
+		if vfFp, err := computeValuesFromContentFingerprint(ctx, app); err != nil {
+			klog.V(2).InfoS("failed to compute valuesFrom fingerprint; falling back to spec-only workflow gate",
+				"err", err, "appName", app.Name, "namespace", app.Namespace)
+			if currentRev != "" && strings.HasPrefix(currentRev, desiredRev+valuesFromSuffixSeparator) {
+				desiredRev = currentRev
+			}
+		} else if vfFp != "" {
+			desiredRev = desiredRev + valuesFromSuffixSeparator + vfFp[:valuesFromSuffixHexLen]
+		}
+	}
+
+	if currentRev != "" && desiredRev == currentRev {
+		return
+	}
+
+	// Restart needed - record in revision and clean up
+	if app.Status.Workflow != nil {
+		if handler.latestAppRev != nil && handler.latestAppRev.Status.Workflow == nil {
+			app.Status.Workflow.Terminated = true
+			app.Status.Workflow.Finished = true
+			if app.Status.Workflow.EndTime.IsZero() {
+				app.Status.Workflow.EndTime = metav1.Now()
+			}
+			handler.UpdateApplicationRevisionStatus(ctx, handler.latestAppRev, app.Status.Workflow)
+		}
+	}
+
+	app.Status.Services = nil
+	app.Status.AppliedResources = nil
+	var reservedConditions []condition.Condition
+	for i, cond := range app.Status.Conditions {
+		condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
+		if err == nil {
+			if condTpy <= common.RenderCondition {
+				reservedConditions = append(reservedConditions, app.Status.Conditions[i])
+			}
+		}
+	}
+	app.Status.Conditions = reservedConditions
+	app.Status.Workflow = &common.WorkflowStatus{
+		AppRevision: desiredRev,
+	}
+}

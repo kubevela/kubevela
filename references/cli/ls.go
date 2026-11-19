@@ -61,9 +61,15 @@ func NewListCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *c
 			if err != nil {
 				return err
 			}
-			namespace, err := GetFlagNamespaceOrEnv(cmd, c)
+			namespace, err := GetFlagNamespace(cmd, c)
 			if err != nil {
 				return err
+			}
+			if namespace == "" {
+				namespace, err = GetNamespaceFromEnv(cmd, c)
+				if err != nil {
+					return err
+				}
 			}
 			if AllNamespace {
 				namespace = ""
@@ -134,7 +140,20 @@ func buildApplicationListTable(ctx context.Context, c client.Reader, namespace s
 			service[s.Name] = s
 		}
 
-		if len(a.Spec.Components) == 0 {
+		// Use the ApplicationRevision spec so that policy-transformed component
+		// types are reflected correctly.
+		specComponents := a.Spec.Components
+		if a.Status.LatestRevision != nil && a.Status.LatestRevision.Name != "" {
+			appRev := &v1beta1.ApplicationRevision{}
+			if err := c.Get(ctx, client.ObjectKey{
+				Name:      a.Status.LatestRevision.Name,
+				Namespace: a.Namespace,
+			}, appRev); err == nil {
+				specComponents = appRev.Spec.Application.Spec.Components
+			}
+		}
+
+		if len(specComponents) == 0 {
 			if AllNamespace {
 				table.AddRow(a.Namespace, a.Name, "", "", "", a.Status.Phase, "", "", a.CreationTimestamp)
 			} else {
@@ -143,11 +162,11 @@ func buildApplicationListTable(ctx context.Context, c client.Reader, namespace s
 			continue
 		}
 
-		for idx, cmp := range a.Spec.Components {
-			var appName = a.Name
+		for idx, cmp := range specComponents {
+			appName := a.Name
 			if idx > 0 {
 				appName = "├─"
-				if idx == len(a.Spec.Components)-1 {
+				if idx == len(specComponents)-1 {
 					appName = "└─"
 				}
 			}

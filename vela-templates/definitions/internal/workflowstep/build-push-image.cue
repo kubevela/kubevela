@@ -2,7 +2,6 @@ import (
 	"vela/builtin"
 	"vela/kube"
 	"vela/util"
-	"encoding/json"
 	"strings"
 )
 

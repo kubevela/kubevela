@@ -33,9 +33,8 @@ The shell code must be evaluated to provide interactive completion of vela comma
 const bashCompDesc = `Generate the autocompletion script for Vela for the bash shell.
 
 To load completions in your current shell session:
-$ source <(vela completion bash)
 
-To load completions for every new session, execute once:
+` + "```\n$ source <(vela completion bash)\n```\n\n" + `To load completions for every new session, execute once:
 Linux:
   $ vela completion bash > /etc/bash_completion.d/vela
 MacOS:
@@ -45,11 +44,10 @@ MacOS:
 const zshCompDesc = `Generate the autocompletion script for Vela for the zsh shell.
 
 To load completions in your current shell session:
-$ source <(vela completion zsh)
 
-To load completions for every new session, execute once:
-$ vela completion zsh > "${fpath[1]}/_vela"
-`
+` + "```\n$ source <(vela completion zsh)\n```\n\n" + `To load completions for every new session, execute once:
+
+` + "```\n$ vela completion zsh > \"${fpath[1]}/_vela\"\n```\n"
 
 // NewCompletionCommand Output shell completion code for the specified shell (bash or zsh)
 func NewCompletionCommand(order string) *cobra.Command {
