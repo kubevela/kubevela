@@ -97,9 +97,40 @@ var _ = Describe("a child's workload is its parent's", func() {
 		Entry("the same apiVersion, kind left out", common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "apps/v1"}}),
 	)
 
-	It("accepts a child naming by type a workload its parent names by kind", func() {
+	It("accepts a child naming by type a workload its parent names by kind, and keeps its type", func() {
 		gvkOnly := common.WorkloadTypeDescriptor{Definition: deployment.Definition}
-		_, err := resolve(level("child", "base", common.WorkloadTypeDescriptor{Type: "deployments.apps"}), level("base", "", gvkOnly))
+		child := level("child", "base", common.WorkloadTypeDescriptor{Type: "deployments.apps"})
+		_, err := resolve(child, level("base", "", gvkOnly))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(child.Spec.Workload).To(Equal(deployment))
+	})
+
+	// The parent names its workload by kind alone, as one the webhook has not
+	// filled a type in on does. A child's type is still compared against it,
+	// not overwritten by it.
+	DescribeTable("refuses a child naming by type a workload other than the one its parent names by kind",
+		func(w common.WorkloadTypeDescriptor, want string) {
+			gvkOnly := common.WorkloadTypeDescriptor{Definition: deployment.Definition}
+			child := level("child", "base", w)
+			_, err := resolve(child, level("base", "", gvkOnly))
+			Expect(err).To(MatchError(ContainSubstring(want)))
+			Expect(child.Spec.Workload).To(Equal(w))
+		},
+		Entry("another kind in the same group", common.WorkloadTypeDescriptor{Type: "statefulsets.apps"},
+			"component child declares workload statefulsets.apps, but base declares apps/v1 Deployment"),
+		Entry("the same resource in another group", common.WorkloadTypeDescriptor{Type: "deployments.extensions.example.io"},
+			"component child declares workload deployments.extensions.example.io, but base declares apps/v1 Deployment"),
+	)
+
+	It("refuses a child naming by type a group other than its parent's apiVersion", func() {
+		apiOnly := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "apps/v1"}}
+		_, err := resolve(level("child", "base", common.WorkloadTypeDescriptor{Type: "cronjobs.batch"}), level("base", "", apiOnly))
+		Expect(err).To(MatchError(ContainSubstring("component child declares workload cronjobs.batch, but base declares apps/v1")))
+	})
+
+	It("matches a core-group type against its kind", func() {
+		pod := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "v1", Kind: "Pod"}}
+		_, err := resolve(level("child", "base", common.WorkloadTypeDescriptor{Type: "pods"}), level("base", "", pod))
 		Expect(err).NotTo(HaveOccurred())
 	})
 

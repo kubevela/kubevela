@@ -22,8 +22,10 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -222,12 +224,20 @@ func inheritanceEnabled(name, extends string) error {
 // pair at a time instead would let a grandparent answer for a level that had
 // already spoken.
 func inheritComponentAttributes(tmpl *Template, child, parent *v1beta1.ComponentDefinition) {
-	// A child that names the parent's workload only in part, by type or by
-	// apiVersion alone, gets the parent's whole description, so what reads the
-	// workload sees a kind.
-	partial := child.Spec.Workload.Definition.Kind == "" && sameWorkload(child.Spec.Workload, parent.Spec.Workload)
-	if (workloadUnset(child.Spec.Workload) || partial) && !workloadUnset(parent.Spec.Workload) {
-		child.Spec.Workload = parent.Spec.Workload
+	switch w := &child.Spec.Workload; {
+	case workloadUnset(*w):
+		if !workloadUnset(parent.Spec.Workload) {
+			*w = parent.Spec.Workload
+		}
+	case w.Definition.Kind == "" && parent.Spec.Workload.Definition.Kind != "" && sameWorkload(*w, parent.Spec.Workload):
+		// A child that names the parent's workload only in part, by type or by
+		// apiVersion alone, has it completed from the parent, so what reads the
+		// workload sees a kind. What the child said is kept. One that cannot be
+		// the parent's is left as declared for checkWorkloadsMatch to refuse.
+		w.Definition = parent.Spec.Workload.Definition
+		if declaredType(*w) == "" {
+			w.Type = parent.Spec.Workload.Type
+		}
 	}
 	if child.Spec.PodSpecPath == "" {
 		child.Spec.PodSpecPath = parent.Spec.PodSpecPath
@@ -316,8 +326,9 @@ func checkRenderedWorkload(ctx context.Context, levels []namedWorkload, ancestor
 
 // sameWorkload reports whether two declared workloads can be the same one.
 // They are compared on what both of them say: the GVK where both name a kind,
-// the apiVersion where both give one, the type where both give one. Where they
-// share nothing to compare, such as a type against a bare GVK, nothing tells
+// the apiVersion where both give one, the type where both give one. A type
+// against the other's GVK is compared as the `<resource>.<group>` name the
+// webhook gives that GVK. Where they share nothing to compare, nothing tells
 // them apart, and they are taken to agree.
 func sameWorkload(a, b common.WorkloadTypeDescriptor) bool {
 	if a.Definition.Kind != "" && b.Definition.Kind != "" {
@@ -326,10 +337,33 @@ func sameWorkload(a, b common.WorkloadTypeDescriptor) bool {
 	if a.Definition.APIVersion != "" && b.Definition.APIVersion != "" && a.Definition.APIVersion != b.Definition.APIVersion {
 		return false
 	}
-	if ta, tb := declaredType(a), declaredType(b); ta != "" && tb != "" {
+	ta, tb := declaredType(a), declaredType(b)
+	if ta != "" && tb != "" {
 		return ta == tb
 	}
-	return true
+	return typeMatchesGVK(ta, b.Definition) && typeMatchesGVK(tb, a.Definition)
+}
+
+// typeMatchesGVK reports whether a workload type can name a GVK. The webhook
+// names a GVK's workload type after its resource, as `deployments.apps`, and
+// refuses a definition whose type and GVK disagree. Without a REST mapper the
+// resource is the standard guess from the kind, so a type for a kind with an
+// irregular plural does not match; such a child states its GVK, or nothing.
+// With no type, or no apiVersion, there is nothing to compare.
+func typeMatchesGVK(workloadType string, gvk common.WorkloadGVK) bool {
+	if workloadType == "" || gvk.APIVersion == "" {
+		return true
+	}
+	gv, err := schema.ParseGroupVersion(gvk.APIVersion)
+	if err != nil {
+		return false
+	}
+	named := schema.ParseGroupResource(workloadType)
+	if gvk.Kind == "" {
+		return named.Group == gv.Group
+	}
+	plural, _ := meta.UnsafeGuessKindToResource(gv.WithKind(gvk.Kind))
+	return named == plural.GroupResource()
 }
 
 // declaredType is a workload's type unless it is the webhook's autodetect.

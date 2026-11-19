@@ -74,6 +74,10 @@ var _ = Describe("a child that leaves out an output its inherited status reads",
 			"component child leaves out outputs.svc, which the details it inherits from base read"),
 		Entry("an index read", &common.Status{HealthPolicy: "isHealth: context.outputs[\"svc\"] != _|_"},
 			"which the healthPolicy it inherits from base reads"),
+		Entry("outputs reached by an index on context", &common.Status{HealthPolicy: "isHealth: context[\"outputs\"].svc != _|_"},
+			"component child leaves out outputs.svc, which the healthPolicy it inherits from base reads"),
+		Entry("a read through an alias of context", &common.Status{HealthPolicy: "let c = context\nisHealth: c.outputs.svc != _|_"},
+			"component child leaves out outputs.svc, which the healthPolicy it inherits from base reads"),
 	)
 
 	DescribeTable("accepts it once the child takes that concern over",
