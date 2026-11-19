@@ -15,10 +15,10 @@ limitations under the License.
 */
 
 // Package guardedhttp is the vela/http CueX package with the outbound HTTP
-// guard applied. It keeps the template and the response type of
-// github.com/kubevela/pkg/cue/cuex/providers/http and replaces the client, so
-// component, trait, policy and source templates that import vela/http get the
-// same SSRF checks as workflow HTTP steps.
+// guard applied. It keeps the template, types and request building of
+// github.com/kubevela/pkg/cue/cuex/providers/http and only replaces the client,
+// so component, trait, policy and source templates that import vela/http get
+// the same SSRF checks as workflow HTTP steps.
 package guardedhttp
 
 import (
@@ -29,7 +29,6 @@ import (
 	neturl "net/url"
 	"strings"
 
-	"github.com/kubevela/pkg/cue/cuex/providers"
 	kvhttp "github.com/kubevela/pkg/cue/cuex/providers/http"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
@@ -49,36 +48,10 @@ func requestPolicy() httpguard.Policy {
 	return policy
 }
 
-// RequestVars is a vela/http request, with headers and trailers read as the
-// template declares them: one string per name.
-type RequestVars struct {
-	Method  string `json:"method"`
-	URL     string `json:"url"`
-	Request struct {
-		Body    string            `json:"body"`
-		Header  map[string]string `json:"header"`
-		Trailer map[string]string `json:"trailer"`
-	} `json:"request"`
-}
-
-// DoParams is the params of a vela/http request.
-type DoParams providers.Params[RequestVars]
-
-func toHeader(values map[string]string) http.Header {
-	if values == nil {
-		return nil
-	}
-	header := make(http.Header, len(values))
-	for name, value := range values {
-		header.Set(name, value)
-	}
-	return header
-}
-
 // Do runs a vela/http request through the outbound HTTP guard: the deny policy
 // on the URL host, the dial-time check on the resolved address, and the same
 // checks on every redirect hop.
-func Do(ctx context.Context, doParams *DoParams) (*kvhttp.DoReturns, error) {
+func Do(ctx context.Context, doParams *kvhttp.DoParams) (*kvhttp.DoReturns, error) {
 	params := doParams.Params
 	policy := requestPolicy()
 	if parsed, err := neturl.Parse(params.URL); err == nil {
@@ -86,12 +59,10 @@ func Do(ctx context.Context, doParams *DoParams) (*kvhttp.DoReturns, error) {
 			return nil, err
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, params.Method, params.URL, strings.NewReader(params.Request.Body))
+	req, err := kvhttp.NewRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	req.Header = toHeader(params.Request.Header)
-	req.Trailer = toHeader(params.Request.Trailer)
 
 	transport := httpguard.SecureTransport(nil, policy)
 	// The transport is built for this request, so release its idle
@@ -135,5 +106,5 @@ var Package = runtime.Must(cuexruntime.NewInternalPackage(kvhttp.ProviderName,
 	map[string]cuexruntime.ProviderFn{
 		// A request holds nothing shared with the others and spends its time
 		// waiting on the network, so a template asking for @concurrency gets it.
-		"do": cuexruntime.Concurrent(cuexruntime.GenericProviderFn[DoParams, kvhttp.DoReturns](Do)),
+		"do": cuexruntime.Concurrent(cuexruntime.GenericProviderFn[kvhttp.DoParams, kvhttp.DoReturns](Do)),
 	}))
