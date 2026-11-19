@@ -244,10 +244,12 @@ func appliedKey(r querytypes.AppliedResource) string {
 // policy points, and the allowlist must hold for those too. Cluster-scoped
 // objects have no namespace and are withheld under an allowlist.
 func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Application, component, cluster string) ([]querytypes.AppliedResource, appliedInfo, error) {
-	cli := d.f.Client()
-	if cli == nil {
+	if d.f.Client() == nil {
 		return nil, appliedInfo{}, errNoConfig
 	}
+	// The tree pass reads every recorded root, a Secret included; this
+	// client turns that read into a metadata-only one.
+	cli := secretMetadataClient{d.f.Client()}
 	opt := query.Option{
 		Name:      app.Name,
 		Namespace: app.Namespace,
@@ -342,6 +344,91 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 		return nil, appliedInfo{}, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 	}
 	return applied, appliedInfo{notes: unreadResources(recorded, applied), unread: missingResources(recorded, applied)}, nil
+}
+
+// secretMetadataClient serves Secret reads through the metadata-only API: a
+// Get of an unstructured Secret and a List of Secrets, unstructured or
+// typed. The collector's tree pass therefore gets a Secret's metadata,
+// enough for its tree node and health, and never its data or type. Every
+// other read passes through unchanged.
+type secretMetadataClient struct{ client.Client }
+
+func (c secretMetadataClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return c.Client.Get(ctx, key, obj, opts...)
+	}
+	gvk := u.GroupVersionKind()
+	if gvk.Group != "" || gvk.Kind != secretKind {
+		return c.Client.Get(ctx, key, obj, opts...)
+	}
+	pm := &metav1.PartialObjectMetadata{}
+	pm.SetGroupVersionKind(gvk)
+	if err := c.Client.Get(ctx, key, pm, opts...); err != nil {
+		return err
+	}
+	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pm)
+	if err != nil {
+		return err
+	}
+	u.Object = raw
+	u.SetGroupVersionKind(gvk)
+	return nil
+}
+
+// List serves a list of core Secrets, unstructured or typed, from the
+// metadata-only API. The tree pass lists Secrets as children of some kinds,
+// such as a Flux HelmRelease. Each item comes back with its metadata only.
+func (c secretMetadataClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	switch l := list.(type) {
+	case *unstructured.UnstructuredList:
+		gvk := l.GroupVersionKind()
+		if gvk.Group != "" || (gvk.Kind != secretKind+"List" && gvk.Kind != secretKind) {
+			return c.Client.List(ctx, list, opts...)
+		}
+		pml, err := c.listSecretMetadata(ctx, opts...)
+		if err != nil {
+			return err
+		}
+		items := make([]unstructured.Unstructured, 0, len(pml.Items))
+		for i := range pml.Items {
+			raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pml.Items[i])
+			if err != nil {
+				return err
+			}
+			item := unstructured.Unstructured{Object: raw}
+			item.SetAPIVersion(corev1.SchemeGroupVersion.String())
+			item.SetKind(secretKind)
+			items = append(items, item)
+		}
+		l.Items = items
+		l.SetResourceVersion(pml.ResourceVersion)
+		l.SetContinue(pml.Continue)
+		l.SetRemainingItemCount(pml.RemainingItemCount)
+		return nil
+	case *corev1.SecretList:
+		pml, err := c.listSecretMetadata(ctx, opts...)
+		if err != nil {
+			return err
+		}
+		l.ListMeta = pml.ListMeta
+		l.Items = make([]corev1.Secret, len(pml.Items))
+		for i := range pml.Items {
+			l.Items[i] = corev1.Secret{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: secretKind}, ObjectMeta: pml.Items[i].ObjectMeta}
+		}
+		return nil
+	}
+	return c.Client.List(ctx, list, opts...)
+}
+
+// listSecretMetadata lists core v1 Secrets through the metadata-only API.
+func (c secretMetadataClient) listSecretMetadata(ctx context.Context, opts ...client.ListOption) (*metav1.PartialObjectMetadataList, error) {
+	pml := &metav1.PartialObjectMetadataList{}
+	pml.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind(secretKind + "List"))
+	if err := c.Client.List(ctx, pml, opts...); err != nil {
+		return nil, err
+	}
+	return pml, nil
 }
 
 // maxUnreadListed bounds how many unread resources a note names.

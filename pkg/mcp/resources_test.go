@@ -19,6 +19,7 @@ package mcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 
@@ -281,22 +282,34 @@ var _ = Describe("get_managed_resource", func() {
 
 	It("returns only metadata for a Secret, read through the metadata API", func() {
 		metadataReads := 0
+		var fullReads []string
 		funcs := &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 			if pm, partial := obj.(*metav1.PartialObjectMetadata); partial && pm.GetObjectKind().GroupVersionKind().Kind == "Secret" {
 				metadataReads++
+			} else if isSecretObject(obj) {
+				fullReads = append(fullReads, key.String())
+				return fmt.Errorf("full read of Secret %s", key)
 			}
 			return c.Get(ctx, key, obj, opts...)
+		}, List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if isSecretList(list) {
+				fullReads = append(fullReads, "list")
+				return fmt.Errorf("full list of Secrets")
+			}
+			return c.List(ctx, list, opts...)
 		}}
 		h = startHarnessIntercepted(Options{}, nil, funcs, managedFixtures()...)
 		var out GetManagedResourceOutput
 		h.call("get_managed_resource", map[string]any{"name": "web", "namespace": "team-a", "kind": "Secret", "resourceName": "web-creds"}, &out)
+		Expect(fullReads).To(BeEmpty(), "no read of the Secret, the resource tree pass included, returns its data")
 		Expect(out.Resources).To(HaveLen(1))
 		obj := out.Resources[0].Object
 		Expect(obj).To(HaveKey("metadata"))
 		Expect(obj).NotTo(HaveKey("data"))
 		Expect(obj).NotTo(HaveKey("stringData"))
 		Expect(out.Resources[0].ObjectNote).To(ContainSubstring("metadata only"))
-		Expect(metadataReads).To(Equal(1), "the live read of the Secret asks for metadata only")
+		Expect(metadataReads).To(Equal(3), "the tree pass reads the root twice (children lookup, then the root itself) and the live read once, all as metadata")
+		Expect(out.Resources[0].Tree).NotTo(BeEmpty(), "the Secret keeps its tree node")
 		Expect(toJSON(out)).NotTo(ContainSubstring("hunter2"), "no Secret value appears anywhere in the result")
 	})
 
@@ -375,6 +388,39 @@ var _ = Describe("get_logs", func() {
 		Expect(out.Pods[0].Lines).To(Equal([]string{"crashed: panic"}))
 	})
 
+	It("stops reading a log stream at the byte cap and says so", func() {
+		saved := maxLogStreamBytes
+		maxLogStreamBytes = 2 * maxLogBytesPerPod
+		DeferCleanup(func() { maxLogStreamBytes = saved })
+		stream := &longLog{size: 4 * maxLogStreamBytes}
+		logs := func(context.Context, *rest.Config, string, string, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
+			return io.NopCloser(stream), nil
+		}
+		h = startHarness(Options{PodLogs: logs}, managedFixtures()...)
+		var out GetLogsOutput
+		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "web-abc-1"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(stream.read).To(Equal(maxLogStreamBytes+1), "reading stops one byte past the cap, the byte that proves the stream goes on")
+		Expect(out.Pods).To(HaveLen(1))
+		p := out.Pods[0]
+		Expect(p.Truncated).To(BeTrue())
+		Expect(p.Error).To(BeEmpty())
+		Expect(p.Note).To(ContainSubstring("newer lines"))
+		Expect(p.Lines).NotTo(BeEmpty())
+		Expect(p.Lines[len(p.Lines)-1]).To(Equal("0123456789abcde"), "the last whole line read is kept, the probe byte is not")
+		Expect(out.Meta.Truncated).To(BeTrue())
+
+		stream = &longLog{size: maxLogStreamBytes}
+		out = GetLogsOutput{}
+		res = h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "web-abc-1"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(stream.read).To(Equal(maxLogStreamBytes))
+		p = out.Pods[0]
+		Expect(p.Note).To(BeEmpty(), "a stream exactly at the cap was read to its end")
+		Expect(p.Truncated).To(BeTrue(), "only because the stream is longer than the per-pod budget")
+		Expect(p.Lines[len(p.Lines)-1]).To(Equal("0123456789abcde"))
+	})
+
 	It("refuses pods the application does not manage and reports empty matches", func() {
 		h = startHarness(Options{PodLogs: fakeLogs}, managedFixtures()...)
 		res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "other"}, nil)
@@ -397,3 +443,20 @@ var _ = Describe("get_logs", func() {
 		Expect(requests).To(BeEmpty())
 	})
 })
+
+// longLog is a log stream of 16-byte lines, size bytes long, that counts
+// the bytes read from it.
+type longLog struct{ size, read int }
+
+func (l *longLog) Read(p []byte) (int, error) {
+	if l.read >= l.size {
+		return 0, io.EOF
+	}
+	n := min(len(p), l.size-l.read)
+	const line = "0123456789abcde\n"
+	for i := 0; i < n; i++ {
+		p[i] = line[(l.read+i)%len(line)]
+	}
+	l.read += n
+	return n, nil
+}
