@@ -68,21 +68,22 @@ func NewDefinitionTestCommand() *cobra.Command {
 		Use:   "test [PATH]",
 		Short: "Run CUE definition tests.",
 		Long: "Run the *_test.cue files at PATH, a file or a directory searched recursively; PATH defaults to the " +
-			"current directory. " +
+			"current directory.\n\n" +
 			"A test file imports \"vela/test\" and declares each case with one of its functions: " +
 			"#ComponentRender and #TraitRender check what a definition renders from given parameters and context; " +
 			"#ComponentStatus and #TraitStatus check its health, message and details given the state the cluster " +
 			"reports for the rendered objects; #PolicyRender and #ApplicationPolicyRender render a policy; " +
 			"#AddonRender renders an addon as enabling it would; #WorkflowStepExec runs a workflow step and " +
 			"#SourceExec resolves a source. A case's definition is the path of its .cue file, relative to the " +
-			"test file, with \".cue\" optional. " +
+			"test file, with \".cue\" optional.\n\n" +
 			"A case passes when its expectation subsumes the result. Label cases with @label(...) and select them with " +
 			"the Ginkgo-compatible --label-filter, --focus, --skip and --focus-file. A case marked @pending(reason) " +
 			"is not run, and is counted as pending; --check-pending runs it too, and fails it if it passes, since " +
-			"its marker is then stale. Definitions are tested as written; --upgrade first applies every " +
+			"its marker is then stale.\n\n" +
+			"Definitions are tested as written; --upgrade first applies every " +
 			"rewrite of KubeVela's CUE upgrader, to see whether it would rescue one. A case marked @upgrade(reason=...) " +
 			"is a known dependency on the upgrader: if it fails as written it is retried upgraded and counted as " +
-			"upgraded, and if it passes as written it fails until the marker is removed. " +
+			"upgraded, and if it passes as written it fails until the marker is removed.\n\n" +
 			"Render, status, policy and addon cases contact no cluster. Step and source cases run against a local " +
 			"API server with no controllers, started on first use and stopped on exit: its etcd and kube-apiserver " +
 			"binaries come from --envtest-assets or KUBEBUILDER_ASSETS, and its CRDs from --crds or, by default, " +

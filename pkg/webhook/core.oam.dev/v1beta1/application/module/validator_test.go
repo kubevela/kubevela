@@ -45,24 +45,35 @@ func rawProps(t *testing.T, m map[string]interface{}) *runtime.RawExtension {
 	return &runtime.RawExtension{Raw: b}
 }
 
-// gitKinds returns a lister reporting each of names as a Git-backed registry
-// of the given kind, plus a counter of how many times it was called, so a test
-// can assert the ConfigMap is read at most once per admission request.
-func gitKinds(calls *int, kind string, names ...string) registryGitKindLister {
-	kinds := map[string]string{}
-	for _, n := range names {
-		kinds[n] = kind
-	}
-	return func(context.Context, client.Client) (map[string]string, error) {
+// registries returns a lister reporting configured as the full set of
+// configured module registry names, none of them Git backed, plus a counter
+// of how many times it was called, so a test can assert the ConfigMap is read
+// at most once per admission request.
+func registries(calls *int, configured ...string) registryLister {
+	return func(context.Context, client.Client) ([]string, map[string]string, error) {
 		*calls++
-		return kinds, nil
+		return configured, nil, nil
 	}
 }
 
-func failingKinds(calls *int, err error) registryGitKindLister {
-	return func(context.Context, client.Client) (map[string]string, error) {
+// gitRegistries is registries, but names of the given kind are also reported
+// as Git backed. configured must include gitNames for a realistic fixture:
+// a Git-backed registry is still a configured one.
+func gitRegistries(calls *int, kind string, gitNames []string, configured ...string) registryLister {
+	kinds := map[string]string{}
+	for _, n := range gitNames {
+		kinds[n] = kind
+	}
+	return func(context.Context, client.Client) ([]string, map[string]string, error) {
 		*calls++
-		return nil, err
+		return configured, kinds, nil
+	}
+}
+
+func failingRegistries(calls *int, err error) registryLister {
+	return func(context.Context, client.Client) ([]string, map[string]string, error) {
+		*calls++
+		return nil, nil, err
 	}
 }
 
@@ -74,7 +85,7 @@ func moduleComponent(t *testing.T, name string, props map[string]interface{}) co
 func TestValidateComponents(t *testing.T) {
 	testCases := map[string]struct {
 		components []common.ApplicationComponent
-		lister     func(calls *int) registryGitKindLister
+		lister     func(calls *int) registryLister
 		wantFields []string
 		wantReads  int
 	}{
@@ -83,13 +94,13 @@ func TestValidateComponents(t *testing.T) {
 				{Name: "api", Type: "webservice"},
 				{Name: "addon", Type: "addon", Properties: rawProps(t, map[string]interface{}{"registry": "my-git"})},
 			},
-			lister: func(calls *int) registryGitKindLister { return gitKinds(calls, "git", "my-git") },
+			lister: func(calls *int) registryLister { return registries(calls, "my-git") },
 		},
 		"a module component naming no registry needs no cluster read": {
 			components: []common.ApplicationComponent{
 				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "version": "1.0.0"}),
 			},
-			lister: func(calls *int) registryGitKindLister { return gitKinds(calls, "git", "my-git") },
+			lister: func(calls *int) registryLister { return registries(calls, "my-git") },
 		},
 		"a component with no properties at all is accepted": {
 			components: []common.ApplicationComponent{{Name: "kit", Type: ComponentType}},
@@ -131,21 +142,26 @@ func TestValidateComponents(t *testing.T) {
 			components: []common.ApplicationComponent{
 				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "registry": "ecr-modules"}),
 			},
-			lister:    func(calls *int) registryGitKindLister { return gitKinds(calls, "gitlab", "my-lab") },
+			lister: func(calls *int) registryLister {
+				return gitRegistries(calls, "gitlab", []string{"my-lab"}, "ecr-modules", "my-lab")
+			},
 			wantReads: 1,
 		},
-		"an unknown registry name is left to the controller": {
+		"an unknown registry name is rejected": {
 			components: []common.ApplicationComponent{
 				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "registry": "no-such-registry"}),
 			},
-			lister:    func(calls *int) registryGitKindLister { return gitKinds(calls, "git", "my-git") },
-			wantReads: 1,
+			lister:     func(calls *int) registryLister { return registries(calls, "my-git") },
+			wantFields: []string{"spec.components[0].properties.registry"},
+			wantReads:  1,
 		},
 		"a git-backed registry is rejected": {
 			components: []common.ApplicationComponent{
 				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "registry": "my-git"}),
 			},
-			lister:     func(calls *int) registryGitKindLister { return gitKinds(calls, "git", "my-git") },
+			lister: func(calls *int) registryLister {
+				return gitRegistries(calls, "git", []string{"my-git"}, "my-git")
+			},
 			wantFields: []string{"spec.components[0].properties.registry"},
 			wantReads:  1,
 		},
@@ -157,7 +173,9 @@ func TestValidateComponents(t *testing.T) {
 				moduleComponent(t, "c", map[string]interface{}{"module": "c", "registry": "my-gitee"}),
 				moduleComponent(t, "d", map[string]interface{}{"module": "d"}),
 			},
-			lister:     func(calls *int) registryGitKindLister { return gitKinds(calls, "gitee", "my-git", "my-gitee") },
+			lister: func(calls *int) registryLister {
+				return gitRegistries(calls, "gitee", []string{"my-git", "my-gitee"}, "ecr", "my-git", "my-gitee")
+			},
 			wantFields: []string{"spec.components[1].properties.registry", "spec.components[3].properties.registry"},
 			wantReads:  1,
 		},
@@ -166,7 +184,7 @@ func TestValidateComponents(t *testing.T) {
 				moduleComponent(t, "a", map[string]interface{}{"module": "a", "registry": "my-git"}),
 				moduleComponent(t, "b", map[string]interface{}{"module": "b", "registry": "my-git"}),
 			},
-			lister:    func(calls *int) registryGitKindLister { return failingKinds(calls, errors.New("configmap unreadable")) },
+			lister:    func(calls *int) registryLister { return failingRegistries(calls, errors.New("configmap unreadable")) },
 			wantReads: 1,
 		},
 		"a bad component does not hide a good one's registry check": {
@@ -174,7 +192,9 @@ func TestValidateComponents(t *testing.T) {
 				moduleComponent(t, "broken", map[string]interface{}{"version": []string{"1", "2"}}),
 				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "registry": "my-git"}),
 			},
-			lister:     func(calls *int) registryGitKindLister { return gitKinds(calls, "git", "my-git") },
+			lister: func(calls *int) registryLister {
+				return gitRegistries(calls, "git", []string{"my-git"}, "my-git")
+			},
 			wantFields: []string{"spec.components[0].properties", "spec.components[1].properties.registry"},
 			wantReads:  1,
 		},
@@ -185,9 +205,9 @@ func TestValidateComponents(t *testing.T) {
 			calls := 0
 			v := NewValidator(nil)
 			if tc.lister != nil {
-				v.listRegistryGitKinds = tc.lister(&calls)
+				v.listRegistries = tc.lister(&calls)
 			} else {
-				v.listRegistryGitKinds = failingKinds(&calls, errors.New("must not be read"))
+				v.listRegistries = failingRegistries(&calls, errors.New("must not be read"))
 			}
 			app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: tc.components}}
 
@@ -206,7 +226,7 @@ func TestValidateComponents(t *testing.T) {
 func TestValidateComponentsReportsTheOffendingValueAndRemedy(t *testing.T) {
 	calls := 0
 	v := NewValidator(nil)
-	v.listRegistryGitKinds = gitKinds(&calls, "gitlab", "my-lab")
+	v.listRegistries = gitRegistries(&calls, "gitlab", []string{"my-lab"}, "my-lab")
 	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
 		moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "registry": "my-lab"}),
 	}}}
@@ -242,6 +262,28 @@ func TestValidateComponentsCatchesTheRemovedNamespacePropertyInAnyCase(t *testin
 	require.Len(t, errs, 1, "a differently-cased key must not bypass the removed-property check")
 	assert.Equal(t, field.ErrorTypeForbidden, errs[0].Type)
 	assert.Contains(t, errs[0].Detail, "namespace of the Application that installs it")
+}
+
+// TestValidateComponentsReportsTheConfiguredRegistries covers GWCP-110569: an
+// unconfigured module registry is rejected at admission, with a message
+// listing the registries that are configured -- the same feedback the addon
+// validator already gives for the same mistake.
+func TestValidateComponentsReportsTheConfiguredRegistries(t *testing.T) {
+	calls := 0
+	v := NewValidator(nil)
+	v.listRegistries = registries(&calls, "ecr-modules", "my-lab")
+	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+		{Name: "api", Type: "webservice"},
+		moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "registry": "no-such-registry"}),
+	}}}
+
+	errs := v.ValidateComponents(context.Background(), app)
+
+	require.Len(t, errs, 1)
+	assert.Equal(t, "spec.components[1].properties.registry", errs[0].Field)
+	assert.Equal(t, "no-such-registry", errs[0].BadValue)
+	assert.Contains(t, errs[0].Detail, "ecr-modules")
+	assert.Contains(t, errs[0].Detail, "my-lab")
 }
 
 func TestValidateComponentsRedactsUndecodableProperties(t *testing.T) {
@@ -295,8 +337,43 @@ func TestValidatorReadsTheModuleRegistryConfigMap(t *testing.T) {
 	assert.Equal(t, "spec.components[0].properties.registry", errs[0].Field)
 	assert.Contains(t, errs[0].Detail, "is a gitlab source")
 
-	t.Run("no module registry ConfigMap at all", func(t *testing.T) {
+	t.Run("no module registry ConfigMap at all rejects any named registry", func(t *testing.T) {
 		empty := NewValidator(fake.NewClientBuilder().WithScheme(scheme).Build())
-		assert.Empty(t, empty.ValidateComponents(context.Background(), app), "nothing configured means nothing is Git backed")
+		errs := empty.ValidateComponents(context.Background(), app)
+		require.Len(t, errs, 2, "nothing is configured, so both named registries are unknown")
+		assert.Equal(t, "spec.components[0].properties.registry", errs[0].Field)
+		assert.Equal(t, "spec.components[1].properties.registry", errs[1].Field)
 	})
+}
+
+// TestValidatorRejectsAnUnconfiguredRegistryThroughTheRealConfigMap is
+// TestValidatorReadsTheModuleRegistryConfigMap's sibling for GWCP-110569: the
+// unknown-name rejection has to work through the real
+// component.ListRegistrySourcesIn path, not just the stubbed seam the table
+// test above exercises.
+func TestValidatorRejectsAnUnconfiguredRegistryThroughTheRealConfigMap(t *testing.T) {
+	records := map[string]component.Registry{
+		"ecr-modules": {Name: "ecr-modules", Helm: &component.HelmSource{URL: "oci://123.dkr.ecr.us-west-2.amazonaws.com/module"}},
+	}
+	raw, err := json.Marshal(records)
+	require.NoError(t, err)
+	moduleCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: pkgmodule.ModuleRegistryConfigMap, Namespace: velatypes.DefaultKubeVelaNS},
+		Data:       map[string]string{"registries": string(raw)},
+	}
+
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(moduleCM).Build()
+	v := NewValidator(cli)
+
+	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+		moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "registry": "no-such-registry"}),
+	}}}
+	errs := v.ValidateComponents(context.Background(), app)
+
+	require.Len(t, errs, 1)
+	assert.Equal(t, "spec.components[0].properties.registry", errs[0].Field)
+	assert.Equal(t, "no-such-registry", errs[0].BadValue)
+	assert.Contains(t, errs[0].Detail, "ecr-modules")
 }

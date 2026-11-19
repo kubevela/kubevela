@@ -35,7 +35,6 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
@@ -387,8 +386,7 @@ func GenOpenAPI(val cue.Value) (b []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	defaultConfig := &openapi.Config{ExpandReferences: true}
-	b, err = openapi.Gen(paramOnlyVal, defaultConfig)
+	b, err = encodeOpenAPI(val, paramOnlyVal, RefineParameterValue)
 	if err != nil {
 		return nil, err
 	}
@@ -410,8 +408,9 @@ func GenOpenAPIWithCueX(val cue.Value) (b []byte, err error) {
 		return nil, val.Err()
 	}
 	paramOnlyVal := FillParameterDefinitionFieldIfNotExist(val)
-	defaultConfig := &openapi.Config{ExpandReferences: true}
-	b, err = openapi.Gen(paramOnlyVal, defaultConfig)
+	b, err = encodeOpenAPI(val, paramOnlyVal, func(v cue.Value) (cue.Value, error) {
+		return FillParameterDefinitionFieldIfNotExist(v), nil
+	})
 	if err != nil {
 		return nil, err
 	}

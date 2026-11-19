@@ -164,6 +164,100 @@ var _ = Describe("ComponentDefinition inheritance", Label("core-definitions"), f
 		Expect(defs).Should(HaveKey("inherit-parent"), "the ancestor is recorded, or a replay drifts")
 	})
 
+	// The webhook stamps autodetect on a definition without a workload, which the
+	// helper above never leaves out.
+	It("gives a child without a workload its parent's", func() {
+		parent := componentDefinitionIn(namespace, "workload-parent", "", inheritParentTemplate, nil)
+		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
+
+		silent := componentDefinitionIn(namespace, "workload-silent", "workload-parent", inheritChildTemplate, nil)
+		silent.Spec.Workload = common.WorkloadTypeDescriptor{}
+		Expect(k8sClient.Create(ctx, silent)).Should(Succeed())
+
+		By("a child that replaces the output renders a Job of its own")
+		job := componentDefinitionIn(namespace, "workload-job", "workload-parent", `
+$inherit: output: false
+$super: properties: {image: "busybox"}
+output: {
+	apiVersion: "batch/v1"
+	kind:       "Job"
+	metadata: name: context.name
+	spec: template: spec: {
+		restartPolicy: "Never"
+		containers: [{name: context.name, image: "busybox", command: ["true"]}]
+	}
+}
+parameter: {}
+`, nil)
+		job.Spec.Workload = common.WorkloadTypeDescriptor{}
+		Expect(k8sClient.Create(ctx, job)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "workload-app", Namespace: namespace},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name:       "from-silent",
+						Type:       "workload-silent",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.27","tenant":"acme"}`)},
+					},
+					{Name: "from-job", Type: "workload-job"},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			got := &v1beta1.Application{}
+			g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "workload-app", Namespace: namespace}, got)).Should(Succeed())
+			workloads := map[string]common.WorkloadGVK{}
+			for _, svc := range got.Status.Services {
+				workloads[svc.Name] = svc.WorkloadDefinition
+			}
+			g.Expect(workloads).Should(HaveKeyWithValue("from-silent", common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}))
+			g.Expect(workloads).Should(HaveKeyWithValue("from-job", common.WorkloadGVK{}))
+		}, time.Second*60, time.Second*2).Should(Succeed())
+	})
+
+	It("keeps a workload the child declares", func() {
+		parent := componentDefinitionIn(namespace, "declared-parent", "", inheritParentTemplate, nil)
+		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
+
+		child := componentDefinitionIn(namespace, "declared-child", "declared-parent", `
+$inherit: output: false
+$super: properties: {image: "busybox"}
+output: {
+	apiVersion: "batch/v1"
+	kind:       "Job"
+	metadata: name: context.name
+	spec: template: spec: {
+		restartPolicy: "Never"
+		containers: [{name: context.name, image: "busybox", command: ["true"]}]
+	}
+}
+parameter: {}
+`, nil)
+		child.Spec.Workload = common.WorkloadTypeDescriptor{
+			Definition: common.WorkloadGVK{APIVersion: "batch/v1", Kind: "Job"},
+		}
+		Expect(k8sClient.Create(ctx, child)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "declared-app", Namespace: namespace},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{Name: "from-declared", Type: "declared-child"}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			got := &v1beta1.Application{}
+			g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "declared-app", Namespace: namespace}, got)).Should(Succeed())
+			g.Expect(got.Status.Services).ShouldNot(BeEmpty())
+			g.Expect(got.Status.Services[0].WorkloadDefinition).Should(Equal(common.WorkloadGVK{APIVersion: "batch/v1", Kind: "Job"}))
+		}, time.Second*60, time.Second*2).Should(Succeed())
+	})
+
 	It("composes health with the policy it extends", func() {
 		By("a parent whose health depends on its replicas being ready")
 		parent := componentDefinitionIn(namespace, "health-parent", "", inheritParentTemplate, &common.Status{

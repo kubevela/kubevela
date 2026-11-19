@@ -163,7 +163,7 @@ func NewGenKubeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 		}))
 
 	return velacmd.NewCommandBuilder(f, cmd).
-		WithNamespaceFlag(velacmd.UsageOption("The namespace of the serviceaccount. This flag only works when `--serviceaccount` is set.")).
+		WithNamespaceFlag(velacmd.UsageOption("The namespace of the serviceaccount. This flag only works when --serviceaccount is set.")).
 		WithStreams(streams).
 		WithResponsiveWriter().
 		Build()
@@ -293,7 +293,7 @@ func NewListPrivilegesCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 		}))
 
 	return velacmd.NewCommandBuilder(f, cmd).
-		WithNamespaceFlag(velacmd.UsageOption("The namespace of the serviceaccount. This flag only works when `--serviceaccount` is set.")).
+		WithNamespaceFlag(velacmd.UsageOption("The namespace of the serviceaccount. This flag only works when --serviceaccount is set.")).
 		WithClusterFlag(velacmd.UsageOption("The cluster to list privileges. If not set, the command will list privileges in the control plane.")).
 		WithStreams(streams).
 		WithResponsiveWriter().
@@ -470,7 +470,7 @@ func NewGrantPrivilegesCommand(f velacmd.Factory, streams util.IOStreams) *cobra
 		}))
 
 	return velacmd.NewCommandBuilder(f, cmd).
-		WithNamespaceFlag(velacmd.UsageOption("The namespace of the serviceaccount. This flag only works when `--serviceaccount` is set.")).
+		WithNamespaceFlag(velacmd.UsageOption("The namespace of the serviceaccount. This flag only works when --serviceaccount is set.")).
 		WithStreams(streams).
 		WithResponsiveWriter().
 		Build()

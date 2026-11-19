@@ -285,8 +285,8 @@ func TestValidateQuotaWarning(t *testing.T) {
 			appWith("tenant-a", "app-2", "webservice"), nil)
 		assert.Empty(t, errs)
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], `ComponentDefinition "webservice"`)
-		assert.Contains(t, warnings[0], `ComponentDefinition "webservice" in namespace "tenant-a" is using 3 of 5.`)
+		assert.Contains(t, warnings[0], `component type "webservice"`)
+		assert.Contains(t, warnings[0], `component type "webservice" in namespace "tenant-a" is near its quota: used 3, warn 3, limit 5`)
 	})
 
 	t.Run("a warn-only quota warns and never refuses", func(t *testing.T) {
@@ -296,7 +296,7 @@ func TestValidateQuotaWarning(t *testing.T) {
 			appWith("tenant-a", "app-2", "webservice", "webservice", "webservice"), nil)
 		assert.Empty(t, errs)
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], `ComponentDefinition "webservice" in namespace "tenant-a" is using 5 of 3.`)
+		assert.Contains(t, warnings[0], `component type "webservice" in namespace "tenant-a" is over its warn level: used 5, warn 3, no limit`)
 	})
 
 	t.Run("a refusal warns about nothing, it refuses", func(t *testing.T) {
@@ -362,7 +362,7 @@ func TestQuotaCountsAPinnedTypeOnce(t *testing.T) {
 		appWith("tenant-a", "app-2", "webservice", "webservice@v1"), nil)
 	assert.Empty(t, errs)
 	require.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0], `is using 3 of 10.`)
+	assert.Contains(t, warnings[0], `is near its quota: used 3, warn 2, limit 10`)
 }
 
 // The count runs once, but a refusal still names every component behind it.
@@ -620,8 +620,8 @@ func TestValidateTraitQuota(t *testing.T) {
 			appWithTraits("tenant-a", "app-1", "webservice", "gateway"), nil)
 		assert.Empty(t, errs)
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], `TraitDefinition "gateway"`)
-		assert.Contains(t, warnings[0], `is using 2 of 9.`)
+		assert.Contains(t, warnings[0], `trait type "gateway"`)
+		assert.Contains(t, warnings[0], `is near its quota: used 2, warn 2, limit 9`)
 	})
 }
 
@@ -702,8 +702,8 @@ func TestQuotaLoweredUnderANamespaceStaysDrainable(t *testing.T) {
 			appWith("tenant-a", "app-1", "webservice"), old)
 		assert.Empty(t, errs, "an edit that reduces its own use must get through")
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], "is using 4 of 2, and this change does not add to it")
-		assert.Contains(t, warnings[0], "does not add to it")
+		assert.Contains(t, warnings[0], "is over its quota: used 4, limit 2; edit allowed, adds no uses")
+		assert.Contains(t, warnings[0], "adds no uses")
 	})
 
 	t.Run("holding steady is admitted too, and flagged", func(t *testing.T) {
@@ -712,8 +712,8 @@ func TestQuotaLoweredUnderANamespaceStaysDrainable(t *testing.T) {
 			appWith("tenant-a", "app-1", "webservice", "webservice", "webservice"), old)
 		assert.Empty(t, errs)
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], "is using 6 of 2, and this change does not add to it")
-		assert.Contains(t, warnings[0], "does not add to it")
+		assert.Contains(t, warnings[0], "is over its quota: used 6, limit 2; edit allowed, adds no uses")
+		assert.Contains(t, warnings[0], "adds no uses")
 	})
 
 	t.Run("growing is still refused", func(t *testing.T) {
@@ -819,5 +819,41 @@ func TestQuotaExemptNamespace(t *testing.T) {
 			appWith("tenant-a", "app-1", "webservice"), nil)
 		assert.Empty(t, errs)
 		assert.Zero(t, lists, "the exemption is checked before the count, so it saves the list")
+	})
+}
+
+// The warning names the type as the refusal does, says where the namespace stands
+// against the quota, and labels each number, as the ResourceQuota admission error
+// does. Kubernetes asks webhook warnings to stay within 120 characters if possible.
+// Names are the user's and are never cut, so the bound holds for names of typical
+// length, like the ones here.
+func TestQuotaWarningText(t *testing.T) {
+	cases := []struct {
+		name  string
+		total int
+		quota common.NamespaceQuota
+		want  string
+	}{
+		{"below the limit", 3, common.NamespaceQuota{Warn: i32(3), Limit: i32(5)},
+			"is near its quota: used 3, warn 3, limit 5"},
+		{"at the limit", 5, common.NamespaceQuota{Warn: i32(3), Limit: i32(5)},
+			"is at its quota: used 5, limit 5; more uses will be refused"},
+		{"warn only, past the warn level", 5, common.NamespaceQuota{Warn: i32(3)},
+			"is over its warn level: used 5, warn 3, no limit"},
+		{"warn only, at the warn level", 1, common.NamespaceQuota{Warn: i32(1)},
+			"is at its warn level: used 1, warn 1, no limit"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := quotaWarning("component", "webservice", "tenant-a", tc.total, &tc.quota)
+			assert.Equal(t, `component type "webservice" in namespace "tenant-a" `+tc.want, got)
+			assert.LessOrEqual(t, len(got), 120, "Kubernetes asks for warnings of 120 characters or less")
+		})
+	}
+
+	t.Run("an edit admitted over the limit", func(t *testing.T) {
+		got := quotaDrainWarning("component", "webservice", "tenant-a", 6, 2)
+		assert.Equal(t, `component type "webservice" in namespace "tenant-a" is over its quota: used 6, limit 2; edit allowed, adds no uses`, got)
+		assert.LessOrEqual(t, len(got), 120, "Kubernetes asks for warnings of 120 characters or less")
 	})
 }

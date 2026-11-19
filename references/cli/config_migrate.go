@@ -78,8 +78,11 @@ func NewTemplateMigrateCommand(f velacmd.Factory, streams util.IOStreams) *cobra
 config made from it, in any namespace, into ConfigTemplate and Config CRs. Nothing is deleted:
 each config Secret becomes owned by its Config, the template ConfigMap is annotated with the
 ConfigTemplate that replaced it, and a second run skips both. --all does this for every legacy
-template in the namespace, then for the legacy configs left there. Objects a GitOps tool applies
-are adopted too; the report says which, and their new CRs belong where the legacy ones are kept.`),
+template in the namespace, then for the legacy configs left there. Objects that carry a GitOps or
+Helm marker are adopted too, and the report lists them. Keep their new ConfigTemplate and Config
+CRs where the legacy objects come from: for a GitOps source, commit them to its repository next to
+the legacy objects; for a Helm chart or release, add them to the chart. Otherwise the tool's next
+sync or upgrade reapplies the legacy objects.`),
 		Example: `  vela config-template migrate my-template -n vela-system
   vela config-template migrate my-template -n vela-system --dry-run
   vela config-template migrate --all -n vela-system`,
@@ -114,8 +117,11 @@ func NewConfigMigrateCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 The template may already be a ConfigTemplate CR or still a legacy ConfigMap; both work, unless a
 ConfigTemplate that migration did not create shadows the legacy ConfigMap, which is a conflict. The
 Secret is kept and becomes owned by the Config; a second run skips it. --all does this for
-every legacy config in the namespace, with or without a template. Secrets a GitOps tool applies
-are adopted too; the report says which, and their new Configs belong where the Secrets are kept.`),
+every legacy config in the namespace, with or without a template. Secrets that carry a GitOps or
+Helm marker are adopted too, and the report lists them. Keep their new Config CRs where the
+legacy Secrets come from: for a GitOps source, commit them to its repository next to the legacy
+Secrets; for a Helm chart or release, add them to the chart. Otherwise the tool's next sync or
+upgrade reapplies the legacy Secrets.`),
 		Example: `  vela config migrate my-config -n my-team
   vela config migrate my-config -n my-team --dry-run
   vela config migrate --all -n my-team`,
