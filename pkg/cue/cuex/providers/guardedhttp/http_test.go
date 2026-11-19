@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sort"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -124,5 +126,29 @@ r: http.#Do & {$params: {
 		body, err := v.LookupPath(cue.ParsePath("r.$returns.body")).String()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(body).To(Equal("abc,application/json"))
+	})
+
+	It("sends every value of header names that differ only in case", func() {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			values := r.Header.Values("X-Tag")
+			sort.Strings(values)
+			_, _ = w.Write([]byte(strings.Join(values, ",")))
+		}))
+		DeferCleanup(server.Close)
+
+		src := fmt.Sprintf(`
+import "vela/http"
+
+r: http.#Do & {$params: {
+	method: "GET"
+	url:    %q
+	request: header: {"X-Tag": "a", "x-tag": "b"}
+}}
+`, server.URL)
+		v, err := cuex.NewCompilerWithInternalPackages(Package).CompileString(context.Background(), src)
+		Expect(err).NotTo(HaveOccurred())
+		body, err := v.LookupPath(cue.ParsePath("r.$returns.body")).String()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(body).To(Equal("a,b"))
 	})
 })
