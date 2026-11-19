@@ -240,3 +240,22 @@ parameter: {}
 			"component child sets output.spec.replicas, which base already sets; pass a value to base through `$super: properties` instead")))
 	})
 })
+
+var _ = Describe("the hint for a field inside an output", func() {
+	It("quotes a key that starts with an underscore, which CUE would hide", func() {
+		Expect(cueKey("_svc")).To(Equal(`"_svc"`))
+		Expect(cueKey("svc")).To(Equal("svc"))
+		Expect(cueKey("my-svc")).To(Equal(`"my-svc"`))
+	})
+
+	It("does not name an ancestor above a level that left the output out", func() {
+		root := Level{Name: "root", Template: "output: {kind: \"Deployment\"}\noutputs: cm: {kind: \"ConfigMap\", data: mode: \"root\"}\nparameter: {}\n"}
+		middle := Level{Name: "middle", Template: silentMiddle +
+			"$inherit: {outputs: {cm: false}}\noutputs: cm: {kind: \"ConfigMap\", data: mode: parameter.mode}\nparameter: mode: *\"mid\" | string\n"}
+		leaf := Level{Name: "leaf", Template: silentMiddle + "outputs: cm: data: mode: \"leaf\"\n"}
+		_, err := renderComponent(leaf, middle, root)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("which middle already sets; pass a value to middle through `$super: properties` instead"))
+		Expect(err.Error()).NotTo(ContainSubstring("root fixes it"))
+	})
+})

@@ -183,6 +183,10 @@ func requiredBy(ancestors []Level, s Surface, entry string) bool {
 // cueKey writes a key the way CUE source needs it: bare when it is an
 // identifier, quoted otherwise.
 func cueKey(key string) string {
+	// A leading underscore makes a hidden field, not the output's key.
+	if strings.HasPrefix(key, "_") {
+		return strconv.Quote(key)
+	}
 	for i, r := range key {
 		if !(r == '_' || unicode.IsLetter(r) || (i > 0 && unicode.IsDigit(r))) {
 			return strconv.Quote(key)
@@ -207,13 +211,20 @@ func fixedIn(name string, unbound cue.Value) fixedFunc {
 // needs it, and reports the nearest one that writes the value as a constant.
 func fixedAmong(ctx context.Context, ancestors []Level, compile CompileFunc) fixedFunc {
 	return func(path cue.Path) (string, string, bool, bool) {
+		sels := path.Selectors()
 		for _, anc := range ancestors {
 			val, _ := compile(ctx, anc.Template+"\n"+SuperField+": _\n")
-			if !val.Exists() {
-				continue
+			if val.Exists() {
+				if value, isDefault, ok := fixedValue(val.LookupPath(path)); ok {
+					return anc.Name, value, isDefault, true
+				}
 			}
-			if value, isDefault, ok := fixedValue(val.LookupPath(path)); ok {
-				return anc.Name, value, isDefault, true
+			// A level that left this output out wrote its own; what lies
+			// above it no longer reaches the child.
+			if len(sels) > 1 && sels[1].IsString() {
+				if d, err := parseDirectives(anc); err == nil && d.dropped(sels[0].String(), sels[1].Unquoted()) {
+					break
+				}
 			}
 		}
 		return "", "", false, false
