@@ -76,6 +76,12 @@ project:
     - name: cluster-gateway
       url: https://github.com/oam-dev/cluster-gateway
       comment: Multi-cluster gateway KubeVela uses to reach managed clusters.
+    - name: cluster-register
+      url: https://github.com/oam-dev/cluster-register
+      comment: Registers a managed cluster with a KubeVela hub through Open Cluster Management.
+    - name: docker-terraform
+      url: https://github.com/oam-dev/docker-terraform
+      comment: Terraform runtime image used by terraform-controller to execute configurations.
   vulnerability-reporting:
     reports-accepted: true
     bug-bounty-available: false
