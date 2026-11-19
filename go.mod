@@ -37,7 +37,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
 	github.com/jeremywohl/flatten/v2 v2.0.0-20211013061545-07e4a09fb8e4
-	github.com/kubevela/pkg v1.9.3-0.20250625225831-a2894a62a307
+	github.com/kubevela/pkg v1.9.3
 	github.com/kubevela/workflow v0.6.3-0.20261105114039-f2995d4b9bad
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
