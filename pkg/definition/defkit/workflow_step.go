@@ -505,22 +505,14 @@ func (g *WorkflowStepCUEGenerator) WithImports(imports ...string) *WorkflowStepC
 	return g
 }
 
-// addImportIfMissing adds an import if it's not already present.
-func (g *WorkflowStepCUEGenerator) addImportIfMissing(imp string) {
-	for _, existing := range g.imports {
-		if existing == imp {
-			return
-		}
-	}
-	g.imports = append(g.imports, imp)
-}
-
-// detectRequiredImports adds the CUE standard library imports the step's
+// detectRequiredImports returns the CUE standard library imports the step's
 // values declare via the ImportRequirer interface, so that a parameter such as
 // String("team").MinLen(3) (strings.MinRunes) or a condition such as
 // StringList("tags").Contains("gpu") (list.Contains) pulls its package without
-// the author calling WithImports. Mirrors PolicyCUEGenerator.detectRequiredImports.
-func (g *WorkflowStepCUEGenerator) detectRequiredImports(w *WorkflowStepDefinition) {
+// the author calling WithImports. Mirrors PolicyCUEGenerator.detectRequiredImports:
+// the detected imports are returned rather than added to g.imports, so a reused
+// generator does not carry one step's imports into the next.
+func (g *WorkflowStepCUEGenerator) detectRequiredImports(w *WorkflowStepDefinition) []string {
 	scan := NewCUEGenerator()
 	params := append([]Param{}, w.GetParams()...)
 	for _, helper := range w.GetHelperDefinitions() {
@@ -537,9 +529,14 @@ func (g *WorkflowStepCUEGenerator) detectRequiredImports(w *WorkflowStepDefiniti
 			collectImportsFromWorkflowAction(scan, action)
 		}
 	}
-	for _, imp := range scan.imports {
-		g.addImportIfMissing(imp)
-	}
+	return scan.imports
+}
+
+// mergedImports returns the imports to emit for w: the WithImports set first,
+// then the ones detected for w that are not already present. g is left
+// untouched.
+func (g *WorkflowStepCUEGenerator) mergedImports(w *WorkflowStepDefinition) []string {
+	return mergeImports(g.imports, g.detectRequiredImports(w))
 }
 
 // helperRenderedParams returns the params a helper definition renders in full.
@@ -581,15 +578,16 @@ func collectImportsFromWorkflowAction(scan *CUEGenerator, action WorkflowAction)
 
 // GenerateFullDefinition generates the complete CUE definition for a workflow step.
 func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinition) string {
-	// Auto-detect imports needed by parameters and template values.
-	g.detectRequiredImports(w)
+	// Explicit imports plus the ones auto-detected from this step's
+	// parameters and template. Kept in a local so nothing leaks into the next call.
+	imports := g.mergedImports(w)
 
 	var sb strings.Builder
 
 	// Write imports if any
-	if len(g.imports) > 0 {
+	if len(imports) > 0 {
 		sb.WriteString("import (\n")
-		for _, imp := range g.imports {
+		for _, imp := range imports {
 			sb.WriteString(fmt.Sprintf("\t%q\n", imp))
 		}
 		sb.WriteString(")\n\n")
