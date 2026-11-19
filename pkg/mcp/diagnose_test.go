@@ -625,7 +625,7 @@ var _ = DescribeTable("providerOf maps an API group to the family that interpret
 	Entry("Config Connector", "sql.cnrm.cloud.google.com/v1beta1", providerConfigConnector),
 	Entry("Crossplane v2 namespaced", "dynamodb.aws.m.upbound.io/v1beta1", providerCrossplane),
 	Entry("Crossplane community", "database.aws.crossplane.io/v1beta1", providerCrossplane),
-	Entry("a group that only contains a Crossplane suffix", "custom.crossplane.io.example.com/v1", providerKubernetes),
-	Entry("a group that only contains an Upbound suffix", "custom.upbound.io.example.com/v1", providerKubernetes),
+	Entry("a group that only contains a Crossplane suffix", "custom.crossplane.io.example.com/v1", providerStandardConditions),
+	Entry("a group that only contains an Upbound suffix", "custom.upbound.io.example.com/v1", providerStandardConditions),
 	Entry("core", "apps/v1", providerKubernetes),
 )
