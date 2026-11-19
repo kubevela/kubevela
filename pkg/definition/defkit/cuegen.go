@@ -1938,6 +1938,11 @@ func (g *CUEGenerator) writeFieldTree(sb *strings.Builder, node *fieldNode, dept
 			// Multi-conditional nodes render their own if blocks internally,
 			// so they must be treated as unconditional at the parent level.
 			unconditional = append(unconditional, name)
+		case child.value != nil && len(child.children) > 0:
+			// A node carrying both its own value and children renders the two
+			// as siblings with their own guards; wrapping it in the parent
+			// group would nest the children under the value's condition.
+			unconditional = append(unconditional, name)
 		case child.cond != nil:
 			condStr := g.conditionToCUE(child.cond)
 			conditional[condStr] = append(conditional[condStr], name)
@@ -1994,6 +1999,13 @@ func (g *CUEGenerator) liftChildConditions(node *fieldNode) {
 		for _, grandName := range child.childOrder {
 			grand := child.children[grandName]
 			if grand == nil || grand.cond == nil {
+				canLift = false
+				break
+			}
+			// A grandchild with both its own value and children carries a
+			// condition that guards only the value, not its subtree: lifting
+			// it would wrap the whole child in a guard the subtree never had.
+			if grand.value != nil && len(grand.children) > 0 {
 				canLift = false
 				break
 			}
@@ -2067,6 +2079,13 @@ func (g *CUEGenerator) tryDecomposeOrLift(sb *strings.Builder, name string, node
 			canLift = false
 			break
 		}
+		// A child with both its own value and children carries a condition
+		// that guards only the value, not its subtree: lifting it would wrap
+		// writes in a guard they never had.
+		if child.value != nil && len(child.children) > 0 {
+			canLift = false
+			break
+		}
 		childCondStr := g.conditionToCUE(child.cond)
 		if condStr == "" {
 			condStr = childCondStr
@@ -2125,6 +2144,37 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 	// Emit directive annotations before the field
 	for _, directive := range node.directives {
 		sb.WriteString(fmt.Sprintf("%s// +%s\n", indent, directive))
+	}
+
+	// A node with both its own value and children: the value write and the
+	// children writes are independent operations on the same subtree, so emit
+	// them as siblings, each under its own condition. CUE unification merges
+	// the results; a genuine conflict surfaces as a loud evaluation error
+	// instead of one write silently disappearing.
+	if node.value != nil && len(node.children) > 0 {
+		writeOwnValue := func(cond Condition, v Value) {
+			valStr := g.valueToCUE(v)
+			if cond != nil {
+				condStr := g.conditionToCUE(cond)
+				sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, g.indent, cueLabel(name), valStr))
+				sb.WriteString(fmt.Sprintf("%s}\n", indent))
+				return
+			}
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, cueLabel(name), valStr))
+		}
+		writeOwnValue(node.cond, node.value)
+		for _, cv := range node.condValues {
+			writeOwnValue(cv.cond, cv.value)
+		}
+		clone := *node
+		clone.value = nil
+		clone.cond = nil
+		clone.condValues = nil
+		// already emitted above; the recursive call must not repeat them
+		clone.directives = nil
+		g.writeFieldNode(sb, name, &clone, depth)
+		return
 	}
 
 	// Regular field
@@ -2268,6 +2318,13 @@ func (g *CUEGenerator) canDecomposeByCondition(node *fieldNode) map[string][]str
 // collectLeafConditions traverses a subtree and collects the CUE string
 // representations of all leaf conditions. An unconditional leaf adds "".
 func (g *CUEGenerator) collectLeafConditions(node *fieldNode, condSet map[string]bool) {
+	if node.value != nil && len(node.children) > 0 {
+		// A node carrying both its own value and children renders as sibling
+		// blocks with independent guards; no single condition covers it, so
+		// report it as unconditional to block decomposition above it.
+		condSet[""] = true
+		return
+	}
 	if node.cond != nil && node.value != nil {
 		condSet[g.conditionToCUE(node.cond)] = true
 		// Also collect conditions from condValues (additional conditional
