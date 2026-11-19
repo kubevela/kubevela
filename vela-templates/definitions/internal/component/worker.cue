@@ -301,6 +301,22 @@ template: {
 			value?: string
 			// +usage=Specifies a source the value of this var should come from
 			valueFrom?: {
+				// +usage=Selects a field of the pod, such as metadata.name or status.podIP
+				fieldRef?: {
+					// +usage=Path of the field to select, such as metadata.namespace
+					fieldPath: string
+					// +usage=Version of the schema the fieldPath is written in, v1 by default
+					apiVersion?: string
+				}
+				// +usage=Selects a resource limit or request of a container, such as limits.memory
+				resourceFieldRef?: {
+					// +usage=The resource to select, such as limits.cpu or requests.memory
+					resource: string
+					// +usage=Container to read the resource from, this container by default
+					containerName?: string
+					// +usage=Unit the value is expressed in, such as 1Mi, 1 by default
+					divisor?: string
+				}
 				// +usage=Selects a key of a secret in the pod's namespace
 				secretKeyRef?: {
 					// +usage=The name of the secret in the pod's namespace to select from

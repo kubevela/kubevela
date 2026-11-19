@@ -303,7 +303,7 @@ func TestBuildResourceItem(t *testing.T) {
 
 	t.Run("without annotations", func(t *testing.T) {
 		t.Parallel()
-		item := buildResourceItem(res, workload, pod)
+		item := buildResourceItem(res, workload, pod, nil)
 		assert.Equal(t, "test-cluster", item.Cluster)
 		assert.Equal(t, "test-comp", item.Component)
 		assert.Equal(t, workload, item.Workload)
@@ -314,7 +314,7 @@ func TestBuildResourceItem(t *testing.T) {
 
 	t.Run("with annotations", func(t *testing.T) {
 		t.Parallel()
-		item := buildResourceItem(res, workload, podWithAnnotations)
+		item := buildResourceItem(res, workload, podWithAnnotations, nil)
 		assert.Equal(t, "test-cluster", item.Cluster)
 		assert.Equal(t, "test-comp", item.Component)
 		assert.Equal(t, workload, item.Workload)
@@ -323,8 +323,21 @@ func TestBuildResourceItem(t *testing.T) {
 		assert.Equal(t, "rev2-annotated", item.DeployVersion)
 	})
 
+	t.Run("with additional info", func(t *testing.T) {
+		t.Parallel()
+		info := map[string]interface{}{"Status": "CrashLoopBackOff"}
+		item := buildResourceItem(res, workload, pod, info)
+		assert.Equal(t, info, item.AdditionalInfo)
+	})
+
+	t.Run("without additional info", func(t *testing.T) {
+		t.Parallel()
+		item := buildResourceItem(res, workload, pod, nil)
+		assert.Nil(t, item.AdditionalInfo)
+	})
+
 	t.Run("annotation override", func(t *testing.T) {
-		item := buildResourceItem(res, workload, podWithAnnotations)
+		item := buildResourceItem(res, workload, podWithAnnotations, nil)
 		assert.Equal(t, "v2.0.0-annotated", item.PublishVersion)
 		assert.Equal(t, "rev2-annotated", item.DeployVersion)
 	})
