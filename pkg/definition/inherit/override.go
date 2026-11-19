@@ -127,6 +127,11 @@ func CheckOverrides(ctx context.Context, at string, self Level, own cue.Value, a
 	cut := map[string]bool{}
 	cutsOf(d, cut)
 	for _, anc := range ancestors {
+		// A field the ancestor writes only under a condition is absent from its
+		// unbound value below, so it is read from the source first.
+		if err := checkGuarded(ctx, at, own, anc, s, cut, compile); err != nil {
+			return err
+		}
 		// A level above the first calls its own parent, so `$super` is opened
 		// for it to compile.
 		val, _ := compile(ctx, anc.Template+"\n"+SuperField+": _\n")
