@@ -101,6 +101,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into TraitDefinition object - malformed request")
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
+		// A definition being deleted renders nothing again, and judging it would
+		// only hold up its finalizers: a child whose parent went first could
+		// never finish deleting.
+		if obj.DeletionTimestamp != nil {
+			return admission.Allowed("")
+		}
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)
 		}
