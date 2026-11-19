@@ -100,7 +100,9 @@ var _ = Describe("security properties", func() {
 
 			// Restricted to the Application's namespace: foreign and
 			// cluster-scoped objects are withheld and counted.
-			// The client records every read, so "never reads" is checked, not assumed.
+			// The client records any Get in kube-system or of the cluster-scoped
+			// team-b Namespace, and any List in kube-system, so "never reads" is
+			// checked for the two withheld objects, not assumed.
 			var foreign []string
 			record := func(what string) { foreign = append(foreign, what) }
 			funcs := &interceptor.Funcs{

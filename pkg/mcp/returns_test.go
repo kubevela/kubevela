@@ -143,7 +143,7 @@ var _ = Describe("what the tools return", func() {
 			out.Handles.Window.To, explained.Handles.Window.To = out.Handles.Window.From, explained.Handles.Window.From
 			Expect(out.Handles).To(Equal(explained.Handles))
 			Expect(out.Handles.Pods).To(HaveLen(2))
-			Expect(out.Handles.LabelSelector).To(Equal("app.oam.dev/name=web,app.oam.dev/namespace=team-a"))
+			Expect(out.Handles.LabelSelector).To(Equal("app.oam.dev/name=web"))
 		})
 
 		It("under an allowlist does not read nodes for a NodePort address and says so", func() {
@@ -238,6 +238,22 @@ var _ = Describe("what the tools return", func() {
 			Expect(out.Unknowns).To(ContainElement(ContainSubstring("Ingress team-a/web sets no host")))
 			Expect(out.Unknowns).NotTo(ContainElement(SatisfyAll(ContainSubstring("Ingress"), ContainSubstring("NodePort"))))
 		})
+
+		It("names the kind of an unstructured object it refused or could not read", func() {
+			seldon := schema.GroupVersionKind{Group: "machinelearning.seldon.io", Version: "v1", Kind: "SeldonDeployment"}
+			forbid := &interceptor.Funcs{Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+				return apierrors.NewForbidden(schema.GroupResource{Group: seldon.Group, Resource: "seldondeployments"}, "model", errors.New("denied"))
+			}}
+			h = startHarnessIntercepted(Options{}, nil, forbid)
+			reader := &endpointReader{Client: h.srv.deps.f.Client(), allowed: func(ns string) bool { return ns == "team-a" }}
+			for _, ns := range []string{"team-a", "team-b"} {
+				obj := &unstructured.Unstructured{}
+				obj.SetGroupVersionKind(seldon)
+				Expect(reader.Get(h.ctx, client.ObjectKey{Namespace: ns, Name: "model"}, obj)).NotTo(Succeed())
+			}
+			Expect(sortedKeys(reader.failed)).To(ConsistOf(HavePrefix("SeldonDeployment team-a/model: ")))
+			Expect(sortedKeys(reader.refused)).To(ConsistOf("SeldonDeployment team-b/model"))
+		})
 	})
 
 	Context("get_logs", func() {
@@ -295,6 +311,58 @@ var _ = Describe("what the tools return", func() {
 			Expect(out.Pods).NotTo(BeEmpty(), "pods in the traced scope are still read")
 			Expect(out.Meta.Truncated).To(BeTrue())
 			Expect(out.Meta.Warnings).To(ContainElement(SatisfyAll(ContainSubstring("not traced"), ContainSubstring("Narrow by cluster or component"))))
+		})
+
+		It("does not deny pods exist when the allowlist withheld the filtered resources", func() {
+			objs := managedFixtures()
+			for _, o := range objs {
+				if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+					rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+						ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "team-b", Name: "worker"}},
+						OAMObjectReference:     oamcommon.OAMObjectReference{Component: "worker"},
+					})
+				}
+			}
+			reads := 0
+			logs := func(context.Context, *rest.Config, string, string, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
+				reads++
+				return io.NopCloser(strings.NewReader("ready\n")), nil
+			}
+			h = startHarness(Options{PodLogs: logs, Namespaces: []string{"team-a"}}, objs...)
+			res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "component": "worker"}, nil)
+			text := errorText(res)
+			Expect(text).NotTo(ContainSubstring("has no pods matching"))
+			Expect(text).To(SatisfyAll(ContainSubstring("may belong to a recorded resource"), ContainSubstring("1 resources are outside this server's allowed namespaces and were withheld")))
+			Expect(reads).To(BeZero(), "no log was read")
+		})
+
+		It("does not call a named pod unmanaged when some resources were not traced", func() {
+			objs := managedFixtures()
+			allowed := []string{"team-a"}
+			for i := 0; i < maxTreeScopes; i++ {
+				ns := fmt.Sprintf("extra-%d", i)
+				allowed = append(allowed, ns)
+				for _, o := range objs {
+					if rt, ok := o.(*v1beta1.ResourceTracker); ok {
+						rt.Spec.ManagedResources = append(rt.Spec.ManagedResources, v1beta1.ManagedResource{
+							ClusterObjectReference: oamcommon.ClusterObjectReference{ObjectReference: corev1.ObjectReference{APIVersion: "v1", Kind: "ConfigMap", Namespace: ns, Name: "cfg"}},
+							OAMObjectReference:     oamcommon.OAMObjectReference{Component: "web"},
+						})
+					}
+				}
+				objs = append(objs, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: ns}})
+			}
+			reads := 0
+			logs := func(context.Context, *rest.Config, string, string, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
+				reads++
+				return io.NopCloser(strings.NewReader("ready\n")), nil
+			}
+			h = startHarness(Options{PodLogs: logs, Namespaces: allowed}, objs...)
+			res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a", "pod": "worker-0"}, nil)
+			text := errorText(res)
+			Expect(text).NotTo(ContainSubstring("not managed"))
+			Expect(text).To(SatisfyAll(ContainSubstring(`pod "worker-0"`), ContainSubstring("may belong to a recorded resource"), ContainSubstring("not traced"), ContainSubstring("narrow the request by component")))
+			Expect(reads).To(BeZero(), "no log was read")
 		})
 	})
 

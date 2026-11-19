@@ -113,6 +113,8 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	if in.Pod != "" {
 		targets = selectPod(targets, in.Pod)
 		switch {
+		case len(targets) == 0 && (len(info.unread) > 0 || len(info.untraced) > 0 || info.withheld > 0):
+			return nil, out, fmt.Errorf("pod %q was not found under the resources of application %s/%s whose trees were read; it may belong to a recorded resource whose tree was not read: %s", in.Pod, app.Namespace, app.Name, strings.Join(incompleteInventory(info), "; "))
 		case len(targets) == 0:
 			return nil, out, fmt.Errorf("pod %q is not managed by application %s/%s", in.Pod, app.Namespace, app.Name)
 		case len(targets) > 1:
@@ -124,8 +126,8 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		}
 	}
 	if len(targets) == 0 {
-		if len(info.untraced) > 0 {
-			return nil, out, fmt.Errorf("no pods were found in the cluster and namespace pairs this server traced; %d resources of %s/%s were not traced: %s", len(info.untraced), app.Namespace, app.Name, strings.Join(info.notes, "; "))
+		if incomplete := incompleteInventory(info); len(incomplete) > 0 {
+			return nil, out, fmt.Errorf("no pods matching the filter were found under the resources of application %s/%s whose trees were read; they may belong to a recorded resource whose tree was not read: %s", app.Namespace, app.Name, strings.Join(incomplete, "; "))
 		}
 		return nil, out, fmt.Errorf("application %s/%s has no pods matching the filter", app.Namespace, app.Name)
 	}
@@ -160,7 +162,9 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		out.Pods = append(out.Pods, pl)
 		out.Evidence = append(out.Evidence, fmt.Sprintf("Pod %s/%s container %s in cluster %s", t.namespace, t.name, pl.Container, t.cluster))
 	}
-	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, d.f.Client(), app, applied, time.Now().UTC())
+	// The handles' pod-cap note is dropped: the pods below replace the
+	// handle list, and the per-call cap above already says what was cut.
+	handles, handleEvidence, handleUnknowns, _ := d.buildHandles(ctx, d.f.Client(), app, applied, time.Now().UTC())
 	// The handles describe the pods this call read, after the pod filter and
 	// the per-call cap, not every pod the Application runs.
 	handles.Pods = make([]PodHandle, 0, len(targets))
@@ -175,6 +179,37 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	meta.Warnings = append(meta.Warnings, handleUnknowns...)
 	out.Meta = meta
 	return nil, out, nil
+}
+
+// incompleteInventory says which recorded resources had no tree read, by
+// reason, so an answer about a missing pod does not claim it is unmanaged.
+func incompleteInventory(info appliedInfo) []string {
+	var parts []string
+	if n := len(info.untraced); n > 0 {
+		parts = append(parts, fmt.Sprintf("%d resources were not traced because the Application spans more cluster and namespace pairs than this server traces; narrow the request by component or cluster to trace them", n))
+	}
+	if info.withheld > 0 {
+		parts = append(parts, fmt.Sprintf("%d resources are outside this server's allowed namespaces and were withheld", info.withheld))
+	}
+	if len(info.unread) > 0 {
+		parts = append(parts, unreadList(info.unread))
+	}
+	return parts
+}
+
+// unreadList names recorded resources the tree pass could not read, for an
+// error that must not claim their pods do not exist.
+func unreadList(unread []querytypes.AppliedResource) string {
+	names := make([]string, 0, len(unread))
+	for _, r := range unread {
+		names = append(names, r.Kind+" "+objectName(r.Namespace, r.Name)+" in cluster "+clusterName(r.Cluster))
+	}
+	sort.Strings(names)
+	more := ""
+	if len(names) > maxUnreadListed {
+		names, more = names[:maxUnreadListed], fmt.Sprintf(" and %d more", len(names)-maxUnreadListed)
+	}
+	return fmt.Sprintf("%d recorded resources that could not be read, or were deleted after they were recorded: %s%s", len(unread), strings.Join(names, ", "), more)
 }
 
 func logOptions(in GetLogsInput) corev1.PodLogOptions {
