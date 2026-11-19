@@ -721,8 +721,8 @@ github.com/oam-dev/stern v1.13.3-0.20261007155744-2c166cd8b945 h1:SbfBaVxZpqhp0z
 github.com/oam-dev/stern v1.13.3-0.20261007155744-2c166cd8b945/go.mod h1:HuvBLJ3PSXwUN84pvqJHlv/AGud85oXRGWidds4quUY=
 github.com/oam-dev/terraform-config-inspect v0.0.0-20261007155724-d8a4743f5ad5 h1:HpCetA2QQU4bM51qTexbs+QiyZFooa8Z3WZHL+BSzd8=
 github.com/oam-dev/terraform-config-inspect v0.0.0-20261007155724-d8a4743f5ad5/go.mod h1:BnxHZy2GvvAeRbOATryZfDFxnEb0dsh11GDanO5N3BI=
-github.com/oam-dev/terraform-controller v0.8.1-0.20261007155713-6804e7b2e5b4 h1:bldAN2Ote+kmDjNveOEqWY3QP6d3NnZLL3X5ZckA6F0=
-github.com/oam-dev/terraform-controller v0.8.1-0.20261007155713-6804e7b2e5b4/go.mod h1:VY09yJlYWB/Fz4ClNijeBoAYmciiI5J8pKRMxajyMIE=
+github.com/oam-dev/terraform-controller v0.9.1 h1:HczNZbGiOGL9MIMuyEvMPQcvuT6bwE0rziiT2tnNjOQ=
+github.com/oam-dev/terraform-controller v0.9.1/go.mod h1:VY09yJlYWB/Fz4ClNijeBoAYmciiI5J8pKRMxajyMIE=
 github.com/oasdiff/yaml v0.0.0-20250309154309-f31be36b4037 h1:G7ERwszslrBzRxj//JalHPu/3yz+De2J+4aLtSRlHiY=
 github.com/oasdiff/yaml v0.0.0-20250309154309-f31be36b4037/go.mod h1:2bpvgLBZEtENV5scfDFEtB/5+1M4hkQhDQrccEJ/qGw=
 github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 h1:bQx3WeLcUWy+RletIKwUIt4x3t8n2SxavmoclizMb8c=
