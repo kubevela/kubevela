@@ -47,10 +47,10 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
-	github.com/oam-dev/cluster-gateway v1.9.2-0.20261007161929-f1e00d9a9b07
-	github.com/oam-dev/cluster-register v1.0.4-0.20261007161948-d674530a63cd
+	github.com/oam-dev/cluster-gateway v1.10.0-alpha.1
+	github.com/oam-dev/cluster-register v1.1.0-alpha.1
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20261007155724-d8a4743f5ad5
-	github.com/oam-dev/terraform-controller v0.8.1-0.20261007155713-6804e7b2e5b4
+	github.com/oam-dev/terraform-controller v0.9.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.43.0
@@ -163,10 +163,10 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
-	github.com/containerd/containerd v1.7.27 // indirect
+	github.com/containerd/containerd v1.7.36 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect

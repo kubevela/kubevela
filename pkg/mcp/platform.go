@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	goversion "github.com/hashicorp/go-version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -119,8 +120,16 @@ type GetPlatformInfoOutput struct {
 // getPlatformInfo never fails on a partial lookup: whatever could be read is
 // returned and the lookup error is repeated in the envelope's warnings.
 func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in GetPlatformInfoInput) (*sdk.CallToolResult, GetPlatformInfoOutput, error) {
-	info, err := d.cachedPlatform(ctx)
+	info, readAt, hit, err := d.cachedPlatform(ctx)
 	out := GetPlatformInfoOutput{platformInfo: info, Addons: []AddonSummary{}, ServedData: servedDataBuiltin, Meta: metaFrom(info, err)}
+	// The platform fields are dated when they were read, the same way
+	// whether this call read them or the cache served them. On a cache hit
+	// the rest of the response is still read live, so the source is mixed.
+	out.Meta.ObservedAt = readAt.UTC()
+	if hit {
+		out.Meta.Source = SourceMixed
+		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("velaCLI, velaCore, gitRevision, kubernetes, featureGates, controller, clusterGateway and warnings come from a cached platform read at %s; addons, cloudProvisioners, provisioner and practice were read live by this call", readAt.UTC().Format(time.RFC3339)))
+	}
 	if cli := d.f.Client(); cli != nil {
 		addons, more, err := enabledAddons(ctx, cli, d.opts.SystemNamespace)
 		switch {
@@ -255,7 +264,7 @@ func (d *deps) remoteReadWarning(ctx context.Context, clusters map[string]bool) 
 	if !remote {
 		return ""
 	}
-	info, _ := d.cachedPlatform(ctx)
+	info, _, _, _ := d.cachedPlatform(ctx)
 	switch {
 	case info.Gateway.IdentityPenetration != nil && *info.Gateway.IdentityPenetration:
 		return ""
@@ -323,18 +332,30 @@ func controllerVersion(deploy *appsv1.Deployment) string {
 }
 
 // parseFeatureGates reads every --feature-gates argument. The chart passes
-// one flag per gate, but a single comma-separated flag is also accepted.
+// one flag per gate, but a single comma-separated flag is also accepted, as
+// is the flag and its value as two arguments. Arguments are read in argv
+// order, Command then Args, so a gate set twice takes its last value, as the
+// binary does.
 func parseFeatureGates(deploy *appsv1.Deployment) map[string]bool {
 	c := mainContainer(deploy)
 	if c == nil {
 		return nil
 	}
 	gates := map[string]bool{}
-	for _, arg := range append(append([]string{}, c.Args...), c.Command...) {
-		if !strings.HasPrefix(arg, featureGatesFlag) {
+	argv := append(append([]string{}, c.Command...), c.Args...)
+	for i := 0; i < len(argv); i++ {
+		arg := argv[i]
+		var value string
+		switch {
+		case strings.HasPrefix(arg, featureGatesFlag):
+			value = strings.TrimPrefix(arg, featureGatesFlag)
+		case arg == strings.TrimSuffix(featureGatesFlag, "=") && i+1 < len(argv):
+			i++
+			value = argv[i]
+		default:
 			continue
 		}
-		for _, kv := range strings.Split(strings.TrimPrefix(arg, featureGatesFlag), ",") {
+		for _, kv := range strings.Split(value, ",") {
 			k, v, ok := strings.Cut(strings.TrimSpace(kv), "=")
 			if !ok || k == "" {
 				continue

@@ -30,8 +30,9 @@ limitations under the License.
 //
 // # Security model
 //
-// The server runs as a child process of the agent harness and speaks only
-// over stdio; there is no listener. On the control plane it acts with the
+// The vela mcp command runs as a child process of the agent harness over
+// stdio (Run); there is no listener. Serve accepts another transport only
+// for embedding and tests. On the control plane it acts with the
 // caller's kubeconfig identity through the same Factory the rest of the
 // CLI uses, so Kubernetes RBAC is the authorization boundary. Reads in
 // other clusters go through cluster-gateway and carry the caller's identity
@@ -49,8 +50,10 @@ limitations under the License.
 // namespace builds on.
 //
 // Secret objects come back as metadata only and ConfigMap values as keys
-// only. Annotations that embed a serialized object are dropped. Secret-like
-// keys and env entries are replaced, and credential-shaped substrings and
+// only. The last-applied-configuration annotations kubectl and KubeVela
+// write, which embed a serialized object, are dropped; other annotations
+// get the pattern-based redaction below. Secret-like keys and env entries
+// are replaced, and credential-shaped substrings and
 // control characters are removed from strings, log lines, event messages
 // and error text. That last step is pattern based and therefore best
 // effort; the structural rules above are what make Secret and ConfigMap

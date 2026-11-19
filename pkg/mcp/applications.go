@@ -70,7 +70,7 @@ type ApplicationSummary struct {
 	Name       string           `json:"name"`
 	Namespace  string           `json:"namespace"`
 	Phase      string           `json:"phase" jsonschema:"Application phase as the controller recorded it, such as running or runningWorkflow."`
-	Healthy    bool             `json:"healthy" jsonschema:"False when the phase or a workflow step failed, or when no service has reported status yet."`
+	Healthy    bool             `json:"healthy" jsonschema:"False when the phase or a workflow step failed, when no service has reported status yet, or when any service or non-pending trait is unhealthy."`
 	Components []ComponentRef   `json:"components" jsonschema:"Components with their types."`
 	Workflow   *WorkflowSummary `json:"workflow,omitempty" jsonschema:"Workflow progress: mode, phase, and whether it is suspended, terminated or finished."`
 	Revision   string           `json:"revision,omitempty" jsonschema:"Latest ApplicationRevision name."`
@@ -341,11 +341,14 @@ func (d *deps) getApplication(ctx context.Context, _ *sdk.CallToolRequest, in Ge
 	if len(endpoints) > 0 {
 		out.Evidence = append(out.Evidence, fmt.Sprintf("%d endpoints from the Services, Ingresses and HTTPRoutes the Application manages", len(endpoints)))
 	}
-	handles, handleEvidence, handleUnknowns := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
+	handles, handleEvidence, handleUnknowns, podsCut := d.buildHandles(ctx, cli, app, applied, time.Now().UTC())
 	out.Handles = handles
 	out.Evidence = append(out.Evidence, handleEvidence...)
 	out.Unknowns = append(out.Unknowns, handleUnknowns...)
-	out.Meta.Truncated = out.Meta.Truncated || cut || len(info.untraced) > 0
+	if podsCut != "" {
+		out.Unknowns = append(out.Unknowns, podsCut)
+	}
+	out.Meta.Truncated = out.Meta.Truncated || cut || len(info.untraced) > 0 || podsCut != ""
 	clusters := map[string]bool{}
 	for i := range applied {
 		clusters[applied[i].Cluster] = true
@@ -458,9 +461,10 @@ func summarizeWorkflow(wf *oamcommon.WorkflowStatus) WorkflowSummary {
 	}
 }
 
-// applicationHealthy mirrors the rule vela status prints: a terminal or
-// unhealthy phase, a failed step, missing service status, or any unhealthy
-// service or trait means not healthy.
+// applicationHealthy mirrors the controller's health rollup (pending traits
+// are skipped), which vela status follows except for pending traits. A
+// terminal or unhealthy phase, a failed step or sub-step, missing service
+// status, or any unhealthy service or non-pending trait means not healthy.
 func applicationHealthy(app *v1beta1.Application) bool {
 	switch app.Status.Phase {
 	case oamcommon.ApplicationWorkflowFailed,

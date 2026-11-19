@@ -17,15 +17,23 @@ limitations under the License.
 package mcp
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var _ = Describe("correlation handles", func() {
@@ -57,10 +65,13 @@ var _ = Describe("correlation handles", func() {
 			PodHandle{Cluster: "local", Namespace: "team-a", Name: "web-abc-1", Component: "web"},
 			PodHandle{Cluster: "local", Namespace: "team-a", Name: "web-abc-2", Component: "web"},
 		))
-		Expect(hd.Labels).To(Equal(map[string]string{"app.oam.dev/name": "web", "app.oam.dev/namespace": "team-a"}), "the namespace keeps same-named Applications apart")
-		Expect(hd.LabelSelector).To(Equal("app.oam.dev/name=web,app.oam.dev/namespace=team-a"))
-		Expect(hd.MetricLabels).To(Equal(map[string]string{"app_oam_dev_name": "web", "app_oam_dev_namespace": "team-a"}))
-		Expect(hd.ComponentLabels).To(HaveKeyWithValue("db", map[string]string{"app.oam.dev/name": "web", "app.oam.dev/namespace": "team-a", "app.oam.dev/component": "db"}))
+		// Rendered pods carry only the name and component labels; the
+		// namespace label is on the workload object, not its pods, so
+		// Namespace scopes the selector instead.
+		Expect(hd.Labels).To(Equal(map[string]string{"app.oam.dev/name": "web"}))
+		Expect(hd.LabelSelector).To(Equal("app.oam.dev/name=web"))
+		Expect(hd.MetricLabels).To(Equal(map[string]string{"app_oam_dev_name": "web"}))
+		Expect(hd.ComponentLabels).To(HaveKeyWithValue("db", map[string]string{"app.oam.dev/name": "web", "app.oam.dev/component": "db"}))
 
 		started := time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC)
 		Expect(*hd.AppliedAt).To(BeTemporally("==", started))
@@ -126,5 +137,87 @@ var _ = Describe("correlation handles", func() {
 		for _, p := range pods {
 			Expect(p).To(HavePrefix("team-a/"))
 		}
+	})
+
+	It("uses the workflow start when the workflow runs a valuesFrom or publishVersion revision", func() {
+		started := time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC)
+		for _, tc := range []struct{ appRevision, publishVersion string }{
+			{appRevision: "web-v2-vf-1a2b3c4d"},
+			{appRevision: "release-7", publishVersion: "release-7"},
+		} {
+			objs := explainAppFixtures()
+			for _, o := range objs {
+				if app, ok := o.(*v1beta1.Application); ok && app.Name == "web" {
+					app.Status.Workflow.AppRevision = tc.appRevision
+					if tc.publishVersion != "" {
+						app.Annotations = map[string]string{oam.AnnotationPublishVersion: tc.publishVersion}
+					}
+				}
+			}
+			h = startHarness(Options{}, objs...)
+			hd := explain("web", "team-a").Handles
+			Expect(hd.AppliedAt).NotTo(BeNil(), tc.appRevision)
+			Expect(*hd.AppliedAt).To(BeTemporally("==", started), tc.appRevision)
+			Expect(hd.Window.Basis).To(Equal("the workflow start of revision "+tc.appRevision), tc.appRevision)
+			h.close()
+			h = nil
+		}
+	})
+
+	It("names no revision in the basis when the workflow records none", func() {
+		objs := explainAppFixtures()
+		for _, o := range objs {
+			if app, ok := o.(*v1beta1.Application); ok && app.Name == "web" {
+				app.Status.Workflow.AppRevision = ""
+			}
+		}
+		h = startHarness(Options{}, objs...)
+		Expect(explain("web", "team-a").Handles.Window.Basis).To(Equal("the workflow start"))
+	})
+
+	Context("with more pods than the handles list", func() {
+		manyPods := func() []client.Object {
+			objs := explainAppFixtures()
+			var template *corev1.Pod
+			for _, o := range objs {
+				if p, ok := o.(*corev1.Pod); ok && p.Name == "web-abc-1" {
+					template = p
+				}
+			}
+			for i := 0; i < maxHandlePods; i++ {
+				p := template.DeepCopy()
+				p.Name = fmt.Sprintf("web-extra-%02d", i)
+				p.UID = apitypes.UID("pod-" + p.Name)
+				objs = append(objs, p)
+			}
+			return objs
+		}
+
+		It("marks explain_application and get_application truncated", func() {
+			h = startHarness(Options{}, manyPods()...)
+			out := explain("web", "team-a")
+			Expect(out.Handles.Pods).To(HaveLen(maxHandlePods))
+			Expect(out.Unknowns).To(ContainElement(ContainSubstring("handles list the first")))
+			Expect(out.Meta.Truncated).To(BeTrue())
+
+			var got GetApplicationOutput
+			res := h.call("get_application", map[string]any{"name": "web", "namespace": "team-a"}, &got)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			Expect(got.Handles.Pods).To(HaveLen(maxHandlePods))
+			Expect(got.Meta.Truncated).To(BeTrue())
+		})
+
+		It("does not tell get_logs callers that handles list the first 50 pods", func() {
+			logs := func(context.Context, *rest.Config, string, string, string, *corev1.PodLogOptions) (io.ReadCloser, error) {
+				return io.NopCloser(strings.NewReader("ready\n")), nil
+			}
+			h = startHarness(Options{PodLogs: logs}, manyPods()...)
+			var out GetLogsOutput
+			res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a"}, &out)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			Expect(out.Handles.Pods).To(HaveLen(maxLogPods))
+			Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("only the first 5 were read")))
+			Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("handles list the first")))
+		})
 	})
 })

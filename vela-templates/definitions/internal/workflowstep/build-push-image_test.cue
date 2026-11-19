@@ -19,7 +19,7 @@ _done: {
 		spec: {
 			containers: [{
 				name:  "kaniko"
-				image: "oamdev/kaniko-executor:v1.9.1"
+				image: "ghcr.io/osscontainertools/kaniko:v1.29.1@sha256:e7cba1f7e70c01c8ee1cbe622d07990c04dea550430c4c81319d26679226cd37"
 				args: [
 					"--dockerfile=./Dockerfile",
 					"--context=git://github.com/acme/shop#refs/heads/master",
@@ -47,7 +47,7 @@ _done: {
 				restartPolicy: "Never"
 				containers: [{
 					name:  "kaniko"
-					image: "oamdev/kaniko-executor:v1.9.1"
+					image: "ghcr.io/osscontainertools/kaniko:v1.29.1@sha256:e7cba1f7e70c01c8ee1cbe622d07990c04dea550430c4c81319d26679226cd37"
 					args: [
 						"--dockerfile=./Dockerfile",
 						"--context=git://github.com/acme/shop#refs/heads/master",

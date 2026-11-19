@@ -33,7 +33,10 @@ const (
 // Output bounds. They are variables so tests can lower them; nothing else
 // assigns them.
 var (
-	// maxListItems caps list_applications and list_definitions rows.
+	// maxListItems caps every single-page list (applications, definitions,
+	// cluster secrets, ManagedClusters, addon Applications, delivery-practice
+	// counts) and is the page size of the paginated revision, consumer and
+	// explain_application event scans.
 	maxListItems = 500
 	// maxObjectBytes caps a live object returned by get_managed_resource.
 	maxObjectBytes = 256 << 10

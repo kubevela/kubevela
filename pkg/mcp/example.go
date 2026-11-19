@@ -147,6 +147,11 @@ func exampleObject(sch *openapi3.Schema, path string, placeholders *[]string, de
 		// More properties are required than the schema names: the user has to
 		// add the rest, so the object itself is a placeholder.
 		if uint64(len(out)) < sch.MinProps {
+			if path == "" {
+				// The root has no path of its own; name the block the
+				// user adds to.
+				path = "properties"
+			}
 			*placeholders = append(*placeholders, path)
 		}
 	}
@@ -225,6 +230,9 @@ func exampleValue(sch *openapi3.Schema, path string, placeholders *[]string, dep
 		n := sch.MinItems
 		if n == 0 {
 			n = 1
+		}
+		if sch.MaxItems != nil && n > *sch.MaxItems {
+			n = *sch.MaxItems
 		}
 		if n > maxExampleItems {
 			// The user has to supply the rest; the array is a placeholder.

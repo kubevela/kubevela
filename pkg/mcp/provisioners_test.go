@@ -25,6 +25,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -178,6 +179,87 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		Expect(p.Resource.Health).To(ContainSubstring("ACK.ResourceSynced"))
 	})
 
+	It("names the resolved ACK controller's endpoint override", func() {
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", "http://aws-emulator.floci.svc.cluster.local:4566"))...)
+		p := platform(map[string]any{"service": "dynamodb"}).Provisioner
+		Expect(p).NotTo(BeNil())
+		Expect(p.EndpointOverride).To(Equal("http://aws-emulator.floci.svc.cluster.local:4566"))
+	})
+
+	It("redacts credentials in the endpoint override and its evidence", func() {
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", "http://admin:s3cr3t@localstack:4566/?token=t0k3n"))...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner).NotTo(BeNil())
+		Expect(out.Provisioner.EndpointOverride).To(Equal("http://admin:" + redactedValue + "@localstack:4566/?token=" + redactedValue))
+		Expect(toJSON(out)).NotTo(ContainSubstring("s3cr3t"))
+		Expect(toJSON(out)).NotTo(ContainSubstring("t0k3n"))
+	})
+
+	It("reports cloud when the controller carries no override", func() {
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", ""))...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("endpoint provenance unknown")), "an empty override with a readable controller is cloud, not unknown")
+	})
+
+	It("reports cloud, not valueFrom, when AWS_ENDPOINT_URL is an empty literal", func() {
+		empty := ackControllerDeploymentWith("dynamodb", "ack-dynamodb-dynamodb-chart",
+			corev1.Container{Name: "controller", Image: "c", Env: []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: ""}}})
+		h = startHarness(Options{}, objs(ackTableCRD(), empty)...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("valueFrom")))
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("endpoint provenance unknown")))
+	})
+
+	It("leaves the override empty and warns unknown when no controller Deployment is found", func() {
+		h = startHarness(Options{}, objs(ackTableCRD())...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("endpoint provenance unknown")))
+	})
+
+	It("does not trust a non-ACK Deployment that merely carries the chart label", func() {
+		rogue := ackControllerDeploymentWith("dynamodb", "user-workload",
+			corev1.Container{Name: "x", Image: "x", Env: []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: "http://evil:4566"}}})
+		h = startHarness(Options{}, objs(ackTableCRD(), rogue)...)
+		p := platform(map[string]any{"service": "dynamodb"}).Provisioner
+		Expect(p.EndpointOverride).To(BeEmpty(), "name lacks the ack- prefix, so it is not read as the controller")
+	})
+
+	It("reports unknown when AWS_ENDPOINT_URL comes from valueFrom", func() {
+		vf := ackControllerDeploymentWith("dynamodb", "ack-dynamodb-dynamodb-chart",
+			corev1.Container{Name: "controller", Image: "c", Env: []corev1.EnvVar{{
+				Name: "AWS_ENDPOINT_URL",
+				ValueFrom: &corev1.EnvVarSource{ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "cfg"}, Key: "ep"}}}}})
+		h = startHarness(Options{}, objs(ackTableCRD(), vf)...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("valueFrom")))
+	})
+
+	It("reports cloud when an empty literal sits beside envFrom, since env takes precedence", func() {
+		c := corev1.Container{Name: "controller", Image: "c",
+			Env:     []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: ""}},
+			EnvFrom: []corev1.EnvFromSource{{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "cfg"}}}}}
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeploymentWith("dynamodb", "ack-dynamodb-dynamodb-chart", c))...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("endpoint provenance unknown")))
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("envFrom")))
+	})
+
+	It("reports unknown when two controller Deployments make the endpoint ambiguous", func() {
+		a := ackControllerDeployment("dynamodb", "http://a:4566")
+		b := ackControllerDeploymentWith("dynamodb", "ack-dynamodb-second",
+			corev1.Container{Name: "controller", Image: "c", Env: []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: "http://b:4566"}}})
+		h = startHarness(Options{}, objs(ackTableCRD(), a, b)...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("ambiguous")))
+	})
+
 	It("falls back to Crossplane, preferring the namespaced v2 group", func() {
 		h = startHarness(Options{}, objs(
 			crossplaneTableCRD("dynamodb.aws.upbound.io", crdv1.ClusterScoped),
@@ -232,11 +314,16 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		for i := 0; i < 400; i++ {
 			spec.Properties["field"+strings.Repeat("x", i%7)+string(rune('a'+i%26))+strings.Repeat("y", i/26)] = crdv1.JSONSchemaProps{Type: "string", Description: strings.Repeat("long description ", 40)}
 		}
+		spec.Properties["description"] = crdv1.JSONSchemaProps{Type: "string", Description: "The table's description."}
+		spec.Required = append(spec.Required, "description")
 		big.Spec.Versions[1].Schema.OpenAPIV3Schema.Properties["spec"] = spec
 		h = startHarness(Options{}, objs(big)...)
 		out := platform(map[string]any{"service": "dynamodb", "kind": "Table"})
 		Expect(toJSON(out.Provisioner.Resource.Spec)).NotTo(ContainSubstring("long description"))
 		Expect(out.Provisioner.Resource.Spec["properties"]).To(HaveKey("tableName"))
+		Expect(out.Provisioner.Resource.Required).To(ContainElement("description"))
+		Expect(out.Provisioner.Resource.Spec["properties"]).To(HaveKeyWithValue("description", map[string]any{"type": "string"}),
+			"a spec field named description is a property, not an annotation, and only its own description is dropped")
 		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("field descriptions were dropped")))
 		Expect(out.Meta.Truncated).To(BeTrue(), "a cut schema marks the answer truncated")
 	})

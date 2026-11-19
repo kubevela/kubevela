@@ -252,7 +252,19 @@ func restoreNumberDefaults(doc []byte, params cue.Value) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("schema has no %s", process.ParameterFieldName)
 	}
-	setNumberDefaults(params.LookupPath(cue.MakePath(cue.Def(process.ParameterFieldName))), schema)
+	param := params.LookupPath(cue.MakePath(cue.Def(process.ParameterFieldName)))
+	setNumberDefaults(param, schema)
+	// A scalar parameter, such as `parameter: *1 | int & >=1`, is the root
+	// schema itself, which setNumberDefaults only walks into.
+	if root, ok := schema.(map[string]any); ok {
+		if _, has := root["default"]; !has {
+			if def, ok := param.Default(); ok && def.IsConcrete() && def.Kind()&cue.NumberKind != 0 {
+				if raw, err := def.MarshalJSON(); err == nil {
+					root["default"] = json.Number(raw)
+				}
+			}
+		}
+	}
 	return json.Marshal(d)
 }
 
