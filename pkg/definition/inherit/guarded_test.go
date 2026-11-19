@@ -183,9 +183,10 @@ parameter: annotations?: [string]: string
 		b, err := os.ReadFile("testdata/webservice.cue")
 		Expect(err).NotTo(HaveOccurred())
 		webservice := Level{Name: "webservice", Template: string(b)}
-		tpl := "$super: properties: image: parameter.image\n" +
+		tpl := "$super: properties: {\n\timage: parameter.image\n" +
+			"\tif parameter.annotations != _|_ {annotations: parameter.annotations}\n}\n" +
 			"output: spec: template: metadata: {\n\tlabels: team: \"payments\"\n\tannotations: team: \"payments\"\n}\n" +
-			"parameter: image: string\n"
+			"parameter: {\n\timage: string\n\tannotations?: [string]: string\n}\n"
 		Expect(admit(tpl, webservice)).To(Succeed())
 		res, err := Render(context.Background(), []Level{{Name: "child", Template: tpl}, webservice},
 			`parameter: {image: "nginx", annotations: owner: "bob"}`, webserviceContext, ComponentSurface, SameCompiler(testCompile()))
@@ -196,6 +197,9 @@ parameter: annotations?: [string]: string
 		annotation, err := lookup(res.Value, `output.spec.template.metadata.annotations.team`).String()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(annotation).To(Equal("payments"))
+		owner, err := lookup(res.Value, `output.spec.template.metadata.annotations.owner`).String()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(owner).To(Equal("bob"), "the Application's annotation reached the parent and merged with the child's")
 	})
 
 	It("keeps the existing message for a field the parent writes unconditionally", func() {
@@ -235,5 +239,13 @@ parameter: annotations?: [string]: string
 			Expect(paths("output: args: [for a in parameter.args {a}, \"last\"]\n")).
 				To(ConsistOf("output args [*] | for a in parameter.args"))
 		})
+	})
+
+	It("keeps refusing below a guarded value that may be a scalar as well as a map", func() {
+		either := Level{Name: "base", Template: "output: {\n\tkind: \"Deployment\"\n\tspec: template: metadata: {\n" +
+			"\t\tif parameter.annotations != _|_ {\n\t\t\tannotations: parameter.annotations\n\t\t}\n\t}\n}\n" +
+			"parameter: annotations?: string | {[string]: string}\n"}
+		Expect(admit("output: spec: template: metadata: annotations: team: \"payments\"\n", either)).To(
+			MatchError(ContainSubstring("which base sets only when `if parameter.annotations != _|_`")))
 	})
 })

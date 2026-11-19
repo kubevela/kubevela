@@ -288,7 +288,7 @@ func lookupRef(v cue.Value, sels []cue.Selector) cue.Value {
 // A value that is not a plain reference, or that does not resolve, is kept.
 func mergesByKey(ctx context.Context, anc Level, guarded []guardedField, compile CompileFunc) []guardedField {
 	var unbound cue.Value
-	compiled := false
+	compiled, usable := false, false
 	kept := guarded[:0:0]
 	for _, g := range guarded {
 		sels, ok := refPath(g.value)
@@ -296,11 +296,19 @@ func mergesByKey(ctx context.Context, anc Level, guarded []guardedField, compile
 			if !compiled {
 				// `$super` is opened as fixedAmong does, and `context` too, which
 				// the render compiler does not bind here.
-				unbound, _ = compile(ctx, anc.Template+"\n"+SuperField+": _\ncontext: _\n")
+				var compileErr error
+				unbound, compileErr = compile(ctx, anc.Template+"\n"+SuperField+": _\ncontext: _\n")
+				// A failed or partial compile says nothing reliable about a
+				// kind, so every guarded field stays protected.
+				usable = compileErr == nil && unbound.Exists() && unbound.Err() == nil
 				compiled = true
 			}
-			if ref := lookupRef(unbound, sels); ref.Exists() && ref.IncompleteKind()&cue.StructKind != 0 {
-				continue
+			// Only a value that can be nothing but a struct merges key by key; a
+			// scalar alternative such as `string | [string]: string` would clash.
+			if usable {
+				if ref := lookupRef(unbound, sels); ref.Exists() && ref.IncompleteKind() == cue.StructKind {
+					continue
+				}
 			}
 		}
 		kept = append(kept, g)
