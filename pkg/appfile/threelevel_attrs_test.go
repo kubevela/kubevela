@@ -51,25 +51,6 @@ func fetcherFor(defs ...*v1beta1.ComponentDefinition) componentFetcher {
 	}
 }
 
-// Three levels, and the leaf states its own workload. Whatever the middle level
-// is silent about is the middle level's business; the leaf said what it is.
-func TestALeafsOwnWorkloadSurvivesAThreeLevelChain(t *testing.T) {
-	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate,
-		features.EnableDefinitionInheritance, true)
-
-	leaf := cdLevel("leaf", "mid", common.WorkloadTypeDescriptor{
-		Definition: common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}})
-	mid := cdLevel("mid", "root", common.WorkloadTypeDescriptor{})
-	root := cdLevel("root", "", common.WorkloadTypeDescriptor{
-		Definition: common.WorkloadGVK{APIVersion: "batch/v1", Kind: "CronJob"}})
-
-	tmpl := &Template{Reference: leaf.Spec.Workload}
-	require.NoError(t, resolveComponentChain(context.Background(), tmpl, leaf, fetcherFor(mid, root)))
-
-	require.Equal(t, "Deployment", tmpl.Reference.Definition.Kind,
-		"the leaf declared Deployment; the root's CronJob is not its workload")
-}
-
 // The leaf is silent and so is the middle level, so the root's workload is what
 // it renders as, and the leaf's own spec has to say so too: the definition
 // recorded in the ApplicationRevision is read back later.

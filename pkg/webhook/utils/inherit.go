@@ -22,10 +22,12 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/kubevela/pkg/cue/cuex"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
+	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 // ValidateInheritedTemplate validates a definition that extends another. It
@@ -33,7 +35,9 @@ import (
 // the child's template and compiling it alone always fails.
 //
 // Refused: never calling the parent, omitting a parameter it requires with no
-// default, a call it would not accept. Warned: a name it does not declare, and a
+// default, a call it would not accept, adding to an output an ancestor marks
+// +final, dropping an output an ancestor marks +required, and overriding a
+// field the parent already sets. Warned: a name it does not declare, and a
 // published parameter that reaches neither the parent nor the child's output.
 //
 // alsoRead are the healthPolicy, customStatus and details, so a parameter read
@@ -43,31 +47,50 @@ func ValidateInheritedTemplate(ctx context.Context, name, template string, ances
 	chain = append(chain, inherit.Level{Name: name, Template: template})
 	chain = append(chain, ancestors...)
 
-	if err := validateOwnTemplate(ctx, name, template); err != nil {
+	own, err := validateOwnTemplate(ctx, name, template)
+	if err != nil {
 		return nil, err
 	}
-	return inherit.CheckCall(ctx, chain, surface, admissionCompiler, alsoRead...)
+	// The call is checked first: a child that never calls its parent, or calls
+	// it wrongly, has a more basic problem than what it adds.
+	warnings, err := inherit.CheckCall(ctx, chain, surface, admissionCompiler, alsoRead...)
+	if err != nil {
+		return warnings, err
+	}
+	// Refused here rather than left to the first Application that renders it,
+	// so the author of the child hears about it when writing the child.
+	if err := inherit.CheckFinal(name, chain[0], own, ancestors, surface); err != nil {
+		return warnings, err
+	}
+	if err := inherit.CheckRequired(name, chain[0], ancestors, surface); err != nil {
+		return warnings, err
+	}
+	if err := inherit.CheckOverrides(ctx, name, chain[0], own, ancestors, surface, admissionCompiler); err != nil {
+		return warnings, err
+	}
+	return warnings, nil
 }
 
 // validateOwnTemplate checks the child's own CUE, which the call check does
-// not: that judges only the `$super` block against the parent.
+// not: that judges only the `$super` block against the parent. It returns the
+// compiled value, which holds what the child writes itself.
 //
 // The chain is not resolved here, so `$super` is left open. What it holds is the
 // call check's business.
-func validateOwnTemplate(ctx context.Context, name, template string) error {
+func validateOwnTemplate(ctx context.Context, name, template string) (cue.Value, error) {
 	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(
 		ctx, openTemplate(template)+"\n"+inherit.SuperField+": _\n",
 		cuex.DisableResolveProviderFunctions{})
 	if err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return cue.Value{}, fmt.Errorf("%s: %w", name, err)
 	}
 	if err := val.Err(); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return cue.Value{}, fmt.Errorf("%s: %w", name, err)
 	}
 	if err := val.Validate(); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return cue.Value{}, fmt.Errorf("%s: %w", name, err)
 	}
-	return nil
+	return val, nil
 }
 
 // StatusSources returns the CUE a definition carries outside its template.
@@ -116,4 +139,15 @@ func ValidateExtendsHasTemplate(kind, name, extends string, schematic *common.Sc
 		"%s %s extends %s but has no CUE template to call it from; "+
 			"add a `%s: properties: {...}` block",
 		kind, name, extends, inherit.SuperField)
+}
+
+// ValidateFinalPlacement refuses a definition, parent or child, whose template
+// marks a field +final where the inheritance check cannot read it: inside a
+// list item. Without inheritance the marker means nothing, so it is only
+// judged while the feature is on.
+func ValidateFinalPlacement(name, template string, surface inherit.Surface) error {
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableDefinitionInheritance) {
+		return nil
+	}
+	return inherit.CheckFinalPlacement(inherit.Level{Name: name, Template: template}, surface)
 }

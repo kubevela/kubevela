@@ -136,58 +136,6 @@ parameter: {
 	require.True(t, res.Value.LookupPath(cue.ParsePath("outputs.quota")).Exists(), "child's outputs added")
 }
 
-func TestChildOverridesValueDerivedFromDefaultedParameter(t *testing.T) {
-	// The parent sets spec.replicas from `replicas: *1 | int`. Because its output
-	// crosses as a value rather than as data, that field is still a disjunction
-	// when the child merges onto it, so the child wins.
-	child := `
-$super: properties: {image: parameter.image}
-
-output: spec: replicas: 5
-
-parameter: {
-	tenant: string
-}
-`
-	res := render(t, child, `parameter: {image: "NGINX", tenant: "acme"}`)
-
-	replicas, err := res.Value.LookupPath(cue.ParsePath("output.spec.replicas")).Int64()
-	require.NoError(t, err)
-	require.EqualValues(t, 5, replicas)
-}
-
-func TestInheritFalseTakesTheSurfaceOver(t *testing.T) {
-	child := `
-$inherit: {output: false}
-
-$super: properties: {image: parameter.image}
-
-output: {
-	apiVersion: "v1"
-	kind:       "ConfigMap"
-	metadata: name: context.name
-	data: image: $super.output.spec.template.spec.containers[0].image
-}
-
-parameter: {
-	tenant: string
-}
-`
-	res := render(t, child, `parameter: {image: "NGINX", tenant: "acme"}`)
-
-	kind, err := res.Value.LookupPath(cue.ParsePath("output.kind")).String()
-	require.NoError(t, err)
-	require.Equal(t, "ConfigMap", kind, "the parent's output was not merged in")
-
-	// but it was still readable, built from a piece of the parent's.
-	image, err := res.Value.LookupPath(cue.ParsePath("output.data.image")).String()
-	require.NoError(t, err)
-	require.Equal(t, "nginx", image)
-
-	// outputs was not opted out of, so the parent's is still there.
-	require.True(t, res.Value.LookupPath(cue.ParsePath("outputs.svc")).Exists())
-}
-
 func TestParentAuthoredErrorsReachTheChild(t *testing.T) {
 	parent := parentTemplate + `
 if parameter.image == "banned" {

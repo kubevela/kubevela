@@ -23,9 +23,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 )
 
 // specAs parses generated CUE the way apply-module does and decodes the spec
@@ -145,23 +147,79 @@ var _ = Describe("Definition inheritance", func() {
 	})
 
 	Context("the template", func() {
-		It("writes $super and $inherit", func() {
+		It("writes $super and a per-output $inherit", func() {
 			c := defkit.NewComponent("c").Extends(defkit.ComponentRef("p")).
 				Template(func(tpl *defkit.Template) {
 					tpl.Super().Set("image", defkit.ParamRef("image"))
-					tpl.InheritField("outputs", false)
+					tpl.DropOutput("ingress")
 				})
 			Expect(c.ToCue()).To(ContainSubstring("$super: properties: {"))
 			Expect(c.ToCue()).To(ContainSubstring("image: parameter.image"))
-			Expect(c.ToCue()).To(ContainSubstring("$inherit: outputs: false"))
+			Expect(c.ToCue()).To(ContainSubstring("$inherit: outputs: ingress: false"))
 
-			c = defkit.NewComponent("c").Extends(defkit.ComponentRef("p")).
+			t := defkit.NewTrait("t").Extends(defkit.TraitRef("p")).
 				Template(func(tpl *defkit.Template) {
 					tpl.Super()
-					tpl.Inherit(false)
+					tpl.DropPatchOutput("pdb")
 				})
-			Expect(c.ToCue()).To(ContainSubstring("$super: properties: {}"))
-			Expect(c.ToCue()).To(ContainSubstring("$inherit: false"))
+			Expect(t.ToCue()).To(ContainSubstring("$super: properties: {}"))
+			Expect(t.ToCue()).To(ContainSubstring("$inherit: patchOutputs: pdb: false"))
+		})
+
+		It("marks an output +required where the inheritance check reads it", func() {
+			parent := defkit.NewComponent("secure-web").Workload("apps/v1", "Deployment").
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+					tpl.RequireOutput("svc")
+					tpl.Outputs("svc", defkit.NewResource("v1", "Service"))
+					tpl.Outputs("netpol", defkit.NewResource("networking.k8s.io/v1", "NetworkPolicy"))
+				})
+			tpl, found, err := unstructured.NestedString(fromCUE(parent.ToCue()), "schematic", "cue", "template")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			drops := func(name string) error {
+				return inherit.CheckRequired("headless-web",
+					inherit.Level{Name: "headless-web", Template: "$super: properties: {}\n$inherit: outputs: " + name + ": false\n"},
+					[]inherit.Level{{Name: "secure-web", Template: tpl}}, inherit.ComponentSurface)
+			}
+			Expect(drops("svc")).To(MatchError(ContainSubstring("leaves out outputs.svc, which secure-web marks +required")))
+			Expect(drops("netpol")).To(Succeed())
+		})
+
+		It("marks a grouped output +required, whichever comes first", func() {
+			enabled := defkit.Bool("enabled")
+			parent := defkit.NewComponent("secure-web").Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+					tpl.RequireOutput("svc")
+					tpl.OutputsGroupIf(enabled.IsTrue(), func(g *defkit.OutputGroup) {
+						g.Add("svc", defkit.NewResource("v1", "Service"))
+						g.Add("netpol", defkit.NewResource("networking.k8s.io/v1", "NetworkPolicy"))
+					})
+					tpl.OutputsGroupIf(enabled.IsTrue(), func(g *defkit.OutputGroup) {
+						g.Add("pdb", defkit.NewResource("policy/v1", "PodDisruptionBudget"))
+						tpl.RequireOutput("pdb")
+					})
+					tpl.OutputsGroupIf(enabled.IsTrue(), func(g *defkit.OutputGroup) {
+						g.Add("hpa", defkit.NewResource("autoscaling/v2", "HorizontalPodAutoscaler"))
+					})
+					tpl.RequireOutput("hpa")
+				})
+			tpl, found, err := unstructured.NestedString(fromCUE(parent.ToCue()), "schematic", "cue", "template")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeTrue())
+
+			drops := func(name string) error {
+				return inherit.CheckRequired("headless-web",
+					inherit.Level{Name: "headless-web", Template: "$super: properties: {}\n$inherit: outputs: " + name + ": false\n"},
+					[]inherit.Level{{Name: "secure-web", Template: tpl}}, inherit.ComponentSurface)
+			}
+			for _, name := range []string{"svc", "pdb", "hpa"} {
+				Expect(drops(name)).To(MatchError(ContainSubstring("leaves out outputs." + name + ", which secure-web marks +required")))
+			}
+			Expect(drops("netpol")).To(Succeed())
 		})
 	})
 
