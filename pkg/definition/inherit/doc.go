@@ -39,13 +39,15 @@ limitations under the License.
 // open. It does not change a field the parent set, even one from a defaulted
 // parameter: that goes up through `$super.properties` instead.
 //
-// `$inherit` leaves one of the parent's outputs out, and the child may write its
-// own of that name in its place:
+// `$inherit` leaves one of the parent's `outputs` or, for a trait,
+// `patchOutputs` out, and the child may write its own of that name in its
+// place:
 //
 //	$inherit: {outputs: {ingress: false}}
+//	$inherit: {patchOutputs: {hpa: false}}
 //
-// It cannot turn the merge off wholly or for `output`, `patch` or the whole of
-// `outputs`.
+// It cannot turn the merge off wholly or for `output`, `patch`, `processing`,
+// the whole of `outputs` or the whole of `patchOutputs`.
 //
 // What the parent produced is readable on `$super` as `output`, `outputs`,
 // `patch` and `patchOutputs`.

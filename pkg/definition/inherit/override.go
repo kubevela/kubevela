@@ -207,7 +207,10 @@ func fixedString(v cue.Value) (string, bool) {
 
 // changes reports whether a child value at a path changes the parent's value
 // there. A default counts as set: writing even the default pins the field and
-// takes it away from the parent's parameter.
+// takes it away from the parent's parameter. Over a value the parent fixes, a
+// child value that is not concrete, such as `$super.output.metadata.name`, a
+// constraint, or at admission a parameter not bound yet, changes nothing the
+// merge would not refuse; one that is concrete at render is judged there.
 func changes(parent, child cue.Value) bool {
 	if !parent.Exists() {
 		return false
@@ -219,7 +222,7 @@ func changes(parent, child cue.Value) bool {
 		// A struct the child wrote a value over: the merge reports it.
 		return false
 	}
-	if !parent.IsConcrete() {
+	if !parent.IsConcrete() || !child.IsConcrete() {
 		return false
 	}
 	return !sameConcrete(parent, child)

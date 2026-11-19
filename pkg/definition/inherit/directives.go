@@ -149,7 +149,12 @@ func (d *directives) addDrops(level Level, field string, value ast.Expr) error {
 			if !ok {
 				continue
 			}
-			key := labelName(entry.Label)
+			key, ok := outputName(entry.Label)
+			if !ok {
+				return fmt.Errorf("%s in %s: each entry of %s must name one output, "+
+					"for example `%s: {%s: {ingress: false}}`; a pattern or computed label names none",
+					InheritField, level.Name, field, InheritField, field)
+			}
 			b, err := fieldBool(level, field+"."+key, entry.Value)
 			if err != nil {
 				return err
@@ -199,6 +204,24 @@ func boolLit(lit *ast.BasicLit) (bool, error) {
 		return false, nil
 	default:
 		return false, fmt.Errorf("expected true or false, got %s", lit.Value)
+	}
+}
+
+// outputName is the output a per-output drop names: a plain or quoted label
+// that is not empty. A pattern, a computed or interpolated label, or "" names
+// no single output.
+func outputName(label ast.Label) (string, bool) {
+	switch l := label.(type) {
+	case *ast.Ident:
+		return l.Name, l.Name != ""
+	case *ast.BasicLit:
+		if l.Kind != token.STRING {
+			return "", false
+		}
+		name := labelName(l)
+		return name, name != ""
+	default:
+		return "", false
 	}
 }
 

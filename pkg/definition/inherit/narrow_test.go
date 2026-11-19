@@ -124,6 +124,17 @@ var _ = Describe("$inherit after #7607", func() {
 		Expect(err).To(MatchError(ContainSubstring("outputs.svc must be true or false")))
 	})
 
+	DescribeTable("refuses a per-output drop whose label names no single output",
+		func(directive string) {
+			_, err := renderComponent(child(directive), base)
+			Expect(err).To(MatchError(ContainSubstring("must name one output")))
+		},
+		Entry("a pattern", "$inherit: {outputs: {[string]: false}}\n"),
+		Entry("a computed label", "$inherit: {outputs: {(\"s\" + \"vc\"): false}}\n"),
+		Entry("an interpolated label", "_n: \"svc\"\n$inherit: {outputs: {\"\\(_n)\": false}}\n"),
+		Entry("an empty label", "$inherit: {outputs: {\"\": false}}\n"),
+	)
+
 	It("refuses a field it does not know", func() {
 		_, err := renderComponent(child("$inherit: {spec: false}\n"), base)
 		Expect(err).To(MatchError(ContainSubstring("$inherit in child: unknown field spec")))

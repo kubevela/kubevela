@@ -97,7 +97,15 @@ var _ = Describe("a child only adds to what its parent set", func() {
 		Entry("its own entry for an output it left out",
 			"$inherit: {outputs: {svc: false}}\noutputs: svc: {apiVersion: \"v1\", kind: \"Service\", spec: type: \"NodePort\"}\n"),
 		Entry("a value passed the right way", "$super: properties: replicas: 5\n"),
+		Entry("the parent's own value read back from $super",
+			"output: metadata: name: $super.output.metadata.name\n"),
+		Entry("an open constraint over a fixed field", "output: metadata: name: string\n"),
 	)
+
+	It("keeps refusing any child value over a field from a defaulted parameter, even one read back from $super", func() {
+		_, err := renderComponent(child("output: spec: replicas: $super.output.spec.replicas\n"), base)
+		Expect(err).To(MatchError(ContainSubstring("component child sets output.spec.replicas, which base already sets")))
+	})
 
 	It("refuses a grandchild that changes the root's field through a silent middle", func() {
 		leaf := Level{Name: "leaf", Template: silentMiddle + "output: spec: replicas: 5\n"}
@@ -133,6 +141,14 @@ var _ = Describe("a child only adds to what its parent set", func() {
 
 		It("accepts an addition", func() {
 			Expect(check("output: metadata: labels: team: \"a\"\n")).To(Succeed())
+		})
+
+		It("leaves a fixed field set from the child's own parameter to the render, where it is bound", func() {
+			tpl := "output: metadata: name: parameter.name\nparameter: name: string\n"
+			Expect(check(tpl)).To(Succeed())
+			_, err := Render(context.Background(), []Level{{Name: "child", Template: silentMiddle + tpl}, base},
+				`parameter: name: "other"`, contextFile, ComponentSurface, SameCompiler(testCompile()))
+			Expect(err).To(MatchError(ContainSubstring("component child sets output.metadata.name, but base fixes it to \"web\"")))
 		})
 	})
 })
