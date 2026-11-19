@@ -1,0 +1,208 @@
+# Things a team might try. Every one is refused when it is applied, with the
+# message in its comment.
+#
+# Swap the Deployment for a Job.
+#   `$inherit: {output: false}` is not allowed in nightly-job: a definition that
+#   extends another adds to its parent's output and cannot replace it; ...
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: nightly-job
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        $inherit: output: false
+        output: {apiVersion: "batch/v1", kind: "Job"}
+---
+# Throw away everything platform-web renders.
+#   `$inherit: false` is not allowed in bare-web: a definition that extends
+#   another adds to what its parent renders and cannot replace it; ...
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: bare-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        $inherit: false
+---
+# Set replicas on the Deployment instead of passing them to platform-web.
+#   component big-web sets output.spec.replicas, which platform-web already
+#   sets; pass a value to platform-web through `$super: properties` instead
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: big-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        output: spec: replicas: 10
+---
+# Change the Service port, which platform-web writes as a constant.
+#   component https-web sets outputs.service.spec.ports[0].port, but
+#   platform-web fixes it to 80 and a child cannot change it; ...
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: https-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        outputs: service: spec: ports: [{port: 443}]
+---
+# Run as root by adding to the security context.
+#   component root-web adds to output.spec.template.spec.securityContext, which
+#   platform-web marks +final
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: root-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        output: spec: template: spec: securityContext: runAsUser: 0
+---
+# Leave out the Service.
+#   component headless-web leaves out outputs.service, which platform-web marks
+#   +required
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: headless-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        $inherit: outputs: service: false
+---
+# Leave out the NetworkPolicy but keep the status message that reads it.
+#   component open-web leaves out outputs.netpol, which the customStatus it
+#   inherits from platform-web reads; keep the output, or set its own customStatus
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: open-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+        $inherit: outputs: netpol: false
+---
+# Call the result a StatefulSet.
+#   component stateful-web declares workload apps/v1 StatefulSet, but
+#   platform-web declares apps/v1 Deployment; leave spec.workload unset to
+#   inherit it
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: stateful-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: StatefulSet
+    type: statefulsets.apps
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+---
+# Forget to call platform-web at all.
+#   component lazy-web extends platform-web but its template never calls it;
+#   add a `$super: properties: {...}` block naming what platform-web should receive
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: lazy-web
+  namespace: vela-system
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: {}
+        output: metadata: labels: team: "lazy"
+---
+# Extend platform-web from another namespace.
+#   ... component definition platform-web is in namespace vela-system, and a
+#   definition may only extend one in its own namespace (default); ...
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: team-web
+  namespace: default
+spec:
+  extends: platform-web
+  schematic:
+    cue:
+      template: |
+        parameter: image: string
+        $super: properties: image: parameter.image
+---
+# The platform team makes platform-web extend a type built on it.
+#   definition ... extends ..., which is already in its own inheritance chain:
+#   platform-web -> checkout-web -> payments-web -> platform-web
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: platform-web
+  namespace: vela-system
+spec:
+  abstract: true
+  extends: checkout-web
+  schematic:
+    cue:
+      template: |
+        parameter: tenant: string
+        $super: properties: tenant: parameter.tenant
+---
+# Use platform-web directly in an Application.
+#   component platform-web is abstract and cannot be used directly; name a
+#   component that extends it.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: direct
+  namespace: default
+spec:
+  components:
+    - name: web
+      type: platform-web
+      properties:
+        image: nginxinc/nginx-unprivileged:stable

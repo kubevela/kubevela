@@ -1,99 +1,158 @@
-# Definition inheritance: every rule, one file per rule
+# Definition inheritance: a platform type and the teams that build on it
 
-A ComponentDefinition or TraitDefinition with `spec.extends: <parent>` is its parent with more on it. The child passes the parent its parameters through `$super: properties`, the parent renders, and the child's own fields are added on top.
+A platform team publishes a hardened web service type. Product teams want their own flavour of it: their labels, their replica count, a different network policy. With `spec.extends`, a team writes a definition that is the platform's one with more on it, and the platform's guarantees hold for every type built on top.
 
-Turn the feature on first. It is alpha and off by default:
-
-```bash
-helm upgrade --install kubevela kubevela/vela-core -n vela-system --create-namespace \
-  --set featureGates.enableDefinitionInheritance=true \
-  --set featureGates.validateResourcesExist=true
-```
-
-`validateResourcesExist` is only needed for the last workload case in `6-workload.yaml` (F09), which an older check refuses.
+| File | What is in it |
+|---|---|
+| [`platform.yaml`](platform.yaml) | what the platform team publishes: `platform-web`, the `platform-expose` trait, `platform-volume` |
+| [`teams.yaml`](teams.yaml) | what teams build on it: `payments-web`, `checkout-web`, `public-web`, `legacy-web`, `internal-expose`, `team-volume` |
+| [`mistakes.yaml`](mistakes.yaml) | twelve things a team might try; every one is refused |
+| [`apps.yaml`](apps.yaml) | the Applications |
 
 ## The rules
 
 | A definition that extends another may | It may not |
 |---|---|
-| add fields its parent did not set, or fill one the parent left open | change a field its parent set, even one from a defaulted parameter |
-| change a parent value through `$super: properties` | replace what the parent renders: `$inherit: false`, `{output: false}`, `{outputs: false}`, `{patch: false}` |
+| add fields its parent did not set | change a field its parent set, even one from a defaulted parameter |
+| change a parent value through `$super: properties` | replace what the parent renders: `$inherit: false`, `{output: false}`, `{outputs: false}` |
 | leave out one named output, `$inherit: {outputs: {<name>: false}}`, and write its own | leave out an output the parent marks `// +required` |
-| add outputs of its own | add anything to a field the parent marks `// +final` |
-| leave `spec.workload` unset to inherit it | declare a workload other than its parent's, or other than what the root renders |
+| add outputs and a health check of its own | add anything to a field the parent marks `// +final` |
+| leave `spec.workload` unset to inherit it | declare a workload other than its parent's |
 
-A parent's `// +immutable` parameter also holds through a child that forwards or renames it. Every rule is checked when a definition is written and again when an Application renders it.
-
-## The files
-
-Each file is a sequence of objects in the order to apply them. Every object starts with a comment that says what should happen to it: `accepted`, or `refused, with: <the start of the error>`.
-
-| File | Shows |
-|---|---|
-| `0-what-still-works.yaml` | a three-level chain, values passed up through `$super`, a child reading `$super.output`, inherited and combined health and status, an abstract base, the namespace rule, a cycle |
-| `1-inherit-drops-one-output.yaml` | `$inherit` only drops single outputs; the whole-surface forms are refused |
-| `2-no-override.yaml` | a child adds and never changes; changing replicas the right way through `$super` |
-| `3-final.yaml` | `// +final` at any depth, set by any level, on a trait, and added after a child exists |
-| `4-required.yaml` | `// +required` on one output, on the whole `outputs` block, and on a trait's `patchOutputs` |
-| `5-status-reads.yaml` | a child cannot drop an output that an inherited `healthPolicy` or `customStatus` reads |
-| `6-workload.yaml` | a child's `spec.workload` must match the parent's, or what an autodetect root renders |
-| `7-immutable.yaml` | definitions and Applications for the `+immutable` updates below |
-| `8-pinning-and-traits-1.yaml`, `-2.yaml` | a child pinned to `parent@v1`, and a trait extending a trait |
+A parent's `// +immutable` parameter also holds through a child that forwards or renames it. Every rule is checked when a definition is applied and again when an Application renders it, so a marker added to a parent later still applies to the types already built on it.
 
 ## Run it
 
+Inheritance is alpha and off by default:
+
 ```bash
-for f in 0-*.yaml 1-*.yaml 2-*.yaml 3-*.yaml 4-*.yaml 5-*.yaml 6-*.yaml 7-*.yaml 8-*-1.yaml; do
-  kubectl apply -f "$f"
-done
-kubectl -n vela-system wait --for=create definitionrevision/hp-base-v1 --timeout=60s
-kubectl apply -f 8-pinning-and-traits-2.yaml
+helm upgrade --install kubevela kubevela/vela-core -n vela-system --create-namespace \
+  --set featureGates.enableDefinitionInheritance=true
 ```
 
-`kubectl` prints an error for each refused object and goes on with the rest of the file. Compare each error with the object's `# expect:` comment. `8-pinning-and-traits-1.yaml` must have its revision `v1` before the parent changes in `-2.yaml`.
+Then:
 
-Then look at what rendered, in namespace `default`:
+```bash
+kubectl apply -f platform.yaml
+kubectl -n vela-system wait --for=create definitionrevision/platform-web-v1   # legacy-web pins it
+kubectl apply -f teams.yaml
+kubectl apply -f mistakes.yaml    # twelve errors, one per object
+kubectl apply -f apps.yaml
+```
 
-| Check | Expected |
+## The platform type
+
+`platform-web` renders a Deployment, a Service and a NetworkPolicy. It is `abstract: true`, so teams build on it rather than use it. Two doc comments carry the platform's guarantees:
+
+```cue
+output: spec: template: spec: {
+	// +final
+	securityContext: {runAsNonRoot: true, seccompProfile: type: "RuntimeDefault"}
+	...
+}
+outputs: {
+	// +required
+	service: {...}
+	netpol: {...}      // default-deny, labelled example.com/policy: default-deny
+}
+```
+
+Its status says which ingress policy applies, read from that NetworkPolicy: `ingress: default-deny`.
+
+## What teams build
+
+**`payments-web`** declares its own parameters and decides what `platform-web` receives:
+
+```cue
+parameter: {
+	image:  *"nginxinc/nginx-unprivileged:stable" | string
+	tenant: string
+}
+$super: properties: {
+	image:    parameter.image
+	replicas: 3            // replicas change here, never by writing output.spec.replicas
+}
+output: metadata: labels: team: "payments"
+outputs: config: {
+	kind: "ConfigMap"
+	data: image: $super.output.spec.template.spec.containers[0].image   // what platform-web rendered
+	...
+}
+```
+
+**`checkout-web`** extends `payments-web`, so `platform-web` two levels up. It adds an environment variable and a memory limit to the container, and a health check that is combined with the one it inherits.
+
+**`public-web`** must accept traffic from the ingress controller. It leaves out the default-deny policy and writes its own. The inherited status message reads that policy, so it says its own message too:
+
+```cue
+$inherit: outputs: netpol: false
+outputs: netpol: {... ingress: [{from: [{namespaceSelector: matchLabels: "kubernetes.io/metadata.name": "ingress-nginx"}]}]}
+```
+```yaml
+status:
+  customStatus: |
+    message: "ingress: from ingress-nginx"
+```
+
+**`legacy-web`** extends `platform-web@v1`. When the platform team changes `platform-web`, `legacy-web` keeps rendering what revision 1 rendered.
+
+**`internal-expose`** is the `platform-expose` trait with the internal ingress class and an allowlist. A trait extends a trait the same way.
+
+**`team-volume`** lets a team pick a `tier`, which becomes `platform-volume`'s immutable `storageClass`.
+
+## What renders
+
+In namespace `default`:
+
+| Command | Result |
 |---|---|
-| `kubectl get deploy n-t -o jsonpath='{.metadata.labels.team} {.spec.replicas} {.spec.template.spec.containers[0].env[0].value}'` | `payments 2 acme` (a label from the child, replicas passed up, an env var added) |
-| `kubectl get configmap n-t-info -o jsonpath='{.data.image}'` | the image the parent rendered, read through `$super.output` |
-| `kubectl get deploy n-l -o jsonpath='{.metadata.labels.team} {.metadata.annotations.example\.com/owner}'` | `payments checkout` (one from each level above the root) |
-| `kubectl get app n-app -o jsonpath='{.status.services[*].healthy}'` | `true true true` |
-| `kubectl get apprev n-app-v1 -o jsonpath='{.spec.componentDefinitions.n-base.metadata.name}'` | `n-base` (the revision records the ancestors) |
-| `kubectl get networkpolicy a-own -o jsonpath='{.spec.ingress}'` | `[{}]`, the child's own policy in place of the parent's |
-| `kubectl get networkpolicy a-none` | not found; the child left it out |
-| `kubectl get deploy b-three -o jsonpath='{.spec.replicas}'` | `3`, passed through `$super` |
-| `kubectl get deploy c-labelled -o jsonpath='{.spec.template.spec.securityContext}'` | `{"runAsNonRoot":true}`, exactly the parent's |
-| `kubectl get deploy hp-p -o jsonpath='{.metadata.labels.rev}'` | empty: pinned to `v1` |
-| `kubectl get deploy hp-f -o jsonpath='{.metadata.labels.rev}'` | `v2`: follows the parent |
-| `kubectl get deploy h-t -o jsonpath='{.metadata.labels.managed},{.metadata.labels.team}'` | `true,h`, a label from each trait |
+| `kubectl get deploy checkout -o jsonpath='{.metadata.labels.team} {.spec.replicas} {.spec.template.spec.containers[0].env[0].value} {.spec.template.spec.containers[0].resources.limits.memory}'` | `payments 3 live 256Mi`: one value from each level |
+| `kubectl get deploy checkout -o jsonpath='{.spec.template.spec.securityContext}'` | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}`, the platform's |
+| `kubectl get configmap ledger-config -o jsonpath='{.data.image}'` | `nginxinc/nginx-unprivileged:stable`, read from what `platform-web` rendered |
+| `kubectl get networkpolicy shop -o jsonpath='{.spec.ingress[0].from[0].namespaceSelector.matchLabels}'` | `{"kubernetes.io/metadata.name":"ingress-nginx"}`, `public-web`'s own |
+| `kubectl get networkpolicy ledger -o jsonpath='{.metadata.labels.example\.com/policy}'` | `default-deny`, the platform's |
+| `kubectl get ingress checkout -o jsonpath='{.spec.ingressClassName}'` | `internal`, from the child trait |
+| `kubectl get app payments storefront -o jsonpath='{range .items[*].status.services[*]}{.name}: {.message}{"\n"}{end}'` | `checkout`, `ledger` and `archive` say `ingress: default-deny`; `shop` says `ingress: from ingress-nginx` |
 
-### `+immutable` through a child
+## What a team cannot do
 
-`g-volume` marks `storageClass` `// +immutable`. `g-forward` passes it on under the same name, `g-tiered` maps its own `tier` onto it, and `g-fixed` sets it itself. Update the Applications:
+Each object in [`mistakes.yaml`](mistakes.yaml) is refused when it is applied:
+
+| Attempt | Refused with |
+|---|---|
+| swap the Deployment for a Job | `` `$inherit: {output: false}` is not allowed in nightly-job: a definition that extends another adds to its parent's output and cannot replace it; a definition that needs something else in its place is a different definition `` |
+| throw away everything the parent renders | `` `$inherit: false` is not allowed in bare-web: ... leave out one output at a time with `$inherit: {outputs: {<name>: false}}` `` |
+| set `replicas: 10` on the Deployment | ``component big-web sets output.spec.replicas, which platform-web already sets; pass a value to platform-web through `$super: properties` instead`` |
+| change the Service port | `component https-web sets outputs.service.spec.ports[0].port, but platform-web fixes it to 80 and a child cannot change it; to use another value, write a definition that does not extend platform-web` |
+| add `runAsUser: 0` to the security context | `component root-web adds to output.spec.template.spec.securityContext, which platform-web marks +final` |
+| leave out the Service | `component headless-web leaves out outputs.service, which platform-web marks +required` |
+| leave out the NetworkPolicy and keep the message that reads it | `component open-web leaves out outputs.netpol, which the customStatus it inherits from platform-web reads; keep the output, or set its own customStatus` |
+| declare a StatefulSet | `component stateful-web declares workload apps/v1 StatefulSet, but platform-web declares apps/v1 Deployment; leave spec.workload unset to inherit it` |
+| never call the parent | ``component lazy-web extends platform-web but its template never calls it; add a `$super: properties: {...}` block naming what platform-web should receive`` |
+| extend it from another namespace | `component definition platform-web is in namespace vela-system, and a definition may only extend one in its own namespace (default); ...` |
+| make `platform-web` extend a type built on it | `definition payments-web extends platform-web, which is already in its own inheritance chain: platform-web -> checkout-web -> payments-web -> platform-web` |
+| use `platform-web` directly in an Application | `component platform-web is abstract and cannot be used directly; name a component that extends it.` |
+
+## `+immutable` through a child
+
+`ledger-data` has a `fast` volume. Changing its tier would change `platform-volume`'s storage class, so it is refused, although the field the Application changes is `tier`:
 
 ```bash
-# refused: g-volume's immutable parameter storageClass cannot be changed (current: "fast", new: "slow")
-kubectl patch app g-app --type=json -p '[{"op":"replace","path":"/spec/components/0/properties/storageClass","value":"slow"}]'
-# refused the same way, although the field the Application changes is tier
-kubectl patch app g-app --type=json -p '[{"op":"replace","path":"/spec/components/1/properties/tier","value":"slow"}]'
-# accepted: size is not immutable
-kubectl patch app g-app --type=json -p '[{"op":"add","path":"/spec/components/1/properties/size","value":"2Gi"}]'
+kubectl patch app ledger-data --type=json \
+  -p '[{"op":"replace","path":"/spec/components/0/properties/tier","value":"standard"}]'
+# ... platform-volume's immutable parameter storageClass cannot be changed (current: "fast", new: "standard").
 
-# accepted: a parameter that only had its default is set for the first time
-kubectl patch app g-rep-app --type=json -p '[{"op":"add","path":"/spec/components/0/properties","value":{"replicas":3}}]'
-# refused: cannot be changed (current: 3, new: 4)
-kubectl patch app g-rep-app --type=json -p '[{"op":"replace","path":"/spec/components/0/properties/replicas","value":4}]'
-# refused: cannot be removed (current: 3)
-kubectl patch app g-rep-app --type=json -p '[{"op":"remove","path":"/spec/components/0/properties/replicas"}]'
+kubectl patch app ledger-data --type=json \
+  -p '[{"op":"add","path":"/spec/components/0/properties/size","value":"20Gi"}]'
+# accepted: size is not immutable
 ```
 
-The `g-app` volumes stay `Pending` unless the cluster has StorageClasses named `fast` and `standard`. The updates are judged by the admission webhook either way.
+The volume stays `Pending` unless the cluster has a StorageClass named `fast`. The update is judged by the admission webhook either way.
 
 ## Clean up
 
 ```bash
-kubectl delete app -n default n-app n-paved-app a-app b-app c-app e-app f-app g-app g-rep-app hp-app h-trait-app --ignore-not-found
-for f in *.yaml; do kubectl delete -f "$f" --ignore-not-found; done
+kubectl delete -f apps.yaml
+kubectl delete -f teams.yaml
+kubectl delete -f platform.yaml
 ```

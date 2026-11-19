@@ -1,0 +1,51 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: payments
+  namespace: default
+spec:
+  components:
+    - name: checkout
+      type: checkout-web
+      properties:
+        tenant: acme
+      traits:
+        - type: internal-expose
+          properties:
+            host: checkout.internal.example.com
+    - name: ledger
+      type: payments-web
+      properties:
+        tenant: acme
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: storefront
+  namespace: default
+spec:
+  components:
+    - name: shop
+      type: public-web
+      properties:
+        image: nginxinc/nginx-unprivileged:stable
+      traits:
+        - type: platform-expose
+          properties:
+            host: shop.example.com
+    - name: archive
+      type: legacy-web
+      properties:
+        image: nginxinc/nginx-unprivileged:stable
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: ledger-data
+  namespace: default
+spec:
+  components:
+    - name: ledger-db
+      type: team-volume
+      properties:
+        tier: fast
