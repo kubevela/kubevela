@@ -156,10 +156,12 @@ func registerTools(s *Server, d *deps) {
 			"vela-core version and health, Kubernetes server version, enabled feature gates, and any version skew. " +
 			"Call once per session before other tools so explanations match the running system. Pass the namespace " +
 			"the user is working in to learn how it delivers workloads today, so new work follows that practice. " +
-			"Before writing a definition for an AWS service, pass the service, and the kind you will emit: the result names the " +
-			"installed provisioner to build on with its CRD's spec schema, or says that neither ACK nor Crossplane is installed " +
-			"and what to install. When both serve that service it names ACK and lists Crossplane as an alternative under also; then ask the user which " +
-			"one the platform builds on, or follow the one the user named.",
+			"Before writing a definition for a cloud service, pass the provider (aws, gcp or azure; aws is the " +
+			"default), the service, and the kind you will emit: the result names the installed provisioner to " +
+			"build on with its CRD's spec schema, or says that nothing serves the service and what to install. " +
+			"The cloud's own controller is chosen first — ACK on AWS, Config Connector on GCP, Azure Service " +
+			"Operator on Azure — and when Crossplane also serves the service it is listed under also; then ask " +
+			"the user which one the platform builds on, or follow the one the user named.",
 	}, d.getPlatformInfo)
 
 	addTool(s, ToolClassRead, &sdk.Tool{
@@ -227,6 +229,20 @@ func registerTools(s *Server, d *deps) {
 	}, d.explainApplication)
 
 	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "diagnose_application",
+		Description: "Root-cause an unhealthy Application: reads provisioner-owned resources live, a bounded number " +
+			"per call, and interprets their conditions by the conventions of the family that owns their API group " +
+			"— ACK (ResourceSynced and Terminal, including the convergence-loop signature of a field the cloud " +
+			"service computes differently), Config Connector (Ready with reason UpToDate), Crossplane (Ready and " +
+			"Synced). Plain Kubernetes resources keep the resource tree's pod-corrected health without a live read; " +
+			"Secrets are never diagnosed and, as with every tool here, their content is never returned. Adds " +
+			"recent events and findings that each cite the object " +
+			"they came from; anything unread is named in unknowns. The resource tree defaults unknown kinds to " +
+			"Healthy, so use this, not explain_application alone, when a cloud resource looks fine but the " +
+			"application is not.",
+	}, d.diagnoseApplication)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
 		Name:        "list_clusters",
 		Description: "List the clusters KubeVela can deploy to, with alias, credential type, endpoint and labels. Credentials are never returned.",
 	}, d.listClusters)
@@ -236,6 +252,16 @@ func registerTools(s *Server, d *deps) {
 		Description: "List the addons enabled on this control plane with version, registry, phase, health and the clusters " +
 			"they reach, read from the Applications the addons installed. Registry catalogues are not queried.",
 	}, d.listAddons)
+
+	addTool(s, ToolClassPlan, &sdk.Tool{
+		Name: "stage_definition",
+		Description: "Parse and stage a local definition — CUE as vela def gen-module writes it for a defkit module, or " +
+			"a definition object as YAML — and get back a content-hash handle that dryrun_application, " +
+			"diff_application and diff_definition_impact accept wherever they accept inline definitions. Stage once " +
+			"per edit and pass the handle on every later call, so the definition's text does not travel with each " +
+			"request; restage after any edit, since the handle names the exact content. Handles expire and the " +
+			"result says when. Nothing is sent to the cluster.",
+	}, d.stageDefinition)
 
 	addTool(s, ToolClassPlan, &sdk.Tool{
 		Name: "dryrun_application",
@@ -253,6 +279,19 @@ func registerTools(s *Server, d *deps) {
 			"changes, and classifies risk LOW, MEDIUM or HIGH with every rule that fired. Returns a token that " +
 			"apply_application requires, so show this result to the user before any apply.",
 	}, d.diffApplication)
+
+	addTool(s, ToolClassPlan, &sdk.Tool{
+		Name: "diff_definition_impact",
+		Description: "Blast radius of a definition change before vela def apply: scans the allowed namespaces for " +
+			"Applications using the definition, renders the first consumers found — a bounded number per call, with " +
+			"the result marked truncated when more exist — against the cluster's current copy and against a " +
+			"proposed copy supplied the way dryrun_application accepts local definitions, and returns a " +
+			"per-Application result: a change set and risk class when both renders succeed, an unchanged marker, or " +
+			"a render error. The consumer scan is bounded too and its count says when " +
+			"it stopped early. A consumer the proposed definition no longer renders is reported as that " +
+			"Application's render error and carries no risk class; that absence is blocking, not safe. With no " +
+			"proposed copy it lists the consumers without rendering. Nothing is applied.",
+	}, d.diffDefinitionImpact)
 
 	if s.opts.AllowWrite {
 		addTool(s, ToolClassWrite, &sdk.Tool{

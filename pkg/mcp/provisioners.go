@@ -24,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	appsv1 "k8s.io/api/apps/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,8 +33,17 @@ import (
 const (
 	// ProvisionerACK is the AWS Controllers for Kubernetes.
 	ProvisionerACK = "ack"
-	// ProvisionerCrossplane is a Crossplane AWS provider.
+	// ProvisionerConfigConnector is GCP's Config Connector.
+	ProvisionerConfigConnector = "config-connector"
+	// ProvisionerASO is the Azure Service Operator.
+	ProvisionerASO = "aso"
+	// ProvisionerCrossplane is a Crossplane provider for the chosen cloud.
 	ProvisionerCrossplane = "crossplane"
+
+	// Clouds a provisioner can be resolved for.
+	ProviderAWS   = "aws"
+	ProviderGCP   = "gcp"
+	ProviderAzure = "azure"
 
 	// maxProvisionerCRDs bounds the CRDs read in full for one service.
 	maxProvisionerCRDs = 30
@@ -44,37 +54,109 @@ const (
 var serviceName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 
 // provisionerFamily describes how one provisioner names its API groups.
-// Families are tried in order: ACK first, then Crossplane.
+// Per cloud, families are tried in order: the cloud's own controller first,
+// then Crossplane, matching the platform default definitions build on.
 type provisionerFamily struct {
 	name string
+	// display is the family's proper name for prose messages; name stays the
+	// canonical lower-case value the provisioner field reports.
+	display string
 	// suffixes are the group suffixes after "<service>.", most current first.
 	suffixes []string
 	install  string
 	health   string
 }
 
-var provisionerFamilies = []provisionerFamily{
-	{
-		name:     ProvisionerACK,
-		suffixes: []string{".services.k8s.aws"},
-		install:  "the ACK %[1]s controller, chart oci://public.ecr.aws/aws-controllers-k8s/%[1]s-chart",
-		health:   "condition ACK.ResourceSynced is True; status.ackResourceMetadata.arn identifies the AWS resource",
+// providerFamilies maps each cloud to its families, own controller first.
+var providerFamilies = map[string][]provisionerFamily{
+	ProviderAWS: {
+		{
+			name:     ProvisionerACK,
+			display:  "ACK",
+			suffixes: []string{".services.k8s.aws"},
+			install:  "the ACK %[1]s controller, chart oci://public.ecr.aws/aws-controllers-k8s/%[1]s-chart",
+			health:   "condition ACK.ResourceSynced is True; status.ackResourceMetadata.arn identifies the AWS resource",
+		},
+		{
+			name:    ProvisionerCrossplane,
+			display: "Crossplane",
+			// Namespaced Crossplane v2 resources, then cluster-scoped, then the
+			// older community provider.
+			suffixes: []string{".aws.m.upbound.io", ".aws.upbound.io", ".aws.crossplane.io"},
+			install:  "a Crossplane AWS provider for %[1]s, provider-aws-%[1]s from crossplane-contrib/provider-upjet-aws",
+			health:   "conditions Ready and Synced are True; status.atProvider holds what AWS reported",
+		},
 	},
-	{
-		name: ProvisionerCrossplane,
-		// Namespaced Crossplane v2 resources, then cluster-scoped, then the
-		// older community provider.
-		suffixes: []string{".aws.m.upbound.io", ".aws.upbound.io", ".aws.crossplane.io"},
-		install:  "a Crossplane AWS provider for %[1]s, provider-aws-%[1]s from crossplane-contrib/provider-upjet-aws",
-		health:   "conditions Ready and Synced are True; status.atProvider holds what AWS reported",
+	ProviderGCP: {
+		{
+			name:     ProvisionerConfigConnector,
+			display:  "Config Connector",
+			suffixes: []string{".cnrm.cloud.google.com"},
+			install:  "Config Connector, which serves every GCP service once installed: the ConfigConnector add-on on GKE, or the operator bundle gs://configconnector-operator/latest/release-bundle.tar.gz elsewhere",
+			health:   "condition Ready is True with reason UpToDate; the resource's status holds what GCP reported",
+		},
+		{
+			name:     ProvisionerCrossplane,
+			display:  "Crossplane",
+			suffixes: []string{".gcp.m.upbound.io", ".gcp.upbound.io", ".gcp.crossplane.io"},
+			install:  "a Crossplane GCP provider for %[1]s, provider-gcp-%[1]s from crossplane-contrib/provider-upjet-gcp",
+			health:   "conditions Ready and Synced are True; status.atProvider holds what GCP reported",
+		},
+	},
+	ProviderAzure: {
+		{
+			name:     ProvisionerASO,
+			display:  "Azure Service Operator",
+			suffixes: []string{".azure.com"},
+			install:  "Azure Service Operator with the %[1]s CRDs: chart azure-service-operator from https://raw.githubusercontent.com/Azure/azure-service-operator/main/v2/charts with --set crdPattern='%[1]s.azure.com/*'",
+			health:   "condition Ready is True, meaning the resource reached its goal state; a Ready that is not True carries a severity and a message",
+		},
+		{
+			name:     ProvisionerCrossplane,
+			display:  "Crossplane",
+			suffixes: []string{".azure.m.upbound.io", ".azure.upbound.io", ".azure.crossplane.io"},
+			install:  "a Crossplane Azure provider for %[1]s, provider-azure-%[1]s from crossplane-contrib/provider-upjet-azure",
+			health:   "conditions Ready and Synced are True; status.atProvider holds what Azure reported",
+		},
 	},
 }
 
-// CloudProvisioners lists the AWS services each provisioner serves on the
-// cluster, read from the installed CRDs' API groups.
-type CloudProvisioners struct {
+// providerOrder keeps cloud listings deterministic.
+var providerOrder = []string{ProviderAWS, ProviderGCP, ProviderAzure}
+
+// formatInstall fills the service into an install hint that takes one; hints
+// for monolithic controllers, which install every service at once, do not.
+func formatInstall(install, service string) string {
+	if strings.Contains(install, "%") {
+		return fmt.Sprintf(install, service)
+	}
+	return install
+}
+
+// AWSProvisioners lists the AWS services each family serves here.
+type AWSProvisioners struct {
 	ACK        []string `json:"ack" jsonschema:"AWS services with ACK CRDs installed, such as dynamodb or s3."`
 	Crossplane []string `json:"crossplane" jsonschema:"AWS services with Crossplane provider CRDs installed."`
+}
+
+// GCPProvisioners lists the GCP services each family serves here.
+type GCPProvisioners struct {
+	ConfigConnector []string `json:"configConnector" jsonschema:"GCP services with Config Connector CRDs installed, such as sql or storage."`
+	Crossplane      []string `json:"crossplane" jsonschema:"GCP services with Crossplane provider CRDs installed."`
+}
+
+// AzureProvisioners lists the Azure services each family serves here.
+type AzureProvisioners struct {
+	AzureServiceOperator []string `json:"azureServiceOperator" jsonschema:"Azure services with Azure Service Operator CRDs installed, such as sql or storage."`
+	Crossplane           []string `json:"crossplane" jsonschema:"Azure services with Crossplane provider CRDs installed."`
+}
+
+// CloudProvisioners lists the cloud services each provisioner serves on the
+// cluster, read from the installed CRDs' API groups.
+type CloudProvisioners struct {
+	AWS   AWSProvisioners   `json:"aws" jsonschema:"AWS services served by ACK and Crossplane on this cluster."`
+	GCP   GCPProvisioners   `json:"gcp" jsonschema:"GCP services served by Config Connector and Crossplane on this cluster."`
+	Azure AzureProvisioners `json:"azure" jsonschema:"Azure services served by Azure Service Operator and Crossplane on this cluster."`
 }
 
 // ProvisionedKind is one resource kind a provisioner offers for a service.
@@ -98,12 +180,20 @@ type ProvisionedResource struct {
 // ServiceProvisioner answers which provisioner can create a service here.
 type ServiceProvisioner struct {
 	Service string `json:"service"`
-	// Provisioner is ack or crossplane, or empty when neither is installed.
-	Provisioner string            `json:"provisioner" jsonschema:"ack or crossplane: the provisioner to build on, ACK first when both are installed. Empty when neither is installed."`
+	// Provider is the cloud the service was resolved for.
+	Provider string `json:"provider" jsonschema:"Cloud the service was resolved for: aws, gcp or azure."`
+	// Provisioner names the family to build on, or is empty when none is installed.
+	Provisioner string            `json:"provisioner" jsonschema:"ack, config-connector, aso or crossplane: the provisioner to build on, the cloud's own controller first when both are installed. Empty when neither is installed."`
 	Kinds       []ProvisionedKind `json:"kinds" jsonschema:"Kinds that provisioner offers for the service."`
 	// Also lists other provisioners found for the same service.
 	Also     []string             `json:"also,omitempty" jsonschema:"Other provisioners that also serve this service on the cluster."`
 	Resource *ProvisionedResource `json:"resource,omitempty" jsonschema:"Schema of the kind asked for."`
+	// EndpointOverride is the endpoint the resolved controller calls instead
+	// of the cloud API, set only when a single controller Deployment is found
+	// to carry one. When the lookup cannot be certain, EndpointOverride stays
+	// empty and a warning records why, so an empty field is never read as
+	// confirmed cloud access.
+	EndpointOverride string `json:"endpointOverride,omitempty" jsonschema:"Endpoint URL the resolved controller is configured to call instead of the cloud API, read from its Deployment, set only for ACK and only when one controller Deployment carries a literal override. Schemas and verifications taken here describe that endpoint, not the cloud. Empty means either the controller calls the cloud or the lookup could not be certain; a warning distinguishes the two."`
 	// Message is set when no provisioner was found or a kind is missing.
 	Message string `json:"message,omitempty" jsonschema:"Why the service cannot be provisioned yet and what to install. Relay it to the user and do not write a definition for a provisioner that is not installed."`
 
@@ -111,34 +201,46 @@ type ServiceProvisioner struct {
 	truncated bool
 }
 
-// cloudProvisioners lists CRD names only, then groups them by family.
+// cloudProvisioners lists CRD names only, then groups them by cloud and family.
 func cloudProvisioners(ctx context.Context, cli client.Client) (*CloudProvisioners, []string, error) {
 	names, err := crdNames(ctx, cli)
 	if err != nil {
 		return nil, nil, err
 	}
-	found := map[string]map[string]bool{ProvisionerACK: {}, ProvisionerCrossplane: {}}
+	type key struct{ provider, family string }
+	found := map[key]map[string]bool{}
 	for _, n := range names {
 		_, group, ok := strings.Cut(n, ".")
 		if !ok {
 			continue
 		}
-		for _, fam := range provisionerFamilies {
-			for _, suf := range fam.suffixes {
-				if svc, ok := strings.CutSuffix(group, suf); ok && svc != "" && !strings.Contains(svc, ".") {
-					found[fam.name][svc] = true
+		for _, provider := range providerOrder {
+			for _, fam := range providerFamilies[provider] {
+				for _, suf := range fam.suffixes {
+					if svc, ok := strings.CutSuffix(group, suf); ok && svc != "" && !strings.Contains(svc, ".") {
+						k := key{provider, fam.name}
+						if found[k] == nil {
+							found[k] = map[string]bool{}
+						}
+						found[k][svc] = true
+					}
 				}
 			}
 		}
 	}
-	return &CloudProvisioners{ACK: sortedKeys(found[ProvisionerACK]), Crossplane: sortedKeys(found[ProvisionerCrossplane])}, names, nil
+	return &CloudProvisioners{
+		AWS:   AWSProvisioners{ACK: sortedKeys(found[key{ProviderAWS, ProvisionerACK}]), Crossplane: sortedKeys(found[key{ProviderAWS, ProvisionerCrossplane}])},
+		GCP:   GCPProvisioners{ConfigConnector: sortedKeys(found[key{ProviderGCP, ProvisionerConfigConnector}]), Crossplane: sortedKeys(found[key{ProviderGCP, ProvisionerCrossplane}])},
+		Azure: AzureProvisioners{AzureServiceOperator: sortedKeys(found[key{ProviderAzure, ProvisionerASO}]), Crossplane: sortedKeys(found[key{ProviderAzure, ProvisionerCrossplane}])},
+	}, names, nil
 }
 
 // serviceProvisioner resolves the provisioner for one service from the CRD
 // names already listed, reads the matching CRDs, and fills the schema of
 // kind when given.
-func serviceProvisioner(ctx context.Context, cli client.Client, names []string, service, kind string) (*ServiceProvisioner, []string, error) {
-	out := &ServiceProvisioner{Service: service, Kinds: []ProvisionedKind{}}
+func serviceProvisioner(ctx context.Context, cli client.Client, names []string, provider, service, kind string) (*ServiceProvisioner, []string, error) {
+	families := providerFamilies[provider]
+	out := &ServiceProvisioner{Service: service, Provider: provider, Kinds: []ProvisionedKind{}}
 	var warnings []string
 	type match struct {
 		family provisionerFamily
@@ -151,7 +253,7 @@ func serviceProvisioner(ctx context.Context, cli client.Client, names []string, 
 		if !ok {
 			continue
 		}
-		for _, fam := range provisionerFamilies {
+		for _, fam := range families {
 			for rank, suf := range fam.suffixes {
 				if group == service+suf {
 					matches = append(matches, match{fam, rank, n})
@@ -164,8 +266,8 @@ func serviceProvisioner(ctx context.Context, cli client.Client, names []string, 
 		byFamily[m.family.name] = append(byFamily[m.family.name], m)
 	}
 	var chosen *provisionerFamily
-	for i := range provisionerFamilies {
-		fam := provisionerFamilies[i]
+	for i := range families {
+		fam := families[i]
 		if len(byFamily[fam.name]) == 0 {
 			continue
 		}
@@ -176,10 +278,20 @@ func serviceProvisioner(ctx context.Context, cli client.Client, names []string, 
 		}
 	}
 	if chosen == nil {
-		out.Message = noProvisionerMessage(service)
+		out.Message = noProvisionerMessage(provider, service)
 		return out, warnings, nil
 	}
 	out.Provisioner = chosen.name
+	if chosen.name == ProvisionerACK {
+		ep := ackControllerEndpoint(ctx, cli, service)
+		switch ep.status {
+		case ackEndpointStatusOverride:
+			out.EndpointOverride = ep.url
+			warnings = append(warnings, "endpoint provenance: "+ep.evidence)
+		case ackEndpointStatusUnknown:
+			warnings = append(warnings, "endpoint provenance unknown: "+ep.evidence+"; an empty endpointOverride here is not a guarantee the controller calls the AWS API")
+		}
+	}
 
 	// Prefer the most current group of the family, then read its CRDs.
 	fm := byFamily[chosen.name]
@@ -236,27 +348,29 @@ func serviceProvisioner(ctx context.Context, cli client.Client, names []string, 
 	if incomplete {
 		// A CRD that was not read may be the one asked for.
 		out.Message = fmt.Sprintf("%s serves %s on this cluster, but not every %s CRD could be read, so whether it has a %s kind is unknown; the kinds read are %s",
-			chosen.name, service, chosen.name, kind, strings.Join(kinds, ", "))
+			chosen.display, service, chosen.display, kind, strings.Join(kinds, ", "))
 		return out, warnings, nil
 	}
-	out.Message = fmt.Sprintf("%s serves %s on this cluster, but has no %s kind; the installed kinds are %s", chosen.name, service, kind, strings.Join(kinds, ", "))
+	out.Message = fmt.Sprintf("%s serves %s on this cluster, but has no %s kind; the installed kinds are %s", chosen.display, service, kind, strings.Join(kinds, ", "))
 	return out, warnings, nil
 }
 
-func noProvisionerMessage(service string) string {
-	var groups, installs []string
-	for _, fam := range provisionerFamilies {
+func noProvisionerMessage(provider, service string) string {
+	families := providerFamilies[provider]
+	var names, groups, installs []string
+	for _, fam := range families {
 		var gs []string
 		for _, suf := range fam.suffixes {
 			gs = append(gs, service+suf)
 		}
-		groups = append(groups, fmt.Sprintf("%s (%s)", fam.name, strings.Join(gs, ", ")))
-		installs = append(installs, fmt.Sprintf(fam.install, service))
+		names = append(names, fam.display)
+		groups = append(groups, fmt.Sprintf("%s (%s)", fam.display, strings.Join(gs, ", ")))
+		installs = append(installs, formatInstall(fam.install, service))
 	}
-	return fmt.Sprintf("Neither ACK nor Crossplane provides %s on this cluster: no CRDs were found in the groups of %s. "+
+	return fmt.Sprintf("Neither %s provides %s on this cluster: no CRDs were found in the groups of %s. "+
 		"Creating %s resources from KubeVela needs one of them: install %s, or %s. "+
 		"Ask the platform team which provisioner this cluster should use; a definition for a provisioner that is not installed cannot be checked or applied.",
-		service, strings.Join(groups, " or "), service, installs[0], installs[1])
+		strings.Join(names, " nor "), service, strings.Join(groups, " or "), service, installs[0], installs[1])
 }
 
 // provisionedResource extracts the storage version's spec schema. A schema too
@@ -387,4 +501,69 @@ func crdNames(ctx context.Context, cli client.Client) ([]string, error) {
 	}
 	sort.Strings(names)
 	return names, nil
+}
+
+// endpoint-provenance status for an ACK controller.
+const (
+	ackEndpointStatusOverride = "override" // a literal endpoint override was read
+	ackEndpointStatusCloud    = "cloud"    // the controller carries no override
+	ackEndpointStatusUnknown  = "unknown"  // the lookup could not be certain
+)
+
+// ackEndpointResult is what ackControllerEndpoint resolved, with the evidence
+// it read so the claim can be verified or disputed.
+type ackEndpointResult struct {
+	status   string
+	url      string // set only when status is override
+	evidence string
+}
+
+// ackControllerEndpoint reports whether the installed ACK controller for
+// service calls an endpoint other than the AWS API, read from its Deployment's
+// AWS_ENDPOINT_URL. It is deliberately conservative and returns unknown rather
+// than guessing: the chart's app.kubernetes.io/name label is user-settable, so
+// the Deployment must also carry ACK's ack-<service> name prefix; a list
+// failure, no controller, more than one controller, or an endpoint sourced
+// from valueFrom/envFrom (which it does not resolve) all return unknown. Only a
+// single controller Deployment with no override yields cloud. It never fails
+// the caller; the result is evidence, handled by the caller.
+func ackControllerEndpoint(ctx context.Context, cli client.Client, service string) ackEndpointResult {
+	var list appsv1.DeploymentList
+	if err := cli.List(ctx, &list, client.MatchingLabels{"app.kubernetes.io/name": service + "-chart"}); err != nil {
+		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: "could not list the ACK " + service + " controller Deployment: " + redactLine(err.Error())}
+	}
+	var ctrls []*appsv1.Deployment
+	for i := range list.Items {
+		if strings.HasPrefix(list.Items[i].Name, "ack-"+service) {
+			ctrls = append(ctrls, &list.Items[i])
+		}
+	}
+	switch len(ctrls) {
+	case 0:
+		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: "no ack-" + service + " controller Deployment found to read AWS_ENDPOINT_URL from"}
+	case 1:
+	default:
+		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: fmt.Sprintf("%d ack-%s controller Deployments carry the chart label; the endpoint is ambiguous", len(ctrls), service)}
+	}
+	d := ctrls[0]
+	ref := fmt.Sprintf("Deployment %s/%s resourceVersion %s", d.Namespace, d.Name, d.ResourceVersion)
+	unresolvable := ""
+	for _, c := range d.Spec.Template.Spec.Containers {
+		if len(c.EnvFrom) > 0 && unresolvable == "" {
+			unresolvable = ref + " loads env via envFrom; AWS_ENDPOINT_URL cannot be resolved from the Deployment alone"
+		}
+		for _, env := range c.Env {
+			if env.Name != "AWS_ENDPOINT_URL" {
+				continue
+			}
+			if env.Value != "" {
+				return ackEndpointResult{status: ackEndpointStatusOverride, url: env.Value, evidence: ref + " env AWS_ENDPOINT_URL=" + env.Value}
+			}
+			unresolvable = ref + " sets AWS_ENDPOINT_URL via valueFrom; it cannot be resolved from the Deployment alone"
+		}
+	}
+	if unresolvable != "" {
+		return ackEndpointResult{status: ackEndpointStatusUnknown, evidence: unresolvable}
+	}
+	return ackEndpointResult{status: ackEndpointStatusCloud, evidence: ref + " sets no AWS_ENDPOINT_URL; the controller calls the AWS API"}
 }
