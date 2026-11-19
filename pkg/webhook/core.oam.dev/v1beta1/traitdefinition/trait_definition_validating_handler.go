@@ -24,6 +24,7 @@ import (
 
 	"github.com/pkg/errors"
 	admissionv1 "k8s.io/api/admission/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -101,11 +102,16 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into TraitDefinition object - malformed request")
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
-		// A definition being deleted renders nothing again, and judging it would
-		// only hold up its finalizers: a child whose parent went first could
-		// never finish deleting.
+		// A terminating definition whose spec did not change is only having its
+		// finalizers removed. Skipping validation here lets a child whose parent
+		// is already gone finish deleting; otherwise the missing parent would
+		// refuse the update and the child would hang. A spec edit on a
+		// terminating definition is still validated as usual.
 		if obj.DeletionTimestamp != nil {
-			return admission.Allowed("")
+			old := &v1beta1.TraitDefinition{}
+			if err := h.Decoder.DecodeRaw(req.OldObject, old); err == nil && apiequality.Semantic.DeepEqual(old.Spec, obj.Spec) {
+				return admission.Allowed("")
+			}
 		}
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)

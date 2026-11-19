@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -178,14 +179,20 @@ func checkAncestorImmutableParams(ctx context.Context, name string, tmpl *appfil
 	if tmpl == nil || len(tmpl.Ancestors) == 0 {
 		return nil
 	}
+	// Equal properties give every ancestor equal values, so nothing can have
+	// changed. Skipping here saves evaluating the chain twice per component
+	// and trait on every Application update.
+	if sameProperties(oldProps, newProps) {
+		return nil
+	}
 	chain := append([]inherit.Level{{Name: name, Template: tmpl.TemplateStr}}, tmpl.Ancestors...)
 	const contextFile = "context: _"
-	oldReceived, err := inherit.AncestorProperties(ctx, chain, paramFileOf(oldProps), contextFile, compileForImmutable)
+	oldReceived, err := inherit.AncestorProperties(ctx, chain, paramFileOf(oldProps), contextFile, ancestorCompiler)
 	if err != nil {
 		klog.V(4).Infof("immutable check: skipping the definitions %q extends: %v", name, err)
 		return nil
 	}
-	newReceived, err := inherit.AncestorProperties(ctx, chain, paramFileOf(newProps), contextFile, compileForImmutable)
+	newReceived, err := inherit.AncestorProperties(ctx, chain, paramFileOf(newProps), contextFile, ancestorCompiler)
 	if err != nil {
 		klog.V(4).Infof("immutable check: skipping the definitions %q extends: %v", name, err)
 		return nil
@@ -248,11 +255,37 @@ func paramFileOf(props *runtime.RawExtension) string {
 	return inherit.ParameterField + ": " + string(props.Raw)
 }
 
+// sameProperties reports whether two property sets hold the same JSON. Unset
+// properties count as an empty object, as paramFileOf treats them. Properties
+// that do not parse are never the same, so the full check still runs.
+func sameProperties(a, b *runtime.RawExtension) bool {
+	ar, br := rawOrEmpty(a), rawOrEmpty(b)
+	if bytes.Equal(ar, br) {
+		return true
+	}
+	var av, bv any
+	if json.Unmarshal(ar, &av) != nil || json.Unmarshal(br, &bv) != nil {
+		return false
+	}
+	return reflect.DeepEqual(av, bv)
+}
+
+func rawOrEmpty(props *runtime.RawExtension) []byte {
+	if props == nil || len(props.Raw) == 0 {
+		return []byte("{}")
+	}
+	return props.Raw
+}
+
 func jsonToMap(raw []byte) map[string]any {
 	m := map[string]any{}
 	_ = json.Unmarshal(raw, &m)
 	return m
 }
+
+// ancestorCompiler is the compiler the ancestor check evaluates a chain with.
+// A variable so tests can count how often the chain is evaluated.
+var ancestorCompiler = compileForImmutable
 
 // compileForImmutable compiles a level of a chain with provider functions off,
 // so the check has no side effects.

@@ -47,7 +47,9 @@ var _ = Describe("a child whose parent is already gone", func() {
 		h = &ValidatingHandler{Decoder: admission.NewDecoder(sc), Client: fake.NewClientBuilder().WithScheme(sc).Build()}
 	})
 
-	update := func(deleting bool) admission.Response {
+	// update sends an UPDATE for the child. With specChanged the old object
+	// carries a different template, as a real spec edit would.
+	update := func(deleting, specChanged bool) admission.Response {
 		child := &v1beta1.TraitDefinition{
 			TypeMeta: metav1.TypeMeta{Kind: "TraitDefinition", APIVersion: "core.oam.dev/v1beta1"},
 			ObjectMeta: metav1.ObjectMeta{Name: "orphan-labels", Namespace: "vela-system",
@@ -63,6 +65,13 @@ var _ = Describe("a child whose parent is already gone", func() {
 		}
 		raw, err := json.Marshal(child)
 		Expect(err).NotTo(HaveOccurred())
+		oldRaw := raw
+		if specChanged {
+			prev := child.DeepCopy()
+			prev.Spec.Schematic.CUE.Template += "// earlier revision\n"
+			oldRaw, err = json.Marshal(prev)
+			Expect(err).NotTo(HaveOccurred())
+		}
 		return h.Handle(context.Background(), admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
 			UID:       "test-uid",
 			Operation: admissionv1.Update,
@@ -70,16 +79,22 @@ var _ = Describe("a child whose parent is already gone", func() {
 				Group: traitDefGVR.Group, Version: traitDefGVR.Version, Resource: traitDefGVR.Resource,
 			},
 			Object:    runtime.RawExtension{Raw: raw},
-			OldObject: runtime.RawExtension{Raw: raw},
+			OldObject: runtime.RawExtension{Raw: oldRaw},
 		}})
 	}
 
 	It("lets it finish deleting", func() {
-		Expect(update(true).Allowed).To(BeTrue())
+		Expect(update(true, false).Allowed).To(BeTrue())
 	})
 
 	It("still refuses it while it is not being deleted", func() {
-		resp := update(false)
+		resp := update(false, false)
+		Expect(resp.Allowed).To(BeFalse())
+		Expect(resp.Result.Message).To(ContainSubstring("gone-labels"))
+	})
+
+	It("a spec change on a terminating child is still validated", func() {
+		resp := update(true, true)
 		Expect(resp.Allowed).To(BeFalse())
 		Expect(resp.Result.Message).To(ContainSubstring("gone-labels"))
 	})

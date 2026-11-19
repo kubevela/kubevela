@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"cuelang.org/go/cue"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -165,5 +166,41 @@ var _ = Describe("+immutable through extends", func() {
 		errs := handler.ValidateImmutableFields(context.Background(), withTrait("eu"), withTrait("us"))
 		Expect(errs).To(HaveLen(1))
 		Expect(errs[0].Detail).To(ContainSubstring(`zone's immutable parameter zone cannot be changed (current: "us-a", new: "eu-a")`))
+	})
+
+	Context("when the properties did not change", func() {
+		var compiles int
+
+		BeforeEach(func() {
+			compiles = 0
+			orig := ancestorCompiler
+			ancestorCompiler = func(ctx context.Context, src string) (cue.Value, error) {
+				compiles++
+				return orig(ctx, src)
+			}
+			DeferCleanup(func() { ancestorCompiler = orig })
+		})
+
+		withRaw := func(typ, raw string) *v1beta1.Application {
+			a := app(typ, map[string]any{})
+			a.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(raw)}
+			return a
+		}
+
+		It("does not evaluate the chain", func() {
+			errs := handler.ValidateImmutableFields(context.Background(),
+				withRaw("tiered-leaf", `{"tier":"fast","size":"2Gi"}`),
+				withRaw("tiered-leaf", `{"size": "2Gi", "tier": "fast"}`))
+			Expect(errs).To(BeEmpty())
+			Expect(compiles).To(BeZero())
+		})
+
+		It("still evaluates it once they do change", func() {
+			errs := handler.ValidateImmutableFields(context.Background(),
+				withRaw("tiered-leaf", `{"tier":"slow"}`),
+				withRaw("tiered-leaf", `{"tier":"fast"}`))
+			Expect(errs).To(HaveLen(1))
+			Expect(compiles).To(BeNumerically(">", 0))
+		})
 	})
 })

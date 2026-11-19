@@ -33,7 +33,9 @@ import (
 // the child's template and compiling it alone always fails.
 //
 // Refused: never calling the parent, omitting a parameter it requires with no
-// default, a call it would not accept. Warned: a name it does not declare, and a
+// default, a call it would not accept, adding to an output an ancestor marks
+// +final, dropping an output an ancestor marks +required, and overriding a
+// field the parent already sets. Warned: a name it does not declare, and a
 // published parameter that reaches neither the parent nor the child's output.
 //
 // alsoRead are the healthPolicy, customStatus and details, so a parameter read
