@@ -359,6 +359,9 @@ var _ = DescribeTableSubtree("Webservice component traits (Sawchain)", Label("co
 			    - op: add
 			      path: /spec/template/metadata/labels/patched
 			      value: "yes"
+			    - op: replace
+			      path: /spec/template/metadata/labels/keep
+			      value: replaced
 			    - op: remove
 			      path: /spec/template/metadata/labels/to-delete
 			    - op: add
@@ -380,13 +383,14 @@ var _ = DescribeTableSubtree("Webservice component traits (Sawchain)", Label("co
 			    metadata:
 			      labels:
 			        patched: "yes"
-			        keep: "yes"
+			        keep: replaced
 			        ("to-delete" == null): true
 			    spec:
 			      containers:
 			      - name: ($name)
 			      - name: helper
 			        image: busybox:1.34
+			        command: ["sleep", "86400"]
 		`,
 	}),
 	Entry("json-merge-patch", traitCase{
@@ -407,6 +411,11 @@ var _ = DescribeTableSubtree("Webservice component traits (Sawchain)", Label("co
 			        metadata:
 			          labels:
 			            to-delete: null
+			        spec:
+			          containers:
+			          - name: replaced
+			            image: busybox:1.34
+			            command: ["sleep", "864000"]
 		`,
 		expected: `
 			apiVersion: apps/v1
@@ -423,6 +432,12 @@ var _ = DescribeTableSubtree("Webservice component traits (Sawchain)", Label("co
 			      labels:
 			        keep: "yes"
 			        ("to-delete" == null): true
+			    spec:
+			      # Merge patch replaces arrays wholesale: only the patched container remains.
+			      containers:
+			      - name: replaced
+			        image: busybox:1.34
+			        command: ["sleep", "864000"]
 		`,
 	}),
 	Entry("expose", traitCase{
