@@ -1,0 +1,144 @@
+# What the platform team publishes.
+#
+# platform-web is the paved road for web services. Teams never use it directly
+# (abstract: true); they build their own types on it.
+#   - The pod runs as non-root, and the security context is +final: nothing that
+#     extends platform-web may add to it.
+#   - Every service gets a Service, and it is +required: no team may leave it out.
+#   - A default-deny NetworkPolicy ships too. A team may replace it, but the
+#     status message reads it, so a team that replaces it says its own message.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: platform-web
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: Hardened web service. Extend it, do not use it directly.
+spec:
+  abstract: true
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+    type: deployments.apps
+  status:
+    healthPolicy: |
+      // readyReplicas is left out of the status while it is zero.
+      ready: *0 | int
+      if context.output.status.readyReplicas != _|_ {
+      	ready: context.output.status.readyReplicas
+      }
+      isHealth: ready == context.output.spec.replicas
+    customStatus: |
+      message: "ingress: " + context.outputs.netpol.metadata.labels["example.com/policy"]
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		replicas: parameter.replicas
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: {
+        				// +final
+        				securityContext: {
+        					runAsNonRoot: true
+        					seccompProfile: type: "RuntimeDefault"
+        				}
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        					ports: [{containerPort: 8080}]
+        				}]
+        			}
+        		}
+        	}
+        }
+        outputs: {
+        	// +required
+        	service: {
+        		apiVersion: "v1"
+        		kind:       "Service"
+        		metadata: name: context.name
+        		spec: {
+        			selector: "app.oam.dev/component": context.name
+        			ports: [{port: 80, targetPort: 8080}]
+        		}
+        	}
+        	netpol: {
+        		apiVersion: "networking.k8s.io/v1"
+        		kind:       "NetworkPolicy"
+        		metadata: {
+        			name: context.name
+        			labels: "example.com/policy": "default-deny"
+        		}
+        		spec: {
+        			podSelector: matchLabels: "app.oam.dev/component": context.name
+        			policyTypes: ["Ingress"]
+        		}
+        	}
+        }
+        parameter: {
+        	image:    string
+        	replicas: *2 | int
+        }
+---
+# An Ingress for a component.
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: platform-expose
+  namespace: vela-system
+spec:
+  appliesToWorkloads: ["deployments.apps"]
+  schematic:
+    cue:
+      template: |
+        outputs: ingress: {
+        	apiVersion: "networking.k8s.io/v1"
+        	kind:       "Ingress"
+        	metadata: name: context.name
+        	spec: rules: [{
+        		host: parameter.host
+        		http: paths: [{
+        			path:     "/"
+        			pathType: "Prefix"
+        			backend: service: {name: context.name, port: number: 80}
+        		}]
+        	}]
+        }
+        parameter: host: string
+---
+# Storage. The storage class cannot change once a volume exists: +immutable.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: platform-volume
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "v1"
+        	kind:       "PersistentVolumeClaim"
+        	metadata: name: context.name
+        	spec: {
+        		accessModes: ["ReadWriteOnce"]
+        		storageClassName: parameter.storageClass
+        		resources: requests: storage: parameter.size
+        	}
+        }
+        parameter: {
+        	// +immutable
+        	storageClass: string
+        	size:         *"10Gi" | string
+        }

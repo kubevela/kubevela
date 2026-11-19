@@ -184,7 +184,7 @@ outputs: service: spec: port: parameter.port
 	ownExpose := trait("own-expose", "base-expose", `
 parameter: port: int
 $super: properties: port: parameter.port
-$inherit: outputs: false
+$inherit: outputs: service: false
 outputs: ingress: kind: "Ingress"
 `)
 	rev := func(name string, spec v1beta1.DefinitionRevisionSpec) *v1beta1.DefinitionRevision {
@@ -222,7 +222,7 @@ outputs: ingress: kind: "Ingress"
 		var outputs map[string]any
 		require.NoError(t, json.Unmarshal([]byte(cm.Data[types.OutputsSchema]), &outputs), cm.Name)
 		assert.Contains(t, outputs, "ingress", cm.Name)
-		assert.NotContains(t, outputs, "service", "%s: $inherit turns the parent's outputs off", cm.Name)
+		assert.NotContains(t, outputs, "service", "%s: $inherit leaves the parent's service out", cm.Name)
 	}
 }
 

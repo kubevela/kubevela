@@ -149,6 +149,15 @@ func renderFrom(ctx context.Context, chain []Level, paramFile, contextFile strin
 			s.Kind, at, parents[0].Name, parents[0].Name)
 	}
 
+	// What the level wrote itself, before the parent's results arrive, is what a
+	// +final marker above it is judged against.
+	if err := CheckFinal(at, self, staged, parents, s); err != nil {
+		return nil, err
+	}
+	if err := CheckRequired(at, self, parents, s); err != nil {
+		return nil, err
+	}
+
 	reads := superReads(self.Template)
 
 	superParams := staged.LookupPath(propertiesPath())
@@ -188,6 +197,21 @@ func renderFrom(ctx context.Context, chain []Level, paramFile, contextFile strin
 
 	directives, err := parseDirectives(self)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkDropsFit(self, directives, s); err != nil {
+		return nil, err
+	}
+	cut := map[string]bool{}
+	cutsOf(directives, cut)
+	// Judged against what the child wrote itself, before the merge makes the two
+	// indistinguishable. A field a parent writes only under a condition is
+	// refused whether or not this Application meets it, as at admission, and a
+	// parent changed after the child was accepted is caught here.
+	if err := checkGuardedChain(ctx, at, staged, parents, s, cut, compile); err != nil {
+		return nil, err
+	}
+	if err := checkOverride(at, staged, adoptedParent, s, cut, parents[0].Name, fixedAmong(ctx, parents, compile), parents); err != nil {
 		return nil, err
 	}
 	val, err = mergeSurfaces(val, adoptedParent, s, directives, parents[0], at)

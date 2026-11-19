@@ -46,10 +46,19 @@ type rendered struct {
 // assemble source differently, and a trait compiles without `context` opened.
 func (d *def) extendsSomething() bool { return len(d.ancestors) > 0 }
 
+// levelName is how the chain's own level is named in a refusal: the component
+// and its type, as in "web (type payments-web)", when the two differ.
+func (d *def) levelName() string {
+	if d.typ == "" || d.typ == d.name {
+		return d.name
+	}
+	return d.name + " (type " + d.typ + ")"
+}
+
 // renderChain renders this definition on top of everything it extends.
 func (d *def) renderChain(ctx process.Context, abstractTemplate, paramFile, contextFile string, surface inherit.Surface) (*rendered, error) {
 	chain := make([]inherit.Level, 0, len(d.ancestors)+1)
-	chain = append(chain, inherit.Level{Name: d.name, Template: abstractTemplate})
+	chain = append(chain, inherit.Level{Name: d.levelName(), Template: abstractTemplate})
 	chain = append(chain, d.ancestors...)
 
 	res, err := inherit.Render(ctx.GetCtx(), chain, paramFile, contextFile, surface,

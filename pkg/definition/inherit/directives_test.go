@@ -22,28 +22,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A quoted label may carry escapes, and CUE decodes them: "output" is the
-// field `output`. Reading the literal text instead leaves the directive naming a
-// field that does not exist, so it silently does nothing and the surface it was
-// meant to take over is merged anyway.
+// A quoted label may carry escapes, and CUE decodes them: "outputs" is the
+// field `outputs`. Reading the literal text instead leaves the directive naming a
+// field that does not exist, so the drop silently does nothing and the parent's
+// output is merged anyway.
 func TestAQuotedLabelWithAnEscapeIsDecoded(t *testing.T) {
 	d, err := parseDirectives(Level{
 		Name:     "child",
-		Template: "$inherit: {\"out\\u0070ut\": false}\noutput: {}\n",
+		Template: "$inherit: {\"out\\u0070uts\": {svc: false}}\noutputs: {}\n",
 	})
 	require.NoError(t, err)
-	require.False(t, d.inherits("output"), "the directive names output, however it was spelled")
+	require.True(t, d.dropped("outputs", "svc"), "the directive names outputs, however it was spelled")
 }
 
-// The ordinary spellings keep working.
+// The ordinary spellings keep working, for the field and for the output.
 func TestPlainAndQuotedLabelsBothName(t *testing.T) {
 	for _, tmpl := range []string{
-		"$inherit: {output: false}\noutput: {}\n",
-		"$inherit: {\"output\": false}\noutput: {}\n",
+		"$inherit: {outputs: {svc: false}}\noutputs: {}\n",
+		"$inherit: {\"outputs\": {\"svc\": false}}\noutputs: {}\n",
 	} {
 		d, err := parseDirectives(Level{Name: "child", Template: tmpl})
 		require.NoError(t, err)
-		require.False(t, d.inherits("output"))
-		require.True(t, d.inherits("outputs"), "and says nothing about the others")
+		require.True(t, d.dropped("outputs", "svc"))
+		require.False(t, d.dropped("outputs", "netpol"), "and says nothing about the others")
 	}
 }
