@@ -52,9 +52,14 @@ func cutsOf(d directives, into map[string]bool) {
 	}
 }
 
+// fixedFunc reports which ancestor writes a value at a path into its template
+// as a constant, and that value. A value an ancestor computes from a parameter
+// is not fixed: a child changes it through `$super: properties`.
+type fixedFunc func(path cue.Path) (owner, value string, ok bool)
+
 // checkOverride refuses a field of own that changes one parent set. parent maps
 // each surface field to what the parent produced for it.
-func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surface, cut map[string]bool, parentName string) error {
+func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surface, cut map[string]bool, parentName string, fixed fixedFunc) error {
 	for _, field := range overrideFields(s) {
 		pv, ok := parent[field]
 		if !ok {
@@ -65,6 +70,7 @@ func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surf
 			continue
 		}
 		var hit string
+		var hitPath cue.Path
 		walkLeaves(cv, nil, func(sels []cue.Selector, leaf cue.Value) bool {
 			if len(sels) > 0 && sels[0].IsString() && cut[field+"."+sels[0].Unquoted()] {
 				return true
@@ -73,12 +79,21 @@ func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surf
 				return true
 			}
 			hit = pathString(field, sels)
+			hitPath = cue.MakePath(append(cue.ParsePath(field).Selectors(), sels...)...)
 			return false
 		})
-		if hit != "" {
-			return fmt.Errorf("%s %s sets %s, which %s already sets; pass a value to %s through `%s: properties` instead",
-				s.Kind, at, hit, parentName, parentName, SuperField)
+		if hit == "" {
+			continue
 		}
+		if fixed != nil {
+			if owner, value, ok := fixed(hitPath); ok {
+				return fmt.Errorf("%s %s sets %s, but %s fixes it to %s and a child cannot change it; "+
+					"to use another value, write a definition that does not extend %s",
+					s.Kind, at, hit, owner, value, owner)
+			}
+		}
+		return fmt.Errorf("%s %s sets %s, which %s already sets; pass a value to %s through `%s: properties` instead",
+			s.Kind, at, hit, parentName, parentName, SuperField)
 	}
 	return nil
 }
@@ -106,7 +121,7 @@ func CheckOverrides(ctx context.Context, at string, self Level, own cue.Value, a
 					parent[field] = v
 				}
 			}
-			if err := checkOverride(at, own, parent, s, cut, anc.Name); err != nil {
+			if err := checkOverride(at, own, parent, s, cut, anc.Name, fixedIn(anc.Name, val)); err != nil {
 				return err
 			}
 		}
@@ -117,6 +132,51 @@ func CheckOverrides(ctx context.Context, at string, self Level, own cue.Value, a
 		cutsOf(ad, cut)
 	}
 	return nil
+}
+
+// fixedIn reads fixed values from one ancestor compiled with nothing bound,
+// where a value from a parameter is still a default or left open.
+func fixedIn(name string, unbound cue.Value) fixedFunc {
+	return func(path cue.Path) (string, string, bool) {
+		value, ok := fixedValue(unbound.LookupPath(path))
+		return name, value, ok
+	}
+}
+
+// fixedAmong compiles each ancestor with nothing bound, only when a refusal
+// needs it, and reports the nearest one that writes the value as a constant.
+func fixedAmong(ctx context.Context, ancestors []Level, compile CompileFunc) fixedFunc {
+	return func(path cue.Path) (string, string, bool) {
+		for _, anc := range ancestors {
+			val, _ := compile(ctx, anc.Template+"\n"+SuperField+": _\n")
+			if !val.Exists() {
+				continue
+			}
+			if value, ok := fixedValue(val.LookupPath(path)); ok {
+				return anc.Name, value, true
+			}
+		}
+		return "", "", false
+	}
+}
+
+// fixedValue is the JSON of a value written as a constant: concrete with no
+// default, and not a struct or list.
+func fixedValue(v cue.Value) (string, bool) {
+	if !v.Exists() || !v.IsConcrete() {
+		return "", false
+	}
+	if _, ok := v.Default(); ok {
+		return "", false
+	}
+	if k := v.Kind(); k == cue.StructKind || k == cue.ListKind {
+		return "", false
+	}
+	j, err := v.MarshalJSON()
+	if err != nil {
+		return "", false
+	}
+	return string(j), true
 }
 
 // changes reports whether a child value at a path changes the parent's value

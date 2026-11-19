@@ -203,7 +203,7 @@ func renderFrom(ctx context.Context, chain []Level, paramFile, contextFile strin
 	cutsOf(directives, cut)
 	// Judged against what the child wrote itself, before the merge makes the two
 	// indistinguishable.
-	if err := checkOverride(at, staged, adoptedParent, s, cut, parents[0].Name); err != nil {
+	if err := checkOverride(at, staged, adoptedParent, s, cut, parents[0].Name, fixedAmong(ctx, parents, compile)); err != nil {
 		return nil, err
 	}
 	val, err = mergeSurfaces(val, adoptedParent, s, directives, parents[0], at)

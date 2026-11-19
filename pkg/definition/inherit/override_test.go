@@ -52,7 +52,7 @@ var _ = Describe("a child only adds to what its parent set", func() {
 	base := Level{Name: "base", Template: overrideBase}
 	child := func(tpl string) Level { return Level{Name: "child", Template: silentMiddle + tpl} }
 
-	DescribeTable("refuses a child that changes what the parent set",
+	DescribeTable("refuses a child that changes a field the parent sets from a parameter, pointing at $super",
 		func(tpl, path string) {
 			_, err := renderComponent(child(tpl), base)
 			Expect(err).To(MatchError(ContainSubstring(
@@ -61,11 +61,28 @@ var _ = Describe("a child only adds to what its parent set", func() {
 		},
 		Entry("a field from a defaulted parameter", "output: spec: replicas: 5\n", "output.spec.replicas"),
 		Entry("the default itself, which would pin it", "output: spec: replicas: 1\n", "output.spec.replicas"),
-		Entry("a concrete field", "output: metadata: name: \"other\"\n", "output.metadata.name"),
-		Entry("a field of a list element", "output: spec: template: spec: containers: [{image: \"busybox\"}]\n",
-			"output.spec.template.spec.containers[0].image"),
-		Entry("a field of a kept output", "outputs: svc: spec: type: \"NodePort\"\n", "outputs.svc.spec.type"),
 	)
+
+	DescribeTable("refuses a child that changes a field the parent fixes, without pointing at $super",
+		func(tpl, path, value string) {
+			_, err := renderComponent(child(tpl), base)
+			Expect(err).To(MatchError(ContainSubstring(
+				"component child sets " + path + ", but base fixes it to " + value + " and a child cannot change it; " +
+					"to use another value, write a definition that does not extend base")))
+		},
+		Entry("a concrete field", "output: metadata: name: \"other\"\n", "output.metadata.name", `"web"`),
+		Entry("the kind", "output: kind: \"StatefulSet\"\n", "output.kind", `"Deployment"`),
+		Entry("a field of a list element", "output: spec: template: spec: containers: [{image: \"busybox\"}]\n",
+			"output.spec.template.spec.containers[0].image", `"nginx"`),
+		Entry("a field of a kept output", "outputs: svc: spec: type: \"NodePort\"\n", "outputs.svc.spec.type", `"ClusterIP"`),
+	)
+
+	It("names the ancestor that fixes a field when a silent middle stands between", func() {
+		leaf := Level{Name: "leaf", Template: silentMiddle + "output: kind: \"StatefulSet\"\n"}
+		middle := Level{Name: "middle", Template: silentMiddle}
+		_, err := renderComponent(leaf, middle, base)
+		Expect(err).To(MatchError(ContainSubstring("component leaf sets output.kind, but base fixes it to \"Deployment\"")))
+	})
 
 	DescribeTable("accepts a child that only adds",
 		func(tpl string) {
@@ -106,6 +123,12 @@ var _ = Describe("a child only adds to what its parent set", func() {
 		It("refuses a field from a defaulted parameter before any Application renders it", func() {
 			Expect(check("output: spec: replicas: 5\n")).To(MatchError(ContainSubstring(
 				"component child sets output.spec.replicas, which base already sets")))
+		})
+
+		It("says a fixed field is fixed before any Application renders it", func() {
+			Expect(check("output: kind: \"StatefulSet\"\n")).To(MatchError(ContainSubstring(
+				"component child sets output.kind, but base fixes it to \"Deployment\" and a child cannot change it; " +
+					"to use another value, write a definition that does not extend base")))
 		})
 
 		It("accepts an addition", func() {
