@@ -248,4 +248,12 @@ parameter: annotations?: [string]: string
 		Expect(admit("output: spec: template: metadata: annotations: team: \"payments\"\n", either)).To(
 			MatchError(ContainSubstring("which base sets only when `if parameter.annotations != _|_`")))
 	})
+
+	It("points at a separate definition when the condition is on context", func() {
+		onContext := Level{Name: "base", Template: "output: {\n\tkind: \"Deployment\"\n\tspec: {\n" +
+			"\t\tif context.namespace == \"prod\" {\n\t\t\treplicas: 3\n\t\t}\n\t}\n}\nparameter: {}\n"}
+		Expect(admit("output: spec: replicas: 2\n", onContext)).To(MatchError(ContainSubstring(
+			"which base sets only when `if context.namespace == \"prod\"`; an Application that meets that condition would be refused. " +
+				"To use another value, write a definition that does not extend base")))
+	})
 })

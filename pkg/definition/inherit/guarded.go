@@ -348,9 +348,15 @@ func checkGuarded(ctx context.Context, at string, own cue.Value, anc Level, s Su
 			return true
 		})
 		if hit != "" {
+			// Only a condition on the parent's parameters can be steered from a
+			// child; one on context or anything else cannot.
+			fix := fmt.Sprintf("Pass a value to %s through `%s: properties` instead", anc.Name, SuperField)
+			if !strings.Contains(cond, ParameterField) {
+				fix = fmt.Sprintf("To use another value, write a definition that does not extend %s", anc.Name)
+			}
 			return fmt.Errorf("%s %s sets %s, which %s sets only when `%s`; an Application that meets that condition "+
-				"would be refused. Pass a value to %s through `%s: properties` instead",
-				s.Kind, at, hit, anc.Name, cond, anc.Name, SuperField)
+				"would be refused. %s",
+				s.Kind, at, hit, anc.Name, cond, fix)
 		}
 	}
 	return nil
