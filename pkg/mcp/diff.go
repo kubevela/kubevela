@@ -379,11 +379,18 @@ func placementOf(app *v1beta1.Application) placement {
 				continue
 			}
 		}
-		for _, key := range []string{"clusters", "clusterLabelSelector", "clusterSelector"} {
+		for _, key := range []string{"clusters", "clusterLabelSelector"} {
 			if _, ok := props[key]; ok {
 				p.clusters = append(p.clusters, fmt.Sprintf("topology policy %s selects clusters", pol.Name))
 				break
 			}
+		}
+		// The deprecated clusterSelector only selects clusters when vela-core
+		// runs with the DeprecatedPolicySpec gate; otherwise the controller
+		// places locally. This server runs in the CLI and cannot read that
+		// gate, so the placement is unknown rather than a fan-out.
+		if _, ok := props["clusterSelector"]; ok {
+			p.unknown = append(p.unknown, fmt.Sprintf("topology policy %s uses the deprecated clusterSelector, whose effect depends on vela-core's DeprecatedPolicySpec feature gate", pol.Name))
 		}
 		if v, ok := props["namespace"]; ok {
 			ns, isString := v.(string)

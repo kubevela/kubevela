@@ -161,6 +161,9 @@ func classifyAdded(fire func(rule, class, evidence string), id string, rc Resour
 	for _, f := range rc.examined {
 		at := fmt.Sprintf("%s %s", id, f.Path)
 		switch {
+		case payloadLeaf(rc.Kind, f.Path):
+			// user data under a Secret or ConfigMap payload; the kind rules
+			// above already judged the object
 		case securityPath.MatchString(f.Path):
 			fire("security-surface", RiskHigh, at+" is set on a new object")
 		case exposesService(rc.Kind, f):
@@ -206,6 +209,10 @@ func classifyField(fire func(rule, class, evidence string), id, apiVersion, kind
 	switch {
 	case immutable(apiVersion, kind, p):
 		fire("replace", RiskHigh, at+" is immutable; the object would be replaced")
+	case payloadLeaf(kind, p):
+		// A payload key is user data named by the user: data.tls.crt or
+		// data.hostPort in a ConfigMap is configuration, not a Pod field.
+		fire("config", RiskMedium, at)
 	case securityPath.MatchString(p):
 		fire("security-surface", RiskHigh, at)
 	case exposesService(kind, f):
@@ -229,6 +236,18 @@ func classifyField(fire func(rule, class, evidence string), id, apiVersion, kind
 	default:
 		fire("unclassified", RiskMedium, at)
 	}
+}
+
+// payloadLeaf reports a path inside the payload of a Secret or ConfigMap, the
+// fields payloadFields names for the kind. Their keys are chosen by the user,
+// so the path rules written for Pod and Service fields do not apply to them.
+func payloadLeaf(kind, path string) bool {
+	for _, field := range payloadFields(map[string]any{"kind": kind}) {
+		if path == field || strings.HasPrefix(path, field+".") || strings.HasPrefix(path, field+"[") {
+			return true
+		}
+	}
+	return false
 }
 
 // sameRepository reports whether two image references differ only in tag
