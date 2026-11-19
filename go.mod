@@ -47,7 +47,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
 	github.com/oam-dev/cluster-gateway v1.10.0-alpha.1
-	github.com/oam-dev/cluster-register v1.0.4-0.20261007161948-d674530a63cd
+	github.com/oam-dev/cluster-register v1.1.0-alpha.1
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20261007155724-d8a4743f5ad5
 	github.com/oam-dev/terraform-controller v0.9.1
 	github.com/olekukonko/tablewriter v0.0.5
