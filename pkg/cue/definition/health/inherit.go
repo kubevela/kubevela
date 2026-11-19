@@ -166,14 +166,15 @@ func checkHealthChain(templateContext map[string]interface{}, snippets []Snippet
 	return healthy, nil
 }
 
-// statusMessageChain evaluates a chain's custom status, root first.
+// statusMessageChain evaluates a chain's custom status.
 //
 // A level that states a message replaces its parent's, since a status line is
-// one line. `$super.message` is there for one that would rather extend it.
+// one line. `$super.message` is there for one that would rather extend it. So
+// the nearest level with a message is the one that speaks, and a level above it
+// is evaluated only when that message reads `$super`: a parent's message may
+// read an output the child replaced, and must not fail a message that never
+// uses it.
 func statusMessageChain(templateContext map[string]interface{}, snippets []Snippets, parameter interface{}) (string, error) {
-	message := ""
-	seen := false
-
 	if !anyCustom(snippets) {
 		return "", nil
 	}
@@ -182,25 +183,26 @@ func statusMessageChain(templateContext map[string]interface{}, snippets []Snipp
 	if err != nil {
 		return "", err
 	}
+	return messageFrom(runtimeContextBuff, snippets)
+}
 
-	for i := len(snippets) - 1; i >= 0; i-- {
-		custom := snippets[i].Custom
-		if strings.TrimSpace(custom) == "" {
+// messageFrom is the message of the nearest level in snippets that states one.
+func messageFrom(runtimeContextBuff string, snippets []Snippets) (string, error) {
+	for i, s := range snippets {
+		if strings.TrimSpace(s.Custom) == "" {
 			continue
 		}
-		own := stripDirectives(custom)
-		if seen {
-			own = withSuper(own, superMessage(message))
+		own := stripDirectives(s.Custom)
+		if strings.Contains(own, SuperField) {
+			above, err := messageFrom(runtimeContextBuff, snippets[i+1:])
+			if err != nil {
+				return "", err
+			}
+			own = withSuper(own, superMessage(above))
 		}
-
-		got, err := statusMessageWith(runtimeContextBuff, own)
-		if err != nil {
-			return message, err
-		}
-		message = got
-		seen = true
+		return statusMessageWith(runtimeContextBuff, own)
 	}
-	return message, nil
+	return "", nil
 }
 
 // anyHealth and anyCustom report whether a chain declares anything at all, so a
