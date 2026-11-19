@@ -17,6 +17,8 @@ limitations under the License.
 package mcp
 
 import (
+	"fmt"
+
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -28,6 +30,16 @@ import (
 
 func modify(kind, name string, fields ...FieldChange) ResourceChange {
 	return ResourceChange{APIVersion: "apps/v1", Kind: kind, Namespace: "team-a", Name: name, Action: ActionModify, Fields: fields}
+}
+
+// changed is a MODIFY of an object with the given apiVersion.
+func changed(apiVersion, kind string, fields ...FieldChange) ResourceChange {
+	return ResourceChange{APIVersion: apiVersion, Kind: kind, Namespace: "team-a", Name: "x", Action: ActionModify, Fields: fields}
+}
+
+// added is an ADD whose leaves the classifier examines.
+func added(apiVersion, kind string, leaves ...FieldChange) ResourceChange {
+	return ResourceChange{APIVersion: apiVersion, Kind: kind, Namespace: "team-a", Name: "x", Action: ActionAdd, examined: leaves}
 }
 
 func field(path string, from, to any) FieldChange { return FieldChange{Path: path, From: from, To: to} }
@@ -93,7 +105,12 @@ var _ = DescribeTable("risk classifier",
 	Entry("unrecognised field is MEDIUM, never LOW",
 		ChangeSet{Resources: []ResourceChange{modify("Deployment", "web", field("spec.strategy.type", "RollingUpdate", "Recreate"))}},
 		RiskMedium, "unclassified"),
-	Entry("truncated field list is MEDIUM at least",
+	Entry("a truncated field list is judged on every differing leaf, not only the listed ones",
+		ChangeSet{Resources: []ResourceChange{{Kind: "Deployment", Name: "web", Action: ActionModify, FieldsTruncated: true,
+			Fields:   []FieldChange{field("metadata.labels.a", "1", "2")},
+			examined: []FieldChange{field("metadata.labels.a", "1", "2"), field("spec.template.spec.containers[0].securityContext.privileged", false, true)}}}},
+		RiskHigh, "config", "security-surface"),
+	Entry("a truncated field list whose leaves are unknown is MEDIUM at least",
 		ChangeSet{Resources: []ResourceChange{{Kind: "Deployment", Name: "web", Action: ActionModify, FieldsTruncated: true}}},
 		RiskMedium, "unclassified"),
 	Entry("policy change on an existing application is MEDIUM",
@@ -117,6 +134,63 @@ var _ = DescribeTable("risk classifier",
 	Entry("a sources change is MEDIUM",
 		ChangeSet{SourcesChanged: true},
 		RiskMedium, "sources-changed"),
+	Entry("hostUsers is a security field",
+		ChangeSet{Resources: []ResourceChange{modify("Deployment", "web", field("spec.template.spec.hostUsers", true, false))}},
+		RiskHigh, "security-surface"),
+	Entry("shareProcessNamespace is a security field",
+		ChangeSet{Resources: []ResourceChange{modify("Deployment", "web", field("spec.template.spec.shareProcessNamespace", nil, true))}},
+		RiskHigh, "security-surface"),
+	Entry("hostPort is a security field, not port config",
+		ChangeSet{Resources: []ResourceChange{modify("Deployment", "web", field("spec.template.spec.containers[0].ports[0].hostPort", nil, 8080))}},
+		RiskHigh, "security-surface"),
+	Entry("an ephemeral-storage limit is config, not stateful",
+		ChangeSet{Resources: []ResourceChange{modify("Deployment", "web", field("spec.template.spec.containers[0].resources.limits.ephemeral-storage", "1Gi", "2Gi"))}},
+		RiskMedium, "config"),
+	Entry("a ConfigMap key named like storage is config, not stateful",
+		ChangeSet{Resources: []ResourceChange{changed("v1", "ConfigMap", field("data.storageBucket", "a", "b"))}},
+		RiskMedium, "config"),
+	Entry("a Job's success policy is immutable",
+		ChangeSet{Resources: []ResourceChange{changed("batch/v1", "Job", field("spec.successPolicy.rules[0].succeededCount", nil, 2))}},
+		RiskHigh, "replace"),
+	Entry("a Job's scheduling configuration is immutable",
+		ChangeSet{Resources: []ResourceChange{changed("batch/v1", "Job", field("spec.scheduling.schedulingConstraints.topology[0].key", nil, "zone"))}},
+		RiskHigh, "replace"),
+	Entry("a Job's gang minCount is the one mutable scheduling field",
+		ChangeSet{Resources: []ResourceChange{changed("batch/v1", "Job", field("spec.scheduling.schedulingPolicy.gang.minCount", 2, 3))}},
+		RiskMedium, "unclassified"),
+	Entry("a volume claim's storage request is stateful",
+		ChangeSet{Resources: []ResourceChange{changed("v1", "PersistentVolumeClaim", field("spec.resources.requests.storage", "1Gi", "2Gi"))}},
+		RiskHigh, "stateful", "stateful"),
+	Entry("a Service selector is mutable",
+		ChangeSet{Resources: []ResourceChange{changed("v1", "Service", field("spec.selector.app", "a", "b"))}},
+		RiskMedium, "unclassified"),
+	Entry("a Service clusterIP is immutable",
+		ChangeSet{Resources: []ResourceChange{changed("v1", "Service", field("spec.clusterIP", "10.0.0.1", "10.0.0.2"))}},
+		RiskHigh, "replace"),
+	Entry("a Job's parallelism is mutable",
+		ChangeSet{Resources: []ResourceChange{changed("batch/v1", "Job", field("spec.parallelism", 1, 2))}},
+		RiskMedium, "unclassified"),
+	Entry("a Job's completions and pod template are immutable",
+		ChangeSet{Resources: []ResourceChange{changed("batch/v1", "Job", field("spec.completions", 1, 2), field("spec.template.spec.containers[0].image", "a:1", "a:2"))}},
+		RiskHigh, "replace", "replace"),
+	Entry("a Job's selector is immutable",
+		ChangeSet{Resources: []ResourceChange{changed("batch/v1", "Job", field("spec.selector.matchLabels.app", "a", "b"))}},
+		RiskHigh, "replace"),
+	Entry("a pod template label on a Deployment is a rollout, not a replace",
+		ChangeSet{Resources: []ResourceChange{modify("Deployment", "web", field("spec.template.metadata.labels.team", nil, "a"))}},
+		RiskMedium, "config"),
+	Entry("a new LoadBalancer Service in an existing application is HIGH",
+		ChangeSet{Resources: []ResourceChange{added("v1", "Service", field("spec.type", nil, "LoadBalancer"), field("spec.ports[0].port", nil, 80))}},
+		RiskHigh, "addition", "security-surface"),
+	Entry("a new application with a privileged Deployment is HIGH",
+		ChangeSet{NewApplication: true, Resources: []ResourceChange{added("apps/v1", "Deployment", field("spec.template.spec.containers[0].securityContext.privileged", nil, true))}},
+		RiskHigh, "new-application", "security-surface"),
+	Entry("a new application with a hostPath volume is HIGH",
+		ChangeSet{NewApplication: true, Resources: []ResourceChange{added("apps/v1", "Deployment", field("spec.template.spec.volumes[0].hostPath.path", nil, "/var/run"))}},
+		RiskHigh, "new-application", "security-surface"),
+	Entry("an added object's other leaves add no rules",
+		ChangeSet{NewApplication: true, Resources: []ResourceChange{added("apps/v1", "Deployment", field("spec.selector.matchLabels.app", nil, "web"), field("spec.template.spec.containers[0].image", nil, "nginx:1.27"), field("spec.template.spec.containers[0].env[0].value", nil, "a"))}},
+		RiskLow, "new-application"),
 	Entry("no change is LOW with no rules",
 		ChangeSet{},
 		RiskLow),
@@ -164,6 +238,66 @@ var _ = Describe("change set", func() {
 		}
 		Expect(hasGate(app("builtin-apply-component", "suspend"))).To(BeFalse(), "a suspend after the deploy is not a gate")
 		Expect(hasGate(app("suspend", "builtin-apply-component"))).To(BeTrue())
+	})
+
+	It("treats a step-group as the gate or the first deploy it contains", func() {
+		group := func(subs ...string) wfTypesv1alpha1.WorkflowStep {
+			g := wfTypesv1alpha1.WorkflowStep{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: "g", Type: "step-group"}}
+			for _, t := range subs {
+				g.SubSteps = append(g.SubSteps, wfTypesv1alpha1.WorkflowStepBase{Name: t, Type: t})
+			}
+			return g
+		}
+		app := func(steps ...wfTypesv1alpha1.WorkflowStep) *v1beta1.Application {
+			return &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Workflow: &v1beta1.Workflow{Steps: steps}}}
+		}
+		gated := app(group("suspend"), stepsOf("deploy")[0])
+		Expect(hasGate(gated)).To(BeTrue())
+		Expect(hasGate(app(group("deploy"), stepsOf("suspend")[0]))).To(BeFalse(), "a group that deploys is the first deploy")
+		Expect(hasGate(app(group("suspend", "deploy")))).To(BeFalse(), "sub-steps run side by side, so a suspend beside a deploy does not hold it")
+
+		cs := buildChangeSet(&rendered{app: gated, objects: map[string]*unstructured.Unstructured{}}, &rendered{app: app(stepsOf("deploy")...), objects: map[string]*unstructured.Unstructured{}})
+		Expect(cs.GateRemoved).To(BeTrue())
+		Expect(classify(cs).Class).To(Equal(RiskHigh))
+	})
+
+	It("classifies every differing leaf of a resource whose listed fields were capped", func() {
+		labels := func(v string) map[string]any {
+			m := map[string]any{}
+			for i := 0; i < maxFieldChanges+10; i++ {
+				m[fmt.Sprintf("l%02d", i)] = v
+			}
+			return m
+		}
+		deployment := func(v string, privileged bool) *unstructured.Unstructured {
+			return &unstructured.Unstructured{Object: map[string]any{
+				"apiVersion": "apps/v1", "kind": "Deployment",
+				"metadata": map[string]any{"name": "web", "namespace": "team-a", "labels": labels(v)},
+				"spec": map[string]any{"template": map[string]any{"spec": map[string]any{"containers": []any{map[string]any{
+					"securityContext": map[string]any{"privileged": privileged}}}}}},
+			}}
+		}
+		rc := compareObjects(deployment("a", false), deployment("b", true))
+		Expect(rc.Fields).To(HaveLen(maxFieldChanges))
+		Expect(rc.FieldsTruncated).To(BeTrue())
+		Expect(toJSON(rc.Fields)).NotTo(ContainSubstring("privileged"), "the privileged flip sorts past the listed fields")
+		r := classify(ChangeSet{Resources: []ResourceChange{*rc}})
+		Expect(r.Class).To(Equal(RiskHigh))
+		Expect(rulesOf(r)).To(ContainElement("security-surface"))
+		Expect(rulesOf(r)).NotTo(ContainElement("unclassified"))
+	})
+
+	It("classifies the leaves of an added object", func() {
+		svc := &unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "v1", "kind": "Service",
+			"metadata": map[string]any{"name": "web", "namespace": "team-a"},
+			"spec":     map[string]any{"type": "LoadBalancer"},
+		}}
+		rc := compareObjects(nil, svc)
+		Expect(rc.Fields).To(BeEmpty(), "an added object lists no fields")
+		r := classify(ChangeSet{Resources: []ResourceChange{*rc}})
+		Expect(r.Class).To(Equal(RiskHigh))
+		Expect(rulesOf(r)).To(ConsistOf("addition", "security-surface"))
 	})
 
 	It("keys objects by API group so same-named kinds from two groups stay apart", func() {
