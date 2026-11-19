@@ -18,6 +18,7 @@ package inherit
 
 import (
 	"context"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -74,8 +75,39 @@ var _ = Describe("a child only adds to what its parent set", func() {
 		Entry("the kind", "output: kind: \"StatefulSet\"\n", "output.kind", `"Deployment"`),
 		Entry("a field of a list element", "output: spec: template: spec: containers: [{image: \"busybox\"}]\n",
 			"output.spec.template.spec.containers[0].image", `"nginx"`),
-		Entry("a field of a kept output", "outputs: svc: spec: type: \"NodePort\"\n", "outputs.svc.spec.type", `"ClusterIP"`),
 	)
+
+	Describe("a field the parent fixes inside one of its outputs", func() {
+		It("points at leaving the output out and building it from $super", func() {
+			_, err := renderComponent(child("outputs: svc: spec: type: \"NodePort\"\n"), base)
+			Expect(err).To(MatchError(ContainSubstring(
+				"component child sets outputs.svc.spec.type, but base fixes it to \"ClusterIP\"; to write your own svc, " +
+					"leave base's out with `$inherit: {outputs: {svc: false}}` and build it from `$super.outputs.svc`")))
+		})
+
+		It("keeps the separate-definition hint when the output is +required", func() {
+			required := Level{Name: "base", Template: strings.Replace(overrideBase, "\tsvc: {", "\t// +required\n\tsvc: {", 1)}
+			_, err := renderComponent(child("outputs: svc: spec: type: \"NodePort\"\n"), required)
+			Expect(err).To(MatchError(ContainSubstring(
+				"component child sets outputs.svc.spec.type, but base fixes it to \"ClusterIP\" and a child cannot change it; " +
+					"to use another value, write a definition that does not extend base")))
+		})
+
+		It("quotes a key that is not an identifier", func() {
+			quoted := Level{Name: "base", Template: "output: {kind: \"Deployment\"}\noutputs: \"my-svc\": {kind: \"Service\", spec: type: \"ClusterIP\"}\nparameter: {}\n"}
+			_, err := renderComponent(child("outputs: \"my-svc\": spec: type: \"NodePort\"\n"), quoted)
+			Expect(err).To(MatchError(ContainSubstring(
+				"leave base's out with `$inherit: {outputs: {\"my-svc\": false}}` and build it from `$super.outputs.\"my-svc\"`")))
+		})
+
+		It("names patchOutputs for a trait", func() {
+			traitBase := Level{Name: "base-trait", Template: "patch: {}\npatchOutputs: pdb: {kind: \"PodDisruptionBudget\", spec: minAvailable: 1}\nparameter: {}\n"}
+			_, err := renderTrait(Level{Name: "child-trait", Template: silentMiddle + "patchOutputs: pdb: spec: minAvailable: 2\n"}, traitBase)
+			Expect(err).To(MatchError(ContainSubstring(
+				"trait child-trait sets patchOutputs.pdb.spec.minAvailable, but base-trait fixes it to 1; to write your own pdb, " +
+					"leave base-trait's out with `$inherit: {patchOutputs: {pdb: false}}` and build it from `$super.patchOutputs.pdb`")))
+		})
+	})
 
 	It("names the ancestor that fixes a field when a silent middle stands between", func() {
 		leaf := Level{Name: "leaf", Template: silentMiddle + "output: kind: \"StatefulSet\"\n"}

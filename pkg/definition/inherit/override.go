@@ -20,7 +20,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"cuelang.org/go/cue"
 )
@@ -59,7 +61,7 @@ type fixedFunc func(path cue.Path) (owner, value string, ok bool)
 
 // checkOverride refuses a field of own that changes one parent set. parent maps
 // each surface field to what the parent produced for it.
-func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surface, cut map[string]bool, parentName string, fixed fixedFunc) error {
+func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surface, cut map[string]bool, parentName string, fixed fixedFunc, ancestors []Level) error {
 	for _, field := range overrideFields(s) {
 		pv, ok := parent[field]
 		if !ok {
@@ -69,7 +71,7 @@ func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surf
 		if !cv.Exists() {
 			continue
 		}
-		var hit string
+		var hit, key string
 		var hitPath cue.Path
 		walkLeaves(cv, nil, func(sels []cue.Selector, leaf cue.Value) bool {
 			if len(sels) > 0 && sels[0].IsString() && cut[field+"."+sels[0].Unquoted()] {
@@ -80,6 +82,9 @@ func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surf
 			}
 			hit = pathString(field, sels)
 			hitPath = cue.MakePath(append(cue.ParsePath(field).Selectors(), sels...)...)
+			if len(sels) > 0 && sels[0].IsString() {
+				key = sels[0].Unquoted()
+			}
 			return false
 		})
 		if hit == "" {
@@ -87,6 +92,14 @@ func checkOverride(at string, own cue.Value, parent map[string]cue.Value, s Surf
 		}
 		if fixed != nil {
 			if owner, value, ok := fixed(hitPath); ok {
+				// An entry of outputs or patchOutputs can be left out and written
+				// again, which is a smaller step than a new definition, unless an
+				// ancestor requires it.
+				if droppable[field] && key != "" && !requiredBy(ancestors, s, field+"."+key) {
+					return fmt.Errorf("%s %s sets %s, but %s fixes it to %s; to write your own %s, "+
+						"leave %s's out with `%s: {%s: {%s: false}}` and build it from `%s.%s.%s`",
+						s.Kind, at, hit, owner, value, key, owner, InheritField, field, cueKey(key), SuperField, field, cueKey(key))
+				}
 				return fmt.Errorf("%s %s sets %s, but %s fixes it to %s and a child cannot change it; "+
 					"to use another value, write a definition that does not extend %s",
 					s.Kind, at, hit, owner, value, owner)
@@ -124,7 +137,7 @@ func CheckOverrides(ctx context.Context, at string, self Level, own cue.Value, a
 					parent[field] = v
 				}
 			}
-			if err := checkOverride(at, own, parent, s, cut, anc.Name, fixedIn(anc.Name, val)); err != nil {
+			if err := checkOverride(at, own, parent, s, cut, anc.Name, fixedIn(anc.Name, val), ancestors); err != nil {
 				return err
 			}
 		}
@@ -135,6 +148,33 @@ func CheckOverrides(ctx context.Context, at string, self Level, own cue.Value, a
 		cutsOf(ad, cut)
 	}
 	return nil
+}
+
+// requiredBy reports whether any ancestor marks an entry, such as
+// outputs.ingress, +required, alone or through its whole block.
+func requiredBy(ancestors []Level, s Surface, entry string) bool {
+	for _, anc := range ancestors {
+		for _, req := range requiredOutputs(anc, s) {
+			if globMatch(req, entry) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// cueKey writes a key the way CUE source needs it: bare when it is an
+// identifier, quoted otherwise.
+func cueKey(key string) string {
+	for i, r := range key {
+		if !(r == '_' || unicode.IsLetter(r) || (i > 0 && unicode.IsDigit(r))) {
+			return strconv.Quote(key)
+		}
+	}
+	if key == "" {
+		return `""`
+	}
+	return key
 }
 
 // fixedIn reads fixed values from one ancestor compiled with nothing bound,
