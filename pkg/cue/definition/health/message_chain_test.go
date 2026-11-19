@@ -68,3 +68,27 @@ var _ = Describe("a status message composed down an inheritance chain", func() {
 		Expect(got).To(Equal("from the root, and the leaf"))
 	})
 })
+
+var _ = Describe("which levels a status message reads", func() {
+	ctx := map[string]interface{}{
+		"output":  map[string]interface{}{"spec": map[string]interface{}{"replicas": 1}},
+		"outputs": map[string]interface{}{"netpol": map[string]interface{}{"metadata": map[string]interface{}{"name": "shop"}}},
+	}
+
+	It("does not evaluate the parent for $super written inside a string", func() {
+		got, err := statusMessageChain(ctx, []Snippets{
+			{Custom: `message: "$super is not read here"`},
+			{Custom: readsReplacedOutput},
+		}, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(got).To(Equal("$super is not read here"))
+	})
+
+	It("reports a $super.message read when no level above states a message", func() {
+		_, err := statusMessageChain(ctx, []Snippets{
+			{Custom: `message: "\($super.message), and more"`},
+			{},
+		}, nil)
+		Expect(err).To(HaveOccurred())
+	})
+})

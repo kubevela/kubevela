@@ -195,6 +195,13 @@ var _ = Describe("+immutable through extends", func() {
 			Expect(compiles).To(BeZero())
 		})
 
+		It("tells apart integers that would round to the same float64", func() {
+			Expect(sameProperties(&runtime.RawExtension{Raw: []byte(`{"n":9007199254740993}`)},
+				&runtime.RawExtension{Raw: []byte(`{"n":9007199254740992}`)})).To(BeFalse())
+			Expect(sameProperties(&runtime.RawExtension{Raw: []byte(`{"n":9007199254740993}`)},
+				&runtime.RawExtension{Raw: []byte(`{ "n": 9007199254740993 }`)})).To(BeTrue())
+		})
+
 		It("still evaluates it once they do change", func() {
 			errs := handler.ValidateImmutableFields(context.Background(),
 				withRaw("tiered-leaf", `{"tier":"slow"}`),

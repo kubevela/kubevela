@@ -199,6 +199,9 @@ func renderFrom(ctx context.Context, chain []Level, paramFile, contextFile strin
 	if err != nil {
 		return nil, err
 	}
+	if err := checkDropsFit(self, directives, s); err != nil {
+		return nil, err
+	}
 	cut := map[string]bool{}
 	cutsOf(directives, cut)
 	// Judged against what the child wrote itself, before the merge makes the two

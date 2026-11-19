@@ -97,6 +97,26 @@ var _ = Describe("Resource.Final", func() {
 		Expect(check("output: metadata: labels: team: \"a\"\n")).To(Succeed())
 	})
 
+	It("keeps +final on a struct whose fields are all set under one condition", func() {
+		zone := defkit.String("zone").Optional()
+		zoned := defkit.NewComponent("zoned-web").
+			Workload("apps/v1", "Deployment").
+			Params(zone).
+			Template(func(tpl *defkit.Template) {
+				tpl.Output(
+					defkit.NewResource("apps/v1", "Deployment").
+						SetIf(zone.IsSet(), "metadata.labels[app.oam.dev/zone]", zone).
+						SetIf(zone.IsSet(), "metadata.labels[app.oam.dev/zoned]", defkit.Lit("true")).
+						Final("metadata.labels"),
+				)
+			})
+		tpl, found, err := unstructured.NestedString(fromCUE(zoned.ToCue()), "schematic", "cue", "template")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue())
+		Expect(tpl).To(ContainSubstring("if parameter[\"zone\"] != _|_"))
+		Expect(tpl).To(MatchRegexp(`// \+final\s+labels:`))
+	})
+
 	It("refuses a path through a list element, which the check cannot read", func() {
 		Expect(func() {
 			defkit.NewResource("apps/v1", "Deployment").Final("spec.template.spec.containers[0].image")

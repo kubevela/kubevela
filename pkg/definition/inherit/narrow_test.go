@@ -152,3 +152,17 @@ var _ = Describe("$inherit after #7607", func() {
 		Expect(err).To(HaveOccurred())
 	})
 })
+
+var _ = Describe("a drop of a field the definition does not render", func() {
+	It("refuses patchOutputs drops on a component, which would drop nothing", func() {
+		_, err := renderComponent(Level{Name: "child", Template: silentMiddle + "$inherit: {patchOutputs: {pdb: false}}\n"},
+			Level{Name: "base", Template: narrowBase})
+		Expect(err).To(MatchError(ContainSubstring("$inherit in child: a component has no patchOutputs to drop from; only outputs take per-output drops")))
+	})
+
+	It("still accepts patchOutputs drops on a trait", func() {
+		_, err := renderTrait(Level{Name: "child-trait", Template: silentMiddle + "$inherit: {patchOutputs: {hpa: false}}\n"},
+			Level{Name: "base-trait", Template: narrowTraitBase})
+		Expect(err).NotTo(HaveOccurred())
+	})
+})

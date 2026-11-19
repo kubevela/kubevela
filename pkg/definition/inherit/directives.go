@@ -18,6 +18,7 @@ package inherit
 
 import (
 	"fmt"
+	"strings"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/literal"
@@ -45,6 +46,33 @@ type directives struct {
 	// drops is set by `$inherit: {outputs: {ingress: false}}`: per droppable
 	// surface field, the entries the child leaves out of its parent's.
 	drops map[string]map[string]bool
+}
+
+// checkDropsFit refuses a drop of a field the surface does not render, such as
+// `patchOutputs` on a component, which would otherwise drop nothing silently.
+func checkDropsFit(level Level, d directives, s Surface) error {
+	for field := range d.drops {
+		known := false
+		for _, f := range s.Fields {
+			known = known || f == field
+		}
+		if !known {
+			return fmt.Errorf("%s in %s: a %s has no %s to drop from; only %s",
+				InheritField, level.Name, s.Kind, field, droppableIn(s))
+		}
+	}
+	return nil
+}
+
+// droppableIn names the fields of a surface that take per-output drops.
+func droppableIn(s Surface) string {
+	var names []string
+	for _, f := range s.Fields {
+		if droppable[f] {
+			names = append(names, f)
+		}
+	}
+	return strings.Join(names, " and ") + " take per-output drops"
 }
 
 // dropped reports whether the child leaves out one entry of a parent's field.

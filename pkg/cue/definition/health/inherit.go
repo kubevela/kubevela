@@ -187,13 +187,16 @@ func statusMessageChain(templateContext map[string]interface{}, snippets []Snipp
 }
 
 // messageFrom is the message of the nearest level in snippets that states one.
+// A level that reads `$super` is given its parent's message only when some
+// level above states one; otherwise `$super` stays undefined and the snippet
+// fails to evaluate, as it would with no inheritance at all.
 func messageFrom(runtimeContextBuff string, snippets []Snippets) (string, error) {
 	for i, s := range snippets {
 		if strings.TrimSpace(s.Custom) == "" {
 			continue
 		}
 		own := stripDirectives(s.Custom)
-		if strings.Contains(own, SuperField) {
+		if readsSuper(own) && anyCustom(snippets[i+1:]) {
 			above, err := messageFrom(runtimeContextBuff, snippets[i+1:])
 			if err != nil {
 				return "", err
@@ -203,6 +206,29 @@ func messageFrom(runtimeContextBuff string, snippets []Snippets) (string, error)
 		return statusMessageWith(runtimeContextBuff, own)
 	}
 	return "", nil
+}
+
+// readsSuper reports whether a snippet refers to `$super` as a value, as in
+// `$super.message` or an interpolation of it. The text inside a string literal
+// is not a reference, so `message: "$super is fine"` reads nothing.
+func readsSuper(snippet string) bool {
+	if !strings.Contains(snippet, SuperField) {
+		return false
+	}
+	file, err := parser.ParseFile("snippet.cue", snippet)
+	if err != nil {
+		// Unparsable here means unparsable when evaluated too; let that
+		// evaluation report it with the parent's message in place.
+		return true
+	}
+	found := false
+	ast.Walk(file, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == SuperField {
+			found = true
+		}
+		return !found
+	}, nil)
+	return found
 }
 
 // anyHealth and anyCustom report whether a chain declares anything at all, so a

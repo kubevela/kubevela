@@ -263,11 +263,24 @@ func sameProperties(a, b *runtime.RawExtension) bool {
 	if bytes.Equal(ar, br) {
 		return true
 	}
-	var av, bv any
-	if json.Unmarshal(ar, &av) != nil || json.Unmarshal(br, &bv) != nil {
+	av, aerr := decodeExact(ar)
+	bv, berr := decodeExact(br)
+	if aerr != nil || berr != nil {
 		return false
 	}
 	return reflect.DeepEqual(av, bv)
+}
+
+// decodeExact decodes JSON keeping numbers as written, so two large integers
+// that would round to the same float64 still compare as different.
+func decodeExact(raw []byte) (any, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return nil, err
+	}
+	return v, nil
 }
 
 func rawOrEmpty(props *runtime.RawExtension) []byte {

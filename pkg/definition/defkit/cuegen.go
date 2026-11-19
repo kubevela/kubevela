@@ -2483,10 +2483,13 @@ func (g *CUEGenerator) filterNodeByCondition(node *fieldNode, condStr string) *f
 		return nil
 	}
 
+	// Directives describe the field itself, so a marker such as +final stays on
+	// the field in every block it is written in.
 	filtered := &fieldNode{
 		children:   make(map[string]*fieldNode),
 		childOrder: make([]string, 0),
 		value:      node.value,
+		directives: node.directives,
 	}
 	for _, childName := range node.childOrder {
 		child := node.children[childName]

@@ -23,7 +23,12 @@ spec:
     type: deployments.apps
   status:
     healthPolicy: |
-      isHealth: context.output.status.readyReplicas == context.output.spec.replicas
+      // readyReplicas is left out of the status while it is zero.
+      ready: *0 | int
+      if context.output.status.readyReplicas != _|_ {
+      	ready: context.output.status.readyReplicas
+      }
+      isHealth: ready == context.output.spec.replicas
     customStatus: |
       message: "ingress: " + context.outputs.netpol.metadata.labels["example.com/policy"]
   schematic:

@@ -108,6 +108,9 @@ func CheckOverrides(ctx context.Context, at string, self Level, own cue.Value, a
 	if err != nil {
 		return err
 	}
+	if err := checkDropsFit(self, d, s); err != nil {
+		return err
+	}
 	cut := map[string]bool{}
 	cutsOf(d, cut)
 	for _, anc := range ancestors {
