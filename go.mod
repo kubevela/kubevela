@@ -45,7 +45,7 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
 	github.com/oam-dev/cluster-gateway v1.9.2
-	github.com/oam-dev/cluster-register v1.0.4-0.20250624042630-618dfa13eb5b
+	github.com/oam-dev/cluster-register v1.0.4
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20250902214508-15aa973b0d00
 	github.com/oam-dev/terraform-controller v0.8.2
 	github.com/olekukonko/tablewriter v0.0.5
