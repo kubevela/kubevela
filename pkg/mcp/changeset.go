@@ -187,7 +187,7 @@ func compareObjects(oldObj, newObj *unstructured.Unstructured) *ResourceChange {
 		ref = newObj
 	}
 	rc := &ResourceChange{APIVersion: ref.GetAPIVersion(), Kind: ref.GetKind(), Namespace: ref.GetNamespace(), Name: ref.GetName(), Action: action}
-	secret := ref.GetKind() == "Secret"
+	payload := payloadFields(ref.Object)
 	switch action {
 	case ActionRemove:
 		return rc
@@ -203,7 +203,7 @@ func compareObjects(oldObj, newObj *unstructured.Unstructured) *ResourceChange {
 		}
 		sort.Strings(sortedPaths)
 		for _, p := range sortedPaths {
-			rc.examined = append(rc.examined, FieldChange{Path: p, To: shownLeaf(secret, p, newLeaves[p], newShown)})
+			rc.examined = append(rc.examined, FieldChange{Path: p, To: shownLeaf(payload, p, newLeaves[p], newShown)})
 		}
 		return rc
 	}
@@ -233,7 +233,7 @@ func compareObjects(oldObj, newObj *unstructured.Unstructured) *ResourceChange {
 		if hadFrom && hadTo && reflect.DeepEqual(from, to) {
 			continue
 		}
-		rc.examined = append(rc.examined, FieldChange{Path: p, From: shownLeaf(secret, p, from, oldShown), To: shownLeaf(secret, p, to, newShown)})
+		rc.examined = append(rc.examined, FieldChange{Path: p, From: shownLeaf(payload, p, from, oldShown), To: shownLeaf(payload, p, to, newShown)})
 	}
 	if len(rc.examined) == 0 {
 		return nil
@@ -297,21 +297,42 @@ func isIgnoredLeaf(p string) bool {
 	if strings.HasPrefix(p, "metadata.annotations."+mcpAnnotationPrefix) {
 		return true
 	}
+	// These embed a serialized object, credentials included, which the
+	// line patterns cannot redact reliably, so they are never compared.
+	for _, a := range embeddedObjectAnnotations {
+		if p == "metadata.annotations."+a {
+			return true
+		}
+	}
 	return strings.HasPrefix(p, "metadata.managedFields") || p == "metadata.resourceVersion" || p == "metadata.uid" || p == "metadata.generation" || p == "metadata.creationTimestamp"
 }
 
 // shownLeaf is the value a change reports for one side: nothing of a
-// Secret's payload, the redacted copy's value where redaction changed it,
-// and otherwise the raw value through the key and text rules.
-func shownLeaf(secret bool, path string, raw any, shown map[string]any) any {
+// Secret or ConfigMap payload (the fields payloadFields names), the
+// redacted copy's value where redaction replaced the leaf or any map or
+// list above it, and otherwise the raw value through the key and text
+// rules.
+func shownLeaf(payload []string, path string, raw any, shown map[string]any) any {
 	if raw == nil {
 		return nil
 	}
-	if secret && (strings.HasPrefix(path, "data.") || strings.HasPrefix(path, "stringData.")) {
-		return redactedValue
+	for _, field := range payload {
+		if path == field || strings.HasPrefix(path, field+".") || strings.HasPrefix(path, field+"[") {
+			return redactedValue
+		}
 	}
 	if v, ok := shown[path]; ok && v == redactedValue {
 		return redactedValue
+	}
+	// redactMap replaces the whole value of a secret-like key, so the
+	// redacted copy holds the ancestor's path and none of its children.
+	for i := 1; i < len(path); i++ {
+		if path[i] != '.' && path[i] != '[' {
+			continue
+		}
+		if v, ok := shown[path[:i]]; ok && v == redactedValue {
+			return redactedValue
+		}
 	}
 	return redactLeaf(path, raw)
 }
@@ -333,7 +354,7 @@ func redactLeaf(path string, v any) any {
 	}
 	raw, err := json.Marshal(v)
 	if err == nil && len(raw) > maxTextLen {
-		return string(raw[:maxTextLen]) + truncMark
+		return truncateText(string(raw))
 	}
 	return v
 }

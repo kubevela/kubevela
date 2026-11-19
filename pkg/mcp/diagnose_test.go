@@ -130,6 +130,19 @@ var _ = Describe("diagnose_application", func() {
 		Expect(out.Evidence).To(ContainElement(ContainSubstring("AWS_ENDPOINT_URL=http://aws-emulator.floci.svc.cluster.local:4566")))
 	})
 
+	It("redacts credentials in the controller's endpoint override", func() {
+		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1,
+			[]map[string]any{{"type": "ACK.ResourceSynced", "status": "True"}}, nil)
+		ctrl := ackControllerDeployment("rds", "http://admin:s3cr3t@localstack:4566")
+		h = startHarness(Options{}, append(diagnoseApp(db), ctrl)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Resources).To(HaveLen(1))
+		Expect(out.Resources[0].EndpointOverride).To(Equal("http://admin:" + redactedValue + "@localstack:4566"))
+		Expect(toJSON(out)).NotTo(ContainSubstring("s3cr3t"))
+	})
+
 	It("notes endpoint provenance as unknown when the controller Deployment is absent", func() {
 		db := cloudResource("rds.services.k8s.aws/v1alpha1", "DBCluster", "orders-db", 1,
 			[]map[string]any{{"type": "ACK.ResourceSynced", "status": "True"}}, nil)
