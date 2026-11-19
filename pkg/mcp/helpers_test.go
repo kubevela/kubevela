@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
@@ -83,7 +84,7 @@ func startHarnessWithClient(opts Options, copts *sdk.ClientOptions, objs ...clie
 func startHarnessIntercepted(opts Options, copts *sdk.ClientOptions, funcs *interceptor.Funcs, objs ...client.Object) *harness {
 	h := &harness{}
 	h.ctx, h.cancel = context.WithCancel(context.Background())
-	h.cli = fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(objs...).Build()
+	h.cli = fake.NewClientBuilder().WithScheme(common.Scheme).WithRESTMapper(testRESTMapper()).WithObjects(objs...).Build()
 	cli := h.cli
 	if funcs != nil {
 		cli = interceptor.NewClient(cli.(client.WithWatch), *funcs)
@@ -102,6 +103,32 @@ func startHarnessIntercepted(opts Options, copts *sdk.ClientOptions, funcs *inte
 	h.session, err = c.Connect(h.ctx, clientTransport, nil)
 	Expect(err).NotTo(HaveOccurred())
 	return h
+}
+
+// clusterScopedTestKinds are the scheme's cluster-scoped kinds the specs
+// render or read. Every other kind in the scheme maps as namespaced, even
+// one that is cluster-scoped in a real cluster: a spec that renders
+// IngressClass, RuntimeClass, APIService or another cluster-scoped
+// KubeVela CRD must add the kind here.
+var clusterScopedTestKinds = map[string]bool{
+	"Namespace": true, "Node": true, "PersistentVolume": true, "StorageClass": true, "PriorityClass": true,
+	"ClusterRole": true, "ClusterRoleBinding": true, "CustomResourceDefinition": true,
+	"ValidatingWebhookConfiguration": true, "MutatingWebhookConfiguration": true,
+	"ResourceTracker": true,
+}
+
+// testRESTMapper maps every kind in the scheme with its real scope, as a
+// cluster's discovery does. Kinds outside the scheme stay unmapped.
+func testRESTMapper() meta.RESTMapper {
+	m := meta.NewDefaultRESTMapper(nil)
+	for gvk := range common.Scheme.AllKnownTypes() {
+		scope := meta.RESTScopeNamespace
+		if clusterScopedTestKinds[gvk.Kind] {
+			scope = meta.RESTScopeRoot
+		}
+		m.Add(gvk, scope)
+	}
+	return m
 }
 
 // call invokes a tool and decodes its structured content into `into` when
