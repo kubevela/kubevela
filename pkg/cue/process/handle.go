@@ -60,6 +60,29 @@ type ContextData struct {
 
 	ClusterVersion types.ClusterVersion
 	Output         interface{}
+	// Outputs holds context.outputs: a component's auxiliary resources,
+	// keyed by output name. These can come from the component's own
+	// template (e.g. a Service declared alongside its Deployment) as well
+	// as from traits -- not trait-only, despite the name of the label
+	// (trait.oam.dev/resource) this key is usually read from.
+	Outputs map[string]interface{}
+
+	// The fields below are populated for an Operation-driven workflow (see
+	// KEP 2.15, "Operations"); they are left zero-valued for an
+	// Application-driven workflow.
+
+	// OperationName is the name of the currently executing Operation.
+	OperationName string
+	// OperationParams is the resolved spec.parameters of the currently
+	// executing Operation.
+	OperationParams map[string]interface{}
+	// OperationScope is the attach.scope of the invoked OperationTemplate.
+	OperationScope string
+	// StartTime is the Operation's start time, RFC3339-formatted.
+	StartTime string
+	// Status is the health status of the Operation's target, evaluated the
+	// same way a healthPolicy evaluates a component's status.
+	Status *common.ApplicationComponentStatus
 }
 
 // SourceCacheWriteMeta carries identity and lifetime metadata stamped onto a
@@ -192,6 +215,30 @@ func NewContext(data ContextData) process.Context {
 	ctx.PushData(ContextClusterVersion, parseClusterVersion(data.ClusterVersion))
 	if data.Output != nil {
 		ctx.PushData(OutputFieldName, data.Output)
+	}
+	if len(data.Outputs) > 0 {
+		ctx.PushData(OutputsFieldName, data.Outputs)
+	}
+	if data.OperationName != "" {
+		ctx.PushData(ContextOperationName, data.OperationName)
+		params := data.OperationParams
+		if params == nil {
+			params = map[string]interface{}{}
+		}
+		ctx.PushData(ContextOperationParams, params)
+	}
+	if data.OperationScope != "" {
+		ctx.PushData(ContextOperationScope, data.OperationScope)
+	}
+	if data.StartTime != "" {
+		ctx.PushData(ContextStartTime, data.StartTime)
+	}
+	if data.Status != nil {
+		ctx.PushData(ContextStatus, map[string]interface{}{
+			"healthy": data.Status.Healthy,
+			"message": data.Status.Message,
+			"details": data.Status.Details,
+		})
 	}
 	return ctx
 }

@@ -65,6 +65,7 @@ import (
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
 	configv1alpha1 "github.com/oam-dev/kubevela/pkg/controller/config.oam.dev/v1alpha1"
 	oamv1beta1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
+	oamv2alpha1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v2alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/logging"
@@ -857,6 +858,11 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 	klog.InfoS("Setting up OAM controllers")
 	if err := oamv1beta1.Setup(manager, args); err != nil {
 		klog.ErrorS(err, "Unable to setup the OAM controller")
+		return err
+	}
+	// core.oam.dev/v2alpha1 Operation/OperationTemplate (KEP 2.15).
+	if err := oamv2alpha1.Setup(manager, coreOptions.Controller.Args); err != nil {
+		klog.ErrorS(err, "Unable to setup the OAM v2alpha1 (Operation) controller")
 		return err
 	}
 	klog.InfoS("OAM controllers setup completed successfully")

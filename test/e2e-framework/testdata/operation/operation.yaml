@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v2alpha1
+kind: Operation
+metadata:
+  name: restart-op
+spec:
+  template: restart-webservice
+  source:
+    app: operation-app
+    component: webservice
+  parameters:
+    reason: e2e-test-restart

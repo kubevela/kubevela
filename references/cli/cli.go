@@ -109,6 +109,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		// Continuous Delivery
 		NewWorkflowCommand(commandArgs, "1", ioStream),
 		NewAdoptCommand(f, "2", ioStream),
+		NewOperationCommand(commandArgs, "3", ioStream),
 
 		// Platform
 		NewTopCommand(commandArgs, "1", ioStream),

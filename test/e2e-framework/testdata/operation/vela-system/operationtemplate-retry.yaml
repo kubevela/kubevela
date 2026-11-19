@@ -1,0 +1,28 @@
+# Test fixture for KEP-2.15 re-execution. Three sequential steps:
+# step-one/step-two always succeed (ok-step); step-three succeeds or fails
+# based on --param shouldFail (flaky-step). In sequential mode (the default
+# -- no `mode:` set), a `--step step-three` restart only resets step-three;
+# step-one/step-two are left alone.
+apiVersion: core.oam.dev/v2alpha1
+kind: OperationTemplate
+metadata:
+  name: retry-flaky
+  namespace: vela-system
+spec:
+  description: Test fixture for KEP-2.15 re-execution -- three steps, the last of which succeeds or fails based on --param shouldFail.
+  attach:
+    scope: Component
+  parameters:
+    cue: |
+      parameter: {
+        // +usage=Set to "true" to make step-three fail, "false" to make it succeed.
+        shouldFail: *"false" | string
+      }
+  workflow:
+    steps:
+      - name: step-one
+        type: ok-step
+      - name: step-two
+        type: ok-step
+      - name: step-three
+        type: flaky-step

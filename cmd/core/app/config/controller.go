@@ -42,6 +42,7 @@ func NewControllerConfig() *ControllerConfig {
 			ConcurrentReconciles:                         4,
 			IgnoreAppWithoutControllerRequirement:        false,
 			IgnoreDefinitionWithoutControllerRequirement: false,
+			DefaultOperationTTLSeconds:                   0,
 		},
 	}
 }
@@ -64,4 +65,6 @@ func (c *ControllerConfig) AddFlags(fs *pflag.FlagSet) {
 		"If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
 	fs.BoolVar(&c.IgnoreDefinitionWithoutControllerRequirement, "ignore-definition-without-controller-version", c.IgnoreDefinitionWithoutControllerRequirement,
 		"If true, trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation")
+	fs.IntVar(&c.DefaultOperationTTLSeconds, "default-operation-ttl-seconds", c.DefaultOperationTTLSeconds,
+		"default-operation-ttl-seconds is how long a terminal core.oam.dev/v2alpha1 Operation is kept before being deleted, when the Operation itself sets no spec.ttlSecondsAfterFinished. 0 (default) disables automatic deletion.")
 }

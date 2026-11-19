@@ -1,0 +1,26 @@
+# Test fixture for KEP-2.15 re-execution. Succeeds or fails based on
+# operationParams.shouldFail, so a restart has something to actually retry.
+# Pairs with workflowstepdefinition-ok.yaml. Pure CUE, no Job (e2e-only for
+# now; expected to move to envtest).
+apiVersion: core.oam.dev/v1beta1
+kind: WorkflowStepDefinition
+metadata:
+  name: flaky-step
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: Succeeds or fails based on operationParams.shouldFail -- a test fixture for exercising `vela operation restart`.
+spec:
+  schematic:
+    cue:
+      template: |
+        import (
+        	"vela/builtin"
+        )
+
+        fail: {
+        	if context.operationParams.shouldFail == "true" {
+        		breakWorkflow: builtin.#Fail & {
+        			$params: message: "flaky-step failed on purpose (shouldFail=true)"
+        		}
+        	}
+        }

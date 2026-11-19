@@ -1,0 +1,771 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: operations.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    categories:
+    - oam
+    kind: Operation
+    listKind: OperationList
+    plural: operations
+    shortNames:
+    - op
+    - vop
+    singular: operation
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.template
+      name: TEMPLATE
+      type: string
+    - jsonPath: .spec.source.app
+      name: SOURCE-APP
+      type: string
+    - jsonPath: .spec.source.component
+      name: SOURCE-COMPONENT
+      type: string
+    - jsonPath: .status.phase
+      name: PHASE
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v2alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Operation is the Schema for the Operation API: one run-to-completion
+          invocation of an OperationTemplate against a source.
+
+          KEP 2.15 permission model: not implemented yet. Any RBAC principal able
+          to create an Operation can invoke any OperationTemplate against any
+          source in its namespace. Do not release or promote this code path
+          until the permission model lands.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: OperationSpec is the spec of Operation.
+            properties:
+              clusters:
+                description: |-
+                  Clusters is reserved for multi-cluster dispatch (KEP 2.15). Only a
+                  single (local) cluster is resolved so far; a non-empty value beyond
+                  that is rejected at reconcile time rather than silently ignored, so
+                  the field can be adopted later without a behavior change for
+                  existing single-cluster Operations.
+                items:
+                  type: string
+                type: array
+              parameters:
+                description: |-
+                  Parameters are literal values merged into `context.operationParams`.
+                  this is the raw JSON the caller sent, unified against the
+                  OperationTemplate's parameter schema once admission lands.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              source:
+                description: |-
+                  Source is what the workflow steps read through `context`. Required
+                  for every attach.scope except None, which must omit it.
+                properties:
+                  app:
+                    description: App is the name of the source Application.
+                    minLength: 1
+                    type: string
+                  component:
+                    description: |-
+                      Component is the name of the source Component within App. Omit to
+                      source from the Application as a whole; an explicit empty string is
+                      rejected at admission rather than silently treated as omitted.
+                    minLength: 1
+                    type: string
+                required:
+                - app
+                type: object
+              template:
+                description: |-
+                  Template is the name of the OperationTemplate to invoke. Resolved in
+                  the Operation's own namespace first, then "vela-system".
+                minLength: 1
+                type: string
+              ttlSecondsAfterFinished:
+                description: |-
+                  TTLSecondsAfterFinished bounds how long a terminal Operation is kept
+                  before the controller deletes it. Unset uses the cluster default
+                  (--default-operation-ttl-seconds); explicit 0 disables TTL for this
+                  Operation. Negative values are rejected -- 0 is the only way to
+                  disable it.
+                format: int32
+                minimum: 0
+                type: integer
+            required:
+            - template
+            type: object
+          status:
+            description: OperationStatus is the status of Operation.
+            properties:
+              attempts:
+                description: |-
+                  Attempts is how many times this Operation's workflow has been
+                  (re)started, including the original run (starts at 1).
+                format: int64
+                type: integer
+              completionTime:
+                description: CompletionTime is when the Operation reached a terminal
+                  phase.
+                format: date-time
+                type: string
+              message:
+                description: |-
+                  Message carries a human-readable explanation, mainly used when Phase
+                  is Failed before a workflow could even start (e.g. template/source
+                  resolution failure).
+                type: string
+              phase:
+                description: Phase is the terminal/non-terminal phase of this Operation.
+                type: string
+              startTime:
+                description: StartTime is when the Operation began running.
+                format: date-time
+                type: string
+              template:
+                description: |-
+                  Template is a snapshot of the resolved OperationTemplateSpec at the
+                  time this Operation started, so a later edit to the template doesn't
+                  change what an already-running (or completed) Operation did.
+                properties:
+                  attach:
+                    description: Attach describes what this template can be invoked
+                      against.
+                    properties:
+                      allowedComponentTypes:
+                        description: |-
+                          AllowedComponentTypes restricts which ComponentDefinition types this
+                          template may be invoked against. Component scope only. Empty means
+                          any type is allowed.
+                        items:
+                          type: string
+                        type: array
+                      scope:
+                        default: Component
+                        description: Scope is the kind of source this template attaches
+                          to.
+                        enum:
+                        - Component
+                        - Application
+                        - None
+                        type: string
+                      selector:
+                        description: |-
+                          Selector restricts which Applications this template may be invoked
+                          against. Application scope only.
+                        properties:
+                          matchExpressions:
+                            description: |-
+                              CEL rule enforces valid operator values at admission (the vendored
+                              LabelSelectorRequirement type has no such constraint of its own).
+                            items:
+                              description: |-
+                                A label selector requirement is a selector that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: key is the label key that the selector
+                                    applies to.
+                                  type: string
+                                operator:
+                                  description: |-
+                                    operator represents a key's relationship to a set of values.
+                                    Valid operators are In, NotIn, Exists and DoesNotExist.
+                                  type: string
+                                values:
+                                  description: |-
+                                    values is an array of string values. If the operator is In or NotIn,
+                                    the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                    the values array must be empty. This array is replaced during a strategic
+                                    merge patch.
+                                  items:
+                                    type: string
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                            x-kubernetes-validations:
+                            - message: operator must be one of In, NotIn, Exists,
+                                DoesNotExist
+                              rule: self.all(e, e.operator in ['In','NotIn','Exists','DoesNotExist'])
+                          matchLabels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          requiredComponentTypes:
+                            description: |-
+                              RequiredComponentTypes: every listed ComponentDefinition type must be
+                              present among the Application's components for a match.
+                            items:
+                              type: string
+                            type: array
+                        type: object
+                    type: object
+                  description:
+                    description: Description is a human-readable summary shown by
+                      `vela operation list`.
+                    type: string
+                  parameters:
+                    description: Parameters declares the parameters accepted by this
+                      template.
+                    properties:
+                      cue:
+                        description: 'CUE is a `parameter: {...}` definition.'
+                        type: string
+                    type: object
+                  workflow:
+                    description: Workflow is the set of steps run when this template
+                      is invoked.
+                    properties:
+                      steps:
+                        items:
+                          description: WorkflowStep defines how to execute a workflow
+                            step.
+                          properties:
+                            dependsOn:
+                              description: DependsOn is the dependency of the step
+                              items:
+                                type: string
+                              type: array
+                            if:
+                              description: If is the if condition of the step
+                              type: string
+                            inputs:
+                              description: Inputs is the inputs of the step
+                              items:
+                                description: InputItem defines an input variable of
+                                  WorkflowStep
+                                properties:
+                                  from:
+                                    type: string
+                                  parameterKey:
+                                    type: string
+                                required:
+                                - from
+                                type: object
+                              type: array
+                            meta:
+                              description: Meta is the meta data of the workflow step.
+                              properties:
+                                alias:
+                                  type: string
+                              type: object
+                            mode:
+                              description: Mode is only valid for sub steps, it defines
+                                the mode of the sub steps
+                              nullable: true
+                              type: string
+                            name:
+                              description: Name is the unique name of the workflow
+                                step.
+                              type: string
+                            outputs:
+                              description: Outputs is the outputs of the step
+                              items:
+                                description: OutputItem defines an output variable
+                                  of WorkflowStep
+                                properties:
+                                  name:
+                                    type: string
+                                  valueFrom:
+                                    type: string
+                                required:
+                                - name
+                                - valueFrom
+                                type: object
+                              type: array
+                            properties:
+                              description: Properties is the properties of the step
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                            subSteps:
+                              items:
+                                description: WorkflowStepBase defines the workflow
+                                  step base
+                                properties:
+                                  dependsOn:
+                                    description: DependsOn is the dependency of the
+                                      step
+                                    items:
+                                      type: string
+                                    type: array
+                                  if:
+                                    description: If is the if condition of the step
+                                    type: string
+                                  inputs:
+                                    description: Inputs is the inputs of the step
+                                    items:
+                                      description: InputItem defines an input variable
+                                        of WorkflowStep
+                                      properties:
+                                        from:
+                                          type: string
+                                        parameterKey:
+                                          type: string
+                                      required:
+                                      - from
+                                      type: object
+                                    type: array
+                                  meta:
+                                    description: Meta is the meta data of the workflow
+                                      step.
+                                    properties:
+                                      alias:
+                                        type: string
+                                    type: object
+                                  name:
+                                    description: Name is the unique name of the workflow
+                                      step.
+                                    type: string
+                                  outputs:
+                                    description: Outputs is the outputs of the step
+                                    items:
+                                      description: OutputItem defines an output variable
+                                        of WorkflowStep
+                                      properties:
+                                        name:
+                                          type: string
+                                        valueFrom:
+                                          type: string
+                                      required:
+                                      - name
+                                      - valueFrom
+                                      type: object
+                                    type: array
+                                  properties:
+                                    description: Properties is the properties of the
+                                      step
+                                    type: object
+                                    x-kubernetes-preserve-unknown-fields: true
+                                  timeout:
+                                    description: Timeout is the timeout of the step
+                                    type: string
+                                  type:
+                                    description: Type is the type of the workflow
+                                      step.
+                                    type: string
+                                required:
+                                - type
+                                type: object
+                              type: array
+                            timeout:
+                              description: Timeout is the timeout of the step
+                              type: string
+                            type:
+                              description: Type is the type of the workflow step.
+                              type: string
+                          required:
+                          - type
+                          type: object
+                        type: array
+                    type: object
+                required:
+                - attach
+                - workflow
+                type: object
+              workflows:
+                description: |-
+                  Workflows holds one entry per cluster the Operation's workflow ran
+                  against. Only a single cluster is resolved so far.
+                items:
+                  description: |-
+                    OperationWorkflowStatus is the workflow status for one cluster. Only a
+                    single entry is populated so far, but the shape already matches
+                    multi-cluster dispatch (status.workflows[], KEP 2.15) so a later
+                    multi-cluster Operation doesn't need a status-shape migration.
+
+                    This does not inline workflowv1alpha1.WorkflowRunStatus verbatim the way
+                    an early draft did -- Steps needs to be OperationWorkflowStepStatus
+                    (attempts nested per-step) instead of the vendored WorkflowStepStatus, and
+                    a Go JSON tag can only route to one field at a given nesting depth: had
+                    Steps stayed inlined from the embed while also being redeclared here to
+                    change its element type, the *embedded* copy (what
+                    pkg/controller/.../operation.buildWorkflowInstance actually feeds back to
+                    the engine to resume mid-workflow) would silently unmarshal as empty on
+                    every read, and the engine would re-run every step from scratch on every
+                    reconcile. So every other field WorkflowRunStatus carries is declared
+                    explicitly below instead, mirroring its JSON shape field-for-field.
+                  properties:
+                    cluster:
+                      description: |-
+                        Cluster is the resolved cluster this workflow ran against. Always
+                        populated, even though only one is ever resolved so far.
+                      type: string
+                    conditions:
+                      description: Conditions of the resource.
+                      items:
+                        description: A Condition that may apply to a resource.
+                        properties:
+                          lastTransitionTime:
+                            description: |-
+                              LastTransitionTime is the last time this condition transitioned from one
+                              status to another.
+                            format: date-time
+                            type: string
+                          message:
+                            description: |-
+                              A Message containing details about this condition's last transition from
+                              one status to another, if any.
+                            type: string
+                          reason:
+                            description: A Reason for this condition's last transition
+                              from one status to another.
+                            type: string
+                          status:
+                            description: Status of this condition; is it currently
+                              True, False, or Unknown?
+                            type: string
+                          type:
+                            description: |-
+                              Type of this condition. At most one of each condition type may apply to
+                              a resource at any point in time.
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                    contextBackend:
+                      description: ObjectReference contains enough information to
+                        let you inspect or modify the referred object.
+                      properties:
+                        apiVersion:
+                          description: API version of the referent.
+                          type: string
+                        fieldPath:
+                          description: |-
+                            If referring to a piece of an object instead of an entire object, this string
+                            should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+                            For example, if the object reference is to a container within a pod, this would take on a value like:
+                            "spec.containers{name}" (where "name" refers to the name of the container that triggered
+                            the event) or if no container name is specified "spec.containers[2]" (container with
+                            index 2 in this pod). This syntax is chosen only to have some well-defined way of
+                            referencing a part of an object.
+                          type: string
+                        kind:
+                          description: |-
+                            Kind of the referent.
+                            More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                          type: string
+                        name:
+                          description: |-
+                            Name of the referent.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                        namespace:
+                          description: |-
+                            Namespace of the referent.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+                          type: string
+                        resourceVersion:
+                          description: |-
+                            Specific resourceVersion to which this reference is made, if any.
+                            More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+                          type: string
+                        uid:
+                          description: |-
+                            UID of the referent.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    endTime:
+                      format: date-time
+                      type: string
+                    finished:
+                      description: Finished mirrors the embedded engine's own finished
+                        flag.
+                      type: boolean
+                    message:
+                      description: Message carries the embedded engine's own message,
+                        if any.
+                      type: string
+                    mode:
+                      description: |-
+                        Mode is the embedded engine's own step/sub-step execution mode. Same
+                        JSON tag as upstream (no omitempty -- WorkflowExecuteMode is a
+                        struct, its own fields are what carry omitempty).
+                      properties:
+                        steps:
+                          description: Steps is the mode of workflow steps execution
+                          type: string
+                        subSteps:
+                          description: SubSteps is the mode of workflow sub steps
+                            execution
+                          type: string
+                      type: object
+                    startTime:
+                      format: date-time
+                      type: string
+                    status:
+                      description: |-
+                        Phase is the embedded engine's own workflow-run phase (its JSON tag
+                        is "status" upstream; kept identical here).
+                      type: string
+                    stepAttempts:
+                      additionalProperties:
+                        items:
+                          description: |-
+                            OperationStepAttempt records one completed execution of a single workflow
+                            step -- logged the moment that execution reaches a terminal phase
+                            (succeeded, failed, or skipped), whether or not it's ever superseded by a
+                            restart. A step that succeeds on its first try, with no restart ever
+                            happening, still gets one recorded here. Nested under the step's own
+                            entry in OperationWorkflowStatus.Steps (OperationWorkflowStepStatus.
+                            Attempts) -- kept as its own type, rather than folded into
+                            OperationWorkflowStepStatus directly, only because it's also the payload
+                            type OperationWorkflowStatus.StepAttempts moves briefly during a restart
+                            (see that field's doc).
+                          properties:
+                            attemptNumber:
+                              description: AttemptNumber is the 1-based ordinal of
+                                this attempt for the step.
+                              format: int64
+                              type: integer
+                            id:
+                              description: |-
+                                ID is the embedded engine's own execution ID for this attempt
+                                (WorkflowStepStatus.ID). Used to detect whether a given execution has
+                                already been recorded, so a step sitting in a terminal phase across
+                                many reconciles doesn't get logged more than once; also a
+                                correlation key back to whatever the step's own type named using
+                                context.stepSessionID (e.g. a Job name).
+                              type: string
+                            message:
+                              description: Message carries this attempt's message,
+                                if any.
+                              type: string
+                            phase:
+                              description: Phase is this attempt's terminal WorkflowStepPhase.
+                              type: string
+                            reason:
+                              description: Reason carries this attempt's reason, if
+                                any.
+                              type: string
+                            startTime:
+                              description: StartTime is when this attempt of the step
+                                first executed.
+                              format: date-time
+                              type: string
+                            triggeredBy:
+                              description: |-
+                                TriggeredBy names how this attempt started, e.g.
+                                "vela operation restart --step backup". Empty for the original run.
+                              type: string
+                          required:
+                          - attemptNumber
+                          type: object
+                        type: array
+                      description: |-
+                        StepAttempts holds a step's attempt history only transiently, for the
+                        single reconcile between a restart removing that step's live entry
+                        (from Steps, above) and the engine recreating it: with nowhere on a
+                        (currently nonexistent) entry to nest Attempts, the history has to
+                        wait here until the step reappears, at which point it's merged into
+                        that entry's own Attempts and cleared from here. In steady state
+                        (nothing mid-restart) this is empty.
+                      type: object
+                    steps:
+                      description: |-
+                        Steps is the per-step status. Unlike the embedded engine's own
+                        WorkflowStepStatus, each entry carries its own Attempts history
+                        alongside its live status -- see OperationWorkflowStepStatus.
+                      items:
+                        description: |-
+                          OperationWorkflowStepStatus is one workflow step's live status, wrapping
+                          the embedded engine's own per-step status (from github.com/kubevela/workflow)
+                          with this step's attempt history. The controller appends to Attempts the
+                          moment this step's execution reaches a terminal phase (see
+                          recordStepCompletion in pkg/controller/.../operation/generator.go) --
+                          every completed run gets logged, not only ones later superseded by a
+                          restart. A restart of this step reuses the same step name but generates a
+                          fresh embedded WorkflowStepStatus.ID (the engine looks up the ID by name
+                          and only reuses it if a live entry with that name still exists -- see
+                          generateStepID upstream -- which is also exactly why a restart must
+                          remove, not reset in place, the target step's entry: reusing the ID would
+                          reuse the prior attempt's Job name too). Attempts already recorded on the
+                          entry a restart is about to remove get preserved via
+                          OperationWorkflowStatus.StepAttempts until the step reappears.
+                        properties:
+                          attempts:
+                            description: Attempts is prior-attempt history for this
+                              step, most recent last.
+                            items:
+                              description: |-
+                                OperationStepAttempt records one completed execution of a single workflow
+                                step -- logged the moment that execution reaches a terminal phase
+                                (succeeded, failed, or skipped), whether or not it's ever superseded by a
+                                restart. A step that succeeds on its first try, with no restart ever
+                                happening, still gets one recorded here. Nested under the step's own
+                                entry in OperationWorkflowStatus.Steps (OperationWorkflowStepStatus.
+                                Attempts) -- kept as its own type, rather than folded into
+                                OperationWorkflowStepStatus directly, only because it's also the payload
+                                type OperationWorkflowStatus.StepAttempts moves briefly during a restart
+                                (see that field's doc).
+                              properties:
+                                attemptNumber:
+                                  description: AttemptNumber is the 1-based ordinal
+                                    of this attempt for the step.
+                                  format: int64
+                                  type: integer
+                                id:
+                                  description: |-
+                                    ID is the embedded engine's own execution ID for this attempt
+                                    (WorkflowStepStatus.ID). Used to detect whether a given execution has
+                                    already been recorded, so a step sitting in a terminal phase across
+                                    many reconciles doesn't get logged more than once; also a
+                                    correlation key back to whatever the step's own type named using
+                                    context.stepSessionID (e.g. a Job name).
+                                  type: string
+                                message:
+                                  description: Message carries this attempt's message,
+                                    if any.
+                                  type: string
+                                phase:
+                                  description: Phase is this attempt's terminal WorkflowStepPhase.
+                                  type: string
+                                reason:
+                                  description: Reason carries this attempt's reason,
+                                    if any.
+                                  type: string
+                                startTime:
+                                  description: StartTime is when this attempt of the
+                                    step first executed.
+                                  format: date-time
+                                  type: string
+                                triggeredBy:
+                                  description: |-
+                                    TriggeredBy names how this attempt started, e.g.
+                                    "vela operation restart --step backup". Empty for the original run.
+                                  type: string
+                              required:
+                              - attemptNumber
+                              type: object
+                            type: array
+                          firstExecuteTime:
+                            description: FirstExecuteTime is the first time this step
+                              execution.
+                            format: date-time
+                            type: string
+                          id:
+                            type: string
+                          lastExecuteTime:
+                            description: LastExecuteTime is the last time this step
+                              execution.
+                            format: date-time
+                            type: string
+                          message:
+                            description: A human readable message indicating details
+                              about why the workflowStep is in this state.
+                            type: string
+                          name:
+                            type: string
+                          phase:
+                            description: WorkflowStepPhase describes the phase of
+                              a workflow step.
+                            type: string
+                          reason:
+                            description: A brief CamelCase message indicating details
+                              about why the workflowStep is in this state.
+                            type: string
+                          subSteps:
+                            items:
+                              description: StepStatus record the base status of workflow
+                                step, which could be workflow step or subStep
+                              properties:
+                                firstExecuteTime:
+                                  description: FirstExecuteTime is the first time
+                                    this step execution.
+                                  format: date-time
+                                  type: string
+                                id:
+                                  type: string
+                                lastExecuteTime:
+                                  description: LastExecuteTime is the last time this
+                                    step execution.
+                                  format: date-time
+                                  type: string
+                                message:
+                                  description: A human readable message indicating
+                                    details about why the workflowStep is in this
+                                    state.
+                                  type: string
+                                name:
+                                  type: string
+                                phase:
+                                  description: WorkflowStepPhase describes the phase
+                                    of a workflow step.
+                                  type: string
+                                reason:
+                                  description: A brief CamelCase message indicating
+                                    details about why the workflowStep is in this
+                                    state.
+                                  type: string
+                                type:
+                                  type: string
+                              required:
+                              - id
+                              type: object
+                            type: array
+                          type:
+                            type: string
+                        required:
+                        - id
+                        type: object
+                      type: array
+                    suspend:
+                      description: Suspend mirrors the embedded engine's own suspend
+                        flag.
+                      type: boolean
+                    suspendState:
+                      type: string
+                    terminated:
+                      description: Terminated mirrors the embedded engine's own terminated
+                        flag.
+                      type: boolean
+                  required:
+                  - finished
+                  - mode
+                  - status
+                  - suspend
+                  - terminated
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

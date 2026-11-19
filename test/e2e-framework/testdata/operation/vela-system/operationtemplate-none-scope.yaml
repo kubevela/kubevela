@@ -1,0 +1,14 @@
+# Test fixture for KEP-2.15 None scope: no OAM source at all.
+apiVersion: core.oam.dev/v2alpha1
+kind: OperationTemplate
+metadata:
+  name: none-scope
+  namespace: vela-system
+spec:
+  description: Test fixture for KEP-2.15 None scope.
+  attach:
+    scope: None
+  workflow:
+    steps:
+      - name: noop
+        type: ok-step

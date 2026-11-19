@@ -1,0 +1,19 @@
+# Test fixture for KEP-2.15 re-execution: exercises `vela operation
+# suspend`/`resume`. Uses vela-core's own built-in `suspend` step type with
+# no `duration`, so it suspends unconditionally and deterministically the
+# moment it runs.
+apiVersion: core.oam.dev/v2alpha1
+kind: OperationTemplate
+metadata:
+  name: suspend-then-ok
+  namespace: vela-system
+spec:
+  description: Test fixture for KEP-2.15 re-execution -- suspends unconditionally, then a second step runs once resumed.
+  attach:
+    scope: Component
+  workflow:
+    steps:
+      - name: pause
+        type: suspend
+      - name: finish
+        type: ok-step
