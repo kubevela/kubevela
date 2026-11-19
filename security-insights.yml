@@ -1,7 +1,7 @@
 header:
   schema-version: 2.0.0
-  last-updated: '2026-11-12'
-  last-reviewed: '2026-11-12'
+  last-updated: '2026-11-18'
+  last-reviewed: '2026-11-18'
   url: https://github.com/kubevela/kubevela/blob/master/security-insights.yml
   comment: |
     Security Insights manifest for the KubeVela project, following the OpenSSF
@@ -81,7 +81,7 @@ project:
     bug-bounty-available: false
     security-policy: https://github.com/kubevela/kubevela/blob/master/SECURITY.md
     comment: |
-      Report vulnerabilities privately by email to security@mail.kubevela.io.
+      Report vulnerabilities privately by email to cncf-kubevela-security@lists.cncf.io.
       Reports are read by a restricted group of maintainers and acknowledged
       with a non-automated response within three working days.
 
