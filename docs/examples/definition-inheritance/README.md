@@ -6,7 +6,7 @@ A platform team publishes a hardened web service type. Product teams want their 
 |---|---|
 | [`platform.yaml`](platform.yaml) | what the platform team publishes: `platform-web`, the `platform-expose` trait, `platform-volume` |
 | [`teams.yaml`](teams.yaml) | what teams build on it: `payments-web`, `checkout-web`, `public-web`, `legacy-web`, `internal-expose`, `team-volume` |
-| [`mistakes.yaml`](mistakes.yaml) | twelve things a team might try; every one is refused |
+| [`mistakes.yaml`](mistakes.yaml) | thirteen things a team or the platform team might try; every one is refused |
 | [`apps.yaml`](apps.yaml) | the Applications |
 
 ## The rules
@@ -36,7 +36,7 @@ Then:
 kubectl apply -f platform.yaml
 kubectl -n vela-system wait --for=create definitionrevision/platform-web-v1   # legacy-web pins it
 kubectl apply -f teams.yaml
-kubectl apply -f mistakes.yaml    # twelve errors, one per object
+kubectl apply -f mistakes.yaml    # thirteen errors, one per object
 kubectl apply -f apps.yaml
 ```
 
@@ -58,6 +58,8 @@ outputs: {
 ```
 
 Its status says which ingress policy applies, read from that NetworkPolicy: `ingress: default-deny`.
+
+`+final` works on fields reached through structs, like the pod's security context above. It cannot be put on a field inside a list item, such as one container's `securityContext`: the check could not enforce it there, so such a definition is refused when it is applied (the last entry in `mistakes.yaml`). To lock something inside the containers, mark the `containers` list itself, which locks the whole list.
 
 ## What teams build
 
@@ -132,6 +134,7 @@ Each object in [`mistakes.yaml`](mistakes.yaml) is refused when it is applied:
 | extend it from another namespace | `component definition platform-web is in namespace vela-system, and a definition may only extend one in its own namespace (default); ...` |
 | make `platform-web` extend a type built on it | `definition payments-web extends platform-web, which is already in its own inheritance chain: platform-web -> checkout-web -> payments-web -> platform-web` |
 | use `platform-web` directly in an Application | `component platform-web is abstract and cannot be used directly; name a component that extends it.` |
+| (platform team) lock one container's security context with `+final` inside the `containers` list | `component locked-web marks output.spec.template.spec.containers[0].securityContext +final, but +final cannot be enforced on a field inside a list item; mark the list field, output.spec.template.spec.containers, instead` |
 
 ## `+immutable` through a child
 

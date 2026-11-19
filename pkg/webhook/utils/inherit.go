@@ -22,10 +22,12 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/kubevela/pkg/cue/cuex"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
+	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 // ValidateInheritedTemplate validates a definition that extends another. It
@@ -137,4 +139,15 @@ func ValidateExtendsHasTemplate(kind, name, extends string, schematic *common.Sc
 		"%s %s extends %s but has no CUE template to call it from; "+
 			"add a `%s: properties: {...}` block",
 		kind, name, extends, inherit.SuperField)
+}
+
+// ValidateFinalPlacement refuses a definition, parent or child, whose template
+// marks a field +final where the inheritance check cannot read it: inside a
+// list item. Without inheritance the marker means nothing, so it is only
+// judged while the feature is on.
+func ValidateFinalPlacement(name, template string, surface inherit.Surface) error {
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableDefinitionInheritance) {
+		return nil
+	}
+	return inherit.CheckFinalPlacement(inherit.Level{Name: name, Template: template}, surface)
 }

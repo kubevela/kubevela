@@ -66,6 +66,10 @@ limitations under the License.
 //	// +required    nothing extending this leaves this output out; on the
 //	//              `outputs` block it covers every output in it
 //
+// +final is read from struct fields only. A marker on a field inside a list
+// item, such as one container's securityContext, could not be enforced, so a
+// definition that writes one is refused; mark the list field instead.
+//
 // # The one constraint
 //
 // Properties travel up before results come back, so `$super.properties` is read

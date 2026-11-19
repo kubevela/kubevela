@@ -139,6 +139,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				}
 			}
 
+			if err := webhookutils.ValidateFinalPlacement(obj.Name, cueTemplate, inherit.ComponentSurface); err != nil {
+				logger.WithStep("validate-final").WithError(err).Error(err, "ComponentDefinition marks +final where it cannot be enforced")
+				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+			}
+
 			// A definition that extends another is judged against what it
 			// extends. Compiling its template alone would always fail: `$super` is
 			// declared nowhere in it, by design.

@@ -1,5 +1,5 @@
-# Things a team might try. Every one is refused when it is applied, with the
-# message in its comment.
+# Things a team, or the platform team, might try. Every one is refused when it
+# is applied, with the message in its comment.
 #
 # Swap the Deployment for a Job.
 #   `$inherit: {output: false}` is not allowed in nightly-job: a definition that
@@ -206,3 +206,42 @@ spec:
       type: platform-web
       properties:
         image: nginxinc/nginx-unprivileged:stable
+---
+# The platform team tries to lock one container's security context. +final
+# cannot be enforced on a field inside a list item, so the definition is
+# refused; marking the containers list itself would lock the whole list.
+#   component locked-web marks output.spec.template.spec.containers[0].securityContext
+#   +final, but +final cannot be enforced on a field inside a list item; mark the
+#   list field, output.spec.template.spec.containers, instead
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: locked-web
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+    type: deployments.apps
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: name: context.name
+        	spec: {
+        		selector: matchLabels: "app.oam.dev/component": context.name
+        		template: {
+        			metadata: labels: "app.oam.dev/component": context.name
+        			spec: containers: [{
+        				name:  context.name
+        				image: parameter.image
+        				// +final
+        				securityContext: runAsNonRoot: true
+        			}]
+        		}
+        	}
+        }
+        parameter: image: string

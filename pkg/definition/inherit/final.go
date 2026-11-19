@@ -92,6 +92,75 @@ func markedPaths(level Level, s Surface, tag string) []finalPath {
 	return out
 }
 
+// CheckFinalPlacement refuses a `+final` the check cannot honour: one on a
+// field inside a list item, such as a container's securityContext. Markers are
+// read from struct fields only, so such a field would look locked and accept
+// anything a child adds. The author is told to mark the list field instead.
+func CheckFinalPlacement(level Level, s Surface) error {
+	// A template that will not parse is reported by the checks that compile
+	// it; here it only means there is no marker to judge.
+	file, parseErr := parser.ParseFile(level.Name+".cue", level.Template, parser.ParseComments)
+	if parseErr != nil || file == nil {
+		file = &ast.File{}
+	}
+	surface := map[string]bool{}
+	for _, f := range s.Fields {
+		surface[f] = true
+	}
+	var found, list string
+	var walk func(decls []ast.Decl, at, listAt string, inList bool)
+	var walkExpr func(e ast.Expr, at, listAt string, inList bool)
+	walkExpr = func(e ast.Expr, at, listAt string, inList bool) {
+		switch v := e.(type) {
+		case *ast.StructLit:
+			walk(v.Elts, at, listAt, inList)
+		case *ast.ListLit:
+			for i, el := range v.Elts {
+				walkExpr(el, fmt.Sprintf("%s[%d]", at, i), at, true)
+			}
+		case *ast.BinaryExpr:
+			walkExpr(v.X, at, listAt, inList)
+			walkExpr(v.Y, at, listAt, inList)
+		case *ast.ParenExpr:
+			walkExpr(v.X, at, listAt, inList)
+		}
+	}
+	walk = func(decls []ast.Decl, at, listAt string, inList bool) {
+		for _, decl := range decls {
+			if found != "" {
+				return
+			}
+			switch d := decl.(type) {
+			case *ast.Field:
+				label := finalLabel(d.Label)
+				if at == "" && !surface[label] {
+					continue
+				}
+				here := label
+				if at != "" {
+					here = at + "." + label
+				}
+				if inList && hasTag(d, FinalTag) {
+					found, list = here, listAt
+					return
+				}
+				walkExpr(d.Value, here, listAt, inList)
+			case *ast.Comprehension:
+				walkExpr(d.Value, at, listAt, inList)
+			case *ast.EmbedDecl:
+				walkExpr(d.Expr, at, listAt, inList)
+			}
+		}
+	}
+	walk(file.Decls, "", "", false)
+	if found == "" {
+		return nil
+	}
+	return fmt.Errorf("%s %s marks %s %s, but %s cannot be enforced on a field inside a list item; "+
+		"mark the list field, %s, instead",
+		s.Kind, level.Name, found, FinalTag, FinalTag, list)
+}
+
 // finalLabel is a label as a path element. An interpolated or dynamic label
 // becomes a pattern, `*` standing for what is only known at render time.
 func finalLabel(label ast.Label) string {
@@ -174,6 +243,11 @@ func CheckFinal(at string, self Level, own cue.Value, ancestors []Level, s Surfa
 	}
 	addCuts(d)
 	for _, anc := range ancestors {
+		// A parent written before the placement check existed, or while the
+		// gate was off, still must not pass for locked where it is not.
+		if err := CheckFinalPlacement(anc, s); err != nil {
+			return err
+		}
 		for _, p := range finalPaths(anc, s) {
 			if hit, ok := touches(own, p, cut); ok {
 				return fmt.Errorf("%s %s adds to %s, which %s marks %s",
