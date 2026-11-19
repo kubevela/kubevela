@@ -132,7 +132,13 @@ type endpointReader struct {
 }
 
 func (r *endpointReader) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-	what := kindOf(obj) + " " + objectName(key.Namespace, key.Name)
+	// An unstructured object names its kind only in its GVK; the Go type
+	// name would read as "Unstructured".
+	kind := obj.GetObjectKind().GroupVersionKind().Kind
+	if kind == "" {
+		kind = kindOf(obj)
+	}
+	what := kind + " " + objectName(key.Namespace, key.Name)
 	if r.allowed != nil && !r.allowed(key.Namespace) {
 		r.note(&r.refused, what)
 		return errOutsideAllowlist
