@@ -111,7 +111,7 @@ Check out [CONTRIBUTING](https://kubevela.io/docs/contributor/overview) to see h
 
 ## Report Vulnerability
 
-Security is a first priority thing for us at KubeVela. If you come across a related issue, please send email to security@mail.kubevela.io .
+Security is a first priority thing for us at KubeVela. If you come across a related issue, please send email to cncf-kubevela-security@lists.cncf.io .
 
 ## Code of Conduct
 
