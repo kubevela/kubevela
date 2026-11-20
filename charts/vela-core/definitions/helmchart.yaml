@@ -56,15 +56,15 @@ spec:
         		// decode, validate, or inspect JWT structure or claims. Token freshness,
         		// audience, and revocation remain the user's responsibility.
         		//
-        		// The Secret MUST live in either the release namespace or the
-        		// Application namespace. Cross-namespace references are rejected
-        		// (mirrors the valuesFrom policy).
+        		// The Secret MUST live in the Application namespace. Any other is
+        		// rejected, the release namespace included (mirrors the valuesFrom
+        		// policy).
         		auth?: {
         			// Reference to a Kubernetes Secret containing credentials.
         			secretRef?: {
         				// Secret name.
         				name: string
-        				// Secret namespace. MAY be omitted (defaults to the release namespace).
+        				// Secret namespace. MAY be omitted (defaults to the Application namespace).
         				namespace?: string
         			}
         		}
@@ -87,7 +87,7 @@ spec:
         		kind: "Secret" | "ConfigMap"
         		// +usage=Name of the Secret or ConfigMap.
         		name: string
-        		// +usage=Namespace of the Secret or ConfigMap. Defaults to the chart release namespace, which itself defaults to the Application's own namespace when release.namespace is unset. Cross-namespace references are rejected to prevent cross-tenant reads via the controller's cluster-wide RBAC.
+        		// +usage=Namespace of the Secret or ConfigMap. Defaults to, and MUST be, the Application's own namespace. Any other is rejected, the release namespace included, to prevent cross-tenant reads via the controller's cluster-wide RBAC.
         		namespace?: string
         		// +usage=Key inside .data whose value is parsed as YAML. Defaults to "values.yaml" (FluxCD / Helm convention). Only ConfigMap.data and Secret.data are read; ConfigMap.binaryData is rejected.
         		key?: string
@@ -162,17 +162,17 @@ spec:
         	}
         }
 
-        // Set default release configuration
+        // The release name and namespace default independently.
         _release: {
+        	name:      *context.name | string
+        	namespace: *context.namespace | string
         	if parameter.release != _|_ {
-        		parameter.release
-        	}
-        	if parameter.release != _|_ && parameter.release.name != _|_ && parameter.release.namespace == _|_ {
-        		namespace: context.namespace
-        	}
-        	if parameter.release == _|_ {
-        		name:      context.name
-        		namespace: context.namespace
+        		if parameter.release.name != _|_ {
+        			name: parameter.release.name
+        		}
+        		if parameter.release.namespace != _|_ {
+        			namespace: parameter.release.namespace
+        		}
         	}
         }
 
@@ -201,7 +201,7 @@ spec:
         // (self-reference) instead of KubeVela's runtime context object.
         _velaContext: {
         	appName:      context.appName
-        	appNamespace: context.namespace
+        	appNamespace: context.appNamespace
         	name:         context.name
         	namespace:    context.namespace
         	if context.cluster != _|_ {

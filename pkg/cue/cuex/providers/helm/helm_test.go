@@ -179,6 +179,55 @@ data:
 			Expect(result.Returns.Resources).To(HaveLen(1))
 		})
 
+		It("names a release with only a namespace after the component", func() {
+			p := NewProvider()
+			testChart := &chart.Chart{
+				Metadata: &chart.Metadata{Name: "render-ns-only", Version: "1.0.0"},
+				Templates: []*chart.File{{Name: "templates/cm.yaml", Data: []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-cm
+`)}},
+			}
+			p.cache.Put("repo/"+sourceCacheID("render-ns-only")+"/1.0.0", createChartArchive(testChart), 1*time.Hour)
+
+			result, err := Render(WithDryRun(context.Background()), &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart:   ChartSourceParams{Source: "render-ns-only", Version: "1.0.0"},
+					Release: &ReleaseParams{Namespace: "cache-ns"},
+					Context: &ContextParams{AppName: "shop", AppNamespace: "team-a", Name: "redis", Namespace: "team-a"},
+				},
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result.Returns.Resources).To(HaveLen(1))
+			name, _, _ := unstructured.NestedString(result.Returns.Resources[0], "metadata", "name")
+			Expect(name).To(Equal("redis-cm"))
+		})
+
+		It("puts a release with no release params where the component is placed", func() {
+			p := NewProvider()
+			testChart := &chart.Chart{
+				Metadata: &chart.Metadata{Name: "render-placed", Version: "1.0.0"},
+				Templates: []*chart.File{{Name: "templates/cm.yaml", Data: []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm
+  namespace: {{ .Release.Namespace }}
+`)}},
+			}
+			p.cache.Put("repo/"+sourceCacheID("render-placed")+"/1.0.0", createChartArchive(testChart), 1*time.Hour)
+
+			result, err := Render(WithDryRun(context.Background()), &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart:   ChartSourceParams{Source: "render-placed", Version: "1.0.0"},
+					Context: &ContextParams{AppName: "shop", AppNamespace: "team-a", Name: "redis", Namespace: "team-a-prod"},
+				},
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			ns, _, _ := unstructured.NestedString(result.Returns.Resources[0], "metadata", "namespace")
+			Expect(ns).To(Equal("team-a-prod"))
+		})
+
 		It("should return error when chart fetch fails", func() {
 			ctx := WithDryRun(context.Background())
 			_, err := Render(ctx, &providers.Params[RenderParams]{

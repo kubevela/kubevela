@@ -82,8 +82,10 @@ type Subject struct {
 // less those derivedContextFields names. Unset fields take the defaults of
 // defkit's TestContext, so a CUE and a defkit test of one definition agree.
 type Context struct {
-	Name           string            `json:"name,omitempty"`
-	Namespace      string            `json:"namespace,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	// AppNamespace is the Application's namespace when a placement renders it into Namespace.
+	AppNamespace   string            `json:"appNamespace,omitempty"`
 	AppName        string            `json:"appName,omitempty"`
 	AppRevision    string            `json:"appRevision,omitempty"`
 	AppLabels      map[string]string `json:"appLabels,omitempty"`
@@ -228,6 +230,9 @@ type rendering struct {
 	*Rendered
 	comp      *appfile.Component
 	namespace string
+	// placement is the namespace a placement renders the component into, when not the
+	// Application's: its objects are applied there, and its status reads them there.
+	placement string
 }
 
 // workloadDefinition is the type of the synthetic component a trait under
@@ -297,6 +302,10 @@ func renderApplication(app *v1beta1.Application, defs []*unstructured.Unstructur
 	defer restoreCompiler()
 
 	namespace := or(app.Namespace, "default")
+	var placement string
+	if c.Namespace != "" && c.Namespace != namespace {
+		placement = c.Namespace
+	}
 	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
 	parser := appfile.NewDryRunApplicationParser(fake.NewClientBuilder().Build(), defs)
 	af, err := parser.GenerateAppFileFromApp(ctx, app)
@@ -317,6 +326,9 @@ func renderApplication(app *v1beta1.Application, defs []*unstructured.Unstructur
 			d.Cluster = c.Cluster
 		}
 		d.ClusterVersion = clusterVersion(c.ClusterVersion)
+		if c.Namespace != "" {
+			d.Namespace = c.Namespace
+		}
 		d.CompRevision = c.Revision
 		d.ReplicaKey = c.ReplicaKey
 	}
@@ -339,6 +351,13 @@ func renderApplication(app *v1beta1.Application, defs []*unstructured.Unstructur
 		}
 		if err := af.SetOAMContract(cm); err != nil {
 			return nil, err
+		}
+		// A placement moves every object into its namespace, as the controller's render does.
+		if placement != "" {
+			cm.ComponentOutput.SetNamespace(placement)
+			for _, obj := range cm.ComponentOutputsAndTraits {
+				obj.SetNamespace(placement)
+			}
 		}
 		out := &Rendered{
 			Output:  cm.ComponentOutput.Object,
@@ -363,7 +382,7 @@ func renderApplication(app *v1beta1.Application, defs []*unstructured.Unstructur
 			}
 			t.Outputs[output] = obj.Object
 		}
-		rendered[name] = &rendering{Rendered: out, comp: comp, namespace: namespace}
+		rendered[name] = &rendering{Rendered: out, comp: comp, namespace: namespace, placement: placement}
 	}
 	return rendered, nil
 }
@@ -447,7 +466,7 @@ func application(c Context) *v1beta1.Application {
 	return &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.ApplicationKind},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: or(c.AppName, "test-app"), Namespace: or(c.Namespace, "default"),
+			Name: or(c.AppName, "test-app"), Namespace: or(c.AppNamespace, or(c.Namespace, "default")),
 			Labels: c.AppLabels, Annotations: annotations,
 		},
 		Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{}},

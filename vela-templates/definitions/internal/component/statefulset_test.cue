@@ -279,22 +279,24 @@ _sts: {
 	}]
 }
 
-"an exec liveness and an httpGet or tcpSocket readiness probe pass through": test.#ComponentRender & _sts & {
+"an exec liveness and an httpGet readiness probe pass through": test.#ComponentRender & _sts & {
 	parameter: {
 		image: "postgres:16"
 		livenessProbe: exec: command: ["cat", "/alive"]
-		readinessProbe: {
-			httpGet: {path: "/ready", port: 8080}
-			tcpSocket: port: 8080
-		}
+		readinessProbe: httpGet: {path: "/ready", port: 8080}
 	}
 	expect: output: spec: template: spec: containers: [{
 		livenessProbe: exec: command: ["cat", "/alive"]
-		readinessProbe: {
-			httpGet: {path: "/ready", port: 8080}
-			tcpSocket: port: 8080
-		}
+		readinessProbe: httpGet: {path: "/ready", port: 8080}
 	}]
+}
+
+"a tcpSocket readiness probe passes through": test.#ComponentRender & _sts & {
+	parameter: {
+		image: "postgres:16"
+		readinessProbe: tcpSocket: port: 8080
+	}
+	expect: output: spec: template: spec: containers: [{readinessProbe: tcpSocket: port: 8080}]
 }
 
 "a tcpSocket liveness probe passes through": test.#ComponentRender & _sts & {

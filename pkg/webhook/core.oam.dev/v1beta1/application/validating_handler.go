@@ -187,6 +187,9 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	}
 	handler.controllerUsername = resolveControllerUsername(mgr.GetConfig())
 	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: handler})
+	referenced := &webhook.Admission{Handler: &ReferencedObjectHandler{app: handler, Decoder: handler.Decoder}}
+	server.Register("/validating-core-oam-dev-v1alpha1-workflows", referenced)
+	server.Register("/validating-core-oam-dev-v1alpha1-policies", referenced)
 }
 
 // resolveControllerUsername resolves vela-core's own identity from the

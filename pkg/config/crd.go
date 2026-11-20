@@ -158,8 +158,23 @@ func DeletePropertiesSecretOf(ctx context.Context, cli client.Client, namespace,
 // The CLI's write path. A companion Secret is written only where none stands or one of
 // ours for this Config does (IsPropertiesSecretOf); a Secret of that name that is not ours
 // is refused rather than overwritten. A companion of ours left over from a sensitive spec
-// is removed when the new spec has none.
+// is removed when the new spec has none. A legacy config of the name is adopted first, so
+// the Config takes over the Secret consumers read; one that cannot be adopted is refused.
 func UpsertConfigCR(ctx context.Context, cli client.Client, cfg *configv1alpha1.Config, properties *corev1.Secret) error {
+	// Checked before adoption, which writes, so a refusal leaves everything as it was.
+	if properties != nil {
+		standing := &corev1.Secret{}
+		switch err := cli.Get(ctx, client.ObjectKeyFromObject(properties), standing); {
+		case err == nil && !IsPropertiesSecretOf(standing, cfg.Name):
+			return fmt.Errorf("fail to write the properties secret %s: secret %s/%s exists and is not the properties secret of config %s",
+				properties.Name, standing.Namespace, standing.Name, cfg.Name)
+		case err != nil && !apierrors.IsNotFound(err):
+			return err
+		}
+	}
+	if err := adoptLegacyConfig(ctx, cli, cfg.Namespace, cfg.Name); err != nil {
+		return err
+	}
 	if properties != nil {
 		existing := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: properties.Name, Namespace: properties.Namespace}}
 		if _, err := controllerutil.CreateOrUpdate(ctx, cli, existing, func() error {
@@ -186,6 +201,34 @@ func UpsertConfigCR(ctx context.Context, cli client.Client, cfg *configv1alpha1.
 		return nil
 	})
 	return err
+}
+
+// adoptLegacyConfig migrates the legacy config Secret ns/name, if there is one not yet
+// adopted, and returns why when it cannot be.
+func adoptLegacyConfig(ctx context.Context, cli client.Client, ns, name string) error {
+	var secret corev1.Secret
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	// A migration mark is no proof of adoption: the Config it names may be gone, and MigrateConfig
+	// reports a still-held one as already migrated.
+	if !isLegacyConfig(&secret) {
+		return nil
+	}
+	if optedOut(&secret) {
+		return fmt.Errorf("config %s/%s is a legacy config that opted out of migration; remove its %s annotation to edit it", ns, name, types.AnnotationConfigMigrate)
+	}
+	report, err := NewMigrator(cli).MigrateConfig(ctx, ns, name, MigrationOptions{})
+	if err != nil {
+		return err
+	}
+	// Only an adoption, or one an earlier run made, leaves a Secret the Config can take over.
+	for _, res := range report.Results {
+		if res.Outcome != MigrationAdopted && !(res.Outcome == MigrationSkipped && res.Reason == reasonAlreadyMigrated) {
+			return fmt.Errorf("config %s/%s is a legacy config and could not be adopted: %s", ns, name, res.Reason)
+		}
+	}
+	return nil
 }
 
 // IsCRDTypeMissing reports whether err means a config.oam.dev type is not served

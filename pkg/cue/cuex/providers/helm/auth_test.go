@@ -66,16 +66,10 @@ var _ = Describe("extractRegistryHost", func() {
 })
 
 var _ = Describe("resolveAuthSecretNamespace", func() {
-	It("defaults empty namespace to release namespace", func() {
+	It("defaults an empty namespace to the Application's", func() {
 		ns, err := resolveAuthSecretNamespace(secretRef{Name: "s"}, authResolveOptions{AppNamespace: "app-ns", ReleaseNamespace: "rel-ns"})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ns).To(Equal("rel-ns"))
-	})
-
-	It("accepts an explicit release namespace", func() {
-		ns, err := resolveAuthSecretNamespace(secretRef{Name: "s", Namespace: "rel-ns"}, authResolveOptions{AppNamespace: "app-ns", ReleaseNamespace: "rel-ns"})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ns).To(Equal("rel-ns"))
+		Expect(ns).To(Equal("app-ns"))
 	})
 
 	It("accepts an explicit Application namespace", func() {
@@ -84,13 +78,25 @@ var _ = Describe("resolveAuthSecretNamespace", func() {
 		Expect(ns).To(Equal("app-ns"))
 	})
 
-	It("rejects a foreign namespace with the RFC-grounded message", func() {
+	// The release namespace is the author's to choose, so it is no grant to read Secrets there.
+	It("rejects the release namespace when it is not the Application's", func() {
+		_, err := resolveAuthSecretNamespace(secretRef{Name: "s", Namespace: "rel-ns"}, authResolveOptions{AppNamespace: "app-ns", ReleaseNamespace: "rel-ns"})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(`"rel-ns/s"`))
+		Expect(err.Error()).To(ContainSubstring("MUST be in the Application namespace"))
+		Expect(err.Error()).To(ContainSubstring("app-ns"))
+	})
+
+	It("rejects a foreign namespace", func() {
 		_, err := resolveAuthSecretNamespace(secretRef{Name: "s", Namespace: "other"}, authResolveOptions{AppNamespace: "app-ns", ReleaseNamespace: "rel-ns"})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring(`"other/s"`))
-		Expect(err.Error()).To(ContainSubstring("MUST equal the release namespace"))
-		Expect(err.Error()).To(ContainSubstring("rel-ns"))
-		Expect(err.Error()).To(ContainSubstring("app-ns"))
+	})
+
+	It("refuses when the Application namespace is unknown", func() {
+		_, err := resolveAuthSecretNamespace(secretRef{Name: "s"}, authResolveOptions{ReleaseNamespace: "rel-ns"})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no Application namespace"))
 	})
 })
 
@@ -454,12 +460,12 @@ var _ = Describe("resolveAuthOptions", func() {
 	It("returns the not-found error verbatim when the Secret is missing", func() {
 		c := fake.NewClientBuilder().WithScheme(scheme).Build()
 		_, _, err := resolveAuthOptions(context.Background(), c, &secretRef{Name: "missing"}, authResolveOptions{AppNamespace: "app-ns", ReleaseNamespace: "rel-ns"})
-		Expect(err).To(MatchError(ContainSubstring(`not found: it MUST exist in the release namespace "rel-ns" or the Application namespace "app-ns"`)))
+		Expect(err).To(MatchError(ContainSubstring(`not found: it MUST exist in the Application namespace "app-ns"`)))
 	})
 
 	It("rejects unsupported Secret types", func() {
 		s := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "x", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "x", Namespace: "app-ns"},
 			Type:       corev1.SecretTypeServiceAccountToken,
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(s).Build()
@@ -470,7 +476,7 @@ var _ = Describe("resolveAuthOptions", func() {
 
 	It("dispatches kubernetes.io/basic-auth", func() {
 		s := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "b", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "b", Namespace: "app-ns"},
 			Type:       corev1.SecretTypeBasicAuth,
 			Data: map[string][]byte{
 				corev1.BasicAuthUsernameKey: []byte("alice"),
@@ -487,12 +493,12 @@ var _ = Describe("resolveAuthOptions", func() {
 	It("rejects a foreign namespace before reading the Secret", func() {
 		c := fake.NewClientBuilder().WithScheme(scheme).Build()
 		_, _, err := resolveAuthOptions(context.Background(), c, &secretRef{Name: "x", Namespace: "other"}, authResolveOptions{AppNamespace: "app-ns", ReleaseNamespace: "rel-ns"})
-		Expect(err).To(MatchError(ContainSubstring(`namespace MUST equal the release namespace "rel-ns" or the Application namespace "app-ns"`)))
+		Expect(err).To(MatchError(ContainSubstring(`namespace MUST be in the Application namespace "app-ns"`)))
 	})
 
 	It("rejects user-supplied bearer on OCI sources", func() {
 		s := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "app-ns"},
 			Data:       map[string][]byte{"token": []byte("abc")},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(s).Build()
@@ -502,7 +508,7 @@ var _ = Describe("resolveAuthOptions", func() {
 
 	It("rejects bearer over plain http", func() {
 		s := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "app-ns"},
 			Data:       map[string][]byte{"token": []byte("abc")},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(s).Build()
@@ -634,7 +640,7 @@ var _ = Describe("computeAuthCacheTag", func() {
 
 	It("returns a stable hex tag for a given Secret content", func() {
 		s := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "app-ns"},
 			Type:       corev1.SecretTypeBasicAuth,
 			Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
 		}
@@ -654,7 +660,7 @@ var _ = Describe("computeAuthCacheTag", func() {
 	It("produces a different tag when the Secret data changes", func() {
 		mkSecret := func(pass string) *corev1.Secret {
 			return &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+				ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "app-ns"},
 				Type:       corev1.SecretTypeBasicAuth,
 				Data:       map[string][]byte{"username": []byte("u"), "password": []byte(pass)},
 			}
@@ -675,7 +681,7 @@ var _ = Describe("computeAuthCacheTag", func() {
 	It("produces a different tag when the Secret Type changes", func() {
 		mkSecret := func(t corev1.SecretType) *corev1.Secret {
 			return &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+				ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "app-ns"},
 				Type:       t,
 				Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
 			}
@@ -698,12 +704,12 @@ var _ = Describe("computeAuthCacheTag", func() {
 			Auth:   &AuthParams{SecretRef: &SecretRefParams{Name: "missing"}},
 		}
 		_, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
-		Expect(err).To(MatchError(ContainSubstring(`not found: it MUST exist in the release namespace`)))
+		Expect(err).To(MatchError(ContainSubstring(`not found: it MUST exist in the Application namespace`)))
 	})
 
 	It("produces a different tag for different chart sources with the same Secret", func() {
 		s := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "app-ns"},
 			Type:       corev1.SecretTypeDockerConfigJson,
 			Data:       map[string][]byte{".dockerconfigjson": []byte(`{"auths":{"a":{},"b":{}}}`)},
 		}
@@ -725,7 +731,7 @@ var _ = Describe("computeAuthCacheTag", func() {
 
 	It("produces a different tag when repoURL changes", func() {
 		s := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "app-ns"},
 			Type:       corev1.SecretTypeBasicAuth,
 			Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
 		}
@@ -756,7 +762,7 @@ var _ = Describe("computeAuthCacheTag", func() {
 			}},
 		}
 		_, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
-		Expect(err).To(MatchError(ContainSubstring(`MUST equal the release namespace`)))
+		Expect(err).To(MatchError(ContainSubstring(`MUST be in the Application namespace`)))
 	})
 })
 
@@ -846,7 +852,7 @@ var _ = Describe("resolveHTTPOptions", func() {
 
 	It("threads source scheme into the resolver (URL https)", func() {
 		s := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "app-ns"},
 			Data:       map[string][]byte{"token": []byte("abc.def.ghi")},
 		}
 		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(s).Build())
@@ -861,7 +867,7 @@ var _ = Describe("resolveHTTPOptions", func() {
 
 	It("rejects bearer over http (provider-side scheme detection)", func() {
 		s := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "rel-ns"},
+			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "app-ns"},
 			Data:       map[string][]byte{"token": []byte("abc")},
 		}
 		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(s).Build())

@@ -48,6 +48,8 @@ controllerArgs:
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
 ## @param workflow.step.forEachMaxItems The max number of items a forEach step may iterate
+## @param workflow.http.maxTimeout The longest timeout a workflow or definition HTTP request may set, a positive Go duration with a unit (60s, 1m30s)
+## @param workflow.http.maxResponseBytes The largest response body, in bytes, a workflow or definition HTTP request may read, a positive whole number (1048576, not 1Mi)
 ## @param workflow.httpDeny.configTemplateName ConfigTemplate name and discovery label value. The chart templates the controller flag, the ConfigTemplate and the CUE labels from this one value. Discovery only reads ConfigMaps in the controller namespace. Must be a string of dot-separated parts made of lowercase letters, digits and -, each starting and ending with a letter or digit, at most 63 characters in total; quote a name that YAML would read as a number, a boolean or null. Empty disables discovery and skips installing the template/default ConfigMap.
 ## @param workflow.httpDeny.installConfigTemplate Install the workflow-http-deny ConfigTemplate into the release namespace
 ## @param workflow.httpDeny.defaultConfig.enabled Install a labeled default denylist ConfigMap
@@ -73,6 +75,9 @@ workflow:
   step:
     errorRetryTimes: 10
     forEachMaxItems: 50
+  http:
+    maxTimeout: 60s
+    maxResponseBytes: 1048576
   httpDeny:
     # Prefixed per chart so dual-install with vela-workflow owns distinct ConfigTemplates
     # and default ConfigMaps. The controller flag is templated from this value.
@@ -282,8 +287,20 @@ featureGates:
 ##           # it, set the limit once you know.
 ##           - warn: 5
 ##
-## @param definitionRestrictions Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default)
-definitionRestrictions: {}
+## `addon` and `vela-cli` are restricted to vela-system by default: an addon component installs
+## the addon, its Application in vela-system and its cluster-scoped resources, with the
+## controller's identity, and a vela-cli step's Job takes any image, command, service account
+## and host path, both the platform's to grant. Override either to change it.
+##
+## @extra definitionRestrictions Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default)
+## @param definitionRestrictions.overrides.addon.namespaces Namespaces whose Applications may use the `addon` component type
+## @param definitionRestrictions.overrides.vela-cli.namespaces Namespaces whose Applications may use the `vela-cli` workflow step
+definitionRestrictions:
+  overrides:
+    addon:
+      namespaces: ["vela-system"]
+    vela-cli:
+      namespaces: ["vela-system"]
 
 ## @section Builtin definitions parameters
 
@@ -445,7 +462,9 @@ admissionWebhooks:
   # Tools that render without cluster access (Argo CD, helm template) render
   # failurePolicy: Ignore. For Argo CD, add an ignoreDifferences entry with
   # jqPathExpressions: [".webhooks[].failurePolicy"]. When patch.enabled=false
-  # and cert-manager is off, supply the Secret and the caBundle yourself.
+  # and cert-manager is off, supply the Secret and the caBundle yourself. With
+  # cert-manager or a supplied Secret, the chart renders failurePolicy as set
+  # here from the start, so with Fail writes are refused until the caBundle is in place.
   # Only patch.enabled is still read. image, nodeSelector, affinity and
   # tolerations configured the removed cert Jobs and are kept so existing values
   # files still apply.

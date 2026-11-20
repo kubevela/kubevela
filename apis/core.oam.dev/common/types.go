@@ -495,8 +495,11 @@ type WorkflowStatus struct {
 	Terminated bool `json:"terminated"`
 	Finished   bool `json:"finished"`
 
-	ContextBackend *corev1.ObjectReference               `json:"contextBackend,omitempty"`
-	Steps          []workflowv1alpha1.WorkflowStepStatus `json:"steps,omitempty"`
+	ContextBackend *corev1.ObjectReference `json:"contextBackend,omitempty"`
+	// Ref is the Workflow spec.workflow.ref resolved to: the one in the Application's namespace,
+	// else the shared one in the system namespace.
+	Ref   *corev1.ObjectReference               `json:"ref,omitempty"`
+	Steps []workflowv1alpha1.WorkflowStepStatus `json:"steps,omitempty"`
 	// Dependencies is what each workflow step waits on before it starts, whether
 	// named in its dependsOn or read by its expressions.
 	Dependencies []WorkflowStepDependency `json:"dependencies,omitempty"`

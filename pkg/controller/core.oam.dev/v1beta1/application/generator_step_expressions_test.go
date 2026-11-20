@@ -53,16 +53,16 @@ func (c *stepRunContext) SetMutableValue(v string, paths ...string) {
 func TestWorkflowStepExpressionsAreOnlyForAnApplicationThatOptsIn(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EnableCelExpressions, true)
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RequireCelExpressionOptIn, true)
-	require.Nil(t, workflowStepExpressions(&appfile.Appfile{Name: "web"}, nil))
+	require.Nil(t, workflowStepExpressions(&appfile.Appfile{Name: "web"}, nil, nil))
 	require.NotNil(t, workflowStepExpressions(&appfile.Appfile{Name: "web",
-		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"}}, nil))
+		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"}}, nil, nil))
 }
 
 func TestAWorkflowStepReadsItsOwnRenderContext(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EnableCelExpressions, true)
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RequireCelExpressionOptIn, false)
 	opts := workflowStepExpressions(&appfile.Appfile{Name: "web", Namespace: "prod"},
-		func(string, string, map[string]sources.SourceResolutionStatus) {})
+		func(string, string, map[string]sources.SourceResolutionStatus) {}, nil)
 	require.NotNil(t, opts)
 	ev, err := expressions.NewEvaluator(*opts, nil, "run-1")
 	require.NoError(t, err)

@@ -266,18 +266,13 @@ func missingLine(kind, ns, name, key string) string {
 	return fmt.Sprintf("%s:%s/%s/%s=<missing>", kind, ns, name, key)
 }
 
-// resolveNamespace mirrors the helm provider's resolveValuesFromNamespace.
-// An empty Namespace defaults to releaseNamespace. An explicit Namespace is
-// accepted only if it equals releaseNamespace or appNamespace; any other
-// value is rejected to block cross-tenant Secret reads via the controller's
-// cluster-wide RBAC.
+// resolveNamespace mirrors the helm provider's resolveValuesFromNamespace: a values source is
+// read from the Application's namespace, the default when none is named, and any other is
+// refused, the release namespace included.
 func resolveNamespace(ref valuesFromRef, appNamespace, releaseNamespace string) (string, error) {
-	if ref.Namespace == "" {
-		return releaseNamespace, nil
+	if ref.Namespace == "" || ref.Namespace == appNamespace {
+		return appNamespace, nil
 	}
-	if ref.Namespace == releaseNamespace || ref.Namespace == appNamespace {
-		return ref.Namespace, nil
-	}
-	return "", fmt.Errorf("cross-namespace valuesFrom sources are not permitted: %s %q requested namespace %q but Application is in %q and release is in %q",
+	return "", fmt.Errorf("cross-namespace valuesFrom sources are not permitted: %s %q requested namespace %q but MUST be in the Application namespace %q (the release namespace %q is not a source)",
 		ref.Kind, ref.Name, ref.Namespace, appNamespace, releaseNamespace)
 }

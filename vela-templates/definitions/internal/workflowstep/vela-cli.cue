@@ -2,6 +2,7 @@ import (
 	"vela/kube"
 	"vela/builtin"
 	"vela/util"
+	"strings"
 )
 
 "vela-cli": {
@@ -68,6 +69,27 @@ template: {
 		},
 	]
 
+	// The Job runs as this account in the Application's namespace. Without it the Job creates no
+	// pod and never finishes, so the step fails at once instead. Any other read error (a requester
+	// who may not get service accounts) leaves the check to the Job itself.
+	account: kube.#Read & {
+		$params: value: {
+			apiVersion: "v1"
+			kind:       "ServiceAccount"
+			metadata: {
+				name:      parameter.serviceAccountName
+				namespace: context.namespace
+			}
+		}
+	}
+	noAccount: {
+		if account.$returns.err != _|_ if strings.Contains(account.$returns.err, "not found") {
+			breakWorkflow: builtin.#Fail & {
+				$params: message: "service account \(parameter.serviceAccountName) not found in namespace \(context.namespace): the vela-cli Job runs as it"
+			}
+		}
+	}
+
 	job: kube.#Apply & {
 		$params: {
 			value: {
@@ -75,12 +97,9 @@ template: {
 				kind:       "Job"
 				metadata: {
 					name: "\(context.name)-\(context.stepName)-\(context.stepSessionID)"
-					if parameter.serviceAccountName == "kubevela-vela-core" {
-						namespace: "vela-system"
-					}
-					if parameter.serviceAccountName != "kubevela-vela-core" {
-						namespace: context.namespace
-					}
+					// The Application's namespace, whatever service account is named: the Job
+					// runs with what an account of that name there may do.
+					namespace: context.namespace
 				}
 				spec: {
 					backoffLimit: 3
@@ -99,9 +118,9 @@ template: {
 									volumeMounts: mountsArray
 								},
 							]
-							restartPolicy:  "Never"
-							serviceAccount: parameter.serviceAccountName
-							volumes:        deDupVolumesArray
+							restartPolicy:      "Never"
+							serviceAccountName: parameter.serviceAccountName
+							volumes:            deDupVolumesArray
 						}
 					}
 				}
@@ -140,8 +159,8 @@ template: {
 		command: [...string]
 		// +usage=Specify the image
 		image: *"oamdev/vela-cli:v1.6.4" | string
-		// +usage=specify serviceAccountName want to use
-		serviceAccountName: *"kubevela-vela-core" | string
+		// +usage=The service account the Job runs as, in the Application's namespace
+		serviceAccountName: *"default" | string
 		storage?: {
 			// +usage=Mount Secret type storage
 			secret?: [...{

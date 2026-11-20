@@ -43,6 +43,7 @@ context: {
 	namespace:        string
 	cluster:          string
 	appName:          string
+	appNamespace:     string
 	appRevision:      string
 	appRevisionNum:   int
 	appLabels: [string]:      string

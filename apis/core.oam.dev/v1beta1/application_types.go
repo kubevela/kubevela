@@ -42,6 +42,11 @@ type AppPolicy struct {
 
 // Workflow defines workflow steps and other attributes
 type Workflow struct {
+	// Ref names a Workflow object to run in place of Steps: the one in the Application's
+	// namespace, else a shared one of that name in the system definition namespace
+	// (vela-system unless set otherwise).
+	// The author needs get on it where definition permissions or AuthenticateApplication
+	// are enforced.
 	Ref   string                               `json:"ref,omitempty"`
 	Mode  *wfTypesv1alpha1.WorkflowExecuteMode `json:"mode,omitempty"`
 	Steps []wfTypesv1alpha1.WorkflowStep       `json:"steps,omitempty"`

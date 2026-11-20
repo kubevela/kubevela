@@ -18,7 +18,9 @@ package config
 
 import (
 	"testing"
+	"time"
 
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/pflag"
@@ -50,5 +52,26 @@ var _ = Describe("WorkflowConfig HTTP deny template name", func() {
 
 		Expect(fs.Parse([]string{"--workflow-http-deny-config-template-name="})).To(Succeed())
 		Expect(c.HTTPDenyConfigTemplateName).To(BeEmpty())
+	})
+})
+
+var _ = Describe("WorkflowConfig HTTP bounds", func() {
+	It("defaults to the workflow engine's bounds", func() {
+		c := NewWorkflowConfig()
+		Expect(c.MaxHTTPTimeout).To(Equal(60 * time.Second))
+		Expect(c.MaxHTTPResponseBytes).To(Equal(int64(1 << 20)))
+	})
+
+	It("passes the flags to the workflow engine", func() {
+		timeout, bytes := httpguard.MaxRequestTimeout, httpguard.MaxResponseBytes
+		DeferCleanup(func() { httpguard.MaxRequestTimeout, httpguard.MaxResponseBytes = timeout, bytes })
+		c := NewWorkflowConfig()
+		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+		c.AddFlags(fs)
+
+		Expect(fs.Parse([]string{"--max-workflow-http-timeout=10s", "--max-workflow-http-response-bytes=2048"})).To(Succeed())
+		c.SyncToWorkflowGlobals()
+		Expect(httpguard.MaxRequestTimeout).To(Equal(10 * time.Second))
+		Expect(httpguard.MaxResponseBytes).To(Equal(int64(2048)))
 	})
 })

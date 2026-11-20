@@ -27,6 +27,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/pkg/errors"
 
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/render"
 	"github.com/oam-dev/kubevela/pkg/definition/cachekey"
@@ -55,6 +56,9 @@ func (r *sourceResolver) keyedCachePolicy(sourceName, sourceType, sourceTemplate
 		Template:   templateFingerprint(sourceTemplate),
 		Properties: props,
 		Context:    identityContext(r.ctxValues, sourceName, policy.KeyInputs),
+	}
+	if u, ok := velaconfig.ConsumerUserFrom(r.goCtx); ok {
+		identity.User = u.GetName()
 	}
 	policy.Key, err = cacheIdentity(policy.Key, identity)
 	return policy, identity, err
