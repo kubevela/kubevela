@@ -504,22 +504,16 @@ func (g *TraitCUEGenerator) WithImports(imports ...string) *TraitCUEGenerator {
 	return g
 }
 
-// addImportIfMissing adds an import only when not already present.
-func (g *TraitCUEGenerator) addImportIfMissing(imp string) {
-	for _, existing := range g.imports {
-		if existing == imp {
-			return
-		}
-	}
-	g.imports = append(g.imports, imp)
-}
+// detectRequiredImports analyzes the trait template and returns the CUE
+// standard library imports declared by its values via the ImportRequirer
+// interface. Mirrors CUEGenerator.detectRequiredImports for components so that
+// helpers like ArrayConcat (which renders as list.Concat) auto-pull "list"
+// without the trait author calling WithImports, and like it returns the
+// detected imports rather than adding them to g.imports, so a reused generator
+// does not carry one trait's imports into the next.
+func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) []string {
+	scan := NewCUEGenerator()
 
-// detectRequiredImports analyzes the trait template and adds any CUE standard
-// library imports declared by its values via the ImportRequirer interface.
-// Mirrors CUEGenerator.detectRequiredImports for components so that helpers
-// like ArrayConcat (which renders as list.Concat) auto-pull "list" without
-// the trait author calling WithImports.
-func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
 	// Trait params can declare ImportRequirer themselves (e.g. StringParam
 	// with MinLen/MaxLen requires "strings"). Scan params first so traits
 	// without a Template(func(tpl)) body (raw TemplateBlock, status-only,
@@ -527,7 +521,7 @@ func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
 	for _, param := range t.GetParams() {
 		if ir, ok := param.(ImportRequirer); ok {
 			for _, imp := range ir.RequiredImports() {
-				g.addImportIfMissing(imp)
+				scan.addImportIfMissing(imp)
 			}
 		}
 	}
@@ -537,21 +531,15 @@ func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
 	// array params, so those messages can still reference a CUE stdlib call.
 	// Scanned before the template check so traits without a Template body are
 	// covered too.
-	validatorScan := NewCUEGenerator()
 	for _, param := range t.GetParams() {
-		validatorScan.collectImportsFromParamValidators(param)
-	}
-	for _, imp := range validatorScan.imports {
-		g.addImportIfMissing(imp)
+		scan.collectImportsFromParamValidators(param)
 	}
 
 	if !t.HasTemplate() {
-		return
+		return scan.imports
 	}
 	tpl := NewTemplate()
 	t.GetTemplate()(tpl)
-
-	scan := NewCUEGenerator()
 
 	// Template-level helpers (list.Concat / struct-array / dedupe / let bindings).
 	for _, helper := range tpl.GetConcatHelpers() {
@@ -583,22 +571,29 @@ func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
 		scan.collectImportsFromOps(patch.Ops())
 	}
 
-	for _, imp := range scan.imports {
-		g.addImportIfMissing(imp)
-	}
+	return scan.imports
+}
+
+// mergedImports returns the imports to emit for t: the WithImports set first,
+// then the ones detected for t that are not already present. g is left
+// untouched.
+func (g *TraitCUEGenerator) mergedImports(t *TraitDefinition) []string {
+	return mergeImports(g.imports, g.detectRequiredImports(t))
 }
 
 // GenerateFullDefinition generates the complete CUE definition for a trait.
 func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
-	// Auto-detect imports needed by template values (e.g. ArrayConcat → list).
-	g.detectRequiredImports(t)
+	// Explicit imports plus the ones auto-detected from this trait's params and
+	// template (e.g. ArrayConcat → list). Kept in a local so nothing leaks into
+	// the next call.
+	imports := g.mergedImports(t)
 
 	var sb strings.Builder
 
 	// Write imports if any
-	if len(g.imports) > 0 {
+	if len(imports) > 0 {
 		sb.WriteString("import (\n")
-		for _, imp := range g.imports {
+		for _, imp := range imports {
 			sb.WriteString(fmt.Sprintf("\t%q\n", imp))
 		}
 		sb.WriteString(")\n\n")
@@ -1730,7 +1725,8 @@ func (g *TraitCUEGenerator) writePatchGroupMapping(sb *strings.Builder, group Pa
 func (g *TraitCUEGenerator) GenerateDefinitionWithRawTemplate(t *TraitDefinition, rawTemplate string) string {
 	var sb strings.Builder
 
-	// Write imports if any
+	// Write imports if any. Nothing is detected from a raw template, so these
+	// are only the ones added through WithImports.
 	if len(g.imports) > 0 {
 		sb.WriteString("import (\n")
 		for _, imp := range g.imports {
