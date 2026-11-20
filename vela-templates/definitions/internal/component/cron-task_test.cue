@@ -292,3 +292,18 @@ _cron: {
 		volumes: [{name: "cache", emptyDir: medium: "Memory"}]
 	}
 }
+
+"envFrom imports a whole Secret and ConfigMap": test.#ComponentRender & _cron & {
+	parameter: {
+		image: "shop-report:1.0"
+		schedule: "0 2 * * *"
+		envFrom: [
+			{secretRef: {name: "shop-db"}},
+			{prefix: "CONF_", configMapRef: {name: "shop-conf", optional: true}},
+		]
+	}
+	expect: output: spec: jobTemplate: spec: template: spec: containers: [{envFrom: [
+		{secretRef: {name: "shop-db"}},
+		{prefix: "CONF_", configMapRef: {name: "shop-conf", optional: true}},
+	]}]
+}
