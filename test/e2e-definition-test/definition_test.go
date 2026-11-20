@@ -442,4 +442,51 @@ parameter: {
 			Expect(totalErrors).To(Equal(0), fmt.Sprintf("%d definitions failed CUE parsing with updated logic", totalErrors))
 		})
 	})
+
+	Context("Test dynamic admission control for traitDefinition conflictsWith", func() {
+		const simpleTraitTemplate = `
+patch: spec: template: metadata: annotations: "label-conflict": "applied"
+parameter: {}
+`
+
+		It("rejects invalid conflictsWith labelSelector on create and update", func() {
+			invalidTD := &v1beta1.TraitDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "TraitDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-conflicts-with-trait",
+					Namespace: namespace,
+				},
+				Spec: v1beta1.TraitDefinitionSpec{
+					AppliesToWorkloads: []string{"*"},
+					ConflictsWith:      []string{"labelSelector:@@@"},
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: simpleTraitTemplate,
+						},
+					},
+				},
+			}
+			err := k8sClient.Create(ctx, invalidTD)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(`invalid spec.conflictsWith rule "labelSelector:@@@"`))
+
+			validTD := invalidTD.DeepCopy()
+			validTD.Name = "valid-conflicts-with-trait"
+			validTD.Spec.ConflictsWith = []string{"labelSelector:feature=expose"}
+			Expect(k8sClient.Create(ctx, validTD)).Should(Succeed())
+
+			var fetched v1beta1.TraitDefinition
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: validTD.Name, Namespace: namespace}, &fetched)
+			}, 15*time.Second, time.Second).Should(Succeed())
+
+			fetched.Spec.ConflictsWith = []string{"labelSelector:@@@"}
+			err = k8sClient.Update(ctx, &fetched)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(`invalid spec.conflictsWith rule "labelSelector:@@@"`))
+		})
+	})
 })

@@ -403,3 +403,53 @@ func TestHandleValidatesIdentityFields(t *testing.T) {
 		require.False(t, resp.Allowed)
 	})
 }
+
+func TestHandleValidatesConflictsWith(t *testing.T) {
+	sc := runtime.NewScheme()
+	require.NoError(t, v1beta1.SchemeBuilder.AddToScheme(sc))
+	h := &ValidatingHandler{
+		Decoder: admission.NewDecoder(sc),
+		Client:  fake.NewClientBuilder().WithScheme(sc).Build(),
+	}
+
+	build := func(op admissionv1.Operation, rules []string) admission.Request {
+		def := &v1beta1.TraitDefinition{
+			TypeMeta:   metav1.TypeMeta{Kind: "TraitDefinition", APIVersion: "core.oam.dev/v1beta1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "label-conflict", Namespace: "vela-system"},
+			Spec:       v1beta1.TraitDefinitionSpec{ConflictsWith: rules},
+		}
+		raw, err := json.Marshal(def)
+		require.NoError(t, err)
+		return admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Operation: op,
+			Resource: metav1.GroupVersionResource{
+				Group: traitDefGVR.Group, Version: traitDefGVR.Version, Resource: traitDefGVR.Resource,
+			},
+			Object: runtime.RawExtension{Raw: raw},
+		}}
+	}
+
+	t.Run("allows a valid selector on create", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build(admissionv1.Create, []string{"labelSelector:team=platform"}))
+		require.True(t, resp.Allowed, "%v", resp.Result)
+	})
+
+	t.Run("rejects an invalid selector on create", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build(admissionv1.Create, []string{"labelSelector:@@@"}))
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, `invalid spec.conflictsWith rule "labelSelector:@@@"`)
+	})
+
+	t.Run("rejects an empty selector on create", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build(admissionv1.Create, []string{"labelSelector:"}))
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, `invalid spec.conflictsWith rule "labelSelector:": empty label selector`)
+	})
+
+	t.Run("rejects an invalid selector on update", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build(admissionv1.Update, []string{"labelSelector:@@@"}))
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, `invalid spec.conflictsWith rule "labelSelector:@@@"`)
+	})
+}
