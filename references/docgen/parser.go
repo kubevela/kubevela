@@ -235,10 +235,10 @@ func listBehindSizeValidator(val cue.Value) (cue.Value, bool) {
 			if err != nil {
 				return false
 			}
-			switch fmt.Sprint(operands[0]) {
-			case "list.MinItems":
+			switch listSizeFunc(operands[0]) {
+			case "MinItems":
 				minItems = max(minItems, n)
-			case "list.MaxItems":
+			case "MaxItems":
 				maxItems = min(maxItems, n)
 			default:
 				return false
@@ -260,7 +260,32 @@ func listBehindSizeValidator(val cue.Value) (cue.Value, bool) {
 	if !walk(val) || !found || !bounded || minItems > maxItems || list.IncompleteKind() != cue.ListKind {
 		return val, false
 	}
+	// two open lists whose element types conflict unify to a list of bottom
+	if elem := list.LookupPath(cue.MakePath(cue.AnyIndex)); elem.Exists() && elem.IncompleteKind() == cue.BottomKind {
+		return val, false
+	}
 	return list, true
+}
+
+// listSizeFunc returns "MinItems" or "MaxItems" when fn is that function of
+// CUE's list package, whatever name the package was imported under, and ""
+// for anything else. The package value has no name of its own, so it is
+// recognised by the functions it holds.
+func listSizeFunc(fn cue.Value) string {
+	op, args := fn.Expr()
+	if op != cue.SelectorOp || len(args) != 2 {
+		return ""
+	}
+	name, err := args[1].String()
+	if err != nil || (name != "MinItems" && name != "MaxItems") {
+		return ""
+	}
+	for _, other := range []string{"MinItems", "MaxItems", "UniqueItems"} {
+		if !args[0].LookupPath(cue.ParsePath(other)).Exists() {
+			return ""
+		}
+	}
+	return name
 }
 
 func getSuffix(capName string, containSuffix bool) (string, string) {
