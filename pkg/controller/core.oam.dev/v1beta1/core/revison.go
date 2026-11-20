@@ -24,6 +24,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -332,31 +333,47 @@ func ConstructDefinitionRevisionName(definitionName, revision string) string {
 	return strings.Join([]string{definitionName, fmt.Sprintf("v%s", revision)}, "-")
 }
 
-// CleanUpDefinitionRevision check all definitionRevisions, remove them if the number of them exceed the limit
+// LiveReader reads Applications from the API server for the revision garbage collector when the
+// controller is sharded, since a sharded cache holds only this shard's Applications. Set at setup.
+var LiveReader client.Reader
+
+// CleanUpDefinitionRevision deletes a definition's oldest revisions beyond revisionLimit. The
+// revision in use and any revision an Application pins (type@vN) are kept and not counted.
 func CleanUpDefinitionRevision(ctx context.Context, cli client.Client, def runtime.Object, revisionLimit int) error {
+	// A negative limit keeps no extra revisions, as zero does.
+	revisionLimit = max(revisionLimit, 0)
 	var listOpts []client.ListOption
 	var usingRevision *common.Revision
+	var kind common.DefinitionType
+	defMeta, ok := def.(metav1.Object)
+	if !ok {
+		return fmt.Errorf("unsupported type %T", def)
+	}
 
 	switch definition := def.(type) {
 	case *v1beta1.ComponentDefinition:
+		kind = common.ComponentType
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelComponentDefinitionName: definition.Name},
 		}
 		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.TraitDefinition:
+		kind = common.TraitType
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelTraitDefinitionName: definition.Name},
 		}
 		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.PolicyDefinition:
+		kind = common.PolicyType
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelPolicyDefinitionName: definition.Name},
 		}
 		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.WorkflowStepDefinition:
+		kind = common.WorkflowStepType
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelWorkflowStepDefinitionName: definition.Name}}
@@ -371,28 +388,99 @@ func CleanUpDefinitionRevision(ctx context.Context, cli client.Client, def runti
 	if err := cli.List(ctx, defRevList, listOpts...); err != nil {
 		return err
 	}
-	needKill := len(defRevList.Items) - revisionLimit - 1
+	if len(defRevList.Items)-revisionLimit-1 <= 0 {
+		return nil
+	}
+	pinned, err := pinnedRevisions(ctx, cli, kind, defMeta, defRevList.Items)
+	if err != nil {
+		return err
+	}
+	var candidates []v1beta1.DefinitionRevision
+	for _, rev := range defRevList.Items {
+		if rev.Name != usingRevision.Name && !pinned[rev.Name] {
+			candidates = append(candidates, rev)
+		}
+	}
+	needKill := len(candidates) - revisionLimit
 	if needKill <= 0 {
 		return nil
 	}
-	klog.InfoS("cleanup old definitionRevision", "needKillNum", needKill)
+	klog.InfoS("cleanup old definitionRevision", "needKillNum", needKill, "pinned", len(pinned))
 
-	sortedRevision := defRevList.Items
-	sort.Sort(historiesByRevision(sortedRevision))
-
-	for _, rev := range sortedRevision {
-		if needKill <= 0 {
-			break
-		}
-		if rev.Name == usingRevision.Name {
-			continue
-		}
+	sort.Sort(historiesByRevision(candidates))
+	for _, rev := range candidates[:needKill] {
 		if err := cli.Delete(ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
-		needKill--
 	}
 	return nil
+}
+
+// pinnedRevisions returns the names of revs that an Application pins as <definition>@v<n>. A
+// definition in the system namespace may be pinned from any namespace, any other only from its
+// own.
+func pinnedRevisions(ctx context.Context, cli client.Client, kind common.DefinitionType, def metav1.Object, revs []v1beta1.DefinitionRevision) (map[string]bool, error) {
+	var reader client.Reader = cli
+	if sharding.EnableSharding && LiveReader != nil {
+		reader = LiveReader
+	}
+	opts := []client.ListOption{client.UnsafeDisableDeepCopy}
+	if def.GetNamespace() != oam.SystemDefinitionNamespace {
+		opts = append(opts, client.InNamespace(def.GetNamespace()))
+	}
+	apps := &v1beta1.ApplicationList{}
+	if err := reader.List(ctx, apps, opts...); err != nil {
+		return nil, err
+	}
+	pins := map[string]bool{}
+	for i := range apps.Items {
+		for _, t := range pinnedTypes(&apps.Items[i], kind) {
+			pins[t] = true
+		}
+	}
+	pinned := map[string]bool{}
+	for _, rev := range revs {
+		if version, ok := strings.CutPrefix(rev.Name, def.GetName()+"-v"); ok && pins[def.GetName()+"@v"+version] {
+			pinned[rev.Name] = true
+		}
+	}
+	return pinned, nil
+}
+
+// pinnedTypes lists the types of one kind of definition an Application names with a pin.
+func pinnedTypes(app *v1beta1.Application, kind common.DefinitionType) []string {
+	var types []string
+	add := func(t string) {
+		if strings.Contains(t, "@") {
+			types = append(types, t)
+		}
+	}
+	switch kind {
+	case common.ComponentType:
+		for _, comp := range app.Spec.Components {
+			add(comp.Type)
+		}
+	case common.TraitType:
+		for _, comp := range app.Spec.Components {
+			for _, tr := range comp.Traits {
+				add(tr.Type)
+			}
+		}
+	case common.PolicyType:
+		for _, p := range app.Spec.Policies {
+			add(p.Type)
+		}
+	case common.WorkflowStepType:
+		if app.Spec.Workflow != nil {
+			for _, step := range app.Spec.Workflow.Steps {
+				add(step.Type)
+				for _, sub := range step.SubSteps {
+					add(sub.Type)
+				}
+			}
+		}
+	}
+	return types
 }
 
 type historiesByRevision []v1beta1.DefinitionRevision

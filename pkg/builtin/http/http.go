@@ -23,7 +23,6 @@ import (
 	"io"
 	"net/http"
 	neturl "net/url"
-	"time"
 
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
@@ -73,7 +72,7 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		policy = workflowHTTPPolicy()
 		client = &http.Client{
 			Transport: httpguard.SecureTransport(http.DefaultTransport.(*http.Transport).Clone(), policy),
-			Timeout:   time.Second * 3,
+			Timeout:   httpguard.DefaultTimeout(),
 			// A custom CheckRedirect replaces the net/http default, so the
 			// redirect limit is enforced here too.
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -85,14 +84,14 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		}
 	)
 	if obj := meta.Obj.LookupPath(value.FieldPath("request")); obj.Exists() {
-		// Allow CUE authors to override the default 3s timeout via request.timeout
-		// (e.g., timeout: "30s"). Expects a string duration parseable by time.ParseDuration.
-		// Only positive durations are accepted; zero or negative values are ignored.
+		// request.timeout is a duration string, bounded as a workflow HTTP request's is.
 		if v := obj.LookupPath(value.FieldPath("timeout")); v.Exists() {
-			if timeoutStr, parseErr := v.String(); parseErr == nil {
-				if d, parseErr := time.ParseDuration(timeoutStr); parseErr == nil && d > 0 {
-					client.Timeout = d
-				}
+			timeoutStr, err := v.String()
+			if err != nil {
+				return nil, errors.WithMessage(err, "parse timeout")
+			}
+			if client.Timeout, err = httpguard.RequestTimeout(timeoutStr); err != nil {
+				return nil, err
 			}
 		}
 		if v := obj.LookupPath(value.FieldPath("body")); v.Exists() {
@@ -116,7 +115,11 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		return nil, meta.Err
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), method, u, r)
+	ctx := meta.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, r)
 	if err != nil {
 		return nil, err
 	}
@@ -174,14 +177,16 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	}
 	//nolint:errcheck
 	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
-	// parse response body and headers
+	b, err := httpguard.ReadResponseBody(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]interface{}{
 		"body":       string(b),
 		"header":     resp.Header,
 		"trailer":    resp.Trailer,
 		"statusCode": resp.StatusCode,
-	}, err
+	}, nil
 }
 
 func parseHeaders(obj cue.Value, label string) (http.Header, error) {
