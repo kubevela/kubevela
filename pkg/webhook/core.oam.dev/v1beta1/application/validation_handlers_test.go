@@ -18,16 +18,22 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/form3tech-oss/jwt-go"
 	"github.com/kubevela/pkg/controller/sharding"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	admissionv1 "k8s.io/api/admission/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/rest"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -39,6 +45,25 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
+
+func TestConciseSchematicError(t *testing.T) {
+	providerErr := errors.New(`addon "fluxcd" version "abc" not found in registries [KubeVela]`)
+	err := fmt.Errorf("failed to compile workload: %w", cuex.FunctionCallError{
+		Path:  "_render",
+		Value: "large CUE provider value",
+		Err:   providerErr,
+	})
+
+	// The message names the call's path and the provider's own error, and
+	// carries none of the call's parameters, so credentials stay out of the
+	// admission response.
+	got := conciseSchematicError(err)
+	assert.Equal(t, `failed to compile workload: function call error for _render: addon "fluxcd" version "abc" not found in registries [KubeVela]`, got)
+	assert.NotContains(t, got, "large CUE provider value")
+
+	ordinary := errors.New("ordinary schematic failure")
+	assert.Equal(t, ordinary.Error(), conciseSchematicError(ordinary))
+}
 
 func TestValidateCreate(t *testing.T) {
 	// Disable the definition validation feature for this test
@@ -182,7 +207,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			}
 
-			errs := handler.ValidateCreate(context.Background(), tc.app, req)
+			errs, _ := handler.ValidateCreate(context.Background(), tc.app, req)
 			assert.Equal(t, tc.expectedErrorCount, len(errs),
 				"Expected %d errors, got %d: %v", tc.expectedErrorCount, len(errs), errs)
 
@@ -288,7 +313,7 @@ func TestValidateUpdate(t *testing.T) {
 				},
 			}
 
-			errs := handler.ValidateUpdate(context.Background(), tc.newApp, oldApp, req)
+			errs, _ := handler.ValidateUpdate(context.Background(), tc.newApp, oldApp, req)
 			assert.Equal(t, tc.expectedErrorCount, len(errs),
 				"Expected %d errors, got %d: %v", tc.expectedErrorCount, len(errs), errs)
 		})
@@ -348,11 +373,14 @@ func TestValidateTimeout(t *testing.T) {
 }
 
 func TestValidateAnnotations(t *testing.T) {
-	handler := &ValidatingHandler{}
+	handler := &ValidatingHandler{controllerUsername: "system:serviceaccount:vela-system:kubevela-vela-core"}
 
 	testCases := []struct {
 		name               string
 		annotations        map[string]string
+		oldAnnotations     map[string]string
+		labels             map[string]string
+		username           string
 		expectedErrorCount int
 	}{
 		{
@@ -398,6 +426,98 @@ func TestValidateAnnotations(t *testing.T) {
 			},
 			expectedErrorCount: 0,
 		},
+		{
+			name: "install-namespace set by a user is refused",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "kube-system",
+			},
+			username:           "alice",
+			expectedErrorCount: 1,
+		},
+		{
+			name: "install-namespace set by vela-core for the Application that dispatched it is allowed",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			labels:             map[string]string{oam.LabelAppName: "installer", oam.LabelAppNamespace: "team-a"},
+			username:           "system:serviceaccount:vela-system:kubevela-vela-core",
+			expectedErrorCount: 0,
+		},
+		{
+			name: "install-namespace naming another namespace than its dispatcher's is refused, even from vela-core",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "kube-system",
+			},
+			labels:             map[string]string{oam.LabelAppName: "nested", oam.LabelAppNamespace: "team-a"},
+			username:           "system:serviceaccount:vela-system:kubevela-vela-core",
+			expectedErrorCount: 1,
+		},
+		{
+			name: "install-namespace from vela-core with no dispatching Application recorded is refused",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			username:           "system:serviceaccount:vela-system:kubevela-vela-core",
+			expectedErrorCount: 1,
+		},
+		{
+			name: "install-namespace set with no requester identity at all is refused",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "kube-system",
+			},
+			expectedErrorCount: 1,
+		},
+		{
+			name: "install-namespace carried forward unchanged on update is allowed, whoever makes the write",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			oldAnnotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			username:           "alice",
+			expectedErrorCount: 0,
+		},
+		{
+			name: "install-namespace changed on update by a non-controller identity is refused",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "kube-system",
+			},
+			oldAnnotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			username:           "alice",
+			expectedErrorCount: 1,
+		},
+		{
+			name:        "install-namespace removed on update by a non-controller identity is refused",
+			annotations: nil,
+			oldAnnotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			username:           "alice",
+			expectedErrorCount: 1,
+		},
+		{
+			name:        "install-namespace removed on update by vela-core, falling back to the dispatcher's namespace, is allowed",
+			annotations: nil,
+			oldAnnotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			labels:             map[string]string{oam.LabelAppName: "installer", oam.LabelAppNamespace: "default"},
+			username:           "system:serviceaccount:vela-system:kubevela-vela-core",
+			expectedErrorCount: 0,
+		},
+		{
+			name:        "install-namespace removed by vela-core so modules fall back to a namespace other than the dispatcher's is refused",
+			annotations: nil,
+			oldAnnotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			labels:             map[string]string{oam.LabelAppName: "installer", oam.LabelAppNamespace: "team-a"},
+			username:           "system:serviceaccount:vela-system:kubevela-vela-core",
+			expectedErrorCount: 1,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -407,12 +527,96 @@ func TestValidateAnnotations(t *testing.T) {
 					Name:        "test-app",
 					Namespace:   "default",
 					Annotations: tc.annotations,
+					Labels:      tc.labels,
 				},
 			}
+			var oldApp *v1beta1.Application
+			if tc.oldAnnotations != nil {
+				oldApp = &v1beta1.Application{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-app", Namespace: "default", Annotations: tc.oldAnnotations,
+					},
+				}
+			}
+			req := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+				UserInfo: authenticationv1.UserInfo{Username: tc.username},
+			}}
 
-			errs := handler.ValidateAnnotations(context.Background(), app)
+			errs := handler.ValidateAnnotations(context.Background(), app, oldApp, req)
 			assert.Equal(t, tc.expectedErrorCount, len(errs),
 				"Expected %d errors, got %d: %v", tc.expectedErrorCount, len(errs), errs)
 		})
 	}
+
+	// An addon's owned Application lives in vela-system and carries the installing Application's
+	// namespace; the module Applications it dispatches carry the same value on down the chain.
+	t.Run("install-namespace passed on by a dispatcher that carries the same value", func(t *testing.T) {
+		scheme := runtime.NewScheme()
+		require.NoError(t, v1beta1.AddToScheme(scheme))
+		addonApp := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{
+			Name: "addon-kit", Namespace: "vela-system",
+			Annotations: map[string]string{oam.AnnotationModuleInstallNamespace: "team-a"},
+		}}
+		plainApp := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "plain", Namespace: "vela-system"}}
+		chained := &ValidatingHandler{
+			controllerUsername: "system:serviceaccount:vela-system:kubevela-vela-core",
+			Client:             fake.NewClientBuilder().WithScheme(scheme).WithObjects(addonApp, plainApp).Build(),
+		}
+		module := func(value, dispatcher string) *v1beta1.Application {
+			return &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{
+				Name: "module-kit", Namespace: "vela-system",
+				Annotations: map[string]string{oam.AnnotationModuleInstallNamespace: value},
+				Labels:      map[string]string{oam.LabelAppName: dispatcher, oam.LabelAppNamespace: "vela-system"},
+			}}
+		}
+		controller := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+			UserInfo: authenticationv1.UserInfo{Username: "system:serviceaccount:vela-system:kubevela-vela-core"}}}
+		user := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+			UserInfo: authenticationv1.UserInfo{Username: "alice"}}}
+
+		assert.Empty(t, chained.ValidateAnnotations(context.Background(), module("team-a", "addon-kit"), nil, controller))
+		assert.Len(t, chained.ValidateAnnotations(context.Background(), module("kube-system", "addon-kit"), nil, controller), 1,
+			"a value other than the dispatcher's")
+		assert.Len(t, chained.ValidateAnnotations(context.Background(), module("team-a", "plain"), nil, controller), 1,
+			"a dispatcher without the annotation")
+		assert.Len(t, chained.ValidateAnnotations(context.Background(), module("team-a", "gone"), nil, controller), 1,
+			"a dispatcher that does not exist")
+		assert.Len(t, chained.ValidateAnnotations(context.Background(), module("team-a", "addon-kit"), nil, user), 1,
+			"a write that is not the controller's")
+		assert.Len(t, chained.ValidateAnnotations(context.Background(), module("", "gone"), nil, controller), 1,
+			"an empty value with no dispatcher to vouch for it")
+	})
+
+	t.Run("install-namespace is always refused when vela-core's own identity could not be resolved", func(t *testing.T) {
+		unresolvedHandler := &ValidatingHandler{}
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-app", Namespace: "default",
+				Annotations: map[string]string{oam.AnnotationModuleInstallNamespace: "kube-system"},
+			},
+		}
+		req := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+			UserInfo: authenticationv1.UserInfo{Username: "system:serviceaccount:vela-system:kubevela-vela-core"},
+		}}
+		errs := unresolvedHandler.ValidateAnnotations(context.Background(), app, nil, req)
+		assert.Len(t, errs, 1, "a username that happens to match is not enough on its own; the handler must have a resolved controllerUsername to trust against")
+	})
+}
+
+func TestResolveControllerUsername(t *testing.T) {
+	t.Run("a bearer token's sub claim resolves the username", func(t *testing.T) {
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": "system:serviceaccount:vela-system:kubevela-vela-core",
+		})
+		tokenStr, err := token.SignedString([]byte("secret"))
+		require.NoError(t, err)
+
+		got := resolveControllerUsername(&rest.Config{BearerToken: tokenStr})
+		assert.Equal(t, "system:serviceaccount:vela-system:kubevela-vela-core", got)
+	})
+
+	t.Run("a config with neither a bearer token nor a client cert resolves to empty", func(t *testing.T) {
+		got := resolveControllerUsername(&rest.Config{})
+		assert.Equal(t, "", got)
+	})
 }

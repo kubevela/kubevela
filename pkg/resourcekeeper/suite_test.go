@@ -35,9 +35,6 @@ import (
 var testEnv *envtest.Environment
 var testClient client.Client
 
-var workerEnv *envtest.Environment
-var workerClient client.Client
-
 func TestResourceKeeper(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "ResourceKeeper Suite")
@@ -65,21 +62,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(testClient).ShouldNot(BeNil())
 
-	workerEnv = &envtest.Environment{
-		ControlPlaneStartTimeout: time.Minute,
-		ControlPlaneStopTimeout:  time.Minute,
-		CRDDirectoryPaths: []string{
-			filepath.Join("../..", "charts/vela-core/crds"), // this has all the required CRDs,
-		},
-		UseExistingCluster:    ptr.To(false),
-		ErrorIfCRDPathMissing: true,
-	}
-	cfg, err = workerEnv.Start()
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(cfg).ShouldNot(BeNil())
-	workerClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
-	Expect(err).ShouldNot(HaveOccurred())
-	Expect(workerClient).ShouldNot(BeNil())
 })
 
 var _ = AfterSuite(func() {

@@ -41,15 +41,21 @@ func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Config
 	}
 
 	// If install fails due to corrupted/orphaned release secrets or ownership
-	// conflicts, clean up the broken state and retry once.
+	// conflicts, clean up the broken state, mark the objects this component
+	// already owns for adoption, and retry once.
 	if !isRetryableInstallError(err) {
 		return nil, errors.Wrapf(err, "failed to install helm release %s", releaseName)
 	}
 
 	klog.Warningf("Helm provider [%s]: Install failed for %s due to orphaned state (%v), cleaning up and retrying", velaContextStr(velaCtx), releaseName, err)
-	if cleanErr := p.cleanOrphanedReleaseSecrets(actionConfig, releaseName, releaseNamespace, velaCtx); cleanErr != nil {
+	if cleanErr := p.cleanOrphanedReleaseSecrets(ctx, releaseName, releaseNamespace, velaCtx); cleanErr != nil {
 		klog.Warningf("Helm provider [%s]: Failed to clean orphaned secrets for %s: %v", velaContextStr(velaCtx), releaseName, cleanErr)
 		return nil, errors.Wrapf(err, "failed to install helm release %s (cleanup also failed: %v)", releaseName, cleanErr)
+	}
+
+	if claimErr := p.claimOwnedResources(ctx, actionConfig, ch, releaseName, releaseNamespace, values, options, velaCtx); claimErr != nil {
+		// Not logged verbatim: the error can carry rendered chart values, credentials included.
+		klog.Warningf("Helm provider [%s]: Failed to mark existing objects for adoption by %s", velaContextStr(velaCtx), releaseName)
 	}
 
 	retry := p.newInstallAction(actionConfig, releaseName, releaseNamespace, options, postRenderer, releaseLabels)

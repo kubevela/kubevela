@@ -19,12 +19,16 @@ package appfile
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/sources"
+
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
@@ -37,7 +41,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/pkg/cue/cuex"
+	cueutil "github.com/kubevela/pkg/cue/util"
+	monitorContext "github.com/kubevela/pkg/monitor/context"
 	"github.com/kubevela/workflow/pkg/cue/model"
+	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
+	"github.com/kubevela/workflow/pkg/tasks/custom"
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -50,6 +59,7 @@ import (
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -1759,4 +1769,741 @@ func TestGeneratePolicyManifests(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, found)
 	assert.Equal(t, "test-value", data["key"])
+}
+
+func TestExtractSensitiveOutputPaths(t *testing.T) {
+	paths := sources.ExtractSensitiveOutputPaths(`
+output: {
+  // +sensitive
+  token: string
+  nested: {
+    // +sensitive
+    password: string
+    visible: string
+  }
+}
+`)
+	assert.ElementsMatch(t, []string{"token", "nested.password"}, paths)
+}
+
+// KEP-2.16 documents `// +sensitive` as a schema: marker and places it there in
+// its examples, but the first implementation only read output:. A definition
+// written to the KEP must still redact.
+
+// KEP-2.16 documents `// +sensitive` as a schema: marker and places it there in
+// its examples, but the first implementation only read output:. A definition
+// written to the KEP must still redact.
+func TestExtractSensitiveOutputPathsFromSchema(t *testing.T) {
+	paths := sources.ExtractSensitiveOutputPaths(`
+schema: {
+  region: string
+  // +sensitive
+  vpcId: string
+  // +sensitive
+  accountId: string
+}
+output: {
+  region:    "us-east-1"
+  vpcId:     "vpc-123"
+  accountId: "123456789012"
+}
+`)
+	assert.ElementsMatch(t, []string{"vpcId", "accountId"}, paths)
+}
+
+func TestExtractSensitiveOutputPathsMergesBothBlocks(t *testing.T) {
+	paths := sources.ExtractSensitiveOutputPaths(`
+schema: {
+  // +sensitive
+  token: string
+  secret: string
+}
+output: {
+  token: "t"
+  // +sensitive
+  secret: "s"
+}
+`)
+	// Marked in either block, reported once each.
+	assert.ElementsMatch(t, []string{"token", "secret"}, paths)
+}
+
+func TestExtractSensitiveOutputPathsDeduplicates(t *testing.T) {
+	paths := sources.ExtractSensitiveOutputPaths(`
+schema: {
+  // +sensitive
+  token: string
+}
+output: {
+  // +sensitive
+  token: "t"
+}
+`)
+	assert.Equal(t, []string{"token"}, paths)
+}
+
+// A rendered policy's context must carry its own identity.
+//
+// Its context is component-shaped because it is built the same way, but no
+// component identity is pushed - so a policy asking which policy it is had no
+// answer beyond context.name, which means something different at every call site.
+// The registry declares policyName and policyType on the policy-rendered surface;
+// this is the render side of that promise.
+
+// A rendered policy's context must carry its own identity.
+//
+// Its context is component-shaped because it is built the same way, but no
+// component identity is pushed - so a policy asking which policy it is had no
+// answer beyond context.name, which means something different at every call site.
+// The registry declares policyName and policyType on the policy-rendered surface;
+// this is the render side of that promise.
+func TestPolicyRenderSuppliesPolicyIdentity(t *testing.T) {
+	af := &Appfile{
+		Name:            "test-app",
+		Namespace:       "test-ns",
+		AppRevisionName: "test-app-v1",
+		ParsedPolicies: []*Component{
+			{
+				Name:   "pin-image",
+				Type:   "image-pin",
+				Params: map[string]interface{}{},
+				engine: definition.NewPolicyAbstractEngine("pin-image"),
+				FullTemplate: &Template{TemplateStr: `
+					output: {
+						apiVersion: "v1"
+						kind:       "ConfigMap"
+						metadata: name: context.name
+						data: {
+							policy: context.policyName
+							kind:   context.policyType
+							app:    context.appName
+						}
+					}
+					parameter: {}
+				`},
+			},
+		},
+	}
+
+	manifests, err := af.GeneratePolicyManifests(context.Background(), nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(manifests))
+
+	data, found, err := unstructured.NestedStringMap(manifests[0].Object, "data")
+	assert.NoError(t, err)
+	assert.True(t, found)
+	assert.Equal(t, "pin-image", data["policy"], "context.policyName should name the policy")
+	assert.Equal(t, "image-pin", data["kind"], "context.policyType should name its definition")
+	assert.Equal(t, "test-app", data["app"])
+}
+
+// And the parse-time pass must leave a rendered policy's expressions alone.
+//
+// Both passes substitute context. If the appfile-time one also handled a rendered
+// policy, the substitution would happen twice - and worse, it would refuse the
+// `source` reads the render can satisfy, because that pass has no resolver.
+
+// And the parse-time pass must leave a rendered policy's expressions alone.
+//
+// Both passes substitute context. If the appfile-time one also handled a rendered
+// policy, the substitution would happen twice - and worse, it would refuse the
+// `source` reads the render can satisfy, because that pass has no resolver.
+func TestParseTimeSubstitutionSkipsRenderedPolicies(t *testing.T) {
+	for _, tc := range []struct {
+		policyType string
+		builtin    bool
+	}{
+		{"override", true},
+		{"topology", true},
+		{"garbage-collect", true},
+		{"image-pin", false},
+		{"my-custom-policy", false},
+	} {
+		if got := IsBuiltinPolicyType(tc.policyType); got != tc.builtin {
+			t.Errorf("%s: consumed-not-rendered = %v, want %v", tc.policyType, got, tc.builtin)
+		}
+	}
+}
+
+// Every field the policy-rendered surface declares must survive a real policy
+// render, with a value.
+//
+// Membership alone is not enough, which is the lesson that produced this test:
+// context.cluster was declared on that surface and rendered as "" - present,
+// typed, and permanently meaningless, because GenerateContextDataFromAppFile
+// never assigns ctxData.Cluster and a policy's manifests are produced once for
+// the Application rather than per placement. On a live cluster a component read
+// "local" while the policy beside it read "". A field that always renders empty
+// is worse than an absent one: admission accepts it and the author gets nothing.
+//
+// So this renders a template that reads every declared field and asserts each
+// arrives with the value the fixture set. A field added to the surface but not
+// supplied fails here rather than against a cluster.
+
+// Every field the policy-rendered surface declares must survive a real policy
+// render, with a value.
+//
+// Membership alone is not enough, which is the lesson that produced this test:
+// context.cluster was declared on that surface and rendered as "" - present,
+// typed, and permanently meaningless, because GenerateContextDataFromAppFile
+// never assigns ctxData.Cluster and a policy's manifests are produced once for
+// the Application rather than per placement. On a live cluster a component read
+// "local" while the policy beside it read "". A field that always renders empty
+// is worse than an absent one: admission accepts it and the author gets nothing.
+//
+// So this renders a template that reads every declared field and asserts each
+// arrives with the value the fixture set. A field added to the surface but not
+// supplied fails here rather than against a cluster.
+func TestRenderedPolicySurfaceMatchesTheRender(t *testing.T) {
+	readable := propexpr.RenderedPolicyContext.ReadableFields()
+	assert.NotEmpty(t, readable)
+
+	// clusterVersion reaches the render from this global, populated when vela-core
+	// starts and so zero in a unit test. Set it for the same reason the
+	// annotations are set below - so an empty result means the path dropped the
+	// field. Against a live cluster this rendered major "1".
+	saved := oamtypes.ControlPlaneClusterVersion
+	oamtypes.ControlPlaneClusterVersion = oamtypes.ClusterVersion{Major: "1", Minor: "31", GitVersion: "v1.31.0", Platform: "linux/arm64"}
+	defer func() { oamtypes.ControlPlaneClusterVersion = saved }()
+
+	// custom is `_` - published by a scoped policy, absent unless one ran - and
+	// clusterVersion is a struct, so both are read a level down rather than
+	// whole. appLabels and appAnnotations are maps, read by key.
+	structured := map[string]string{
+		"clusterVersion": "clusterVersion.major",
+		"appLabels":      `appLabels["team"]`,
+		"appAnnotations": `appAnnotations["owner"]`,
+	}
+	skip := map[string]bool{"custom": true}
+
+	var lines []string
+	var expected []string
+	for _, f := range readable {
+		if skip[f] {
+			continue
+		}
+		read := f
+		if alt, ok := structured[f]; ok {
+			read = alt
+		}
+		lines = append(lines, fmt.Sprintf("\t\t\t%q: \"\\(context.%s)\"", f, read))
+		expected = append(expected, f)
+	}
+
+	af := &Appfile{
+		Name:            "drift-app",
+		Namespace:       "drift-ns",
+		AppRevisionName: "drift-app-v3",
+		AppLabels:       map[string]string{"team": "platform"},
+		// publishVersion and workflowName reach the render from annotations, and
+		// clusterVersion from the control-plane default, so the fixture supplies
+		// all three. An empty result then means the render path dropped the field,
+		// not that the fixture never set it.
+		AppAnnotations: map[string]string{
+			"owner":                      "sre",
+			oam.AnnotationPublishVersion: "v3",
+			oam.AnnotationWorkflowName:   "deploy",
+		},
+		ParsedPolicies: []*Component{
+			{
+				Name:   "surface-probe",
+				Type:   "probe-policy",
+				Params: map[string]interface{}{},
+				engine: definition.NewPolicyAbstractEngine("surface-probe"),
+				FullTemplate: &Template{TemplateStr: fmt.Sprintf(`
+					output: {
+						apiVersion: "v1"
+						kind:       "ConfigMap"
+						metadata: name: context.name
+						data: {
+%s
+						}
+					}
+					parameter: {}
+				`, strings.Join(lines, "\n"))},
+			},
+		},
+	}
+
+	manifests, err := af.GeneratePolicyManifests(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("a policy reading every field its surface declares failed to render: %v", err)
+	}
+	data, found, err := unstructured.NestedStringMap(manifests[0].Object, "data")
+	assert.NoError(t, err)
+	assert.True(t, found)
+
+	for _, f := range expected {
+		got, ok := data[f]
+		if !ok {
+			t.Errorf("the policy-rendered surface declares context.%s, but the render did not produce it", f)
+			continue
+		}
+		if got == "" {
+			t.Errorf("the policy-rendered surface declares context.%s, but it renders empty. "+
+				"Either the render path should supply it, or it should be removed from the "+
+				"policy-rendered surface in pkg/definition/propexpr/context.cue - an always-empty "+
+				"field type-checks at admission and tells the author nothing", f)
+		}
+	}
+}
+
+func TestPropagatePodDisruptiveHash(t *testing.T) {
+	deploymentWithTemplate := func() *unstructured.Unstructured {
+		return &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]interface{}{
+					"name": "my-workload",
+				},
+				"spec": map[string]interface{}{
+					"template": map[string]interface{}{
+						"metadata": map[string]interface{}{},
+						"spec":     map[string]interface{}{},
+					},
+				},
+			},
+		}
+	}
+
+	configMapTrait := func(value string) *unstructured.Unstructured {
+		return &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name": "my-comp-cm",
+					"labels": map[string]interface{}{
+						oam.TraitTypeLabel: "configmap-trait",
+					},
+				},
+				"data": map[string]interface{}{
+					"key1": value,
+				},
+			},
+		}
+	}
+
+	af := &Appfile{
+		RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+			"configmap-trait": {
+				Spec: v1beta1.TraitDefinitionSpec{
+					PodDisruptive: true,
+				},
+			},
+			"non-disruptive-trait": {
+				Spec: v1beta1.TraitDefinitionSpec{
+					PodDisruptive: false,
+				},
+			},
+		},
+	}
+
+	t.Run("podDisruptive trait stamps a restart hash on the pod template", func(t *testing.T) {
+		workload := deploymentWithTemplate()
+		trait := configMapTrait("value1")
+
+		err := af.propagatePodDisruptiveHash(workload, trait)
+		assert.NoError(t, err)
+
+		annotations, found, err := unstructured.NestedStringMap(workload.Object, "spec", "template", "metadata", "annotations")
+		assert.NoError(t, err)
+		assert.True(t, found)
+		assert.NotEmpty(t, annotations[podRestartHashAnnotationPrefix+"configmap-trait"])
+	})
+
+	t.Run("changing the trait content changes the hash, which changes the pod template", func(t *testing.T) {
+		workloadBefore := deploymentWithTemplate()
+		assert.NoError(t, af.propagatePodDisruptiveHash(workloadBefore, configMapTrait("value1")))
+		hashBefore := workloadBefore.Object["spec"].(map[string]interface{})["template"].(map[string]interface{})["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})[podRestartHashAnnotationPrefix+"configmap-trait"]
+
+		workloadAfter := deploymentWithTemplate()
+		assert.NoError(t, af.propagatePodDisruptiveHash(workloadAfter, configMapTrait("value2")))
+		hashAfter := workloadAfter.Object["spec"].(map[string]interface{})["template"].(map[string]interface{})["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})[podRestartHashAnnotationPrefix+"configmap-trait"]
+
+		assert.NotEqual(t, hashBefore, hashAfter, "changing trait content must change the pod restart hash")
+	})
+
+	t.Run("non-disruptive trait does not touch the pod template", func(t *testing.T) {
+		workload := deploymentWithTemplate()
+		trait := configMapTrait("value1")
+		trait.SetLabels(map[string]string{oam.TraitTypeLabel: "non-disruptive-trait"})
+
+		err := af.propagatePodDisruptiveHash(workload, trait)
+		assert.NoError(t, err)
+
+		annotations, _, _ := unstructured.NestedStringMap(workload.Object, "spec", "template", "metadata", "annotations")
+		assert.Empty(t, annotations)
+	})
+
+	t.Run("workload without a pod template is left untouched", func(t *testing.T) {
+		workload := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "Service",
+				"metadata":   map[string]interface{}{"name": "my-svc"},
+			},
+		}
+		trait := configMapTrait("value1")
+
+		err := af.propagatePodDisruptiveHash(workload, trait)
+		assert.NoError(t, err)
+		_, found, _ := unstructured.NestedMap(workload.Object, "spec")
+		assert.False(t, found)
+	})
+
+	t.Run("unknown trait type returns a not-found error, same convention as setWorkloadRefToTrait", func(t *testing.T) {
+		workload := deploymentWithTemplate()
+		trait := configMapTrait("value1")
+		trait.SetLabels(map[string]string{oam.TraitTypeLabel: "unregistered-trait"})
+
+		err := af.propagatePodDisruptiveHash(workload, trait)
+		assert.Error(t, err)
+		assert.True(t, IsNotFoundInAppFile(err))
+	})
+	t.Run("trait type with hashed suffix resolves to base TraitDefinition name", func(t *testing.T) {
+		workload := deploymentWithTemplate()
+		trait := configMapTrait("value1")
+		trait.SetLabels(map[string]string{oam.TraitTypeLabel: "configmap-trait-abc123"})
+
+		err := af.propagatePodDisruptiveHash(workload, trait)
+		assert.NoError(t, err)
+
+		annotations, found, err := unstructured.NestedStringMap(workload.Object, "spec", "template", "metadata", "annotations")
+		assert.NoError(t, err)
+		assert.True(t, found)
+		assert.NotEmpty(t, annotations[podRestartHashAnnotationPrefix+"configmap-trait"])
+	})
+	t.Run("trait type with hashed suffix resolves to base TraitDefinition name", func(t *testing.T) {
+		workload := deploymentWithTemplate()
+		trait := configMapTrait("value1")
+		trait.SetLabels(map[string]string{oam.TraitTypeLabel: "configmap-trait-abc123"})
+
+		err := af.propagatePodDisruptiveHash(workload, trait)
+		assert.NoError(t, err)
+
+		annotations, found, err := unstructured.NestedStringMap(workload.Object, "spec", "template", "metadata", "annotations")
+		assert.NoError(t, err)
+		assert.True(t, found)
+		assert.NotEmpty(t, annotations[podRestartHashAnnotationPrefix+"configmap-trait"])
+	})
+
+	t.Run("long trait type names never produce an annotation key over 63 characters", func(t *testing.T) {
+		longType := "a-very-long-custom-trait-type-name-that-goes-well-past-the-limit"
+		afLong := &Appfile{
+			RelatedTraitDefinitions: map[string]*v1beta1.TraitDefinition{
+				longType: {Spec: v1beta1.TraitDefinitionSpec{PodDisruptive: true}},
+			},
+		}
+		workload := deploymentWithTemplate()
+		trait := configMapTrait("value1")
+		trait.SetLabels(map[string]string{oam.TraitTypeLabel: longType})
+
+		err := afLong.propagatePodDisruptiveHash(workload, trait)
+		assert.NoError(t, err)
+
+		annotations, found, err := unstructured.NestedStringMap(workload.Object, "spec", "template", "metadata", "annotations")
+		assert.NoError(t, err)
+		assert.True(t, found)
+
+		var key string
+		for k := range annotations {
+			key = k
+		}
+		assert.LessOrEqual(t, len(key), 63, "annotation key must never exceed the Kubernetes 63-character limit")
+	})
+
+	t.Run("changing user-specified metadata (e.g. labels) on the trait still changes the hash", func(t *testing.T) {
+		workloadBefore := deploymentWithTemplate()
+		traitBefore := configMapTrait("value1")
+		assert.NoError(t, af.propagatePodDisruptiveHash(workloadBefore, traitBefore))
+		hashBefore := workloadBefore.Object["spec"].(map[string]interface{})["template"].(map[string]interface{})["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})[podRestartHashAnnotationPrefix+"configmap-trait"]
+
+		workloadAfter := deploymentWithTemplate()
+		traitAfter := configMapTrait("value1")
+		traitLabels := traitAfter.GetLabels()
+		traitLabels["team"] = "platform"
+		traitAfter.SetLabels(traitLabels)
+		assert.NoError(t, af.propagatePodDisruptiveHash(workloadAfter, traitAfter))
+		hashAfter := workloadAfter.Object["spec"].(map[string]interface{})["template"].(map[string]interface{})["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})[podRestartHashAnnotationPrefix+"configmap-trait"]
+
+		assert.NotEqual(t, hashBefore, hashAfter, "a user-specified metadata change must still change the restart hash")
+	})
+
+	t.Run("controller-injected metadata churn (resourceVersion) does not change the hash", func(t *testing.T) {
+		workloadBefore := deploymentWithTemplate()
+		traitBefore := configMapTrait("value1")
+		assert.NoError(t, af.propagatePodDisruptiveHash(workloadBefore, traitBefore))
+		hashBefore := workloadBefore.Object["spec"].(map[string]interface{})["template"].(map[string]interface{})["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})[podRestartHashAnnotationPrefix+"configmap-trait"]
+
+		workloadAfter := deploymentWithTemplate()
+		traitAfter := configMapTrait("value1")
+		traitAfter.SetResourceVersion("12345")
+		assert.NoError(t, af.propagatePodDisruptiveHash(workloadAfter, traitAfter))
+		hashAfter := workloadAfter.Object["spec"].(map[string]interface{})["template"].(map[string]interface{})["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})[podRestartHashAnnotationPrefix+"configmap-trait"]
+
+		assert.Equal(t, hashBefore, hashAfter, "controller-injected metadata churn must not cause a spurious restart")
+	})
+}
+
+// TestFilterAndSetAnnotationsLastAppliedConfig covers how
+// app.oam.dev/last-applied-configuration flows from an Application onto the
+// workloads and traits it renders.
+//
+// The rule: a "-"/"skip" sentinel is a statement an object makes about itself, so
+// it is never inherited from the parent, but one a component set on its own output
+// survives. Any other value is a recorded configuration and is inherited unchanged,
+// exactly as it was before the addon-as-component work.
+func TestFilterAndSetAnnotationsLastAppliedConfig(t *testing.T) {
+	const recorded = `{"apiVersion":"apps/v1","kind":"Deployment"}`
+
+	cases := map[string]struct {
+		appAnnotations map[string]string
+		objAnnotations map[string]string
+		// wantValue is the expected value on the child; "" means absent.
+		wantValue string
+	}{
+		"an inherited recorded config is untouched": {
+			appAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: recorded},
+			wantValue:      recorded,
+		},
+		"an inherited skip sentinel is dropped": {
+			appAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: "skip"},
+			wantValue:      "",
+		},
+		"an inherited dash sentinel is dropped": {
+			appAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: "-"},
+			wantValue:      "",
+		},
+		"a component's own sentinel survives the parent's recorded config": {
+			appAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: recorded},
+			objAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: "skip"},
+			wantValue:      "skip",
+		},
+		"a component's own sentinel survives when the parent has none": {
+			objAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: "skip"},
+			wantValue:      "skip",
+		},
+		"a component's own recorded config is kept when the parent has none": {
+			objAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: recorded},
+			wantValue:      recorded,
+		},
+		"nothing is invented when neither side sets it": {
+			wantValue: "",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			af := &Appfile{AppAnnotations: tc.appAnnotations}
+			obj := &unstructured.Unstructured{}
+			obj.SetAnnotations(tc.objAnnotations)
+
+			af.filterAndSetAnnotations(obj)
+
+			got := obj.GetAnnotations()[oam.AnnotationLastAppliedConfig]
+			assert.Equal(t, tc.wantValue, got)
+		})
+	}
+}
+
+// TestFilterAndSetAnnotationsPreservesUnrelatedKeys guards the sentinel handling
+// against touching anything else, and covers the filter.oam.dev/annotation-keys
+// deny list which had no test coverage.
+func TestFilterAndSetAnnotationsPreservesUnrelatedKeys(t *testing.T) {
+	af := &Appfile{AppAnnotations: map[string]string{
+		"example.com/inherited":            "from-app",
+		"example.com/dropped":              "should-go",
+		oam.AnnotationLastAppliedConfig:    "skip",
+		oam.AnnotationFilterAnnotationKeys: "example.com/dropped",
+		oam.AnnotationInplaceUpgrade:       "true",
+	}}
+	obj := &unstructured.Unstructured{}
+	obj.SetAnnotations(map[string]string{"example.com/own": "from-component"})
+
+	af.filterAndSetAnnotations(obj)
+
+	ann := obj.GetAnnotations()
+	assert.Equal(t, "from-app", ann["example.com/inherited"], "app annotations must still be inherited")
+	assert.Equal(t, "from-component", ann["example.com/own"], "the component's own annotations must survive")
+	assert.NotContains(t, ann, "example.com/dropped", "filter.oam.dev/annotation-keys must be honored")
+	assert.NotContains(t, ann, oam.AnnotationFilterAnnotationKeys, "the filter key itself must not cascade")
+	assert.NotContains(t, ann, oam.AnnotationInplaceUpgrade, "DefaultFilterAnnots must still be applied")
+	assert.NotContains(t, ann, oam.AnnotationLastAppliedConfig, "an inherited sentinel must be dropped")
+}
+
+// TestFilterAndSetAnnotationsKeepsTheFieldAbsent pins the empty-map semantics of the
+// original implementation: util.AddAnnotations delegates to MergeMapOverrideWithDst,
+// which returns nil when both sides are nil, so metadata.annotations stays absent
+// rather than becoming an empty map. A stray "annotations: {}" would otherwise show
+// up in every rendered manifest and in the ResourceTracker copy of it.
+func TestFilterAndSetAnnotationsKeepsTheFieldAbsent(t *testing.T) {
+	t.Run("both sides nil leaves the field absent", func(t *testing.T) {
+		af := &Appfile{}
+		obj := &unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata":   map[string]interface{}{"name": "x"},
+		}}
+
+		af.filterAndSetAnnotations(obj)
+
+		_, found, err := unstructured.NestedMap(obj.Object, "metadata", "annotations")
+		assert.NoError(t, err)
+		assert.False(t, found, "metadata.annotations must not be created")
+	})
+
+	t.Run("an emptied map is still written, as before", func(t *testing.T) {
+		af := &Appfile{AppAnnotations: map[string]string{oam.AnnotationInplaceUpgrade: "true"}}
+		obj := &unstructured.Unstructured{}
+		obj.SetAnnotations(map[string]string{oam.AnnotationInplaceUpgrade: "true"})
+
+		af.filterAndSetAnnotations(obj)
+
+		got, found, err := unstructured.NestedMap(obj.Object, "metadata", "annotations")
+		assert.NoError(t, err)
+		assert.True(t, found, "an object that had annotations keeps the field, even when emptied")
+		assert.Empty(t, got)
+	})
+}
+
+// TestFilterAndSetAnnotationsOwnValueBeatsInheritedSentinel covers the case where
+// a component records its own configuration while the parent Application carries
+// the "-"/"skip" opt-out. The parent's value overwrites the component's during the
+// merge, and dropping the inherited sentinel must not take the component's own
+// recorded configuration with it.
+func TestFilterAndSetAnnotationsOwnValueBeatsInheritedSentinel(t *testing.T) {
+	const ownRecorded = `{"apiVersion":"v1","kind":"ConfigMap"}`
+
+	for _, parent := range []string{"skip", "-"} {
+		t.Run("parent="+parent, func(t *testing.T) {
+			af := &Appfile{AppAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: parent}}
+			obj := &unstructured.Unstructured{}
+			obj.SetAnnotations(map[string]string{oam.AnnotationLastAppliedConfig: ownRecorded})
+
+			af.filterAndSetAnnotations(obj)
+
+			assert.Equal(t, ownRecorded, obj.GetAnnotations()[oam.AnnotationLastAppliedConfig],
+				"the component's own recorded configuration must survive the parent's sentinel")
+		})
+	}
+}
+
+// A step template runs against WorkflowContextData plus the step the workflow
+// engine adds. Every field its surface offers must reach a template and be set,
+// or admission would type an expression that reads nothing at run time.
+func TestWorkflowStepTemplateSurfaceMatchesTheRender(t *testing.T) {
+	readable := propexpr.WorkflowStepTemplateContext.ReadableFields()
+	assert.NotEmpty(t, readable)
+
+	saved := oamtypes.ControlPlaneClusterVersion
+	oamtypes.ControlPlaneClusterVersion = oamtypes.ClusterVersion{Major: "1", Minor: "31", GitVersion: "v1.31.0", Platform: "linux/arm64"}
+	defer func() { oamtypes.ControlPlaneClusterVersion = saved }()
+
+	structured := map[string]string{
+		"clusterVersion": "clusterVersion.major",
+		"appLabels":      `appLabels["team"]`,
+		"appAnnotations": `appAnnotations["owner"]`,
+		"custom":         `custom.region`,
+	}
+	var lines []string
+	for _, f := range readable {
+		read := f
+		if alt, ok := structured[f]; ok {
+			read = alt
+		}
+		lines = append(lines, fmt.Sprintf("\t%q: \"\\(context.%s)\"", f, read))
+	}
+
+	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{
+		Name:      "drift-app",
+		Namespace: "drift-ns",
+		Labels:    map[string]string{"team": "platform"},
+		// publishVersion and workflowName reach the template from annotations.
+		Annotations: map[string]string{
+			"owner":                      "sre",
+			oam.AnnotationPublishVersion: "v3",
+			oam.AnnotationWorkflowName:   "deploy",
+		},
+	}}
+	goCtx := context.WithValue(context.Background(), oam.PolicyAdditionalContextKey, map[string]interface{}{"region": "eu-west"})
+	pCtx := process.NewContext(WorkflowContextData(goCtx, app, "drift-app-v3"))
+	wfprocess.NewStepRunTimeMeta().Fill(pCtx, []wfprocess.StepMetaKV{
+		wfprocess.WithName("probe-step"),
+		wfprocess.WithSessionID("step-id-1"),
+		wfprocess.WithSpanID("span-1"),
+	})
+	// The probe reads no providers, so an empty compiler stands in for the
+	// workflow engine's.
+	compiler := cuex.NewCompilerWithInternalPackages()
+	basic, err := custom.MakeBasicValue(monitorContext.NewTraceContext(context.Background(), ""), compiler,
+		&runtime.RawExtension{Raw: []byte(`{}`)}, pCtx)
+	if !assert.NoError(t, err) {
+		return
+	}
+	// Joined as the engine joins a step's template to its basic value.
+	basicTempl, err := cueutil.ToString(basic)
+	if !assert.NoError(t, err) {
+		return
+	}
+	v, err := compiler.CompileString(context.Background(), "probe: {\n"+strings.Join(lines, "\n")+"\n}\n"+basicTempl)
+	if !assert.NoError(t, err) {
+		return
+	}
+	for _, f := range readable {
+		got, err := v.LookupPath(cue.MakePath(cue.Str("probe"), cue.Str(f))).String()
+		assert.NoError(t, err, f)
+		assert.NotEmpty(t, got, "context.%s is declared readable in a step template but renders empty", f)
+	}
+}
+
+func TestRenderPolicyKeepsOutputNames(t *testing.T) {
+	af := &Appfile{
+		Name:      "test-app",
+		Namespace: "test-ns",
+		ParsedPolicies: []*Component{{
+			Name:   "guard",
+			Type:   "network-guard",
+			Params: map[string]interface{}{},
+			engine: definition.NewWorkloadAbstractEngine("guard"),
+			FullTemplate: &Template{TemplateStr: `
+				output: {apiVersion: "v1", kind: "ConfigMap", metadata: name: "main"}
+				outputs: extra: {apiVersion: "v1", kind: "ConfigMap"}
+				parameter: {}
+			`},
+		}},
+	}
+	r, err := af.RenderPolicy(af.ParsedPolicies[0])
+	if !assert.NoError(t, err) {
+		return
+	}
+	output, outputs := r.Output, r.Outputs
+	assert.NotNil(t, r.Context, "the context the template rendered against")
+	assert.Equal(t, "main", output.GetName())
+	if !assert.Contains(t, outputs, "extra") {
+		return
+	}
+	// Defaulted as at dispatch: the policy's name, the Application's namespace.
+	assert.Equal(t, "guard", outputs["extra"].GetName())
+	assert.Equal(t, "test-ns", outputs["extra"].GetNamespace())
+	assert.Equal(t, "test-app", outputs["extra"].GetLabels()[oam.LabelAppName])
+}
+
+func TestFilteredKeysTrimEachEntry(t *testing.T) {
+	annotations := map[string]string{
+		oam.AnnotationFilterLabelKeys:      "a, b",
+		oam.AnnotationFilterAnnotationKeys: "c, d",
+	}
+	assert.Equal(t, []string{"a", "b"}, FilteredLabelKeys(annotations))
+	got := FilteredAnnotationKeys(annotations)
+	assert.Subset(t, got, []string{"c", "d"})
+	assert.NotContains(t, got, " d")
+}
+
+func TestGenerateContextDataKeepsAppNamespaceUnderPlacement(t *testing.T) {
+	ctxData := GenerateContextDataFromAppFile(&Appfile{Name: "shop", Namespace: "team-a"}, "redis")
+	// What a topology policy's namespace does to the render context.
+	ctxData.Namespace = "team-a-prod"
+	assert.Equal(t, "team-a", ctxData.AppNamespace)
 }

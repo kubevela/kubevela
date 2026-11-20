@@ -19,15 +19,24 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/ssh"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,6 +49,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/schema"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -68,6 +78,7 @@ const (
 	typeComponentDefinition    = "component"
 	typeWorkflowStepDefinition = "workflowstep"
 	typePolicyStepDefinition   = "policy"
+	typeSourceDefinition       = "source"
 )
 
 const (
@@ -122,11 +133,17 @@ func NewCapabilityComponentDef(componentDefinition *v1beta1.ComponentDefinition)
 
 // GetOpenAPISchema gets OpenAPI v3 schema by WorkloadDefinition name
 func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, name string) ([]byte, error) {
+	openAPI, _, err := def.parameterSchemas(ctx, name)
+	return openAPI, err
+}
+
+// parameterSchemas generates the OpenAPI and default UI schemas of the definition's parameter.
+func (def *CapabilityComponentDefinition) parameterSchemas(ctx context.Context, name string) ([]byte, []byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, def.ComponentDefinition.Spec.Extension, def.ComponentDefinition.Spec.Schematic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
+		return nil, nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
 	}
-	return getOpenAPISchema(ctx, capability)
+	return getParameterSchemas(ctx, capability)
 }
 
 // GetOpenAPISchemaFromTerraformComponentDefinition gets OpenAPI v3 schema by WorkloadDefinition name
@@ -205,41 +222,316 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 
 // GetTerraformConfigurationFromRemote gets Terraform Configuration(HCL)
 func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, sshPublicKey *gitssh.PublicKeys) (string, error) {
+	if err := validateModuleName(name); err != nil {
+		return "", err
+	}
 	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
 	cachePath := filepath.Join(userHome, ".vela", "terraform", name)
-	// Check if the directory exists. If yes, remove it.
-	entities, err := os.ReadDir(cachePath)
-	if err != nil || len(entities) == 0 {
-		fmt.Printf("loading terraform module %s into %s from %s\n", name, cachePath, remoteURL)
-		cloneOptions := &git.CloneOptions{
-			URL:      remoteURL,
-			Progress: os.Stdout,
-		}
-		if sshPublicKey != nil {
-			cloneOptions.Auth = sshPublicKey
-		}
-		if _, err = git.PlainClone(cachePath, false, cloneOptions); err != nil {
+
+	// Reuse the cache only when it is populated AND was cloned from the same URL.
+	// Otherwise (empty, a changed URL, or a missing marker) re-clone, so a
+	// definition repointed at a different repository does not keep serving the old
+	// tree. See GHSA-fmgp-q6jx-gg3x.
+	if !cacheMatchesRemote(cachePath, remoteURL) {
+		_ = os.RemoveAll(cachePath)
+		klog.InfoS("cloning remote Terraform module", "module", name, "url", redactURLCredentials(remoteURL), "cache", cachePath)
+		if err = cloneTerraformModule(cachePath, remoteURL, sshPublicKey); err != nil {
+			// Do not leave a partial or oversized clone behind for the next reconcile.
+			klog.ErrorS(err, "failed to clone remote Terraform module", "module", name, "url", redactURLCredentials(remoteURL))
+			_ = os.RemoveAll(cachePath)
 			return "", err
 		}
+		recordCacheRemote(cachePath, remoteURL)
 	}
-	sshKnownHostsPath := os.Getenv("SSH_KNOWN_HOSTS")
-	_ = os.Remove(sshKnownHostsPath)
+	conf, err := readTerraformConfigFromRepo(cachePath, remotePath)
+	if err != nil {
+		// Drop the cached clone on any rejection or read failure so a corrected or
+		// replaced repository is re-cloned next time, rather than the controller
+		// re-reading a poisoned or stale tree forever. Wiping on a transient read
+		// error only costs one bounded re-clone, which beats risking a stuck poison.
+		klog.InfoS("evicting Terraform module cache after a failed read", "module", name, "cache", cachePath, "err", err.Error())
+		_ = os.RemoveAll(cachePath)
+		return "", err
+	}
+	return conf, nil
+}
 
-	tfPath := filepath.Join(cachePath, remotePath, "variables.tf")
-	if _, err := os.Stat(tfPath); err != nil {
-		tfPath = filepath.Join(cachePath, remotePath, "main.tf")
-		if _, err := os.Stat(tfPath); err != nil {
-			return "", errors.Wrap(err, "failed to find main.tf or variables.tf in Terraform configurations of the remote repository")
+// cacheRemoteMarkerSuffix names the sibling file that records the remote a cached
+// Terraform module was cloned from, used to detect a changed remote. A
+// credential-stripped form of the URL is stored (see redactURLCredentials) so the
+// marker never persists secrets embedded in an authenticated Git URL.
+const cacheRemoteMarkerSuffix = ".remote-url"
+
+// validateModuleName rejects names that could steer the cache path (and the
+// os.RemoveAll that cleans it) outside the module cache directory. Callers pass a
+// Kubernetes object name, but the check keeps that guarantee local and explicit.
+func validateModuleName(name string) error {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return errors.Errorf("invalid Terraform module name %q", name)
+	}
+	return nil
+}
+
+// cacheMatchesRemote reports whether cachePath holds a Git repository recorded as cloned from
+// remoteURL. Anything else (empty, not a repository, a changed URL, or a missing marker) is
+// cloned afresh.
+func cacheMatchesRemote(cachePath, remoteURL string) bool {
+	if _, err := git.PlainOpen(cachePath); err != nil {
+		return false
+	}
+	recorded, err := os.ReadFile(filepath.Clean(cachePath + cacheRemoteMarkerSuffix))
+	if err != nil {
+		return false
+	}
+	return string(recorded) == redactURLCredentials(remoteURL)
+}
+
+// recordCacheRemote records the remote a freshly cloned module came from. It stores a
+// credential-stripped URL so the marker never persists secrets that an authenticated
+// Git URL may embed.
+func recordCacheRemote(cachePath, remoteURL string) {
+	if err := os.WriteFile(cachePath+cacheRemoteMarkerSuffix, []byte(redactURLCredentials(remoteURL)), 0600); err != nil {
+		klog.ErrorS(err, "failed to record Terraform module remote URL", "cache", cachePath)
+	}
+}
+
+// redactURLCredentials strips any embedded userinfo (a username, password, or token)
+// from a URL so it is safe to log and persist. Authenticated HTTPS Git URLs can carry
+// credentials in the userinfo; scp-style SSH URLs ("git@host:path") fail url.Parse but
+// authenticate with keys, so they carry no secret. The same stripped form is used for
+// logging and for the cache marker, so record and match stay consistent.
+func redactURLCredentials(raw string) string {
+	if u, err := url.Parse(raw); err == nil {
+		u.User = nil
+		return u.String()
+	}
+	// url.Parse failed (typically scp-style SSH). Strip a leading "user@" defensively
+	// in case a malformed URL still embeds credentials before the host.
+	if _, after, found := strings.Cut(raw, "@"); found {
+		return after
+	}
+	return raw
+}
+
+const (
+	// cloneTimeout bounds the network fetch of a remote Terraform module clone, so a
+	// slow or oversized attacker-supplied repository cannot hang the controller.
+	cloneTimeout = 2 * time.Minute
+	// maxCloneBytes and maxCloneEntries cap the on-disk footprint of a cloned remote
+	// Terraform module (modules are small). The clone is bare, so what is on disk is
+	// Git's compressed objects, never a checked-out tree; the caps bound what is kept
+	// (an oversized clone is rejected and removed by the caller).
+	maxCloneBytes int64 = 64 << 20 // 64 MiB
+	// maxCloneEntries counts every filesystem entry (files, directories, and
+	// symlinks), so a tree of many empty directories or symlinks cannot bypass the
+	// bound and exhaust inodes.
+	maxCloneEntries = 50000
+)
+
+// cloneTerraformModule bare-clones the latest commit of remoteURL into cachePath under a fetch
+// timeout, then rejects an oversized clone. Nothing is checked out: the configuration is read
+// from Git's objects (readTerraformConfigFromRepo), so a repository of large or highly
+// compressible files costs only its compressed pack.
+func cloneTerraformModule(cachePath, remoteURL string, sshPublicKey *gitssh.PublicKeys) error {
+	ctx, cancel := context.WithTimeout(context.Background(), cloneTimeout)
+	defer cancel()
+
+	cloneOptions := &git.CloneOptions{
+		URL:          remoteURL,
+		Progress:     os.Stdout,
+		Depth:        1,
+		SingleBranch: true,
+	}
+	if sshPublicKey != nil {
+		cloneOptions.Auth = sshPublicKey
+	}
+	if _, err := git.PlainCloneContext(ctx, cachePath, true, cloneOptions); err != nil {
+		return errors.Wrap(err, "failed to clone remote Terraform configuration")
+	}
+	return ensureDirWithinLimits(cachePath, maxCloneBytes, maxCloneEntries)
+}
+
+// ensureDirWithinLimits returns an error as soon as the entries under root exceed
+// maxEntries in count or the regular files exceed maxBytes in total size. Every
+// entry (regular files, directories, and symlinks) counts toward maxEntries, so a
+// tree of many directories or symlinks cannot slip past the bound and exhaust
+// inodes; only regular files contribute to the byte total. It counts everything
+// under root (including .git, by design) and does not follow symlinks. The caps
+// bound the retained clone, not peak disk during the clone (see maxCloneBytes).
+func ensureDirWithinLimits(root string, maxBytes int64, maxEntries int) error {
+	var (
+		total   int64
+		entries int
+	)
+	return filepath.WalkDir(root, func(_ string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		entries++
+		if entries > maxEntries {
+			return errors.Errorf("remote Terraform repository exceeds the maximum allowed entry count of %d", maxEntries)
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		total += info.Size()
+		if total > maxBytes {
+			return errors.Errorf("remote Terraform repository exceeds the maximum allowed size of %d bytes", maxBytes)
+		}
+		return nil
+	})
+}
+
+// moduleDir is the tree at dir under the tree root, each tree on the way read through
+// boundedTree, or nil when dir is not a directory of the module. A symlink is not a directory:
+// Git keeps it as a file.
+func moduleDir(repo *git.Repository, root plumbing.Hash, dir string) (*object.Tree, error) {
+	tree, err := boundedTree(repo, root)
+	if err != nil {
+		return nil, err
+	}
+	if dir == "." {
+		return tree, nil
+	}
+	for _, part := range strings.Split(dir, "/") {
+		entry, err := tree.FindEntry(part)
+		if errors.Is(err, object.ErrEntryNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to read the cloned Terraform module")
+		}
+		if entry.Mode != filemode.Dir {
+			return nil, nil
+		}
+		if tree, err = boundedTree(repo, entry.Hash); err != nil {
+			return nil, err
 		}
 	}
-	conf, err := os.ReadFile(filepath.Clean(tfPath))
+	return tree, nil
+}
+
+// boundedTree decodes the tree object hash, refusing one larger than maxTreeObjectBytes before
+// decoding it.
+func boundedTree(repo *git.Repository, hash plumbing.Hash) (*object.Tree, error) {
+	obj, err := repo.Storer.EncodedObject(plumbing.TreeObject, hash)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to read Terraform configuration")
+		return nil, errors.Wrap(err, "failed to read the cloned Terraform module")
 	}
-	return string(conf), nil
+	if obj.Size() > maxTreeObjectBytes {
+		return nil, errors.Errorf("remote Terraform module tree %s is too large to read (%d bytes, at most %d)", hash, obj.Size(), maxTreeObjectBytes)
+	}
+	return object.DecodeTree(repo.Storer, obj)
+}
+
+// boundedCommit decodes the commit object hash, refusing one larger than maxCommitObjectBytes
+// before decoding it.
+func boundedCommit(repo *git.Repository, hash plumbing.Hash) (*object.Commit, error) {
+	obj, err := repo.Storer.EncodedObject(plumbing.CommitObject, hash)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read the cloned Terraform module")
+	}
+	if obj.Size() > maxCommitObjectBytes {
+		return nil, errors.Errorf("remote Terraform module commit %s is too large to read (%d bytes, at most %d)", hash, obj.Size(), maxCommitObjectBytes)
+	}
+	return object.DecodeCommit(repo.Storer, obj)
+}
+
+// maxCommitObjectBytes caps the decoded size of the commit read for the configuration. The clone's
+// pack is bounded, but a commit message compresses well, so one could decode far larger.
+var maxCommitObjectBytes int64 = 1 << 20 // 1 MiB
+
+// maxTerraformConfigBytes caps how much of a remote Terraform configuration
+// file the loader will read. HCL configurations are small, so the cap stops a
+// malicious or compromised repository from steering the read at an unbounded
+// source (for example a variables.tf symlinked to /dev/zero) and OOM-killing
+// the controller. See GHSA-fmgp-q6jx-gg3x.
+const maxTerraformConfigBytes int64 = 1 << 20 // 1 MiB
+
+// errTerraformConfigTooLarge builds the error returned when a candidate
+// configuration file exceeds maxTerraformConfigBytes.
+func errTerraformConfigTooLarge(path string, maxSize int64) error {
+	return errors.Errorf("refusing to read Terraform configuration %q: exceeds the maximum allowed size of %d bytes", path, maxSize)
+}
+
+// maxTreeObjectBytes caps the decoded size of each Git tree read on the way to the configuration.
+// The clone's pack is bounded, but a tree compresses well, so one with millions of entries could
+// still exhaust memory if decoded whole.
+var maxTreeObjectBytes int64 = 1 << 20 // 1 MiB
+
+// readTerraformConfigFromRepo reads variables.tf, or main.tf as a fallback, at remotePath in the
+// latest commit of the bare clone at cachePath, from Git's objects. remotePath is relative to the
+// module's root, a leading slash included, and must stay within it; a symlink or other non-file
+// entry is refused, and so is a file larger than maxTerraformConfigBytes, before it is read.
+func readTerraformConfigFromRepo(cachePath, remotePath string) (string, error) {
+	dir := path.Clean(strings.TrimLeft(remotePath, "/"))
+	if dir == ".." || strings.HasPrefix(dir, "../") {
+		return "", errors.Errorf("refusing to read Terraform configuration outside the module: %q", remotePath)
+	}
+	repo, err := git.PlainOpen(cachePath)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to open the cloned Terraform module")
+	}
+	head, err := repo.Head()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to read the cloned Terraform module")
+	}
+	commit, err := boundedCommit(repo, head.Hash())
+	if err != nil {
+		return "", err
+	}
+	tree, err := moduleDir(repo, commit.TreeHash, dir)
+	if err != nil {
+		return "", err
+	}
+	for _, name := range []string{"variables.tf", "main.tf"} {
+		file := path.Join(dir, name)
+		if tree == nil {
+			break
+		}
+		entry, err := tree.FindEntry(name)
+		if errors.Is(err, object.ErrEntryNotFound) {
+			continue
+		}
+		if err != nil {
+			return "", errors.Wrap(err, "failed to read the cloned Terraform module")
+		}
+		switch entry.Mode {
+		case filemode.Regular, filemode.Executable:
+		case filemode.Symlink:
+			return "", errors.Errorf("refusing to read symlinked Terraform configuration %q", file)
+		default:
+			return "", errors.Errorf("refusing to read non-regular Terraform configuration %q", file)
+		}
+		blob, err := repo.BlobObject(entry.Hash)
+		if err != nil {
+			return "", errors.Wrap(err, "failed to read Terraform configuration")
+		}
+		if blob.Size > maxTerraformConfigBytes {
+			return "", errTerraformConfigTooLarge(file, maxTerraformConfigBytes)
+		}
+		r, err := blob.Reader()
+		if err != nil {
+			return "", errors.Wrap(err, "failed to read Terraform configuration")
+		}
+		content, err := io.ReadAll(io.LimitReader(r, maxTerraformConfigBytes+1))
+		_ = r.Close()
+		if err != nil {
+			return "", errors.Wrap(err, "failed to read Terraform configuration")
+		}
+		if int64(len(content)) > maxTerraformConfigBytes {
+			return "", errTerraformConfigTooLarge(file, maxTerraformConfigBytes)
+		}
+		return string(content), nil
+	}
+	return "", errors.New("failed to find main.tf or variables.tf in Terraform configurations of the remote repository")
 }
 
 func parseOtherProperties4TerraformDefinition() map[string]*openapi3.Schema {
@@ -318,11 +610,16 @@ func generateJSONSchemaWithRequiredProperty(schemas map[string]*openapi3.Schema,
 	return b, nil
 }
 
-// GetGitSSHPublicKey gets a kubernetes secret containing the SSH private key based on gitCredentialsSecretReference parameters for component and trait definition
-func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsSecretReference *v1.SecretReference) (*gitssh.PublicKeys, error) {
+// GetGitSSHPublicKey reads the SSH key a remote Terraform definition clones with from the Secret
+// gitCredentialsSecretReference names, in namespace, the definition's own: the controller reads
+// it with its own rights, so a Secret elsewhere is refused. The key checks the remote against the
+// Secret's own known hosts.
+func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredentialsSecretReference *v1.SecretReference, namespace string) (*gitssh.PublicKeys, error) {
 	gitCredentialsSecretName := gitCredentialsSecretReference.Name
-	gitCredentialsSecretNamespace := gitCredentialsSecretReference.Namespace
-	gitCredentialsNamespacedName := k8stypes.NamespacedName{Namespace: gitCredentialsSecretNamespace, Name: gitCredentialsSecretName}
+	if ns := gitCredentialsSecretReference.Namespace; ns != "" && ns != namespace {
+		return nil, errors.Errorf("git credentials secret %s/%s must be in the definition's namespace %q", ns, gitCredentialsSecretName, namespace)
+	}
+	gitCredentialsNamespacedName := k8stypes.NamespacedName{Namespace: namespace, Name: gitCredentialsSecretName}
 
 	secret := &v1.Secret{}
 	err := k8sClient.Get(ctx, gitCredentialsNamespacedName, secret)
@@ -337,28 +634,46 @@ func GetGitSSHPublicKey(ctx context.Context, k8sClient client.Client, gitCredent
 		}
 	}
 
-	klog.InfoS("Reconcile gitCredentialsSecretReference", "gitCredentialsSecretReference", klog.KRef(gitCredentialsSecretNamespace, gitCredentialsSecretName))
+	klog.InfoS("Reconcile gitCredentialsSecretReference", "gitCredentialsSecretReference", klog.KRef(namespace, gitCredentialsSecretName))
 
 	sshPrivateKey := secret.Data[v1.SSHAuthPrivateKey]
 	publicKey, err := gitssh.NewPublicKeys("git", sshPrivateKey, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate public key from private key: %w", err)
 	}
-	sshKnownHosts := secret.Data[GitCredsKnownHosts]
-	sshDir := filepath.Join(os.TempDir(), ".ssh")
-	sshKnownHostsPath := filepath.Join(sshDir, GitCredsKnownHosts)
-	_ = os.Mkdir(sshDir, 0700)
-	err = os.WriteFile(sshKnownHostsPath, sshKnownHosts, 0600)
+	callback, err := knownHostsCallback(secret.Data[GitCredsKnownHosts])
 	if err != nil {
-		return nil, fmt.Errorf("failed to write known hosts into file: %w", err)
+		return nil, err
 	}
-	_ = os.Setenv("SSH_KNOWN_HOSTS", sshKnownHostsPath)
+	publicKey.HostKeyCallback = callback
 	return publicKey, nil
+}
+
+// knownHostsCallback checks a host key against knownHosts. The file it is parsed from exists only
+// for the call, so concurrent clones never share or overwrite one another's.
+func knownHostsCallback(knownHosts []byte) (ssh.HostKeyCallback, error) {
+	f, err := os.CreateTemp("", "vela-known-hosts-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to write known hosts: %w", err)
+	}
+	defer func() { _ = os.Remove(f.Name()) }()
+	_, err = f.Write(knownHosts)
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to write known hosts: %w", err)
+	}
+	callback, err := gitssh.NewKnownHostsCallback(f.Name())
+	if err != nil {
+		return nil, fmt.Errorf("failed to read known hosts: %w", err)
+	}
+	return callback, nil
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
 func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name, revName string) (string, error) {
-	var jsonSchema []byte
+	var jsonSchema, uiSchema []byte
 	var err error
 	switch def.WorkloadType {
 	case util.TerraformDef:
@@ -371,7 +686,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 			publicKey = nil
 			if def.Terraform.GitCredentialsSecretReference != nil {
 				gitCredentialsSecretReference := def.Terraform.GitCredentialsSecretReference
-				publicKey, err = GetGitSSHPublicKey(ctx, k8sClient, gitCredentialsSecretReference)
+				publicKey, err = GetGitSSHPublicKey(ctx, k8sClient, gitCredentialsSecretReference, namespace)
 				if err != nil {
 					return "", fmt.Errorf("issue with gitCredentialsSecretReference %s/%s: %w", gitCredentialsSecretReference.Namespace, gitCredentialsSecretReference.Name, err)
 				}
@@ -383,7 +698,20 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		}
 		jsonSchema, err = GetOpenAPISchemaFromTerraformComponentDefinition(configuration)
 	default:
-		jsonSchema, err = def.GetOpenAPISchema(ctx, name)
+		switch {
+		case def.ComponentDefinition.Spec.Extends == "":
+			jsonSchema, uiSchema, err = def.parameterSchemas(ctx, name)
+		case def.ComponentDefinition.Spec.Schematic != nil && def.ComponentDefinition.Spec.Schematic.CUE != nil:
+			jsonSchema, uiSchema, err = inheritedSchemas(ctx, def.ComponentDefinition.Name,
+				def.ComponentDefinition.Spec.Schematic.CUE.Template, inherit.ComponentSurface)
+		default:
+			// Admission refuses this combination, so it can only reach here from
+			// a definition applied before the check existed. Publishing the
+			// child's own schema would describe a definition that cannot render.
+			err = fmt.Errorf(
+				"component definition %s extends %s but has no CUE template, so its parameters cannot be read",
+				def.Name, def.ComponentDefinition.Spec.Extends)
+		}
 	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
@@ -397,7 +725,12 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Controller:         ptr.To(true),
 		BlockOwnerDeletion: ptr.To(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, typeComponentDefinition, componentDefinition.Labels, nil, jsonSchema, ownerReference)
+	var outputs map[string]string
+	if def.WorkloadType != util.TerraformDef &&
+		componentDefinition.Spec.Schematic != nil && componentDefinition.Spec.Schematic.CUE != nil {
+		outputs = componentOutputSchemaData(ctx, k8sClient, &componentDefinition)
+	}
+	cmName, err := def.storeSchemas(ctx, k8sClient, namespace, componentDefinition.Name, typeComponentDefinition, componentDefinition.Labels, nil, jsonSchema, uiSchema, outputs, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -415,7 +748,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Controller:         ptr.To(true),
 		BlockOwnerDeletion: ptr.To(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeComponentDefinition, defRev.Spec.ComponentDefinition.Labels, nil, jsonSchema, ownerReference)
+	_, err = def.storeSchemas(ctx, k8sClient, namespace, revName, typeComponentDefinition, defRev.Spec.ComponentDefinition.Labels, nil, jsonSchema, uiSchema, outputs, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -442,16 +775,30 @@ func NewCapabilityTraitDef(traitdefinition *v1beta1.TraitDefinition) CapabilityT
 
 // GetOpenAPISchema gets OpenAPI v3 schema by TraitDefinition name
 func (def *CapabilityTraitDefinition) GetOpenAPISchema(ctx context.Context, name string) ([]byte, error) {
+	openAPI, _, err := def.parameterSchemas(ctx, name)
+	return openAPI, err
+}
+
+// parameterSchemas generates the OpenAPI and default UI schemas of the definition's parameter.
+func (def *CapabilityTraitDefinition) parameterSchemas(ctx context.Context, name string) ([]byte, []byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, def.TraitDefinition.Spec.Extension, def.TraitDefinition.Spec.Schematic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
+		return nil, nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
 	}
-	return getOpenAPISchema(ctx, capability)
+	return getParameterSchemas(ctx, capability)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from TraitDefinition in ConfigMap
 func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string, revName string) (string, error) {
-	jsonSchema, err := def.GetOpenAPISchema(ctx, name)
+	var jsonSchema, uiSchema []byte
+	var err error
+	if def.TraitDefinition.Spec.Extends != "" &&
+		def.TraitDefinition.Spec.Schematic != nil && def.TraitDefinition.Spec.Schematic.CUE != nil {
+		jsonSchema, uiSchema, err = inheritedSchemas(ctx, def.TraitDefinition.Name,
+			def.TraitDefinition.Spec.Schematic.CUE.Template, inherit.TraitSurface)
+	} else {
+		jsonSchema, uiSchema, err = def.parameterSchemas(ctx, name)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
@@ -465,7 +812,11 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         ptr.To(true),
 		BlockOwnerDeletion: ptr.To(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, typeTraitDefinition, traitDefinition.Labels, traitDefinition.Spec.AppliesToWorkloads, jsonSchema, ownerReference)
+	var outputs map[string]string
+	if traitDefinition.Spec.Schematic != nil && traitDefinition.Spec.Schematic.CUE != nil {
+		outputs = traitOutputSchemaData(ctx, k8sClient, &traitDefinition)
+	}
+	cmName, err := def.storeSchemas(ctx, k8sClient, namespace, traitDefinition.Name, typeTraitDefinition, traitDefinition.Labels, traitDefinition.Spec.AppliesToWorkloads, jsonSchema, uiSchema, outputs, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -483,7 +834,7 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         ptr.To(true),
 		BlockOwnerDeletion: ptr.To(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeTraitDefinition, defRev.Spec.TraitDefinition.Labels, defRev.Spec.TraitDefinition.Spec.AppliesToWorkloads, jsonSchema, ownerReference)
+	_, err = def.storeSchemas(ctx, k8sClient, namespace, revName, typeTraitDefinition, defRev.Spec.TraitDefinition.Labels, defRev.Spec.TraitDefinition.Spec.AppliesToWorkloads, jsonSchema, uiSchema, outputs, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -508,19 +859,22 @@ func NewCapabilityStepDef(stepdefinition *v1beta1.WorkflowStepDefinition) Capabi
 
 // GetOpenAPISchema gets OpenAPI v3 schema by StepDefinition name
 func (def *CapabilityStepDefinition) GetOpenAPISchema(ctx context.Context, name string) ([]byte, error) {
+	openAPI, _, err := def.parameterSchemas(ctx, name)
+	return openAPI, err
+}
+
+// parameterSchemas generates the OpenAPI and default UI schemas of the definition's parameter.
+func (def *CapabilityStepDefinition) parameterSchemas(ctx context.Context, name string) ([]byte, []byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, nil, def.StepDefinition.Spec.Schematic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
+		return nil, nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
 	}
-	return getOpenAPISchema(ctx, capability)
+	return getParameterSchemas(ctx, capability)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from StepDefinition in ConfigMap
 func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string, revName string) (string, error) {
-	var jsonSchema []byte
-	var err error
-
-	jsonSchema, err = def.GetOpenAPISchema(ctx, name)
+	jsonSchema, uiSchema, err := def.parameterSchemas(ctx, name)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
@@ -534,7 +888,7 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Controller:         ptr.To(true),
 		BlockOwnerDeletion: ptr.To(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, stepDefinition.Name, typeWorkflowStepDefinition, stepDefinition.Labels, nil, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, stepDefinition.Name, typeWorkflowStepDefinition, stepDefinition.Labels, nil, jsonSchema, uiSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -552,7 +906,7 @@ func (def *CapabilityStepDefinition) StoreOpenAPISchema(ctx context.Context, k8s
 		Controller:         ptr.To(true),
 		BlockOwnerDeletion: ptr.To(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeWorkflowStepDefinition, defRev.Spec.WorkflowStepDefinition.Labels, nil, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typeWorkflowStepDefinition, defRev.Spec.WorkflowStepDefinition.Labels, nil, jsonSchema, uiSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -577,19 +931,22 @@ func NewCapabilityPolicyDef(policydefinition *v1beta1.PolicyDefinition) Capabili
 
 // GetOpenAPISchema gets OpenAPI v3 schema by StepDefinition name
 func (def *CapabilityPolicyDefinition) GetOpenAPISchema(ctx context.Context, name string) ([]byte, error) {
+	openAPI, _, err := def.parameterSchemas(ctx, name)
+	return openAPI, err
+}
+
+// parameterSchemas generates the OpenAPI and default UI schemas of the definition's parameter.
+func (def *CapabilityPolicyDefinition) parameterSchemas(ctx context.Context, name string) ([]byte, []byte, error) {
 	capability, err := appfile.ConvertTemplateJSON2Object(name, nil, def.PolicyDefinition.Spec.Schematic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
+		return nil, nil, fmt.Errorf("failed to convert WorkflowStepDefinition to Capability Object")
 	}
-	return getOpenAPISchema(ctx, capability)
+	return getParameterSchemas(ctx, capability)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from StepDefinition in ConfigMap
 func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name, revName string) (string, error) {
-	var jsonSchema []byte
-	var err error
-
-	jsonSchema, err = def.GetOpenAPISchema(ctx, name)
+	jsonSchema, uiSchema, err := def.parameterSchemas(ctx, name)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
@@ -603,7 +960,7 @@ func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k
 		Controller:         ptr.To(true),
 		BlockOwnerDeletion: ptr.To(true),
 	}}
-	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, policyDefinition.Name, typePolicyStepDefinition, policyDefinition.Labels, nil, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, policyDefinition.Name, typePolicyStepDefinition, policyDefinition.Labels, nil, jsonSchema, uiSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -621,7 +978,7 @@ func (def *CapabilityPolicyDefinition) StoreOpenAPISchema(ctx context.Context, k
 		Controller:         ptr.To(true),
 		BlockOwnerDeletion: ptr.To(true),
 	}}
-	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typePolicyStepDefinition, defRev.Spec.PolicyDefinition.Labels, nil, jsonSchema, ownerReference)
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, typePolicyStepDefinition, defRev.Spec.PolicyDefinition.Labels, nil, jsonSchema, uiSchema, ownerReference)
 	if err != nil {
 		return cmName, err
 	}
@@ -634,12 +991,31 @@ type CapabilityBaseDefinition struct {
 
 // CreateOrUpdateConfigMap creates ConfigMap to store OpenAPI v3 schema or or updates data in ConfigMap
 func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, namespace,
-	definitionName, definitionType string, labels map[string]string, appliedWorkloads []string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
-	cmName := fmt.Sprintf("%s-%s%s", definitionType, types.CapabilityConfigMapNamePrefix, definitionName)
-	var cm v1.ConfigMap
+	definitionName, definitionType string, labels map[string]string, appliedWorkloads []string, jsonSchema, uiSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
+	return def.storeSchemas(ctx, k8sClient, namespace, definitionName, definitionType, labels, appliedWorkloads, jsonSchema, uiSchema, nil, ownerReferences)
+}
+
+// storeSchemas stores a definition's parameter schemas, with any extra keys
+// such as its output schemas, in its schema ConfigMap.
+func (def *CapabilityBaseDefinition) storeSchemas(ctx context.Context, k8sClient client.Client, namespace,
+	definitionName, definitionType string, labels map[string]string, appliedWorkloads []string, jsonSchema, uiSchema []byte, extra map[string]string, ownerReferences []metav1.OwnerReference) (string, error) {
 	var data = map[string]string{
 		types.OpenapiV3JSONSchema: string(jsonSchema),
 	}
+	if len(uiSchema) > 0 {
+		data[types.DefaultUISchema] = string(uiSchema)
+	}
+	for k, v := range extra {
+		data[k] = v
+	}
+	return def.storeSchemaConfigMap(ctx, k8sClient, namespace, definitionName, definitionType, labels, appliedWorkloads, data, ownerReferences)
+}
+
+// storeSchemaConfigMap creates or replaces the data of a definition's schema ConfigMap.
+func (def *CapabilityBaseDefinition) storeSchemaConfigMap(ctx context.Context, k8sClient client.Client, namespace,
+	definitionName, definitionType string, labels map[string]string, appliedWorkloads []string, data map[string]string, ownerReferences []metav1.OwnerReference) (string, error) {
+	cmName := fmt.Sprintf("%s-%s%s", definitionType, types.CapabilityConfigMapNamePrefix, definitionName)
+	var cm v1.ConfigMap
 	if labels == nil {
 		labels = make(map[string]string)
 	}
@@ -684,6 +1060,36 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 	}
 	klog.InfoS("Successfully update Capability Schema in ConfigMap", "configMap", klog.KRef(namespace, cmName))
 	return cmName, nil
+}
+
+// getParameterSchemas generates a CUE template's OpenAPI and default UI
+// schemas. A template the generator cannot read gets the OpenAPI schema CUE's
+// encoder produces, and no UI schema, so VelaUX derives its form as before.
+func getParameterSchemas(ctx context.Context, capability types.Capability) ([]byte, []byte, error) {
+	ps, err := schema.GenerateParameterSchemas(ctx, capability.CueTemplate)
+	if err != nil {
+		klog.InfoS("falling back to the CUE OpenAPI encoder", "capability", capability.Name, "err", err.Error())
+		openAPI, err := getOpenAPISchema(ctx, capability)
+		return openAPI, nil, err
+	}
+	return marshalSchemas(ps)
+}
+
+// marshalSchemas encodes the generated schemas; a parameter with no fields
+// has no UI schema.
+func marshalSchemas(ps *schema.ParameterSchemas) ([]byte, []byte, error) {
+	openAPI, err := json.Marshal(ps.OpenAPI)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(ps.UI) == 0 {
+		return openAPI, nil, nil
+	}
+	ui, err := json.Marshal(ps.UI)
+	if err != nil {
+		return nil, nil, err
+	}
+	return openAPI, ui, nil
 }
 
 // getOpenAPISchema is the main function for GetDefinition API

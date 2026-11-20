@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: broken-imports-inline-marker
+  namespace: vela-system
+data:
+  variant: "1.0.1"

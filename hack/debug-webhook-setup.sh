@@ -1,6 +1,13 @@
 #!/bin/bash
 # Webhook debugging setup script for KubeVela
 # This script sets up everything needed to debug webhooks locally
+#
+# It is only for a vela-core running on your host. The webhook configurations
+# it creates point at a URL on the host, so it makes its own certificate for
+# that address. An in-cluster vela-core that runs with --webhook-tls-secret (the
+# chart sets it when admissionWebhooks.patch.enabled is on and cert-manager is
+# off) makes its webhook certificate itself at startup and does not need this
+# script. Don't pass --webhook-tls-secret to a local debug run.
 
 set -e
 
@@ -271,6 +278,57 @@ webhooks:
   admissionReviewVersions: ["v1", "v1beta1"]
   sideEffects: None
   failurePolicy: Fail
+- name: sourcedefinition.core.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1beta1-sourcedefinitions
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["core.oam.dev"]
+    apiVersions: ["v1beta1"]
+    resources: ["sourcedefinitions"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+- name: configtemplate.config.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-config-oam-dev-v1alpha1-configtemplates
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["config.oam.dev"]
+    apiVersions: ["v1alpha1"]
+    resources: ["configtemplates"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+- name: config.config.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-config-oam-dev-v1alpha1-configs
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["config.oam.dev"]
+    apiVersions: ["v1alpha1"]
+    resources: ["configs"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+- name: configsecrets.config.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-config-oam-dev-v1alpha1-configsecrets
+    caBundle: ${CA_BUNDLE}
+  objectSelector:
+    matchLabels:
+      config.oam.dev/catalog: velacore-config
+  rules:
+  - apiGroups: [""]
+    apiVersions: ["v1"]
+    resources: ["secrets"]
+    operations: ["UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
 - name: applications.core.oam.dev
   clientConfig:
     url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1beta1-applications
@@ -283,12 +341,87 @@ webhooks:
   admissionReviewVersions: ["v1", "v1beta1"]
   sideEffects: None
   failurePolicy: Fail
+- name: workflows.core.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1alpha1-workflows
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["core.oam.dev"]
+    apiVersions: ["v1alpha1"]
+    resources: ["workflows"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+- name: policies.core.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1alpha1-policies
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["core.oam.dev"]
+    apiVersions: ["v1alpha1"]
+    resources: ["policies"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
 EOF
 
     kubectl apply -f /tmp/webhook-config.yaml
     rm -f /tmp/webhook-config.yaml
 
     echo -e "${GREEN}Webhook configuration created${NC}"
+}
+
+# Function to create mutating webhook configuration
+# Mirrors charts/vela-core/templates/admission-webhooks/mutatingWebhookConfiguration.yaml,
+# which only covers applications and componentdefinitions.
+create_mutating_webhook_config() {
+    echo -e "${YELLOW}Creating mutating webhook configuration...${NC}"
+
+    # Get CA bundle
+    CA_BUNDLE=$(cat ${CERT_DIR}/ca.crt | base64 | tr -d '\n')
+
+    # Delete old webhook configuration if exists
+    kubectl delete mutatingwebhookconfiguration ${WEBHOOK_CONFIG_NAME} --ignore-not-found
+
+    # Create webhook configuration
+    cat > /tmp/mutating-webhook-config.yaml << EOF
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: ${WEBHOOK_CONFIG_NAME}
+webhooks:
+- name: mutating.core.oam.dev.v1beta1.applications
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/mutating-core-oam-dev-v1beta1-applications
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["core.oam.dev"]
+    apiVersions: ["v1beta1"]
+    resources: ["applications"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+- name: mutating.core.oam-dev.v1beta1.componentdefinitions
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/mutating-core-oam-dev-v1beta1-componentdefinitions
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["core.oam.dev"]
+    apiVersions: ["v1beta1"]
+    resources: ["componentdefinitions"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+EOF
+
+    kubectl apply -f /tmp/mutating-webhook-config.yaml
+    rm -f /tmp/mutating-webhook-config.yaml
+
+    echo -e "${GREEN}Mutating webhook configuration created${NC}"
 }
 
 # Function to show next steps
@@ -315,16 +448,21 @@ show_next_steps() {
     echo ""
     echo "Next steps:"
     echo "1. Open your IDE (VS Code, GoLand, etc.)"
-    echo "2. Set breakpoints in webhook validation code:"
+    echo "2. Set breakpoints in webhook validation/mutation code:"
     echo "   - pkg/webhook/core.oam.dev/v1beta1/application/validating_handler.go:66"
     echo "   - pkg/webhook/core.oam.dev/v1beta1/componentdefinition/component_definition_validating_handler.go:74"
+    echo "   - pkg/webhook/core.oam.dev/v1beta1/application/mutating_handler.go"
+    echo "   - pkg/webhook/core.oam.dev/v1beta1/componentdefinition/mutating_handler.go"
     echo "3. Start debugging cmd/core/main.go with arguments:"
     echo "   --use-webhook=true"
     echo "   --webhook-port=${WEBHOOK_PORT}"
     echo "   --webhook-cert-dir=${CERT_DIR}"
-    echo "   --leader-elect=false"
+    echo "   --enable-leader-election=false"
     echo "4. Wait for webhook server to start"
-    echo "5. Test with kubectl apply commands"
+    echo "5. Verify the webhook server is actually listening before applying real resources:"
+    echo "   curl -sk -X POST https://${HOST_IP}:${WEBHOOK_PORT}/mutating-core-oam-dev-v1beta1-componentdefinitions?timeout=10s"
+    echo "   Expect: {\"response\":{\"uid\":\"\",\"allowed\":false,\"status\":{\"metadata\":{},\"message\":\"request body is empty\",\"code\":400}}}"
+    echo "6. Test with kubectl apply commands"
     echo ""
     echo -e "${YELLOW}Test command:${NC}"
     echo 'kubectl apply -f <your-application.yaml>'
@@ -339,6 +477,7 @@ main() {
     generate_certificates
     create_k8s_secret
     create_webhook_config
+    create_mutating_webhook_config
     show_next_steps
 }
 

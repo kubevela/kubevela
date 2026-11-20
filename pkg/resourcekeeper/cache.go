@@ -19,6 +19,7 @@ package resourcekeeper
 import (
 	"context"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	pkgmaps "github.com/kubevela/pkg/util/maps"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -27,8 +28,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/kubeutil"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -44,16 +46,17 @@ type resourceCacheEntry struct {
 }
 
 type resourceCache struct {
-	app *v1beta1.Application
-	cli client.Client
-	m   *pkgmaps.SyncMap[string, *resourceCacheEntry]
+	// tracked decides whether a live object is still the owner's; nil treats every object as its own.
+	tracked resourcetracker.Tracked
+	cli     client.Client
+	m       *pkgmaps.SyncMap[string, *resourceCacheEntry]
 }
 
-func newResourceCache(cli client.Client, app *v1beta1.Application) *resourceCache {
+func newResourceCache(cli client.Client, tracked resourcetracker.Tracked) *resourceCache {
 	return &resourceCache{
-		app: app,
-		cli: cli,
-		m:   pkgmaps.NewSyncMap[string, *resourceCacheEntry](),
+		tracked: tracked,
+		cli:     cli,
+		m:       pkgmaps.NewSyncMap[string, *resourceCacheEntry](),
 	}
 }
 
@@ -95,8 +98,8 @@ func (cache *resourceCache) get(ctx context.Context, mr v1beta1.ManagedResource)
 		cache.m.Set(key, entry)
 	}
 	if !entry.loaded {
-		if err := cache.cli.Get(multicluster.ContextWithClusterName(ctx, mr.Cluster), mr.NamespacedName(), entry.obj); err != nil {
-			if multicluster.IsNotFoundOrClusterNotExists(err) || meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
+		if err := cache.cli.Get(pkgmulticluster.WithCluster(ctx, mr.Cluster), mr.NamespacedName(), entry.obj); err != nil {
+			if kubeutil.IsNotFoundOrClusterNotExists(err) || meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
 				entry.exists = false
 			} else {
 				entry.err = errors.Wrapf(err, "failed to get resource %s", key)
@@ -110,25 +113,22 @@ func (cache *resourceCache) get(ctx context.Context, mr v1beta1.ManagedResource)
 }
 
 func (cache *resourceCache) exists(manifest *unstructured.Unstructured) bool {
-	if cache.app == nil {
+	if cache.tracked == nil {
 		return true
 	}
-	return IsResourceManagedByApplication(manifest, cache.app)
+	return IsResourceManaged(manifest, cache.tracked)
 }
 
-// IsResourceManagedByApplication check if resource is managed by application
-// If the resource has no ResourceVersion, always return true.
-// If the owner label of the resource equals the given app, return true.
-// If the sharer label of the resource contains the given app, return true.
-// Otherwise, return false.
-func IsResourceManagedByApplication(manifest *unstructured.Unstructured, app *v1beta1.Application) bool {
-	appKey, controlledBy := apply.GetAppKey(app), apply.GetControlledBy(manifest)
-	if appKey == controlledBy || (manifest.GetResourceVersion() == "" && !hasOrphanFinalizer(app)) {
+// IsResourceManaged reports whether a live resource is still the owner's: it controls it, it
+// is a sharer of it, or the object has no resource version (an API response rather than a
+// stored object, e.g. from vela-prism) and the owner is not orphaning its resources.
+func IsResourceManaged(manifest *unstructured.Unstructured, owner resourcetracker.Tracked) bool {
+	if owner.ControlledBy(manifest) == owner.Key() || (manifest.GetResourceVersion() == "" && !owner.Orphaning()) {
 		return true
 	}
 	annotations := manifest.GetAnnotations()
 	if annotations == nil || annotations[oam.AnnotationAppSharedBy] == "" {
 		return false
 	}
-	return apply.ContainsSharer(annotations[oam.AnnotationAppSharedBy], app)
+	return apply.ContainsSharer(annotations[oam.AnnotationAppSharedBy], owner.Key())
 }

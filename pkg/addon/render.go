@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/cue/nesting"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -96,6 +97,9 @@ func (a addonCueTemplateRender) formatContext() (string, error) {
 	// parameter definition
 	contextFile.WriteString(paramFile + "\n")
 
+	if err := nesting.Check(contextFile.String(), nesting.MaxDepth); err != nil {
+		return "", errors.Wrap(err, "parameter context")
+	}
 	return contextFile.String(), nil
 }
 
@@ -182,6 +186,9 @@ func (a addonCueTemplateRender) renderApp() (*v1beta1.Application, []*unstructur
 func newValueWithMainAndFiles(main string, slaveFiles []string, _ string, opts ...func(*ast.File) error) (cue.Value, error) {
 	builder := &build.Instance{}
 
+	if err := nesting.Check(main, nesting.MaxDepth); err != nil {
+		return cue.Value{}, errors.Wrap(err, "parse main file")
+	}
 	mainFile, err := parser.ParseFile("main.cue", main, parser.ParseComments)
 	if err != nil {
 		return cue.Value{}, errors.Wrap(err, "parse main file")
@@ -203,6 +210,9 @@ func newValueWithMainAndFiles(main string, slaveFiles []string, _ string, opts .
 	}
 
 	for idx, sf := range slaveFiles {
+		if err := nesting.Check(sf, nesting.MaxDepth); err != nil {
+			return cue.Value{}, errors.Wrap(err, "parse added file "+strconv.Itoa(idx))
+		}
 		cueSF, err := parser.ParseFile("sf-"+strconv.Itoa(idx)+".cue", sf, parser.ParseComments)
 		if err != nil {
 			return cue.Value{}, errors.Wrap(err, "parse added file "+strconv.Itoa(idx)+" \n"+sf)
@@ -310,7 +320,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 	}
 	app.Spec.Components = append(app.Spec.Components, renderNeededNamespaceAsComps(addon)...)
 
-	resources, err := renderResources(addon, args)
+	resources, err := RenderResources(addon, args)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -381,7 +391,13 @@ func attachPolicyForLegacyAddon(ctx context.Context, app *v1beta1.Application, a
 	return nil
 }
 
-func renderResources(addon *InstallPackage, args map[string]interface{}) ([]common2.ApplicationComponent, error) {
+// RenderResources renders the addon's resources/ tier: the YAML-based
+// k8s-objects component (when the addon has YAMLTemplates) and one component
+// per non-main CUE template. It is exported so callers assembling the addon
+// Application from outside this package (see pkg/addon/service/renderer.go)
+// can derive the resulting component names without re-implementing this
+// rendering.
+func RenderResources(addon *InstallPackage, args map[string]interface{}) ([]common2.ApplicationComponent, error) {
 	var resources []common2.ApplicationComponent
 	if len(addon.YAMLTemplates) != 0 {
 		comp, err := renderK8sObjectsComponent(addon.YAMLTemplates, addon.Name)
@@ -438,6 +454,9 @@ func isDeployToRuntime(addon *InstallPackage) bool {
 }
 
 func checkCueFileHasPackageHeader(cueTemplate ElementFile) (bool, error) {
+	if err := nesting.Check(cueTemplate.Data, nesting.MaxDepth); err != nil {
+		return false, errors.Wrap(err, cueTemplate.Name)
+	}
 	cueFile, err := parser.ParseFile(cueTemplate.Name, cueTemplate.Data, parser.ParseComments)
 	if err != nil {
 		return false, err

@@ -1,0 +1,17 @@
+# One component per module of kit-suite 1.0.0. The Gadget disappears with its
+# CRD when kit-suite 2.0.0 drops the gadget-kit import.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: suite-consumer
+  namespace: default
+spec:
+  components:
+    - name: keep-widget
+      type: widget-kit/v1/widget
+      properties:
+        color: green
+    - name: doomed-gadget
+      type: gadget-kit/v1/gadget
+      properties:
+        mode: eco

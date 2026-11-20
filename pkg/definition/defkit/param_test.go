@@ -253,6 +253,118 @@ var _ = Describe("Parameters", func() {
 			Expect(p.IsOptional()).To(BeTrue())
 			Expect(p.ValueType()).To(Equal(defkit.ParamTypeString))
 		})
+
+		It("should store a structured value schema via OfObject", func() {
+			p := defkit.Map("accessPoints").OfObject(
+				defkit.String("path").Required(),
+				defkit.Int("ownerUID").Default(1000),
+			).Optional()
+			Expect(p.GetValueFields()).To(HaveLen(2))
+			Expect(p.GetValueFields()[0].Name()).To(Equal("path"))
+			Expect(p.GetValueFields()[1].Name()).To(Equal("ownerUID"))
+			// OfObject describes the value, not a fixed object on the map itself.
+			Expect(p.GetFields()).To(BeEmpty())
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+
+		It("should store a value schema reference via OfSchemaRef", func() {
+			p := defkit.Map("accessPoints").OfSchemaRef("AccessPointConfig").Optional()
+			Expect(p.GetValueSchemaRef()).To(Equal("AccessPointConfig"))
+			// WithSchemaRef applies to the whole parameter and stays separate.
+			Expect(p.GetSchemaRef()).To(BeEmpty())
+		})
+
+		It("should surface nested field imports from both WithFields and OfObject", func() {
+			// Only top-level params are scanned for imports, so a map has to
+			// report what its children need.
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("name").MinLen(3),
+			).RequiredImports()).To(ContainElement("strings"))
+
+			Expect(defkit.Map("m").OfObject(
+				defkit.String("name").MaxLen(63),
+			).RequiredImports()).To(ContainElement("strings"))
+
+			// No constraints means no imports.
+			Expect(defkit.Map("m").OfObject(
+				defkit.String("name"),
+			).RequiredImports()).To(BeEmpty())
+		})
+
+		It("should not duplicate an import needed by more than one nested field", func() {
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("first").MinLen(3),
+				defkit.String("second").MinLen(3),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			Expect(defkit.Map("m").OfObject(
+				defkit.String("first").MinLen(3),
+				defkit.String("second").MaxLen(63),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			// Same package needed by both WithFields and OfObject on the same map.
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("fixed").MinLen(3),
+			).OfObject(
+				defkit.String("dynamic").MaxLen(63),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			Expect(defkit.Array("labels").WithFields(
+				defkit.String("first").MinLen(3),
+				defkit.String("second").MinLen(3),
+			).MinItems(1).RequiredImports()).To(Equal([]string{"list", "strings"}))
+		})
+
+		It("should not report imports for a form the generator will not render", func() {
+			// writeMapParam ranks schemaRef > schema > valueSchemaRef > valueFields >
+			// fields, and returns early. Reporting a losing form's import emits a
+			// package the output never references: "imported and not used".
+			Expect(defkit.Map("m").WithSchemaRef("Ref").OfObject(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+
+			Expect(defkit.Map("m").WithSchema("{...}").WithFields(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+
+			Expect(defkit.Map("m").OfSchemaRef("Ref").OfObject(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+
+			// valueFields wins over fields, so only valueFields is walked.
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("fixed").MinLen(3),
+			).OfObject(
+				defkit.String("dynamic"),
+			).RequiredImports()).To(BeEmpty())
+
+			// list is still needed: MinItems renders whichever array form wins.
+			Expect(defkit.Array("a").WithSchema("[...int]").WithFields(
+				defkit.String("y").MinLen(3),
+			).MinItems(1).RequiredImports()).To(Equal([]string{"list"}))
+
+			Expect(defkit.Array("a").WithSchemaRef("Ref").WithFields(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+		})
+
+		It("should report imports needed by conditional branch params", func() {
+			// Branch bodies are rendered into the struct like ordinary fields.
+			Expect(defkit.Map("cfg").ConditionalFields(
+				defkit.WhenParam(defkit.Bool("flag").Eq(true)).Params(
+					defkit.String("secret").MinLen(3),
+				),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			// deduped against fields needing the same package
+			Expect(defkit.Map("cfg").WithFields(
+				defkit.String("plain").MinLen(3),
+			).ConditionalFields(
+				defkit.WhenParam(defkit.Bool("flag").Eq(true)).Params(
+					defkit.String("secret").MinLen(3),
+				),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+		})
 	})
 
 	Context("StructParam", func() {

@@ -168,7 +168,7 @@ func getOriginalConfiguration(obj runtime.Object) ([]byte, error) {
 
 	oamOriginal, oamOk := annots[oam.AnnotationLastAppliedConfig]
 	if oamOk {
-		if oamOriginal == "-" || oamOriginal == "skip" {
+		if oam.IsSkipLastAppliedConfig(oamOriginal) {
 			return nil, nil
 		}
 		return []byte(oamOriginal), nil

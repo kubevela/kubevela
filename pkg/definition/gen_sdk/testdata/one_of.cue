@@ -1,8 +1,3 @@
-import (
-	"vela/op"
-	"encoding/base64"
-)
-
 "one_of": {
 	type:        "workflow-step"
 	description: "Send notifications to Email, DingTalk, Slack, Lark or webhook in your workflow. For test one_of"

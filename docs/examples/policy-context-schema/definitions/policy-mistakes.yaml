@@ -1,0 +1,37 @@
+# PolicyDefinitions the PolicyDefinition webhook pushes back on. Neither is
+# global, so applying this file changes no Application.
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: tenant-identity-leaning
+  namespace: vela-system
+spec:
+  global: false
+  scope: Application
+  priority: 20
+  schematic:
+    cue:
+      template: |
+        _teamPattern: =~"^[a-z][a-z0-9-]*$"
+        // Mistake: the schema refers to the rest of the template, which
+        // admission does not read. Denied.
+        schema: ctx: close({team: _teamPattern})
+        parameter: {}
+        output: ctx: team: "payments"
+---
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: tenant-identity-untyped
+  namespace: vela-system
+spec:
+  global: false
+  scope: Application
+  priority: 30
+  schematic:
+    cue:
+      template: |
+        // Not a mistake, but nothing to judge Applications by: admitted
+        // with a warning.
+        parameter: {}
+        output: ctx: team: "payments"

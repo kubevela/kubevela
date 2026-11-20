@@ -17,15 +17,21 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	v1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 func TestFilterPolicies(t *testing.T) {
@@ -286,4 +292,218 @@ func TestBuildPolicyOutput(t *testing.T) {
 		assert.Equal(t, int32(3), p1["priority"])
 		assert.NotNil(t, p1["output"])
 	})
+}
+
+func TestBuildPolicyDetailsFromConfigMapSettings(t *testing.T) {
+	entry := map[string]any{
+		"name":      "tenant",
+		"type":      "tenant-context",
+		"namespace": "vela-system",
+		"settings":  map[string]bool{"autoRevision": false, "applyPolicyUpdates": true},
+	}
+	raw, _ := json.Marshal(entry)
+	got := buildPolicyDetailsFromConfigMap(&corev1.ConfigMap{Data: map[string]string{"001-tenant": string(raw)}})
+	require.Contains(t, got, "tenant")
+	assert.Equal(t, map[string]bool{"autoRevision": false, "applyPolicyUpdates": true}, got["tenant"]["settings"])
+	assert.Equal(t, "tenant-context", got["tenant"]["type"])
+	assert.Equal(t, "vela-system", got["tenant"]["namespace"])
+}
+
+const ctxSchemaTemplateV1 = `import "strings"
+
+schema: ctx: close({
+	team!: string & strings.MinRunes(3)
+})
+output: ctx: team: "payments"
+`
+
+const ctxSchemaTemplateV2 = `schema: ctx: close({
+	team!: string
+	tier:  *"standard" | "premium"
+})
+output: ctx: team: "payments"
+`
+
+func policyDefWithTemplate(name, template string) v1beta1.PolicyDefinition {
+	return v1beta1.PolicyDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "vela-system"},
+		Spec: v1beta1.PolicyDefinitionSpec{
+			Schematic: &common.Schematic{CUE: &common.CUE{Template: template}},
+		},
+	}
+}
+
+func TestLookupPolicyCtxSchema(t *testing.T) {
+	ctx := context.Background()
+	rev := &v1beta1.DefinitionRevision{
+		ObjectMeta: metav1.ObjectMeta{Name: "tenant-context-v1", Namespace: "vela-system"},
+		Spec: v1beta1.DefinitionRevisionSpec{
+			Revision:         1,
+			DefinitionType:   common.PolicyType,
+			PolicyDefinition: policyDefWithTemplate("tenant-context", ctxSchemaTemplateV1),
+		},
+	}
+	live := policyDefWithTemplate("tenant-context", ctxSchemaTemplateV2)
+	noSchema := policyDefWithTemplate("plain", `output: labels: a: "b"`)
+	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).WithObjects(rev, &live, &noSchema).Build()
+
+	t.Run("reads the schema from the revision the policy rendered", func(t *testing.T) {
+		schema, note, err := lookupPolicyCtxSchema(ctx, cli, "vela-system", "tenant-context", "tenant-context-v1")
+		require.NoError(t, err)
+		assert.Empty(t, note)
+		assert.Contains(t, schema, `import "strings"`)
+		assert.Contains(t, schema, "strings.MinRunes(3)")
+		assert.NotContains(t, schema, "tier")
+	})
+
+	t.Run("falls back to the live definition when the revision is gone, and says so", func(t *testing.T) {
+		schema, note, err := lookupPolicyCtxSchema(ctx, cli, "vela-system", "tenant-context", "tenant-context-v7")
+		require.NoError(t, err)
+		assert.Equal(t, "from the live PolicyDefinition; revision tenant-context-v7 was not found", note)
+		assert.Contains(t, schema, `tier:  *"standard" | "premium"`)
+	})
+
+	t.Run("uses the live definition when no revision is recorded", func(t *testing.T) {
+		schema, note, err := lookupPolicyCtxSchema(ctx, cli, "vela-system", "tenant-context", "")
+		require.NoError(t, err)
+		assert.Equal(t, "from the live PolicyDefinition", note)
+		assert.Contains(t, schema, "tier")
+	})
+
+	t.Run("a policy declaring no schema has none", func(t *testing.T) {
+		schema, _, err := lookupPolicyCtxSchema(ctx, cli, "vela-system", "plain", "")
+		require.NoError(t, err)
+		assert.Empty(t, schema)
+	})
+
+	t.Run("reports a definition that cannot be found", func(t *testing.T) {
+		_, _, err := lookupPolicyCtxSchema(ctx, cli, "vela-system", "missing", "missing-v1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing")
+	})
+}
+
+func TestAddPolicyCtxSchemas(t *testing.T) {
+	live := policyDefWithTemplate("tenant-context", ctxSchemaTemplateV2)
+	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).WithObjects(&live).Build()
+	details := map[string]map[string]any{
+		"tenant":  {"type": "tenant-context", "namespace": "vela-system"},
+		"missing": {"type": "missing", "namespace": "vela-system"},
+	}
+	addPolicyCtxSchemas(context.Background(), cli, details)
+	assert.Contains(t, details["tenant"]["ctxSchema"], "tier")
+	assert.Equal(t, "from the live PolicyDefinition", details["tenant"]["ctxSchemaNote"])
+	assert.NotContains(t, details["tenant"], "ctxSchemaError")
+	assert.Contains(t, details["missing"]["ctxSchemaError"], "missing")
+	assert.NotContains(t, details["missing"], "ctxSchema")
+}
+
+// A ConfigMap entry without a type falls back to the policy name, and a pinned type
+// (name@version) is looked up by its definition name.
+func TestAddPolicyCtxSchemasWithoutPlainType(t *testing.T) {
+	live := policyDefWithTemplate("tenant-context", ctxSchemaTemplateV2)
+	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).WithObjects(&live).Build()
+	details := map[string]map[string]any{
+		"tenant-context": {"namespace": "vela-system"},
+		"pinned":         {"type": "tenant-context@v2", "namespace": "vela-system"},
+	}
+	addPolicyCtxSchemas(context.Background(), cli, details)
+	for name, d := range details {
+		assert.NotContains(t, d, "ctxSchemaError", name)
+		assert.Contains(t, d["ctxSchema"], "tier", name)
+	}
+}
+
+func TestPrintPolicyDetailsSettingsAndSchema(t *testing.T) {
+	policies := []common.AppliedApplicationPolicy{
+		{Name: "tenant", Applied: true},
+		{Name: "broken", Applied: true},
+	}
+	details := map[string]map[string]any{
+		"tenant": {
+			"settings":      map[string]bool{"autoRevision": false, "applyPolicyUpdates": true},
+			"ctxSchema":     "ctx: close({\n\tteam!: string\n})\n",
+			"ctxSchemaNote": "from the live PolicyDefinition",
+			"output":        map[string]interface{}{},
+		},
+		"broken": {
+			"ctxSchemaError": "PolicyDefinition vela-system/broken: not found",
+			"output":         map[string]interface{}{},
+		},
+	}
+	var buf bytes.Buffer
+	printPolicyDetails(policies, details, cmdutil.IOStreams{Out: &buf})
+	out := buf.String()
+
+	assert.Contains(t, out, "  Settings:\n    applyPolicyUpdates: true\n    autoRevision:       false\n")
+	assert.Contains(t, out, "  Context schema (from the live PolicyDefinition):\n    ctx: close({\n    \tteam!: string\n    })\n")
+	assert.Contains(t, out, "  Context schema: unavailable (PolicyDefinition vela-system/broken: not found)\n")
+}
+
+func TestBuildPolicyOutputSettingsAndSchema(t *testing.T) {
+	policies := []common.AppliedApplicationPolicy{{Name: "tenant", Applied: true}}
+	details := map[string]map[string]any{
+		"tenant": {
+			"settings":      map[string]bool{"autoRevision": false},
+			"ctxSchema":     "ctx: {}\n",
+			"ctxSchemaNote": "from the live PolicyDefinition",
+		},
+	}
+	out := buildPolicyOutput("app", "default", policies, v1beta1.ApplicationSpec{}, nil, nil, nil, false, nil, details)
+	entry := out["policies"].([]map[string]any)[0]
+	assert.Equal(t, map[string]bool{"autoRevision": false}, entry["settings"])
+	assert.Equal(t, "ctx: {}\n", entry["ctxSchema"])
+	assert.Equal(t, "from the live PolicyDefinition", entry["ctxSchemaNote"])
+}
+
+func TestRunPolicyViewDetailsShowsSettingsAndSchema(t *testing.T) {
+	rev := &v1beta1.DefinitionRevision{
+		ObjectMeta: metav1.ObjectMeta{Name: "tenant-context-v1", Namespace: "vela-system"},
+		Spec: v1beta1.DefinitionRevisionSpec{
+			Revision:         1,
+			DefinitionType:   common.PolicyType,
+			PolicyDefinition: policyDefWithTemplate("tenant-context", ctxSchemaTemplateV1),
+		},
+	}
+	entry, _ := json.Marshal(map[string]any{
+		"name":                   "tenant",
+		"type":                   "tenant-context",
+		"namespace":              "vela-system",
+		"definitionRevisionName": "tenant-context-v1",
+		"revision":               1,
+		"settings":               map[string]bool{"autoRevision": true},
+		"output":                 map[string]any{"ctx": map[string]any{"team": "payments"}},
+	})
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "app-policies", Namespace: "default"},
+		Data:       map[string]string{"001-tenant": string(entry)},
+	}
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+		Status: common.AppStatus{
+			AppliedApplicationPolicies:   []common.AppliedApplicationPolicy{{Name: "tenant", Type: "tenant-context", Namespace: "vela-system", Applied: true}},
+			ApplicationPoliciesConfigMap: "app-policies",
+		},
+	}
+	args := common2.Args{}
+	args.SetClient(fake.NewClientBuilder().WithScheme(common2.Scheme).WithObjects(rev, cm, app).Build())
+
+	var table bytes.Buffer
+	require.NoError(t, runPolicyView(context.Background(), args, "app", "default", outputFormatTable, false, true, false, "", cmdutil.IOStreams{Out: &table}))
+	assert.Contains(t, table.String(), "  Settings:\n    autoRevision: true\n")
+	assert.Contains(t, table.String(), "  Context schema:\n    import \"strings\"\n")
+	assert.Contains(t, table.String(), "strings.MinRunes(3)")
+
+	var js bytes.Buffer
+	require.NoError(t, runPolicyView(context.Background(), args, "app", "default", outputFormatJSON, false, true, false, "", cmdutil.IOStreams{Out: &js}))
+	var out struct {
+		Policies []struct {
+			Settings  map[string]bool `json:"settings"`
+			CtxSchema string          `json:"ctxSchema"`
+		} `json:"policies"`
+	}
+	require.NoError(t, json.Unmarshal(js.Bytes(), &out))
+	require.Len(t, out.Policies, 1)
+	assert.Equal(t, map[string]bool{"autoRevision": true}, out.Policies[0].Settings)
+	assert.Contains(t, out.Policies[0].CtxSchema, "strings.MinRunes(3)")
 }

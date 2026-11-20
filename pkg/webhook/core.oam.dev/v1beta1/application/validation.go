@@ -20,22 +20,43 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
+
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	wfexpressions "github.com/kubevela/workflow/pkg/expressions"
+	wfbuiltin "github.com/kubevela/workflow/pkg/tasks/builtin"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
+	"github.com/oam-dev/kubevela/pkg/auth"
+	velacache "github.com/oam-dev/kubevela/pkg/cache"
+	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
+	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // ValidateWorkflow validates the Application workflow
@@ -60,6 +81,18 @@ func (h *ValidatingHandler) ValidateWorkflow(_ context.Context, app *v1beta1.App
 					errs = append(errs, h.ValidateTimeout(step.Name, step.Timeout)...)
 				}
 			}
+		}
+		// forEach.items may be an expression only in an Application that opts in,
+		// where the workflow resolves it when the loop starts.
+		stepsPath := field.NewPath("spec", "workflow", "steps")
+		enabled := sources.ExpressionsEnabledFor(app.GetAnnotations())
+		errs = append(errs, wfbuiltin.ValidateForEachSteps(stepsPath, app.Spec.Workflow.Steps, enabled)...)
+		errs = append(errs, wfexpressions.MisplacedConditions(stepsPath, app.Spec.Workflow.Steps)...)
+		if enabled {
+			errs = append(errs, wfexpressions.Validate(stepsPath, app.Spec.Workflow.Steps, app.Spec.Workflow.Mode,
+				celexpr.Roots...)...)
+		} else {
+			errs = append(errs, wfexpressions.ConditionsWithoutExpressions(stepsPath, app.Spec.Workflow.Steps, conditionsDisabledMessage())...)
 		}
 	}
 	return errs
@@ -88,55 +121,90 @@ func (in *appRevBypassCacheClient) Get(ctx context.Context, key client.ObjectKey
 	return in.Client.Get(ctx, key, obj)
 }
 
-// ValidateComponents validates the Application components
+// ValidateComponentNames reports duplicated component names.
+//
+// It reads only the Application, so it belongs to the soundness phase rather
+// than behind appfile generation, where it would be reported only once every
+// expression already type-checked.
+func (h *ValidatingHandler) ValidateComponentNames(_ context.Context, app *v1beta1.Application) field.ErrorList {
+	appParser := appfile.NewApplicationParser(&appRevBypassCacheClient{Client: h.Client})
+	if i, err := appParser.ValidateComponentNames(app); err != nil {
+		return field.ErrorList{field.Invalid(
+			field.NewPath(fmt.Sprintf("components[%d].name", i)), app, err.Error())}
+	}
+	return nil
+}
+
+// ValidateComponents generates the appfile and renders it, which is the only way
+// to learn what no static check can tell: that the templates evaluate, the traits
+// apply, and the sources actually resolve.
+//
+// It is the expensive half of validation and the destructive-adjacent one - source
+// resolution here issues whatever HTTP, git or Kubernetes reads the definitions
+// perform - so ValidateCreate does not call it until everything cheaper has
+// passed.
 func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1.Application) field.ErrorList {
 	if sharding.EnableSharding && !utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateComponentWhenSharding) {
 		return nil
 	}
 	var componentErrs field.ErrorList
+	// The render runs the Application's definitions, so what they read keeps to its namespace.
+	ctx = velaconfig.WithConsumerNamespace(ctx, app.Namespace)
+	// Under authentication the user it runs as, which a cross-namespace config read is reviewed for.
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
+		ctx = velaconfig.WithConsumerUser(ctx, auth.GetUserInfoInAnnotation(&app.ObjectMeta))
+	}
 	// try to generate an app file
 	cli := &appRevBypassCacheClient{Client: h.Client}
 	appParser := appfile.NewApplicationParser(cli)
 
-	af, err := appParser.GenerateAppFile(ctx, app)
+	// A type: addon or type: module component renders to a package's own
+	// Application, which the provider would otherwise fetch from a remote
+	// registry while the apiserver holds this request open. See
+	// validation.WithValidationOnly.
+	af, err := appParser.GenerateAppFile(validation.WithValidationOnly(ctx), app)
 	if err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
 		// cannot generate appfile, no need to validate further
 		return componentErrs
 	}
-	if i, err := appParser.ValidateComponentNames(app); err != nil {
-		componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].name", i)), app, err.Error()))
-	}
-	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
-		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, err.Error()))
+	af.PolicyContext = h.policyContextView(ctx, app, af)
+	if err := appParser.ValidateCUESchematicAppfile(ctx, af); err != nil {
+		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, conciseSchematicError(err)))
 	}
 	return componentErrs
 }
 
+// conciseSchematicError renders a schematic validation error for admission. A
+// failed provider call names its path and the provider's own error, without the
+// call's parameters, so credentials passed to the provider stay out of the
+// response.
+func conciseSchematicError(err error) string {
+	return err.Error()
+}
+
 // checkDefinitionPermission checks if user has permission to access a definition in either system namespace or app namespace
 func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req admission.Request, resource, definitionType, appNamespace string) (bool, error) {
-	// Check permission in vela-system namespace first since most definitions are there
-	// This optimizes for the common case and reduces API calls
-	systemNsSar := &authv1.SubjectAccessReview{
-		Spec: authv1.SubjectAccessReviewSpec{
-			User:   req.UserInfo.Username,
-			Groups: req.UserInfo.Groups,
-			ResourceAttributes: &authv1.ResourceAttributes{
-				Verb:      "get",
-				Group:     "core.oam.dev",
-				Version:   "v1beta1",
-				Resource:  resource,
-				Namespace: oam.SystemDefinitionNamespace,
-				Name:      definitionType,
-			},
-		},
+	// A pinned type names a definition and the revision to render it from -
+	// webservice@v1. The definition is the object RBAC is written against, and
+	// the revision is a DefinitionRevision under a different name entirely, so
+	// asking for an object called "webservice@v1" denies every pinned binding.
+	definitionType = baseDefinitionName(definitionType)
+
+	canGetIn := func(namespace string) (bool, error) {
+		return auth.UserCan(ctx, h.Client, req.UserInfo, authv1.ResourceAttributes{
+			Verb: "get", Group: "core.oam.dev", Version: "v1beta1", Resource: resource, Namespace: namespace, Name: definitionType,
+		})
 	}
 
-	if err := h.Client.Create(ctx, systemNsSar); err != nil {
+	// Check permission in vela-system namespace first since most definitions are there
+	// This optimizes for the common case and reduces API calls
+	allowedInSystem, err := canGetIn(oam.SystemDefinitionNamespace)
+	if err != nil {
 		return false, fmt.Errorf("failed to check %s permission in system namespace: %w", resource, err)
 	}
 
-	if systemNsSar.Status.Allowed {
+	if allowedInSystem {
 		// User has permission in system namespace
 		// Verify the definition actually exists in vela-system
 		if exists, err := h.definitionExistsInNamespace(ctx, resource, definitionType, oam.SystemDefinitionNamespace); err != nil {
@@ -154,26 +222,12 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 
 	// If not in system namespace and app namespace is different, check app namespace
 	if appNamespace != oam.SystemDefinitionNamespace {
-		appNsSar := &authv1.SubjectAccessReview{
-			Spec: authv1.SubjectAccessReviewSpec{
-				User:   req.UserInfo.Username,
-				Groups: req.UserInfo.Groups,
-				ResourceAttributes: &authv1.ResourceAttributes{
-					Verb:      "get",
-					Group:     "core.oam.dev",
-					Version:   "v1beta1",
-					Resource:  resource,
-					Namespace: appNamespace,
-					Name:      definitionType,
-				},
-			},
-		}
-
-		if err := h.Client.Create(ctx, appNsSar); err != nil {
+		allowedInApp, err := canGetIn(appNamespace)
+		if err != nil {
 			return false, fmt.Errorf("failed to check %s permission in namespace %s: %w", resource, appNamespace, err)
 		}
 
-		if appNsSar.Status.Allowed {
+		if allowedInApp {
 			// User has permission in app namespace
 			// But we need to verify the definition actually exists in the app namespace
 			// to prevent users with wildcard permissions from using definitions that only exist in vela-system
@@ -194,6 +248,12 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 	return false, nil
 }
 
+// baseDefinitionName strips the revision a type may pin, leaving the definition
+// name. Types carrying no version are returned unchanged.
+func baseDefinitionName(definitionType string) string {
+	return velacache.BaseTypeName(definitionType)
+}
+
 // definitionExistsInNamespace checks if a definition actually exists in the specified namespace
 func (h *ValidatingHandler) definitionExistsInNamespace(ctx context.Context, resource, name, namespace string) (bool, error) {
 	// Determine the object type based on the resource
@@ -207,6 +267,14 @@ func (h *ValidatingHandler) definitionExistsInNamespace(ctx context.Context, res
 		obj = &v1beta1.PolicyDefinition{}
 	case "workflowstepdefinitions":
 		obj = &v1beta1.WorkflowStepDefinition{}
+	case "sourcedefinitions":
+		u := &unstructured.Unstructured{}
+		u.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   v1beta1.Group,
+			Version: v1beta1.Version,
+			Kind:    "SourceDefinition",
+		})
+		obj = u
 	default:
 		return false, fmt.Errorf("unknown resource type: %s", resource)
 	}
@@ -239,6 +307,7 @@ type definitionUsage struct {
 	traitTypes        map[string][][2]int
 	policyTypes       map[string][]int
 	workflowStepTypes map[string][]workflowStepLocation
+	sourceTypes       map[string][]int
 }
 
 // collectDefinitionUsage collects all unique definition types and their locations in the application
@@ -248,6 +317,7 @@ func collectDefinitionUsage(app *v1beta1.Application) *definitionUsage {
 		traitTypes:        make(map[string][][2]int),
 		policyTypes:       make(map[string][]int),
 		workflowStepTypes: make(map[string][]workflowStepLocation),
+		sourceTypes:       make(map[string][]int),
 	}
 
 	// Collect component and trait types
@@ -284,6 +354,9 @@ func collectDefinitionUsage(app *v1beta1.Application) *definitionUsage {
 				usage.workflowStepTypes[subStep.Type] = append(usage.workflowStepTypes[subStep.Type], subLocation)
 			}
 		}
+	}
+	for i, source := range app.Spec.Sources {
+		usage.sourceTypes[source.Type] = append(usage.sourceTypes[source.Type], i)
 	}
 
 	return usage
@@ -337,38 +410,83 @@ func (h *ValidatingHandler) validateDefinitions(
 ) field.ErrorList {
 	var errs field.ErrorList
 
-	// Get the definition info for the given type
-	defInfo, ok := v1beta1.DefinitionTypeMap[definitionType]
-	if !ok {
-		klog.Errorf("Unknown definition type: %v", definitionType)
-		return errs
+	resolveAndCheck := func(defType string, fieldPaths []*field.Path) field.ErrorList {
+		return h.permitDefinition(ctx, req, appNamespace, definitionType, defType, fieldPaths)
 	}
 
 	switch typedMap := usageMap.(type) {
 	case map[string][]int:
 		for defType, indices := range typedMap {
-			allowed, err := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, defType, appNamespace)
-			fieldPaths := buildFieldPaths(indices)
-			errs = append(errs, h.processDefinitionPermissionCheck(
-				allowed, err, req, defInfo.Kind, defType, appNamespace, fieldPaths)...)
+			errs = append(errs, resolveAndCheck(defType, buildFieldPaths(indices))...)
 		}
 	case map[string][][2]int:
 		for defType, locations := range typedMap {
-			allowed, err := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, defType, appNamespace)
-			fieldPaths := buildFieldPaths(locations)
-			errs = append(errs, h.processDefinitionPermissionCheck(
-				allowed, err, req, defInfo.Kind, defType, appNamespace, fieldPaths)...)
+			errs = append(errs, resolveAndCheck(defType, buildFieldPaths(locations))...)
 		}
 	case map[string][]workflowStepLocation:
 		for defType, locations := range typedMap {
-			allowed, err := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, defType, appNamespace)
-			fieldPaths := buildFieldPaths(locations)
-			errs = append(errs, h.processDefinitionPermissionCheck(
-				allowed, err, req, defInfo.Kind, defType, appNamespace, fieldPaths)...)
+			errs = append(errs, resolveAndCheck(defType, buildFieldPaths(locations))...)
 		}
 	}
 
 	return errs
+}
+
+// permitDefinition resolves a type string to its installed name, checks the requester may use it,
+// then that it exists, reporting each problem at fieldPaths. Resolution and existence errors are
+// field errors so the user sees them at apply time rather than in the application status.
+func (h *ValidatingHandler) permitDefinition(ctx context.Context, req admission.Request, appNamespace string,
+	definitionType reflect.Type, defType string, fieldPaths []*field.Path) field.ErrorList {
+	defInfo, ok := v1beta1.DefinitionTypeMap[definitionType]
+	if !ok {
+		klog.Errorf("Unknown definition type: %v", definitionType)
+		return nil
+	}
+	// Set the app namespace so ResolveModuleType can search the right namespaces.
+	ctx = oamutil.SetNamespaceInCtx(ctx, appNamespace)
+	capType := capTypeFromDefinitionType(definitionType)
+	toFieldErrs := func(msg string) field.ErrorList {
+		ferrs := make(field.ErrorList, len(fieldPaths))
+		for i, fp := range fieldPaths {
+			ferrs[i] = field.Invalid(fp, defType, msg)
+		}
+		return ferrs
+	}
+	resolved, err := appfile.ResolveModuleType(ctx, h.Client, defType, capType)
+	if err != nil {
+		return toFieldErrs(err.Error())
+	}
+	// Permission is checked before existence, deliberately. Resolution has to
+	// come first so the check runs against the installed name rather than the
+	// "s3/v1/bucket" spelling, but reporting existence to a caller who has no
+	// permission on the definition would hand them an existence oracle they
+	// did not have before type resolution was introduced.
+	allowed, permErr := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, resolved, appNamespace)
+	if permErrs := h.processDefinitionPermissionCheck(allowed, permErr, req, defInfo.Kind, resolved, appNamespace, fieldPaths); len(permErrs) > 0 {
+		return permErrs
+	}
+	// Permitted: now confirm the definition is actually installed. This is what
+	// catches a Form 3 reference, whose resolution is pure string math and never
+	// touches the cluster.
+	if err := appfile.DefinitionExists(ctx, h.Client, baseDefinitionName(resolved), capType); err != nil {
+		return toFieldErrs(err.Error())
+	}
+	return nil
+}
+
+// capTypeFromDefinitionType maps a reflect.Type for a definition struct to the
+// corresponding types.CapType used by ResolveModuleType.
+func capTypeFromDefinitionType(definitionType reflect.Type) types.CapType {
+	switch definitionType {
+	case reflect.TypeOf(v1beta1.TraitDefinition{}):
+		return types.TypeTrait
+	case reflect.TypeOf(v1beta1.PolicyDefinition{}):
+		return types.TypePolicy
+	case reflect.TypeOf(v1beta1.WorkflowStepDefinition{}):
+		return types.TypeWorkflowStep
+	default:
+		return types.TypeComponentDefinition
+	}
 }
 
 // ValidateDefinitionPermissions validates that the user has permissions to access all definition types
@@ -379,52 +497,67 @@ func (h *ValidatingHandler) ValidateDefinitionPermissions(ctx context.Context, a
 	}
 
 	var errs field.ErrorList
+	// Only the types the Application names are checked, never what they extend.
+	// Granting a team an abstraction and not the expressive definition under it
+	// is the point: the abstraction is the capability.
 	usage := collectDefinitionUsage(app)
 
 	// Validate ComponentDefinitions
 	errs = append(errs, h.validateDefinitions(ctx, req, app.Namespace,
 		reflect.TypeOf(v1beta1.ComponentDefinition{}), usage.componentTypes,
 		func(indices interface{}) []*field.Path {
-			var paths []*field.Path
-			for _, idx := range indices.([]int) {
-				paths = append(paths, field.NewPath("spec", "components").Index(idx).Child("type"))
-			}
-			return paths
+			return componentTypePaths(indices.([]int))
 		})...)
 
 	// Validate TraitDefinitions
 	errs = append(errs, h.validateDefinitions(ctx, req, app.Namespace,
 		reflect.TypeOf(v1beta1.TraitDefinition{}), usage.traitTypes,
 		func(locations interface{}) []*field.Path {
-			var paths []*field.Path
-			for _, loc := range locations.([][2]int) {
-				paths = append(paths,
-					field.NewPath("spec", "components").Index(loc[0]).Child("traits").Index(loc[1]).Child("type"))
-			}
-			return paths
+			return traitTypePaths(locations.([][2]int))
 		})...)
 
 	// Validate PolicyDefinitions
 	errs = append(errs, h.validateDefinitions(ctx, req, app.Namespace,
 		reflect.TypeOf(v1beta1.PolicyDefinition{}), usage.policyTypes,
 		func(indices interface{}) []*field.Path {
-			var paths []*field.Path
-			for _, idx := range indices.([]int) {
-				paths = append(paths, field.NewPath("spec", "policies").Index(idx).Child("type"))
-			}
-			return paths
+			return policyTypePaths(indices.([]int))
 		})...)
 
 	// Validate WorkflowStepDefinitions
 	errs = append(errs, h.validateDefinitions(ctx, req, app.Namespace,
 		reflect.TypeOf(v1beta1.WorkflowStepDefinition{}), usage.workflowStepTypes,
 		func(locations interface{}) []*field.Path {
-			var paths []*field.Path
-			for _, loc := range locations.([]workflowStepLocation) {
-				paths = append(paths, getWorkflowStepFieldPath(loc))
-			}
-			return paths
+			return workflowStepTypePaths(locations.([]workflowStepLocation))
 		})...)
+	for sourceType, indices := range usage.sourceTypes {
+		allowed, err := h.checkDefinitionPermission(ctx, req, "sourcedefinitions", sourceType, app.Namespace)
+		fieldPaths := sourceTypePaths(indices)
+		errs = append(errs, h.processDefinitionPermissionCheck(
+			allowed, err, req, "SourceDefinition", sourceType, app.Namespace, fieldPaths)...)
+	}
+
+	// What the Application reaches through references is checked as if it were named inline,
+	// and the requester must be able to read each object it reaches it through: the controller
+	// reads them with its own identity and runs what they name.
+	r := indirectReach(ctx, h.Client, app)
+	for _, u := range r.unreadable {
+		errs = append(errs, field.InternalError(u.path, u.err))
+	}
+	for _, obj := range r.objects {
+		allowed, err := auth.UserCan(ctx, h.Client, req.UserInfo, authv1.ResourceAttributes{
+			Verb: "get", Group: "core.oam.dev", Version: "v1alpha1", Resource: obj.resource, Namespace: obj.namespace, Name: obj.name,
+		})
+		switch {
+		case err != nil:
+			errs = append(errs, field.InternalError(obj.path, fmt.Errorf("cannot check access to %s %s/%s: %w", obj.kind, obj.namespace, obj.name, err)))
+		case !allowed:
+			errs = append(errs, field.Forbidden(obj.path, fmt.Sprintf("user %q cannot read %s %q in namespace %q, which this field references",
+				req.UserInfo.Username, obj.kind, obj.name, obj.namespace)))
+		}
+	}
+	for _, use := range r.uses {
+		errs = append(errs, h.permitDefinition(ctx, req, app.Namespace, reflect.TypeOf(use.newDef()).Elem(), use.defType, []*field.Path{use.path})...)
+	}
 
 	return errs
 }
@@ -440,8 +573,19 @@ func getWorkflowStepFieldPath(loc workflowStepLocation) *field.Path {
 }
 
 // ValidateAnnotations validates whether the application has both autoupdate and publish version annotations
-func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.Application) field.ErrorList {
+func (h *ValidatingHandler) ValidateAnnotations(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
 	var annotationsErrs field.ErrorList
+
+	// Only adding the opt-out is refused, and only while global policies apply at all. An app
+	// that already carries it stays updatable; the controller ignores the annotation there.
+	carriedForward := oldApp != nil && oldApp.Annotations[oam.AnnotationSkipGlobalPolicies] == "true"
+	globalsApply := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) &&
+		utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies)
+	if app.Annotations[oam.AnnotationSkipGlobalPolicies] == "true" && !carriedForward && globalsApply && !commonconfig.AllowSkipGlobalPolicies {
+		annotationsErrs = append(annotationsErrs, field.Forbidden(
+			field.NewPath("metadata", "annotations").Key(oam.AnnotationSkipGlobalPolicies),
+			"global platform policies are mandatory; applications cannot opt out of them"))
+	}
 
 	hasPublishVersion := app.Annotations[oam.AnnotationPublishVersion]
 	hasAutoUpdate := app.Annotations[oam.AnnotationAutoUpdate]
@@ -449,23 +593,473 @@ func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.
 		annotationsErrs = append(annotationsErrs, field.Invalid(field.NewPath("metadata", "annotations"), app,
 			"Application has both autoUpdate and publishVersion annotations. Only one can be present"))
 	}
+
+	// modules.oam.dev/install-namespace redirects where a type: module
+	// component's definitions install (vela-templates/.../module.cue's
+	// _fromAddon check). Only the addon renderer is meant to set it, on the
+	// addon's own owned Application; a user's own Application setting it
+	// directly would otherwise redirect a module install into any namespace
+	// the controller can reach, bypassing namespace restrictions and RBAC.
+	//
+	// Only a write that actually introduces, changes, or removes the value
+	// is checked -- removal matters too: clearing an already-set annotation
+	// flips _fromAddon back to false, silently falling through to
+	// context.namespace (vela-system, for the addon's owned Application),
+	// the same bypass as setting an arbitrary value, just landing on a
+	// fixed one instead of an attacker-chosen one. A write that carries an
+	// already-admitted value forward exactly as it was (present and equal,
+	// or absent on both sides) is left alone no matter who makes it: that
+	// state was already vetted, and requiring every subsequent write to
+	// come from the controller would make the addon's own owned Application
+	// unupdatable by anything else once the annotation lands on it.
+	newVal, hasNew := app.Annotations[oam.AnnotationModuleInstallNamespace]
+	var oldVal string
+	var hadOld bool
+	if oldApp != nil {
+		oldVal, hadOld = oldApp.Annotations[oam.AnnotationModuleInstallNamespace]
+	}
+	unchanged := hasNew == hadOld && oldVal == newVal
+	if !unchanged {
+		// The controller writes for every tenant, so being the controller only proves the write
+		// came through dispatch. The renderer records the installing Application's namespace, so a
+		// write is the renderer's when the modules would install where the Application that
+		// dispatched it lives: the annotation's value, or without it the Application's own namespace.
+		// An addon's owned Application lives in vela-system and passes its admitted value on to the
+		// module Applications it dispatches, so a dispatcher carrying the same value also vouches.
+		installsInto := app.Namespace
+		if hasNew {
+			installsInto = newVal
+		}
+		dispatcher := dispatchingNamespace(app)
+		renderer := h.fromController(req) && dispatcher != "" &&
+			(installsInto == dispatcher || newVal != "" && h.dispatcherInstallsInto(ctx, app) == newVal)
+		if !renderer {
+			annotationsErrs = append(annotationsErrs, field.Forbidden(
+				field.NewPath("metadata", "annotations").Key(oam.AnnotationModuleInstallNamespace),
+				"only the addon renderer may set or remove this annotation, for the namespace of the Application that installs the addon"))
+		}
+	}
 	return annotationsErrs
 }
 
-// ValidateCreate validates the Application on creation
-func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
-	var errs field.ErrorList
+// dispatcherInstallsInto is the install-namespace annotation of the Application that dispatched
+// obj, or "" when it has none or cannot be read. It reads live where it can, as a dispatcher
+// created moments before may not be in the cache yet.
+func (h *ValidatingHandler) dispatcherInstallsInto(ctx context.Context, obj metav1.Object) string {
+	labels := obj.GetLabels()
+	name, namespace := labels[oam.LabelAppName], labels[oam.LabelAppNamespace]
+	if name == "" || namespace == "" {
+		return ""
+	}
+	var reader client.Reader = h.Client
+	if h.APIReader != nil {
+		reader = h.APIReader
+	}
+	if reader == nil {
+		return ""
+	}
+	dispatcher := &v1beta1.Application{}
+	if err := reader.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, dispatcher); err != nil {
+		return ""
+	}
+	return dispatcher.Annotations[oam.AnnotationModuleInstallNamespace]
+}
 
-	errs = append(errs, h.ValidateAnnotations(ctx, app)...)
-	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
-	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
-	errs = append(errs, h.ValidateComponents(ctx, app)...)
+// ValidateTraitConflicts validates TraitDefinition.spec.conflictsWith for traits
+// attached to the same component. Kept outside ValidateComponents so it still
+// runs when sharding skips component schematic validation.
+func (h *ValidatingHandler) ValidateTraitConflicts(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+	var errs field.ErrorList
+	defCtx := oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+
+	// Cache resolved TraitDefinitions across components so each trait type is fetched once.
+	defCache := make(map[string]*v1beta1.TraitDefinition)
+	getTraitDefinition := func(traitType string) (*v1beta1.TraitDefinition, error) {
+		if def, ok := defCache[traitType]; ok {
+			return def, nil
+		}
+		def := &v1beta1.TraitDefinition{}
+		if err := oamutil.GetCapabilityDefinition(defCtx, h.Client, def, traitType, app.GetAnnotations()); err != nil {
+			if errors.IsNotFound(err) {
+				// Existence is validated elsewhere; missing defs are skipped here.
+				defCache[traitType] = nil
+				return nil, nil
+			}
+			return nil, err
+		}
+		defCache[traitType] = def
+		return def, nil
+	}
+
+	for compIdx, comp := range app.Spec.Components {
+		if len(comp.Traits) < 2 {
+			continue
+		}
+
+		type attachedTrait struct {
+			traitIdx int
+			def      *v1beta1.TraitDefinition
+		}
+		var attached []attachedTrait
+		for i, trait := range comp.Traits {
+			// Resolve Form 1/2/3 type strings to the installed Kubernetes name before
+			// looking up the TraitDefinition. On resolution error (invalid syntax,
+			// ambiguous) we skip this trait: type existence is validated elsewhere and
+			// we must not block admission solely because conflict detection can't run.
+			resolved, err := appfile.ResolveModuleType(defCtx, h.Client, trait.Type, types.TypeTrait)
+			if err != nil {
+				continue
+			}
+			def, err := getTraitDefinition(resolved)
+			if err != nil {
+				// Fail closed so unresolved definitions cannot bypass conflict checks, but
+				// log so operators can distinguish transient API/cache failures from policy rejects.
+				klog.Errorf("Failed to resolve TraitDefinition %q for conflict validation: %v", trait.Type, err)
+				errs = append(errs, field.InternalError(
+					field.NewPath("spec", "components").Index(compIdx).Child("traits").Index(i).Child("type"),
+					err))
+				continue
+			}
+			if def != nil {
+				def, err = withInheritedConflicts(def, getTraitDefinition)
+				if err != nil {
+					errs = append(errs, field.InternalError(
+						field.NewPath("spec", "components").Index(compIdx).Child("traits").Index(i).Child("type"), err))
+					continue
+				}
+				attached = append(attached, attachedTrait{traitIdx: i, def: def})
+			}
+		}
+
+		for i := 0; i < len(attached); i++ {
+			for j := i + 1; j < len(attached); j++ {
+				first, second := attached[i], attached[j]
+				// Matching is unidirectional: either side declaring the other is enough.
+				if traitConflictsWith(first.def, second.def) || traitConflictsWith(second.def, first.def) {
+					errs = append(errs, field.Invalid(
+						field.NewPath("spec", "components").Index(compIdx).Child("traits").Index(second.traitIdx).Child("type"),
+						second.def.Name,
+						fmt.Sprintf("trait %q conflicts with trait %q on component %q", first.def.Name, second.def.Name, comp.Name)))
+				}
+			}
+		}
+	}
+
 	return errs
 }
 
+// withInheritedConflicts returns def with the conflictsWith it inherits: a trait that declares
+// none takes its nearest ancestor's, as rendering does.
+func withInheritedConflicts(def *v1beta1.TraitDefinition, get func(string) (*v1beta1.TraitDefinition, error)) (*v1beta1.TraitDefinition, error) {
+	if len(def.Spec.ConflictsWith) > 0 || def.Spec.Extends == "" {
+		return def, nil
+	}
+	seen := map[string]bool{def.Name: true}
+	for current := def; current.Spec.Extends != ""; {
+		parentName := baseDefinitionName(current.Spec.Extends)
+		if seen[parentName] {
+			return def, nil // a cycle, refused where definitions are validated
+		}
+		seen[parentName] = true
+		parent, err := get(parentName)
+		if err != nil || parent == nil {
+			return def, err
+		}
+		if len(parent.Spec.ConflictsWith) > 0 {
+			inherited := def.DeepCopy()
+			inherited.Spec.ConflictsWith = parent.Spec.ConflictsWith
+			return inherited, nil
+		}
+		current = parent
+	}
+	return def, nil
+}
+
+// traitConflictsWith reports whether def's conflictsWith rules match target.
+func traitConflictsWith(def, target *v1beta1.TraitDefinition) bool {
+	for _, rule := range def.Spec.ConflictsWith {
+		if traitConflictRuleMatches(rule, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// traitConflictRuleMatches checks a single conflictsWith rule against a TraitDefinition.
+// Supported rule forms (see TraitDefinitionSpec.ConflictsWith docs):
+//   - "*"                    matches any trait
+//   - "<definition-name>"    matches the trait definition's name
+//   - "<crd-name>"           matches the trait's referenced CRD name (definitionRef.name)
+//   - "*.<group>"            matches any CRD in the given API group
+//   - "labelSelector:<expr>" matches the trait definition's labels against a label selector
+func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool {
+	switch {
+	case rule == "*":
+		return true
+	case strings.HasPrefix(rule, "labelSelector:"):
+		selector, err := labels.Parse(strings.TrimPrefix(rule, "labelSelector:"))
+		if err != nil {
+			return false
+		}
+		return selector.Matches(labels.Set(target.GetLabels()))
+	case rule == target.Name:
+		return true
+	case target.Spec.Reference.Name != "" && rule == target.Spec.Reference.Name:
+		return true
+	case strings.HasPrefix(rule, "*."):
+		group := strings.TrimPrefix(rule, "*.")
+		refName := target.Spec.Reference.Name
+		if refName == "" {
+			return false
+		}
+		if dot := strings.Index(refName, "."); dot >= 0 {
+			return refName[dot+1:] == group
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+// ValidateCreate validates the Application on creation.
+//
+// Validation runs in two phases, and the second is not attempted when the first
+// finds anything:
+//
+//	soundness   is the Application well-formed?  expressions compile, their types
+//	            fit the parameters they feed, sources are declared and ordered,
+//	            names are unique, permissions hold
+//	rendering   does it actually render?  generate the appfile, evaluate every
+//	            template and trait, resolve every source for real
+//
+// The gate earns its place twice. Rendering restates soundness failures in the
+// evaluator's words and against a coarser field path, so the same mistake would
+// be reported twice and the second telling is the worse one. And rendering is
+// not free of consequence: resolving a source at admission issues whatever HTTP,
+// git or Kubernetes reads its definition performs, so an Application already
+// known to be invalid would still reach out to the world before being refused.
+//
+// The cost is that a soundness failure hides any rendering failure until it is
+// fixed - the usual compiler trade, fewer and more precise errors per round, and
+// the reason the phases are named in the errors they produce.
+func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
+	// First, before anything reads or compiles the Application's CUE.
+	if errs := ValidateCUEDepth(app); len(errs) > 0 {
+		return errs, nil
+	}
+	if errs := h.ValidateEarlierTrackers(ctx, app); len(errs) > 0 {
+		return errs, nil
+	}
+	errs, warnings := h.validateSoundness(ctx, app, nil, req)
+	if len(errs) > 0 {
+		return errs, warnings
+	}
+	return h.validateRendering(ctx, app), warnings
+}
+
+// validateSoundness runs every check that can be made without rendering: whether
+// the Application is well-formed, its expressions compile, their types fit the
+// parameters they feed, its sources are declared and ordered, its names unique.
+//
+// Nothing here evaluates a template or resolves a source, so it is cheap and has
+// no side effects.
+func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
+	errs := h.validateRequester(ctx, app, oldApp, req)
+	contentErrs, warnings := h.validateContent(ctx, app, oldApp)
+	return append(errs, contentErrs...), warnings
+}
+
+// validateRequester runs the soundness checks that turn on who is asking: whether they may set
+// the annotations they set, use the definitions the Application names, and install the addons
+// its addon components name.
+func (h *ValidatingHandler) validateRequester(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
+	errs := h.ValidateAnnotations(ctx, app, oldApp, req)
+	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
+	return append(errs, h.ValidateAddonInstallers(ctx, app, req)...)
+}
+
+// validateContent runs the soundness checks on what the Application says.
+func (h *ValidatingHandler) validateContent(ctx context.Context, app, oldApp *v1beta1.Application) (field.ErrorList, []string) {
+	errs, warnings := h.ValidateDefinitionRestrictions(ctx, app, oldApp)
+	errs = append(errs, h.ValidateSources(ctx, app)...)
+	errs = append(errs, h.ValidateAbstractTypes(ctx, app)...)
+	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
+	errs = append(errs, h.ValidateComponentNames(ctx, app)...)
+	errs = append(errs, h.ValidateTraitConflicts(ctx, app)...)
+	return errs, warnings
+}
+
+// validateRendering renders the Application's components.
+func (h *ValidatingHandler) validateRendering(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+	errs := h.ValidateComponents(ctx, app)
+	errs = append(errs, h.ValidateAddonComponents(ctx, app)...)
+	return append(errs, h.ValidateModuleComponents(ctx, app)...)
+}
+
 // ValidateUpdate validates the Application on update
-func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
-	errs := h.ValidateCreate(ctx, newApp, req)
+//
+// The immutable-field check is soundness, not rendering, so it gates the render
+// alongside the rest rather than being reported after it.
+//
+// An update that leaves the spec as it is cannot be refused for a problem the stored
+// Application already has: a rule added since it was admitted would otherwise refuse every
+// later label, annotation or publishVersion change, and only deletion would get past it. Such a
+// problem is returned as a warning. The checks on who is asking, and any spec change, are
+// enforced in full.
+func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
+	// First, and with no allowance for an unchanged spec: the controller compiles this CUE on
+	// every reconcile, so it is never let through.
+	if errs := ValidateCUEDepth(newApp); len(errs) > 0 {
+		return errs, nil
+	}
+	// A definition removed since is no rule that changed: the Application can no longer render,
+	// so its update is validated in full.
+	specUnchanged := apiequality.Semantic.DeepEqual(newApp.Spec, oldApp.Spec) && !h.usesMissingDefinition(ctx, newApp)
+	errs := h.validateRequester(ctx, newApp, oldApp, req)
 	errs = append(errs, h.ValidateImmutableFields(ctx, newApp, oldApp)...)
+	contentErrs, warnings := h.validateContent(ctx, newApp, oldApp)
+	contentErrs, stored := withoutStoredProblems(contentErrs, specUnchanged, func() field.ErrorList {
+		storedErrs, _ := h.validateContent(ctx, oldApp, oldApp)
+		return storedErrs
+	})
+	errs = append(errs, contentErrs...)
+	warnings = append(warnings, stored...)
+	if len(errs) > 0 {
+		return errs, warnings
+	}
+	renderErrs, stored := withoutStoredProblems(h.validateRendering(ctx, newApp), specUnchanged, func() field.ErrorList {
+		return h.validateRendering(ctx, oldApp)
+	})
+	return renderErrs, append(warnings, stored...)
+}
+
+// usesMissingDefinition reports a type in app whose definition does not exist: a component, trait,
+// policy, workflow step or source type, resolved as admission resolves it (Form 3 module references
+// included). Built-in policy and workflow step types have no definition and are left out; a type
+// that does not resolve at all is a different problem, reported by the rest of validation.
+func (h *ValidatingHandler) usesMissingDefinition(ctx context.Context, app *v1beta1.Application) bool {
+	defCtx := oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	missing := func(typ string, capType types.CapType, def client.Object) bool {
+		resolved, err := appfile.ResolveModuleType(defCtx, h.Client, typ, capType)
+		if err != nil {
+			return false
+		}
+		return errors.IsNotFound(oamutil.GetDefinition(defCtx, h.Client, def, baseDefinitionName(resolved)))
+	}
+	for _, comp := range app.Spec.Components {
+		if missing(comp.Type, types.TypeComponentDefinition, &v1beta1.ComponentDefinition{}) {
+			return true
+		}
+		for _, trait := range comp.Traits {
+			if missing(trait.Type, types.TypeTrait, &v1beta1.TraitDefinition{}) {
+				return true
+			}
+		}
+	}
+	for _, policy := range app.Spec.Policies {
+		if !appfile.IsBuiltinPolicyType(policy.Type) && missing(policy.Type, types.TypePolicy, &v1beta1.PolicyDefinition{}) {
+			return true
+		}
+	}
+	for _, src := range app.Spec.Sources {
+		if missing(src.Type, types.TypeSource, &v1beta1.SourceDefinition{}) {
+			return true
+		}
+	}
+	if app.Spec.Workflow != nil {
+		stepMissing := func(typ string) bool {
+			return !step.IsBuiltinWorkflowStepType(typ) && missing(typ, types.TypeWorkflowStep, &v1beta1.WorkflowStepDefinition{})
+		}
+		for _, s := range app.Spec.Workflow.Steps {
+			if stepMissing(s.Type) {
+				return true
+			}
+			for _, sub := range s.SubSteps {
+				if stepMissing(sub.Type) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// withoutStoredProblems returns errs less those the stored Application also has, and a warning
+// for each of those, when the spec is unchanged; otherwise errs as they are. The stored
+// Application is validated only when there is something to compare. Errors are compared by
+// path, type and detail: some carry the whole Application as their value, metadata included.
+func withoutStoredProblems(errs field.ErrorList, specUnchanged bool, validateStored func() field.ErrorList) (field.ErrorList, []string) {
+	if len(errs) == 0 || !specUnchanged {
+		return errs, nil
+	}
+	type problem struct{ path, kind, detail string }
+	key := func(e *field.Error) problem { return problem{e.Field, string(e.Type), e.Detail} }
+	had := map[problem]bool{}
+	for _, e := range validateStored() {
+		had[key(e)] = true
+	}
+	var refused field.ErrorList
+	var warnings []string
+	for _, e := range errs {
+		if had[key(e)] {
+			warnings = append(warnings, fmt.Sprintf("%s: %s (the stored Application already has this problem; fix it before changing the spec)", e.Field, e.Detail))
+			continue
+		}
+		refused = append(refused, e)
+	}
+	return refused, warnings
+}
+
+// storedApplicationUID is the uid of the Application stored under app's name, empty for none. It
+// reads live where it can: the cache may not yet hold an Application created moments before.
+func (h *ValidatingHandler) storedApplicationUID(ctx context.Context, app *v1beta1.Application) (string, error) {
+	var reader client.Reader = h.Client
+	if h.APIReader != nil {
+		reader = h.APIReader
+	}
+	stored := &v1beta1.Application{}
+	if err := reader.Get(ctx, client.ObjectKeyFromObject(app), stored); err != nil {
+		return "", client.IgnoreNotFound(err)
+	}
+	return string(stored.UID), nil
+}
+
+// ValidateEarlierTrackers refuses a new Application while ResourceTrackers of an earlier
+// Application of its name and namespace remain, as a restore that included them leaves: the
+// controller would refuse them on every reconcile. A tracker without the uid label is taken over
+// by the next Application of the name, which is the remedy the refusal gives for a restore.
+func (h *ValidatingHandler) ValidateEarlierTrackers(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+	rts := &v1beta1.ResourceTrackerList{}
+	if err := h.Client.List(ctx, rts, client.MatchingLabels{oam.LabelAppName: app.Name, oam.LabelAppNamespace: app.Namespace}); err != nil {
+		return field.ErrorList{field.InternalError(field.NewPath("metadata", "name"), fmt.Errorf("list ResourceTrackers: %w", err))}
+	}
+	var errs field.ErrorList
+	stored, looked := "", false
+	for _, rt := range rts.Items {
+		uid := rt.Labels[oam.LabelAppUID]
+		if uid == "" || uid == string(app.UID) {
+			continue
+		}
+		// A create gets its uid before admission and is refused as AlreadyExists only after it,
+		// so the trackers of an Application still stored under this name are not an earlier one's.
+		if !looked {
+			var err error
+			if stored, err = h.storedApplicationUID(ctx, app); err != nil {
+				return field.ErrorList{field.InternalError(field.NewPath("metadata", "name"), fmt.Errorf("get Application: %w", err))}
+			}
+			looked = true
+		}
+		if uid == stored {
+			continue
+		}
+		deleting := ""
+		if rt.DeletionTimestamp != nil {
+			deleting = " It is being deleted, but only the Application that made it finishes that, and that Application is gone."
+		}
+		errs = append(errs, field.Forbidden(field.NewPath("metadata", "name"), fmt.Sprintf(
+			"ResourceTracker %s of an earlier Application %s/%s (uid %s) still exists, as a restore that included ResourceTrackers leaves.%s %s. "+
+				"Then apply the Application again.",
+			rt.Name, app.Namespace, app.Name, uid, deleting, appkeeper.ForeignTrackerRemedy(rt.Name))))
+	}
 	return errs
 }

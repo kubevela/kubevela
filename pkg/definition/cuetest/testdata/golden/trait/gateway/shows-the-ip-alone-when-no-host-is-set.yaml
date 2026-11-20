@@ -1,0 +1,5 @@
+details: {}
+healthy: true
+message: |
+  Host not specified, visit the cluster or load balancer in front of the cluster, IP: 203.0.113.7
+traits: {}

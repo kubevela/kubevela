@@ -1,0 +1,40 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: web
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cuetest-workload
+    name: web
+    namespace: default
+outputs:
+  ingress:
+    apiVersion: networking.k8s.io/v1beta1
+    kind: Ingress
+    metadata:
+      annotations: {}
+      labels:
+        app.oam.dev/appRevision: shop-v1
+        app.oam.dev/component: web
+        app.oam.dev/name: shop
+        app.oam.dev/namespace: default
+        app.oam.dev/resourceType: TRAIT
+        trait.oam.dev/resource: ingress
+        trait.oam.dev/type: pure-ingress
+      name: web
+      namespace: default
+    spec:
+      rules:
+      - host: shop.example.com
+        http:
+          paths:
+          - backend:
+              serviceName: web
+              servicePort: 80
+            path: /

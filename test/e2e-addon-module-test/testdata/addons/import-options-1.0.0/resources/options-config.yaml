@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: import-options-config
+  namespace: vela-system
+data:
+  scenario: "05"

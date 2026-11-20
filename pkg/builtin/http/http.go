@@ -22,16 +22,22 @@ import (
 	"crypto/x509"
 	"io"
 	"net/http"
-	"time"
+	neturl "net/url"
 
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
+
+// maxRedirects matches the redirect limit of net/http.
+const maxRedirects = 10
 
 func init() {
 	registry.RegisterRunner("http", newHTTPCmd)
@@ -44,8 +50,19 @@ func newHTTPCmd(_ cue.Value) (registry.Runner, error) {
 	return &HTTPCmd{}, nil
 }
 
+func workflowHTTPPolicy() httpguard.Policy {
+	policy := httpguard.Current()
+	if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.BlockPrivateHTTPAddresses) {
+		policy.BlockPrivate = true
+	}
+	return policy
+}
+
 // Run exec the actual http logic, and res represent the result of http task
 func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
+	if utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.DisableWorkflowHTTP) {
+		return nil, errors.New("workflow outbound HTTP is disabled by DisableWorkflowHTTP feature gate")
+	}
 	var header, trailer http.Header
 	var (
 		method = meta.String("method")
@@ -53,12 +70,31 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	)
 	var (
 		r      io.Reader
+		policy = workflowHTTPPolicy()
 		client = &http.Client{
-			Transport: http.DefaultTransport,
-			Timeout:   time.Second * 3,
+			Transport: httpguard.SecureTransport(http.DefaultTransport.(*http.Transport).Clone(), policy),
+			Timeout:   httpguard.DefaultTimeout(),
+			// A custom CheckRedirect replaces the net/http default, so the
+			// redirect limit is enforced here too.
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= maxRedirects {
+					return errors.Errorf("stopped after %d redirects", maxRedirects)
+				}
+				return policy.BlockedHost(req.URL.Host)
+			},
 		}
 	)
 	if obj := meta.Obj.LookupPath(value.FieldPath("request")); obj.Exists() {
+		// request.timeout is a duration string, bounded as a workflow HTTP request's is.
+		if v := obj.LookupPath(value.FieldPath("timeout")); v.Exists() {
+			timeoutStr, err := v.String()
+			if err != nil {
+				return nil, errors.WithMessage(err, "parse timeout")
+			}
+			if client.Timeout, err = httpguard.RequestTimeout(timeoutStr); err != nil {
+				return nil, err
+			}
+		}
 		if v := obj.LookupPath(value.FieldPath("body")); v.Exists() {
 			r, err = v.Reader()
 			if err != nil {
@@ -80,9 +116,18 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		return nil, meta.Err
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), method, u, r)
+	ctx := meta.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, r)
 	if err != nil {
 		return nil, err
+	}
+	if parsed, err := neturl.Parse(u); err == nil {
+		if err := policy.BlockedHost(parsed.Host); err != nil {
+			return nil, err
+		}
 	}
 	req.Header = header
 	req.Trailer = trailer
@@ -120,7 +165,12 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 			tr.TLSClientConfig.Certificates = []tls.Certificate{cliCrt}
 		}
 
-		client.Transport = tr
+		client.Transport = httpguard.SecureTransport(tr, workflowHTTPPolicy())
+	}
+	// The transport is built for this run, so release its idle connections when
+	// the run ends.
+	if t, ok := client.Transport.(*http.Transport); ok {
+		defer t.CloseIdleConnections()
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -128,14 +178,16 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	}
 	//nolint:errcheck
 	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
-	// parse response body and headers
+	b, err := httpguard.ReadResponseBody(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]interface{}{
 		"body":       string(b),
 		"header":     resp.Header,
 		"trailer":    resp.Trailer,
 		"statusCode": resp.StatusCode,
-	}, err
+	}, nil
 }
 
 func parseHeaders(obj cue.Value, label string) (http.Header, error) {

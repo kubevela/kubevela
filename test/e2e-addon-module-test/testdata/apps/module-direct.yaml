@@ -1,0 +1,13 @@
+# A type: module component used directly, without an addon.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: module-direct
+  namespace: default
+spec:
+  components:
+    - name: gadget-kit
+      type: module
+      properties:
+        registry: e2e-modules
+        version: "1.0.0"

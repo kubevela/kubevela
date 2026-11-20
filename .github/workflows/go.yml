@@ -16,8 +16,8 @@ permissions: # added using https://github.com/step-security/secure-workflows
 
 env:
   # Common versions
-  GO_VERSION: "1.23.8"
-  GOLANGCI_VERSION: "v1.60.1"
+  GO_VERSION: "1.27.1"
+  GOLANGCI_VERSION: "v2.14.0"
 
 jobs:
   detect-noop:
@@ -82,7 +82,7 @@ jobs:
       # version, but we prefer this action because it leaves 'annotations' (i.e.
       # it comments on PRs to point out linter violations).
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_VERSION }}
 
@@ -122,6 +122,9 @@ jobs:
 
       - name: Setup kinD
         uses: ./.github/actions/setup-kind-cluster
+        with:
+          # Nothing in check-diff deploys vela-core, so skip building its image.
+          load-image: 'false'
 
       - name: Run cross-build
         run: make cross-build
@@ -148,9 +151,6 @@ jobs:
         run: |
           export PATH=$(pwd)/bin/:$PATH
           make check-diff
-
-      - name: Cleanup binary
-        run: make build-cleanup
 
   check-windows:
     runs-on: windows-latest

@@ -750,3 +750,11 @@ func TestExtractParameterFromFiles(t *testing.T) {
 		assert.Contains(t, out, ca.contains, key)
 	}
 }
+
+func TestParseLocalFilesSkipsCUETestFiles(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "web_test.cue"), []byte(`import "vela/test"`), 0o600))
+	caps, err := ParseLocalFiles(dir, common.Args{})
+	assert.NoError(t, err)
+	assert.Empty(t, caps)
+}

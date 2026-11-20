@@ -1,0 +1,7 @@
+# No annotation of its own, so the hub/ folder stamps it hub.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: store-admission
+data:
+  role: admission

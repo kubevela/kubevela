@@ -1,0 +1,7 @@
+name: widget-latest
+version: 1.0.0
+description: "Test addon importing widget-kit without a version pin (highest semver tag wins)."
+tags:
+  - test
+  - module-import
+dependencies: []

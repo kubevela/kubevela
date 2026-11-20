@@ -11,7 +11,7 @@ User can use definitions that make use of `context.replicaKey`. For example, app
 
 In this ComponentDefinition, we can use `context.replicaKey` to distinguish the name of Deployment and Service.
 
-> **NOTE**: ComponentDefinition below is trimmed for brevity. See complete YAML in [replication.yaml](https://github.com/kubevela/kubevela/tree/master/test/e2e-test/testdata/definition/replication.yaml)
+> **NOTE**: ComponentDefinition below is trimmed for brevity. See complete YAML in [replica-webservice.yaml](https://github.com/kubevela/kubevela/blob/master/test/e2e-framework/testdata/definition/replica-webservice.yaml)
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1

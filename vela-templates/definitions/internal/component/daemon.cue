@@ -123,6 +123,12 @@ template: {
 				if v.subPath != _|_ {
 					subPath: v.subPath
 				}
+				if v.readOnly != _|_ {
+					readOnly: v.readOnly
+				}
+				if v.mountPropagation != _|_ {
+					mountPropagation: v.mountPropagation
+				}
 				name: v.name
 			}
 		},
@@ -348,6 +354,7 @@ template: {
 		if parameter.ports != _|_ for v in parameter.ports if v.expose == true {
 			port:       v.port
 			targetPort: v.port
+			protocol:   v.protocol
 			if v.name != _|_ {
 				name: v.name
 			}

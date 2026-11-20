@@ -468,10 +468,10 @@ func TestCheckAddonPackageValid(t *testing.T) {
 		err:      fmt.Errorf("the addon package doesn't have `metadata.yaml`"),
 	}, {
 		testCase: Meta{Version: "v1.4.0"},
-		err:      fmt.Errorf("`matadata.yaml` must define the name of addon"),
+		err:      fmt.Errorf("`metadata.yaml` must define the name of addon"),
 	}, {
 		testCase: Meta{Name: "test-addon"},
-		err:      fmt.Errorf("`matadata.yaml` must define the version of addon"),
+		err:      fmt.Errorf("`metadata.yaml` must define the version of addon"),
 	}, {
 		testCase: Meta{Name: "test-addon", Version: "1.4.5"},
 		err:      nil,

@@ -24,12 +24,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubevela/pkg/cache"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/singleflight"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/client-go/kubernetes"
-
-	"github.com/oam-dev/kubevela/pkg/utils"
+	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 )
 
 // dryRunContextKey is used to signal the helm provider that it should perform
@@ -62,40 +65,111 @@ func velaContextStr(velaCtx *ContextParams) string {
 	return fmt.Sprintf("app=%s/%s component=%s", velaCtx.AppName, velaCtx.AppNamespace, velaCtx.Name)
 }
 
-// releaseCacheKey returns a namespace-scoped cache key to avoid collisions
-// when different namespaces have releases with the same name.
-func releaseCacheKey(namespace, name string) string {
-	return namespace + "/" + name
+// releaseCacheKey returns a cluster- and namespace-scoped cache key, since
+// releases of the same name live side by side across namespaces and clusters.
+func releaseCacheKey(cluster, namespace, name string) string {
+	if pkgmulticluster.IsLocal(cluster) {
+		cluster = pkgmulticluster.Local
+	}
+	return cluster + "/" + namespace + "/" + name
 }
 
-// DefaultCacheTTLConfig returns the default cache TTL configuration
+// InitCacheTTL configures the cluster-wide chart cache TTL defaults before any
+// provider is constructed. These apply only when a component does not pin an
+// explicit TTL through options.cache (the helmchart.cue template leaves those
+// fields optional so per-component values still win when set). Non-positive
+// values fall back to the defaults so a partial flag set cannot wipe the cache.
+func InitCacheTTL(immutableTTL, mutableTTL time.Duration) {
+	if immutableTTL <= 0 {
+		klog.Warningf("helm cache immutable TTL %v is invalid (must be > 0); using default %v", immutableTTL, DefaultImmutableVersionTTL)
+		immutableTTL = DefaultImmutableVersionTTL
+	}
+	if mutableTTL <= 0 {
+		klog.Warningf("helm cache mutable TTL %v is invalid (must be > 0); using default %v", mutableTTL, DefaultMutableVersionTTL)
+		mutableTTL = DefaultMutableVersionTTL
+	}
+	cacheTTLImmutableVersion = immutableTTL
+	cacheTTLMutableVersion = mutableTTL
+	klog.Infof("Helm cache TTL configured: immutable=%v mutable=%v", immutableTTL, mutableTTL)
+}
+
+// DefaultCacheTTLConfig returns the effective cache TTL configuration, honoring
+// the cluster-wide defaults configured via InitCacheTTL.
 func DefaultCacheTTLConfig() *CacheTTLConfig {
 	return &CacheTTLConfig{
-		ImmutableVersionTTL: 24 * time.Hour,  // 24 hours for fixed versions
-		MutableVersionTTL:   5 * time.Minute, // 5 minutes for mutable tags
+		ImmutableVersionTTL: cacheTTLImmutableVersion,
+		MutableVersionTTL:   cacheTTLMutableVersion,
+	}
+}
+
+// missReasonLabel maps a cache eviction reason to the corresponding
+// miss-reason label. Returns ok=false for eviction reasons that should not
+// be recorded (delete, replace, purge) because they don't represent a
+// cache miss on the next Get.
+func missReasonLabel(reason cache.EvictionReason) (string, bool) {
+	switch reason {
+	case cache.EvictTTL:
+		return missReasonExpired, true
+	case cache.EvictCapacity:
+		return missReasonEvicted, true
+	default:
+		return "", false
+	}
+}
+
+// evictionReasonLabel normalizes the cache eviction reason into a stable,
+// lowercase Prometheus label value.
+func evictionReasonLabel(reason cache.EvictionReason) string {
+	switch reason {
+	case cache.EvictCapacity:
+		return "capacity"
+	case cache.EvictTTL:
+		return "ttl"
+	case cache.EvictDelete:
+		return "delete"
+	case cache.EvictReplace:
+		return "replace"
+	case cache.EvictPurge:
+		return "purge"
+	default:
+		return "unknown"
 	}
 }
 
 // Provider is the Helm chart provider
 type Provider struct {
-	cache               *utils.MemoryCacheStore
-	helmClient          *cli.EnvSettings
-	cacheTTL            *CacheTTLConfig
-	releaseMu           sync.Mutex        // serializes install/upgrade/uninstall calls
-	releaseFingerprints map[string]string // namespace/releaseName → fingerprint (chartVersion|valuesHash)
-	releaseManifests    map[string]string // namespace/releaseName → last successful manifest
-	releaseVersions     map[string]int    // namespace/releaseName → current release version number
-	// actionConfigFactory builds a helm action.Configuration for a given
-	// namespace. Defaults to getActionConfig (a real cluster client). Tests
-	// override this to inject a fake KubeClient + memory storage driver so
-	// they can exercise the install/upgrade dispatcher without a cluster.
-	actionConfigFactory func(namespace string) (*action.Configuration, error)
-	// kubeClientFactory builds a kubernetes.Interface client used by the
-	// release-secret helpers (list, label, delete, validate health) which
-	// talk to the API server directly rather than via the helm SDK. Tests
-	// override this to inject a fake clientset so the dispatcher's adoption
-	// path and background health checks do not leak to the active cluster.
-	kubeClientFactory func() (kubernetes.Interface, error)
+	cache                *cache.LRUStore[string, []byte]
+	cancel               context.CancelFunc // cancels the provider's context, stopping background operations
+	chartFlight          singleflight.Group
+	helmClient           *cli.EnvSettings
+	cacheTTL             *CacheTTLConfig
+	cacheRecentEvictions *cache.LRUStore[string, string] // bounded ledger of recently-evicted keys → miss reason
+	releaseMu            sync.Mutex                      // serializes install/upgrade/uninstall calls
+	releaseFingerprints  map[string]string               // cluster/namespace/releaseName → fingerprint (chartVersion|valuesHash)
+	releaseManifests     map[string]string               // cluster/namespace/releaseName → last successful manifest
+	releaseVersions      map[string]int                  // cluster/namespace/releaseName → current release version number
+	// hubConfig returns the REST config managed clusters are reached through.
+	// Defaults to the Helm environment's own config; tests point it at a stub.
+	hubConfig        func() (*rest.Config, error)
+	clusterClientsMu sync.Mutex
+	clusterClients   *cache.LRUStore[string, *clusterClients] // cluster → its shared clients
+	// actionConfigFactory builds a helm action.Configuration for the
+	// cluster and user a render's context carries, in a namespace. Defaults
+	// to getActionConfig (a real cluster client). Tests override this to inject a fake KubeClient + memory
+	// storage driver so they can exercise the install/upgrade dispatcher
+	// without a cluster.
+	actionConfigFactory func(ctx context.Context, namespace string) (*action.Configuration, error)
+	// kubeClientFactory builds a kubernetes.Interface client for the cluster
+	// and user a render's context carries,
+	// used by the release-secret helpers (list, label, delete, validate
+	// health) which talk to the API server directly rather than via the helm
+	// SDK. Tests override this to inject a fake clientset so the dispatcher's
+	// adoption path and background health checks do not leak to the active
+	// cluster.
+	kubeClientFactory func(ctx context.Context) (kubernetes.Interface, error)
+	// ownerAppExists reports whether an Application exists on the hub. It decides whether a
+	// release labelled for another Application is still owned or left behind. Tests stub it.
+	ownerAppExists func(ctx context.Context, namespace, name string) (bool, error)
 }
 
 var (
@@ -105,19 +179,132 @@ var (
 	providerOnce sync.Once
 )
 
+const (
+	// chartCacheEvictionLedgerSize caps the recently-evicted key ledger used
+	// to attribute cache misses. Without a bound, keys that are never
+	// re-fetched would accumulate forever under capacity pressure.
+	chartCacheEvictionLedgerSize = 4096
+	// DefaultChartCacheMaxBytes is the default byte budget for the chart
+	// cache. Keep it well below the container memory limit: cached archives
+	// are only part of the footprint, since each render also decompresses a
+	// copy into chart objects.
+	DefaultChartCacheMaxBytes int64 = 256 << 20 // 256 MB
+	// DefaultChartCacheSweepInterval is how often expired entries are removed.
+	// The sweep takes the same lock as Get and Put and scans every key, so
+	// this trades reclaim latency against lock contention.
+	DefaultChartCacheSweepInterval = 60 * time.Second
+	// DefaultImmutableVersionTTL is the default cache TTL for immutable
+	// (semver) chart versions. The helmchart.cue template deliberately leaves
+	// options.cache.immutableTTL a plain optional field, so this default is
+	// what actually applies for components that omit an explicit TTL.
+	DefaultImmutableVersionTTL = 24 * time.Hour
+	// DefaultMutableVersionTTL is the default cache TTL for mutable chart tags
+	// (latest, dev, main, etc.).
+	DefaultMutableVersionTTL = 5 * time.Minute
+)
+
+var (
+	// chartCacheMaxBytes and chartCacheSweepInterval hold the effective cache
+	// tuning. InitChartCache overwrites them from the controller flags before
+	// any provider is constructed.
+	chartCacheMaxBytes      = DefaultChartCacheMaxBytes
+	chartCacheSweepInterval = DefaultChartCacheSweepInterval
+	// chartCacheCtx is the root context for every provider cache's sweeper. It
+	// stays at context.Background() until InitChartCache wires the controller's
+	// root context; each provider derives its own cancellable child so Close can
+	// always stop the sweeper regardless.
+	chartCacheCtx context.Context = context.Background()
+	// cacheTTLImmutableVersion and cacheTTLMutableVersion hold the effective
+	// cluster-wide TTL defaults. InitCacheTTL overwrites them from the
+	// controller flags before any provider is constructed. They are only used
+	// when a component does not pin an explicit TTL via options.cache.
+	cacheTTLImmutableVersion = DefaultImmutableVersionTTL
+	cacheTTLMutableVersion   = DefaultMutableVersionTTL
+)
+
+// InitChartCache configures the chart cache before the provider singleton is
+// built. ctx SHOULD be the controller's root context so the sweeper goroutine
+// is torn down with the manager. Non-positive values fall back to the defaults,
+// so a partial flag set cannot produce an unbounded or hot-spinning cache.
+func InitChartCache(ctx context.Context, maxBytes int64, sweepInterval time.Duration) {
+	if ctx != nil {
+		chartCacheCtx = ctx
+	}
+	if maxBytes <= 0 {
+		klog.Warningf("helm chart cache max bytes %d is invalid (must be > 0); using default %d", maxBytes, DefaultChartCacheMaxBytes)
+		maxBytes = DefaultChartCacheMaxBytes
+	}
+	if sweepInterval <= 0 {
+		klog.Warningf("helm chart cache sweep interval %v is invalid (must be > 0); using default %v", sweepInterval, DefaultChartCacheSweepInterval)
+		sweepInterval = DefaultChartCacheSweepInterval
+	}
+	chartCacheMaxBytes = maxBytes
+	chartCacheSweepInterval = sweepInterval
+	klog.Infof("Helm chart cache configured: maxBytes=%d sweepInterval=%v", maxBytes, sweepInterval)
+}
+
+// chartCacheOptions returns the shared configuration for the byte-bounded LRU
+// chart cache used by every provider constructor.
+func chartCacheOptions() cache.Options[string, []byte] {
+	return cache.Options[string, []byte]{
+		MaxSize:  0,
+		MaxBytes: chartCacheMaxBytes,
+		SizeOf: func(key string, value []byte) int64 {
+			return int64(len(value))
+		},
+		SweepInterval: chartCacheSweepInterval,
+	}
+}
+
+// newEvictionLedger returns a count-bounded LRU used only to attribute miss
+// reasons after capacity/TTL eviction. Shares the provider's cancelable ctx
+// so Close stops its sweeper with the chart cache.
+func newEvictionLedger(ctx context.Context) *cache.LRUStore[string, string] {
+	return newBoundedStore[string](ctx, chartCacheEvictionLedgerSize, 0)
+}
+
+// newBoundedStore returns a string-keyed LRU of at most maxSize entries, swept
+// for expired ones every sweep when sweep is positive.
+func newBoundedStore[V any](ctx context.Context, maxSize int, sweep time.Duration) *cache.LRUStore[string, V] {
+	store, err := cache.NewLRUStore[string, V](ctx, cache.Options[string, V]{MaxSize: maxSize, SweepInterval: sweep})
+	if err != nil {
+		klog.Fatalf("Failed to create a helm provider cache: %v", err)
+	}
+	return store
+}
+
 // NewProvider creates a new Helm provider (returns singleton)
 func NewProvider() *Provider {
 	providerOnce.Do(func() {
-		globalProvider = &Provider{
-			cache:               utils.NewMemoryCacheStore(context.Background()),
-			helmClient:          cli.New(),
-			cacheTTL:            DefaultCacheTTLConfig(),
-			releaseFingerprints: make(map[string]string),
-			releaseManifests:    make(map[string]string),
-			releaseVersions:     make(map[string]int),
+		ctx, cancel := context.WithCancel(chartCacheCtx)
+		cacheRecentEvictions := newEvictionLedger(ctx)
+		lruCache, err := cache.NewLRUStore[string, []byte](ctx, chartCacheOptions())
+		if err != nil {
+			cancel()
+			klog.Fatalf("Failed to create chart LRU cache: %v", err)
 		}
+		lruCache.OnEvict = func(key string, value []byte, reason cache.EvictionReason) {
+			HelmChartCacheEvictionsTotal.WithLabelValues(evictionReasonLabel(reason)).Inc()
+			HelmChartCacheBytes.Set(float64(lruCache.CurrentBytes()))
+			if mr, ok := missReasonLabel(reason); ok {
+				cacheRecentEvictions.Put(key, mr, 0)
+			}
+		}
+		globalProvider = &Provider{
+			cache:                lruCache,
+			cancel:               cancel,
+			helmClient:           cli.New(),
+			cacheTTL:             DefaultCacheTTLConfig(),
+			cacheRecentEvictions: cacheRecentEvictions,
+			releaseFingerprints:  make(map[string]string),
+			releaseManifests:     make(map[string]string),
+			releaseVersions:      make(map[string]int),
+			clusterClients:       newBoundedStore[*clusterClients](ctx, clusterClientsCacheSize, time.Minute),
+		}
+		globalProvider.hubConfig = globalProvider.helmClient.RESTClientGetter().ToRESTConfig
 		globalProvider.actionConfigFactory = globalProvider.getActionConfig
 		globalProvider.kubeClientFactory = globalProvider.getKubeClientset
+		globalProvider.ownerAppExists = hubAppExists
 	})
 	return globalProvider
 }
@@ -127,25 +314,55 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 	if ttlConfig == nil {
 		ttlConfig = DefaultCacheTTLConfig()
 	}
-	p := &Provider{
-		cache:               utils.NewMemoryCacheStore(context.Background()),
-		helmClient:          cli.New(),
-		cacheTTL:            ttlConfig,
-		releaseFingerprints: make(map[string]string),
-		releaseManifests:    make(map[string]string),
-		releaseVersions:     make(map[string]int),
+	ctx, cancel := context.WithCancel(chartCacheCtx)
+	cacheRecentEvictions := newEvictionLedger(ctx)
+	lruCache, err := cache.NewLRUStore[string, []byte](ctx, chartCacheOptions())
+	if err != nil {
+		cancel()
+		klog.Fatalf("Failed to create chart LRU cache: %v", err)
 	}
+	lruCache.OnEvict = func(key string, value []byte, reason cache.EvictionReason) {
+		HelmChartCacheEvictionsTotal.WithLabelValues(evictionReasonLabel(reason)).Inc()
+		HelmChartCacheBytes.Set(float64(lruCache.CurrentBytes()))
+		if mr, ok := missReasonLabel(reason); ok {
+			cacheRecentEvictions.Put(key, mr, 0)
+		}
+	}
+	p := &Provider{
+		cache:                lruCache,
+		cancel:               cancel,
+		helmClient:           cli.New(),
+		cacheTTL:             ttlConfig,
+		cacheRecentEvictions: cacheRecentEvictions,
+		releaseFingerprints:  make(map[string]string),
+		releaseManifests:     make(map[string]string),
+		releaseVersions:      make(map[string]int),
+		clusterClients:       newBoundedStore[*clusterClients](ctx, clusterClientsCacheSize, time.Minute),
+	}
+	p.hubConfig = p.helmClient.RESTClientGetter().ToRESTConfig
 	p.actionConfigFactory = p.getActionConfig
 	p.kubeClientFactory = p.getKubeClientset
+	p.ownerAppExists = hubAppExists
 	return p
 }
 
+// Close releases any resources held by the provider, including cancelling the context.
+func (p *Provider) Close() {
+	if p != nil && p.cancel != nil {
+		p.cancel()
+	}
+}
+
 // getKubeClientset is the default kubeClientFactory: builds a typed Kubernetes
-// client from the helm CLI environment's REST config. Tests inject a fake
+// client from the Helm client getter for a render's context. Tests inject a fake
 // clientset instead so the release-secret helpers never reach the active
 // cluster.
-func (p *Provider) getKubeClientset() (kubernetes.Interface, error) {
-	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
+func (p *Provider) getKubeClientset(ctx context.Context) (kubernetes.Interface, error) {
+	getter, err := p.restClientGetter(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := getter.ToRESTConfig()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get REST config")
 	}

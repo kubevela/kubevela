@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cache-probe-build
+  namespace: vela-system
+data:
+  build: "b"

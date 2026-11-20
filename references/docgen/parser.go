@@ -463,7 +463,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 			}
 			gitCredentialsSecretReference := compDef.Spec.Schematic.Terraform.GitCredentialsSecretReference
 			if gitCredentialsSecretReference != nil {
-				publicKey, err = utils.GetGitSSHPublicKey(ctx, ref.Client, gitCredentialsSecretReference)
+				publicKey, err = utils.GetGitSSHPublicKey(ctx, ref.Client, gitCredentialsSecretReference, compDef.Namespace)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to  get publickey git credentials secret: %w", err)
 				}
@@ -553,7 +553,7 @@ func ParseLocalFiles(localFilePath string, c common.Args) ([]*types.Capability, 
 			if err != nil {
 				return err
 			}
-			if info.IsDir() {
+			if info.IsDir() || pkgUtils.IsCUETestFile(path) {
 				return nil
 			}
 			if !strings.HasSuffix(info.Name(), ".yaml") && !strings.HasSuffix(info.Name(), ".cue") {

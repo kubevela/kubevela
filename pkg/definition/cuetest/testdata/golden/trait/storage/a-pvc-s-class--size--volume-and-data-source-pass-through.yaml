@@ -1,0 +1,67 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: test-app-v1
+      app.oam.dev/component: web
+      app.oam.dev/name: test-app
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cuetest-workload
+    name: web
+    namespace: default
+  spec:
+    template:
+      metadata:
+        annotations:
+          app.oam.dev/trait-restart-hash-storage: 3b5c6a99443339bf
+      spec:
+        containers:
+        - env: []
+          image: shop:1.0
+          name: web
+          volumeDevices: []
+          volumeMounts:
+          - mountPath: /data
+            name: pvc-data
+            subPath: shop
+        - image: fluentbit:3
+          name: log
+        volumes:
+        - name: pvc-data
+          persistentVolumeClaim:
+            claimName: data
+outputs:
+  pvc-data:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      annotations: {}
+      labels:
+        app.oam.dev/appRevision: test-app-v1
+        app.oam.dev/component: web
+        app.oam.dev/name: test-app
+        app.oam.dev/namespace: default
+        app.oam.dev/resourceType: TRAIT
+        trait.oam.dev/resource: pvc-data
+        trait.oam.dev/type: storage
+      name: data
+      namespace: default
+    spec:
+      accessModes:
+      - ReadWriteMany
+      dataSource:
+        apiGroup: snapshot.storage.k8s.io
+        kind: VolumeSnapshot
+        name: data-snap
+      resources:
+        limits:
+          storage: 50Gi
+        requests:
+          storage: 20Gi
+      storageClassName: fast
+      volumeMode: Filesystem
+      volumeName: pv-0001

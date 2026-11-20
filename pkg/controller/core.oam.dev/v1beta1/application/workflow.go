@@ -21,6 +21,9 @@ import (
 	"strings"
 	"time"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
+
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
@@ -29,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -81,6 +85,8 @@ func (r *Reconciler) handleWorkflowRestartAnnotation(ctx context.Context, app *v
 			klog.Errorf("Failed to update workflow restart status for Application %s/%s: %v. Will retry on next reconcile.",
 				app.Namespace, app.Name, err)
 			// Don't fail reconciliation - will retry naturally on next reconcile
+		} else {
+			statusWritten(ctx, app)
 		}
 	}
 
@@ -96,39 +102,69 @@ func (r *Reconciler) handleWorkflowRestartAnnotation(ctx context.Context, app *v
 	}
 }
 
+// scheduledRestart is what the scheduled restart, if any, should do now.
+type scheduledRestart int
+
+const (
+	// restartNotYet: nothing scheduled, its time has not come, or the run it
+	// waits for has not finished.
+	restartNotYet scheduledRestart = iota
+	// restartDue: the time has passed and the finished run started before it,
+	// so the run never saw this request.
+	restartDue
+	// restartSuperseded: the finished run started after the requested time, so
+	// it already answered the request.
+	restartSuperseded
+)
+
+// scheduledRestartState reads the scheduled restart against the last run. A
+// request made while a run is executing or waiting is answered once that run
+// finishes. The run is placed by its start; one with no recorded start is
+// placed by its end.
+func scheduledRestartState(app *v1beta1.Application) scheduledRestart {
+	if app.Status.WorkflowRestartScheduledAt == nil || app.Status.Workflow == nil || !app.Status.Workflow.Finished {
+		return restartNotYet
+	}
+	restartTime := app.Status.WorkflowRestartScheduledAt.Time
+	if time.Now().Before(restartTime) {
+		return restartNotYet
+	}
+	run := app.Status.Workflow.StartTime.Time
+	if run.IsZero() {
+		run = app.Status.Workflow.EndTime.Time
+	}
+	if run.IsZero() || restartTime.After(run) {
+		return restartDue
+	}
+	return restartSuperseded
+}
+
 // checkWorkflowRestart checks if application workflow needs restart.
 // Handles three restart scenarios:
 // 1. Scheduled restart (via workflowRestartScheduledAt status field)
 // 2. PublishVersion annotation change
 // 3. Application revision change
 func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1beta1.Application, handler *AppHandler) {
-	// Check for scheduled restart in status field
-	if app.Status.WorkflowRestartScheduledAt != nil {
-		restartTime := app.Status.WorkflowRestartScheduledAt.Time
-
-		if time.Now().Before(restartTime) {
-			// Not yet time to restart, skip for now
-			return
+	// A scheduled restart that is not due leaves the revision check below to
+	// run, so a new application still starts and a new revision still restarts.
+	switch scheduledRestartState(app) {
+	case restartNotYet:
+	case restartSuperseded:
+		// The last run already answered it; clearing it keeps a stale request
+		// from showing as pending.
+		app.Status.WorkflowRestartScheduledAt = nil
+		if err := r.Status().Update(ctx, app); err != nil {
+			ctx.Error(err, "failed to clear a superseded workflow restart")
+		} else {
+			statusWritten(ctx, app)
 		}
-		if app.Status.Workflow == nil || !app.Status.Workflow.Finished {
-			// Workflow is still running or hasn't started - don't restart yet
-			return
-		}
-		if app.Status.Workflow != nil && !app.Status.Workflow.EndTime.IsZero() {
-			lastEndTime := app.Status.Workflow.EndTime.Time
-			if !restartTime.After(lastEndTime) {
-				// Restart time is not after last execution, skip
-				return
-			}
-		}
-
-		// All conditions met: time arrived, workflow finished, and restart time > last execution
-		// Clear the status field and proceed with restart
+	case restartDue:
 		app.Status.WorkflowRestartScheduledAt = nil
 		if err := r.Status().Update(ctx, app); err != nil {
 			ctx.Error(err, "failed to clear workflow restart scheduled time")
 			return
 		}
+		statusWritten(ctx, app)
 		if app.Status.Workflow != nil {
 			if handler.latestAppRev != nil && handler.latestAppRev.Status.Workflow == nil {
 				app.Status.Workflow.Terminated = true
@@ -233,5 +269,20 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 	app.Status.Conditions = reservedConditions
 	app.Status.Workflow = &common.WorkflowStatus{
 		AppRevision: desiredRev,
+	}
+}
+
+// resolvedWorkflowRef names the Workflow the Application's spec.workflow.ref resolved to, or nil
+// when it has none. The version it was read at is left out, so the status does not change with it.
+func resolvedWorkflowRef(af *appfile.Appfile) *corev1.ObjectReference {
+	wf := af.ExternalWorkflow
+	if wf == nil {
+		return nil
+	}
+	return &corev1.ObjectReference{
+		APIVersion: wfTypesv1alpha1.SchemeGroupVersion.String(),
+		Kind:       "Workflow",
+		Namespace:  wf.Namespace,
+		Name:       wf.Name,
 	}
 }

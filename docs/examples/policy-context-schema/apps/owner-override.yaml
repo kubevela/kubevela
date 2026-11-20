@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: payments-batch
+  namespace: payments
+spec:
+  components:
+    - name: batch
+      type: tagged-service
+      properties:
+        image: nginx:1.27
+        # Allowed: the definition offers owner as a parameter defaulted from
+        # the policy. The team and cost-centre labels stay the policy's.
+        owner: data-platform

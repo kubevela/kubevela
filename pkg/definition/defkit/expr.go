@@ -218,13 +218,20 @@ func (c *StringContainsCondition) ParamName() string { return c.paramName }
 // Substr returns the substring to check for.
 func (c *StringContainsCondition) Substr() string { return c.substr }
 
-// RegexMatchCondition checks if any Value matches a regex pattern.
-// Generates: <value> =~ "pattern"
-// Used by both LocalFieldRef.Matches() and StringParam.Matches().
+// RequiredImports returns the CUE imports required by StringContainsCondition.
+// strings.Contains requires the "strings" package.
+func (c *StringContainsCondition) RequiredImports() []string {
+	return []string{"strings"}
+}
+
+// RegexMatchCondition checks if any Value matches or does not match a regex pattern.
+// Generates: <value> =~ "pattern" or <value> !~ "pattern"
+// Used by LocalFieldRef.Matches(), StringParam.Matches(), LocalFieldRef.NotMatches() and StringParam.NotMatches().
 type RegexMatchCondition struct {
 	baseCondition
 	source  Value
 	pattern string
+	negate  bool
 }
 
 // Source returns the value being matched.
@@ -233,9 +240,17 @@ func (c *RegexMatchCondition) Source() Value { return c.source }
 // Pattern returns the regex pattern.
 func (c *RegexMatchCondition) Pattern() string { return c.pattern }
 
+// IsNegated returns whether it is a positive or negative match.
+func (c *RegexMatchCondition) IsNegated() bool { return c.negate }
+
 // RegexMatch creates a condition that checks if a value matches a regex pattern.
 func RegexMatch(source Value, pattern string) *RegexMatchCondition {
-	return &RegexMatchCondition{source: source, pattern: pattern}
+	return &RegexMatchCondition{source: source, pattern: pattern, negate: false}
+}
+
+// RegexNotMatch creates a condition that checks if a value does not match a regex pattern.
+func RegexNotMatch(source Value, pattern string) *RegexMatchCondition {
+	return &RegexMatchCondition{source: source, pattern: pattern, negate: true}
 }
 
 // StringStartsWithCondition checks if a string parameter starts with a prefix.
@@ -252,6 +267,12 @@ func (c *StringStartsWithCondition) ParamName() string { return c.paramName }
 // Prefix returns the prefix to check for.
 func (c *StringStartsWithCondition) Prefix() string { return c.prefix }
 
+// RequiredImports returns the CUE imports required by StringStartsWithCondition.
+// strings.HasPrefix requires the "strings" package.
+func (c *StringStartsWithCondition) RequiredImports() []string {
+	return []string{"strings"}
+}
+
 // StringEndsWithCondition checks if a string parameter ends with a suffix.
 // Generates: strings.HasSuffix(parameter.name, "suffix")
 type StringEndsWithCondition struct {
@@ -265,6 +286,12 @@ func (c *StringEndsWithCondition) ParamName() string { return c.paramName }
 
 // Suffix returns the suffix to check for.
 func (c *StringEndsWithCondition) Suffix() string { return c.suffix }
+
+// RequiredImports returns the CUE imports required by StringEndsWithCondition.
+// strings.HasSuffix requires the "strings" package.
+func (c *StringEndsWithCondition) RequiredImports() []string {
+	return []string{"strings"}
+}
 
 // LenCondition checks the length of a parameter (string, array, or map).
 // Generates: parameter["name"] != _|_ if len(parameter["name"]) op n

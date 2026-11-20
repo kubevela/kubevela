@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strconv"
 
 	"github.com/hashicorp/go-version"
 	"github.com/kubevela/pkg/util/k8s"
@@ -47,11 +48,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/component"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 type contextKey int
@@ -155,6 +158,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 				TraitDefinitions:        make(map[string]*v1beta1.TraitDefinition),
 				PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
 				WorkflowStepDefinitions: make(map[string]*v1beta1.WorkflowStepDefinition),
+				SourceDefinitions:       make(map[string]*v1beta1.SourceDefinition),
 				Policies:                make(map[string]v1alpha1.Policy),
 			},
 		},
@@ -214,6 +218,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	for name, def := range af.RelatedWorkflowStepDefinitions {
 		appRev.Spec.WorkflowStepDefinitions[name] = def.DeepCopy()
 	}
+	for name, def := range af.RelatedSourceDefinitions {
+		appRev.Spec.SourceDefinitions[name] = def.DeepCopy()
+	}
 	for name, po := range af.ExternalPolicies {
 		appRev.Spec.Policies[name] = *po
 	}
@@ -234,9 +241,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 		for name, versionInfo := range h.policyVersions {
 			appRev.Spec.PolicyVersions[name] = versionInfo
 		}
-		klog.InfoS("Stored PolicyVersions in ApplicationRevision", "count", len(h.policyVersions), "policies", h.policyVersions)
+		klog.V(common2.LogDebug).InfoS("Stored PolicyVersions in ApplicationRevision", "count", len(h.policyVersions), "policies", h.policyVersions)
 	} else {
-		klog.InfoS("No PolicyVersions to store in ApplicationRevision", "policyVersionsNil", h.policyVersions == nil, "count", len(h.policyVersions))
+		klog.V(common2.LogDebug).InfoS("No PolicyVersions to store in ApplicationRevision", "policyVersionsNil", h.policyVersions == nil, "count", len(h.policyVersions))
 	}
 
 	var err error
@@ -282,6 +289,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ScopeDefinitionHash        map[string]string
 		PolicyDefinitionHash       map[string]string
 		WorkflowStepDefinitionHash map[string]string
+		SourceDefinitionHash       map[string]string
 		PolicyHash                 map[string]string
 		WorkflowHash               string
 		ReferredObjectsHash        string
@@ -292,6 +300,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ScopeDefinitionHash:        make(map[string]string),
 		PolicyDefinitionHash:       make(map[string]string),
 		WorkflowStepDefinitionHash: make(map[string]string),
+		SourceDefinitionHash:       make(map[string]string),
 		PolicyHash:                 make(map[string]string),
 	}
 	var err error
@@ -339,6 +348,14 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		}
 		revHash.WorkflowStepDefinitionHash[key] = hash
 	}
+	for key, sd := range appRevision.Spec.SourceDefinitions {
+		s := sd
+		hash, err := utils.ComputeSpecHash(&s.Spec)
+		if err != nil {
+			return "", err
+		}
+		revHash.SourceDefinitionHash[key] = hash
+	}
 	for key, po := range appRevision.Spec.Policies {
 		hash, err := utils.ComputeSpecHash(po.Properties)
 		if err != nil {
@@ -373,17 +390,22 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 	if h.latestAppRev != nil && oam.GetPublishVersion(h.app) != oam.GetPublishVersion(h.latestAppRev) {
 		isLatestRev = false
 	}
+	if h.policyUpdatesAdopted {
+		isLatestRev = false
+	}
 
 	// diff the latest revision first
 	if isLatestRev {
 		appSpec := h.currentAppRev.Spec.Application.Spec
 		traitDef := h.currentAppRev.Spec.TraitDefinitions
 		workflowStepDef := h.currentAppRev.Spec.WorkflowStepDefinitions
+		sourceDef := h.currentAppRev.Spec.SourceDefinitions
 		h.currentAppRev = h.latestAppRev.DeepCopy()
 		h.currentRevHash = h.app.Status.LatestRevision.RevisionHash
 		h.currentAppRev.Spec.Application.Spec = appSpec
 		h.currentAppRev.Spec.TraitDefinitions = traitDef
 		h.currentAppRev.Spec.WorkflowStepDefinitions = workflowStepDef
+		h.currentAppRev.Spec.SourceDefinitions = sourceDef
 		return false, false, nil
 	}
 
@@ -422,6 +444,11 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	if len(oldTraitDefinitions) != len(newTraitDefinitions) {
 		return false
 	}
+	oldSourceDefinitions := old.Spec.SourceDefinitions
+	newSourceDefinitions := new.Spec.SourceDefinitions
+	if len(oldSourceDefinitions) != len(newSourceDefinitions) {
+		return false
+	}
 	if len(old.Spec.ComponentDefinitions) != len(new.Spec.ComponentDefinitions) {
 		return false
 	}
@@ -440,6 +467,18 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	for key, td := range newTraitDefinitions {
 		oldTd, exists := oldTraitDefinitions[key]
 		if !exists || !apiequality.Semantic.DeepEqual(oldTd.Spec, td.Spec) {
+			return false
+		}
+	}
+	for key, sd := range newSourceDefinitions {
+		oldSd, exists := oldSourceDefinitions[key]
+		if !exists {
+			return false
+		}
+		if (oldSd == nil) != (sd == nil) {
+			return false
+		}
+		if oldSd != nil && !apiequality.Semantic.DeepEqual(oldSd.Spec, sd.Spec) {
 			return false
 		}
 	}
@@ -507,6 +546,12 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 	}
 	appRev := h.currentAppRev
 	appRev.Namespace = h.app.Namespace
+	// A held revision runs while the author's later edits wait, so it keeps the generation it
+	// recorded, or none: that is how the policy render tells those edits from what it holds.
+	generation, recordGeneration := strconv.FormatInt(h.app.Generation, 10), true
+	if h.heldByGlobalPolicy != nil {
+		generation, recordGeneration = h.heldByGlobalPolicy.GetAnnotations()[oam.AnnotationAppGeneration]
+	}
 	appRev.SetGroupVersionKind(v1beta1.ApplicationRevisionGroupVersionKind)
 	// pass application's annotations & labels to app revision
 	appRev.SetAnnotations(h.app.GetAnnotations())
@@ -516,6 +561,9 @@ func (h *AppHandler) FinalizeAndApplyAppRevision(ctx context.Context) error {
 		oam.LabelAppName:         h.app.GetName(),
 		oam.LabelAppRevisionHash: h.currentRevHash,
 	})
+	if recordGeneration {
+		util.AddAnnotations(appRev, map[string]string{oam.AnnotationAppGeneration: generation})
+	}
 	// ApplicationRevision must use Application as ctrl-owner
 	appRev.SetOwnerReferences([]metav1.OwnerReference{{
 		APIVersion: v1beta1.SchemeGroupVersion.String(),
@@ -589,7 +637,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchSta
 	// Restore the spec after patchStatus to preserve policy modifications
 	h.app.Spec = *savedSpec
 
-	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
+	klog.V(common2.LogDebug).InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
 		"latest revision", revName)
 
 	return nil
@@ -609,7 +657,7 @@ func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev
 		if err := h.Client.Get(ctx, ktypes.NamespacedName{Namespace: wfStatus.ContextBackend.Namespace, Name: wfStatus.ContextBackend.Name}, &cm); err != nil {
 			klog.Error(err, "[UpdateApplicationRevisionStatus] failed to load the context values", "ApplicationRevision", appRev.Name)
 		}
-		appRev.Status.WorkflowContext = cm.Data
+		appRev.Status.WorkflowContext = withoutPinnedSources(cm.Data)
 	}
 
 	if err := h.Client.Status().Update(ctx, appRev); err != nil {
@@ -648,4 +696,19 @@ func GetSortedAppRevisions(ctx context.Context, cli client.Client, appName strin
 		return ir < ij
 	})
 	return revs, nil
+}
+
+// withoutPinnedSources is a workflow context without the sources its run pinned, which hold
+// for that run only and may hold values read from Secrets.
+func withoutPinnedSources(data map[string]string) map[string]string {
+	if _, ok := data[sources.PinnedSourcesKey]; !ok {
+		return data
+	}
+	out := make(map[string]string, len(data))
+	for k, v := range data {
+		if k != sources.PinnedSourcesKey {
+			out[k] = v
+		}
+	}
+	return out
 }

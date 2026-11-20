@@ -1,0 +1,164 @@
+/*
+Copyright 2026 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package mcp
+
+import (
+	"fmt"
+	"strings"
+	"unicode/utf8"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+)
+
+var _ = Describe("redaction", func() {
+	It("replaces values of secret-like keys at any depth", func() {
+		in := map[string]any{
+			"image":    "nginx",
+			"password": "x",
+			"nested":   map[string]any{"apiKey": "k", "port": 80, "list": []any{map[string]any{"secretRef": "s", "name": "n"}}},
+		}
+		out := redactMap(in).(map[string]any)
+		Expect(out).To(HaveKeyWithValue("image", "nginx"))
+		Expect(out).To(HaveKeyWithValue("password", redactedValue))
+		nested := out["nested"].(map[string]any)
+		Expect(nested).To(HaveKeyWithValue("apiKey", redactedValue))
+		Expect(nested).To(HaveKeyWithValue("port", 80))
+		item := nested["list"].([]any)[0].(map[string]any)
+		Expect(item).To(HaveKeyWithValue("secretRef", redactedValue))
+		Expect(item).To(HaveKeyWithValue("name", "n"))
+		Expect(in["password"]).To(Equal("x"), "input is not mutated")
+	})
+
+	It("strips credential-shaped substrings from lines", func() {
+		Expect(redactLine("GET / Authorization: Bearer abc.def-ghi done")).To(Equal("GET / Authorization: Bearer " + redactedValue + " done"))
+		Expect(redactLine(`token="t0k3n", user="bob"`)).To(Equal(`token="` + redactedValue + `", user="bob"`))
+		Expect(redactLine("authorization: Basic dXNlcjpwYXNz")).To(Equal("authorization: Basic " + redactedValue))
+		Expect(redactLine("API_KEY: sk-live-123")).To(Equal("API_KEY: " + redactedValue))
+		Expect(redactLine("key AKIAIOSFODNN7EXAMPLE here")).To(Equal("key AKIA" + redactedValue + " here"))
+		Expect(redactLine("plain line with no secrets")).To(Equal("plain line with no secrets"))
+		pem := "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----"
+		Expect(redactLine(pem)).To(Equal("-----BEGIN RSA PRIVATE KEY-----" + redactedValue + "-----END RSA PRIVATE KEY-----"))
+	})
+
+	It("redacts passphrase keys, env entries and lines", func() {
+		out := redactMap(map[string]any{
+			"sshPassphrase": "p1",
+			"env":           []any{map[string]any{"name": "SSH_PASSPHRASE", "value": "p2"}},
+		}).(map[string]any)
+		Expect(out).To(HaveKeyWithValue("sshPassphrase", redactedValue))
+		Expect(out["env"].([]any)[0]).To(HaveKeyWithValue("value", redactedValue))
+		Expect(redactLine("PASSPHRASE=hunter2")).To(Equal("PASSPHRASE=" + redactedValue))
+		Expect(redactLine(`key_passphrase: "hunter2"`)).To(Equal(`key_passphrase: "` + redactedValue + `"`))
+	})
+
+	It("lists ConfigMap and Secret payload keys in sorted order", func() {
+		data := map[string]any{"e": "1", "d": "1", "c": "1", "b": "1", "a": "1", "f": "1", "g": "1"}
+		for i := 0; i < 20; i++ {
+			out := redactObject(map[string]any{"kind": "ConfigMap", "data": data, "binaryData": data})
+			Expect(out["dataKeys"]).To(Equal([]any{"a", "b", "c", "d", "e", "f", "g"}))
+			Expect(out["binaryDataKeys"]).To(Equal([]any{"a", "b", "c", "d", "e", "f", "g"}))
+			out = redactObject(map[string]any{"kind": "Secret", "stringData": data})
+			Expect(out["stringDataKeys"]).To(Equal([]any{"a", "b", "c", "d", "e", "f", "g"}))
+		}
+	})
+
+	It("truncates long text on a rune boundary", func() {
+		s := strings.Repeat("a", maxTextLen-1) + "é" + "tail"
+		got := text(s)
+		Expect(utf8.ValidString(got)).To(BeTrue(), "no rune is cut in half")
+		Expect(got).To(Equal(strings.Repeat("a", maxTextLen-1) + truncMark))
+
+		long := []any{strings.Repeat("a", maxTextLen-3) + "é"}
+		leaf, ok := redactLeaf("spec.items", long).(string)
+		Expect(ok).To(BeTrue())
+		Expect(utf8.ValidString(leaf)).To(BeTrue(), "marshalled values are cut on a rune boundary too")
+		Expect(leaf).To(HaveSuffix(truncMark))
+	})
+
+	It("decodes raw properties and keeps undecodable content visible", func() {
+		Expect(rawToRedactedMap(nil)).To(BeEmpty())
+		Expect(rawToRedactedMap(&runtime.RawExtension{Raw: []byte(`{"a":1,"token":"t"}`)})).To(Equal(map[string]any{"a": float64(1), "token": redactedValue}))
+		Expect(rawToRedactedMap(&runtime.RawExtension{Raw: []byte(`not json token=abc`)})).To(HaveKeyWithValue("_raw", "not json token="+redactedValue))
+	})
+
+	It("bounds log reads by bytes and reports truncation", func() {
+		lines, truncated, err := readLines(strings.NewReader("one\ntwo\nthree\n"), 1<<10)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeFalse())
+		Expect(lines).To(Equal([]string{"one", "two", "three"}))
+
+		lines, truncated, err = readLines(strings.NewReader("one\ntwo\nthree\n"), 7)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeTrue())
+		Expect(lines).To(Equal([]string{"three"}), "the newest lines are kept and the line cut by the budget is dropped")
+	})
+
+	It("keeps the newest lines of a tail longer than the budget", func() {
+		lines, truncated, err := readLines(strings.NewReader("one\ntwo\nthree\n"), 6)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeTrue())
+		Expect(lines).To(Equal([]string{"three"}), "a window that starts on a line boundary keeps its first line")
+
+		var sb strings.Builder
+		for i := 0; i < 50000; i++ {
+			fmt.Fprintf(&sb, "line %05d\n", i)
+		}
+		lines, truncated, err = readLines(strings.NewReader(sb.String()), 1<<10)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeTrue())
+		Expect(lines[len(lines)-1]).To(Equal("line 49999"))
+		Expect(lines[0]).To(MatchRegexp(`^line \d{5}$`), "no partial first line")
+
+		lines, truncated, err = readLines(strings.NewReader("aaaaaaaaaa\n"), 4)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeTrue())
+		Expect(lines).To(BeEmpty(), "a single line longer than the budget is dropped, not returned partial")
+	})
+
+	It("keeps a lone blank line", func() {
+		lines, truncated, err := readLines(strings.NewReader("\n"), 1<<10)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeFalse())
+		Expect(lines).To(Equal([]string{""}))
+		lines, _, _ = readLines(strings.NewReader(""), 1<<10)
+		Expect(lines).To(BeEmpty())
+	})
+
+	It("keeps a final line without a newline that fits the budget exactly", func() {
+		lines, truncated, err := readLines(strings.NewReader("one\ntwo"), 7)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(truncated).To(BeFalse(), "nothing was cut")
+		Expect(lines).To(Equal([]string{"one", "two"}))
+	})
+
+	It("defaults to a regular container, not an init container", func() {
+		pod := &unstructured.Unstructured{Object: map[string]any{"spec": map[string]any{
+			"initContainers": []any{map[string]any{"name": "migrate"}},
+			"containers":     []any{map[string]any{"name": "app"}, map[string]any{"name": "sidecar"}},
+		}}}
+		Expect(containerNames(pod)).To(Equal([]string{"app", "sidecar", "migrate"}))
+	})
+
+	It("returns every pod with a name, so a name in two clusters is not resolved by sort order", func() {
+		targets := []podTarget{{cluster: "local", namespace: "team-a", name: "web-1"}, {cluster: "eu", namespace: "team-a", name: "web-1"}, {cluster: "eu", namespace: "team-a", name: "web-2"}}
+		Expect(selectPod(targets, "web-1")).To(HaveLen(2))
+		Expect(selectPod(targets, "web-2")).To(HaveLen(1))
+	})
+})

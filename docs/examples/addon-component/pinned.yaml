@@ -1,0 +1,21 @@
+# Everything spelled out. Prefer this over minimal.yaml for anything you
+# expect to be reproducible: an empty version means "latest", which can change
+# under you without the Application spec changing.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: fluxcd-addon
+  namespace: vela-system
+spec:
+  components:
+    - name: fluxcd
+      type: addon
+      properties:
+        # Defaults to the component name, given here for clarity.
+        addon: fluxcd
+        version: "3.0.2"
+        # The helm registry the vela-core chart pre-registers.
+        registry: KubeVela
+        # The addon's own parameters. Empty means take its defaults, and also
+        # means no arguments Secret is rendered.
+        properties: {}

@@ -1,0 +1,64 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: legacy-cue-component
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Component with legacy CUE list-arithmetic syntax for compat layer testing"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        // Legacy list-arithmetic: baseEnv + extraEnv uses deprecated + operator
+        baseEnv: [{name: "APP", value: context.name}]
+        extraEnv: [{name: "MANAGED_BY", value: "kubevela"}]
+        envList: baseEnv + extraEnv
+
+        output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          metadata: name: "legacy-cue-component"
+          spec: {
+            replicas: 1
+            selector: matchLabels: app: "legacy-cue-component"
+            template: {
+              metadata: labels: app: "legacy-cue-component"
+              spec: containers: [{
+                name:  "legacy-cue-component"
+                image: "nginx"
+                env:   envList
+              }]
+            }
+          }
+        }
+        parameter: {}
+  status:
+    details: |
+      // Legacy list-arithmetic in details: deprecated + operator concatenating diagnostic tags
+      baseTags: ["kubevela"]
+      extraTags: ["legacy-compat"]
+      allTags: baseTags + extraTags
+      readyReplicas: *context.output.status.readyReplicas | 0
+      $expectedReplicas: context.output.spec.replicas
+      deploymentReady: *(context.output.status.replicas == context.output.status.readyReplicas) | false
+    healthPolicy: |
+      // Legacy list-arithmetic in healthPolicy: deprecated + operator
+      baseChecks: [context.status.details.deploymentReady]
+      extraChecks: [true]
+      allChecks: baseChecks + extraChecks
+      isHealth: context.status.details.readyReplicas == context.status.details.$expectedReplicas
+    customStatus: |
+      // Legacy list-arithmetic in customStatus: deprecated + operator
+      baseMsg: ["replicas:"]
+      extraMsg: ["\(context.status.details.readyReplicas)/\(context.status.details.$expectedReplicas)"]
+      msgParts: baseMsg + extraMsg
+      if context.status.healthy {
+        message: "Healthy - \(context.status.details.readyReplicas) / \(context.status.details.$expectedReplicas) replicas are ready"
+      }
+      if !context.status.healthy {
+        message: "Unhealthy - \(context.status.details.readyReplicas) / \(context.status.details.$expectedReplicas) replicas are ready"
+      }

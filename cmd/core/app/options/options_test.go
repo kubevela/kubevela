@@ -17,16 +17,19 @@ limitations under the License.
 package options
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/kubevela/pkg/cue/cuex"
+	wfupgrade "github.com/kubevela/workflow/pkg/cue/upgrade"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 )
@@ -47,6 +50,10 @@ func TestNewCoreOptions_DefaultValues(t *testing.T) {
 	assert.Equal(t, false, opt.Webhook.UseWebhook)
 	assert.Equal(t, "/k8s-webhook-server/serving-certs", opt.Webhook.CertDir)
 	assert.Equal(t, 9443, opt.Webhook.WebhookPort)
+	assert.Equal(t, "", opt.Webhook.TLSSecret)
+	assert.Equal(t, "", opt.Webhook.ConfigurationName)
+	assert.Equal(t, "", opt.Webhook.FailurePolicy)
+	assert.Empty(t, opt.Webhook.ConversionCRDs)
 
 	// Test Observability defaults
 	assert.Equal(t, ":8080", opt.Observability.MetricsAddr)
@@ -63,6 +70,8 @@ func TestNewCoreOptions_DefaultValues(t *testing.T) {
 	assert.Equal(t, false, opt.MultiCluster.EnableClusterGateway)
 	assert.Equal(t, false, opt.MultiCluster.EnableClusterMetrics)
 	assert.Equal(t, 15*time.Second, opt.MultiCluster.ClusterMetricsInterval)
+	assert.Equal(t, "", opt.MultiCluster.ClusterGatewayTLSSecret)
+	assert.Equal(t, "", opt.MultiCluster.ClusterGatewayService)
 
 	// Test CUE defaults
 	assert.NotNil(t, opt.CUE)
@@ -124,6 +133,10 @@ func TestCoreOptions_FlagsCompleteSet(t *testing.T) {
 		// Webhook flags
 		"--use-webhook=true",
 		"--webhook-cert-dir=/path/to/cert",
+		"--webhook-tls-secret=vela-system/kubevela-vela-core-admission",
+		"--webhook-configuration=kubevela-vela-core-admission",
+		"--webhook-failure-policy=Fail",
+		"--webhook-conversion-crds=applications.core.oam.dev",
 		"--webhook-port=8080",
 		// Observability flags
 		"--metrics-addr=/metrics",
@@ -138,6 +151,8 @@ func TestCoreOptions_FlagsCompleteSet(t *testing.T) {
 		"--enable-cluster-gateway=true",
 		"--enable-cluster-metrics=true",
 		"--cluster-metrics-interval=5s",
+		"--cluster-gateway-tls-secret=vela-system/kubevela-vela-core-cluster-gateway-tls-v2",
+		"--cluster-gateway-service=vela-system/kubevela-cluster-gateway-service",
 		// CUE flags
 		"--enable-external-package-for-default-compiler=true",
 		"--enable-external-package-watch-for-default-compiler=true",
@@ -179,6 +194,10 @@ func TestCoreOptions_FlagsCompleteSet(t *testing.T) {
 	assert.Equal(t, true, opt.Webhook.UseWebhook)
 	assert.Equal(t, "/path/to/cert", opt.Webhook.CertDir)
 	assert.Equal(t, 8080, opt.Webhook.WebhookPort)
+	assert.Equal(t, "vela-system/kubevela-vela-core-admission", opt.Webhook.TLSSecret)
+	assert.Equal(t, "kubevela-vela-core-admission", opt.Webhook.ConfigurationName)
+	assert.Equal(t, "Fail", opt.Webhook.FailurePolicy)
+	assert.Equal(t, []string{"applications.core.oam.dev"}, opt.Webhook.ConversionCRDs)
 
 	// Verify Observability flags
 	assert.Equal(t, "/metrics", opt.Observability.MetricsAddr)
@@ -195,6 +214,8 @@ func TestCoreOptions_FlagsCompleteSet(t *testing.T) {
 	assert.Equal(t, true, opt.MultiCluster.EnableClusterGateway)
 	assert.Equal(t, true, opt.MultiCluster.EnableClusterMetrics)
 	assert.Equal(t, 5*time.Second, opt.MultiCluster.ClusterMetricsInterval)
+	assert.Equal(t, "vela-system/kubevela-vela-core-cluster-gateway-tls-v2", opt.MultiCluster.ClusterGatewayTLSSecret)
+	assert.Equal(t, "vela-system/kubevela-cluster-gateway-service", opt.MultiCluster.ClusterGatewayService)
 
 	// Verify CUE flags
 	assert.True(t, opt.CUE.EnableExternalPackage)
@@ -248,7 +269,7 @@ func TestCuexOptions_SyncToGlobals(t *testing.T) {
 	assert.False(t, cuex.EnableExternalPackageWatchForDefaultCompiler)
 
 	// After sync, globals should be updated
-	opts.CUE.SyncToCUEGlobals()
+	opts.CUE.SyncToCUEGlobals(context.Background())
 	assert.True(t, cuex.EnableExternalPackageForDefaultCompiler)
 	assert.True(t, cuex.EnableExternalPackageWatchForDefaultCompiler)
 }
@@ -258,12 +279,14 @@ func TestWorkflowOptions_SyncToGlobals(t *testing.T) {
 	origWait := wfTypes.MaxWorkflowWaitBackoffTime
 	origFailed := wfTypes.MaxWorkflowFailedBackoffTime
 	origRetry := wfTypes.MaxWorkflowStepErrorRetryTimes
+	origForEach := wfTypes.MaxForEachItems
 
 	// Restore after test
 	defer func() {
 		wfTypes.MaxWorkflowWaitBackoffTime = origWait
 		wfTypes.MaxWorkflowFailedBackoffTime = origFailed
 		wfTypes.MaxWorkflowStepErrorRetryTimes = origRetry
+		wfTypes.MaxForEachItems = origForEach
 	}()
 
 	opts := NewCoreOptions()
@@ -273,6 +296,7 @@ func TestWorkflowOptions_SyncToGlobals(t *testing.T) {
 		"--max-workflow-wait-backoff-time=120",
 		"--max-workflow-failed-backoff-time=600",
 		"--max-workflow-step-error-retry-times=20",
+		"--max-for-each-items=7",
 	}
 
 	err := fss.FlagSet("workflow").Parse(args)
@@ -282,12 +306,14 @@ func TestWorkflowOptions_SyncToGlobals(t *testing.T) {
 	assert.Equal(t, 120, opts.Workflow.MaxWaitBackoffTime)
 	assert.Equal(t, 600, opts.Workflow.MaxFailedBackoffTime)
 	assert.Equal(t, 20, opts.Workflow.MaxStepErrorRetryTimes)
+	assert.Equal(t, 7, opts.Workflow.MaxForEachItems)
 
 	// After sync, globals should be updated
 	opts.Workflow.SyncToWorkflowGlobals()
 	assert.Equal(t, 120, wfTypes.MaxWorkflowWaitBackoffTime)
 	assert.Equal(t, 600, wfTypes.MaxWorkflowFailedBackoffTime)
 	assert.Equal(t, 20, wfTypes.MaxWorkflowStepErrorRetryTimes)
+	assert.Equal(t, 7, wfTypes.MaxForEachItems)
 }
 
 func TestOAMOptions_SyncToGlobals(t *testing.T) {
@@ -347,17 +373,38 @@ func TestPerformanceOptions_SyncToGlobals(t *testing.T) {
 func TestApplicationOptions_SyncToGlobals(t *testing.T) {
 	// Store original value
 	origPeriod := commonconfig.ApplicationReSyncPeriod
+	origAutoRevision := commonconfig.ApplicationDefaultAutoRevision
+	origPolicyUpdates := commonconfig.ApplicationDefaultApplyPolicyUpdates
+	origDataChanges := commonconfig.ApplicationDefaultApplyDataChanges
+	origAllowNamespaceGlobals := commonconfig.AllowNamespaceGlobalPolicies
+	origAllowSkipGlobals := commonconfig.AllowSkipGlobalPolicies
 
 	// Restore after test
 	defer func() {
 		commonconfig.ApplicationReSyncPeriod = origPeriod
+		commonconfig.ApplicationDefaultAutoRevision = origAutoRevision
+		commonconfig.ApplicationDefaultApplyPolicyUpdates = origPolicyUpdates
+		commonconfig.ApplicationDefaultApplyDataChanges = origDataChanges
+		commonconfig.AllowNamespaceGlobalPolicies = origAllowNamespaceGlobals
+		commonconfig.AllowSkipGlobalPolicies = origAllowSkipGlobals
 	}()
 
 	opts := NewCoreOptions()
 	fss := opts.Flags()
 
+	assert.False(t, opts.Application.DefaultAutoRevision, "auto-revision stays opt-in by default")
+	assert.False(t, opts.Application.DefaultApplyPolicyUpdates, "policy updates stay opt-in by default")
+	assert.False(t, opts.Application.DefaultApplyDataChanges, "data changes stay opt-in by default")
+	assert.False(t, opts.Application.AllowNamespaceGlobalPolicies, "global policies live in vela-system by default")
+	assert.False(t, opts.Application.AllowSkipGlobalPolicies, "global policies are mandatory by default")
+
 	args := []string{
 		"--application-re-sync-period=10m",
+		"--application-default-auto-revision=true",
+		"--application-default-apply-policy-updates=true",
+		"--application-default-apply-data-changes=true",
+		"--allow-namespace-global-policies=true",
+		"--allow-skip-global-policies=true",
 	}
 
 	err := fss.FlagSet("application").Parse(args)
@@ -365,10 +412,20 @@ func TestApplicationOptions_SyncToGlobals(t *testing.T) {
 
 	// Verify struct field is updated
 	assert.Equal(t, 10*time.Minute, opts.Application.ReSyncPeriod)
+	assert.True(t, opts.Application.DefaultAutoRevision)
+	assert.True(t, opts.Application.DefaultApplyPolicyUpdates)
+	assert.True(t, opts.Application.DefaultApplyDataChanges)
+	assert.True(t, opts.Application.AllowNamespaceGlobalPolicies)
+	assert.True(t, opts.Application.AllowSkipGlobalPolicies)
 
 	// After sync, global should be updated
 	opts.Application.SyncToApplicationGlobals()
 	assert.Equal(t, 10*time.Minute, commonconfig.ApplicationReSyncPeriod)
+	assert.True(t, commonconfig.ApplicationDefaultAutoRevision)
+	assert.True(t, commonconfig.ApplicationDefaultApplyPolicyUpdates)
+	assert.True(t, commonconfig.ApplicationDefaultApplyDataChanges)
+	assert.True(t, commonconfig.AllowNamespaceGlobalPolicies)
+	assert.True(t, commonconfig.AllowSkipGlobalPolicies)
 }
 
 func TestResourceOptions_SyncToGlobals(t *testing.T) {
@@ -597,8 +654,8 @@ func TestCoreOptions_MultipleSyncCalls(t *testing.T) {
 	opts.Performance.PerfEnabled = true
 
 	// Call sync multiple times
-	opts.CUE.SyncToCUEGlobals()
-	opts.CUE.SyncToCUEGlobals()
+	opts.CUE.SyncToCUEGlobals(context.Background())
+	opts.CUE.SyncToCUEGlobals(context.Background())
 
 	opts.Workflow.SyncToWorkflowGlobals()
 	opts.Workflow.SyncToWorkflowGlobals()
@@ -754,8 +811,8 @@ func TestCoreOptions_AllConfigModulesHaveFlags(t *testing.T) {
 		"observability": {"metrics-addr", "log-debug", "log-file-path"},
 		"kubernetes":    {"informer-sync-period", "kube-api-qps", "kube-api-burst"},
 		"multicluster":  {"enable-cluster-gateway", "enable-cluster-metrics"},
-		"cue":           {"enable-external-package-for-default-compiler"},
-		"application":   {"application-re-sync-period"},
+		"cue":           {"enable-external-package-for-default-compiler", "cue-upgrade-list-concat-enabled", "cue-upgrade-error-field-label-enabled", "cue-upgrade-bool-default-guard-enabled", "cue-upgrade-generic-default-guard-enabled", "cue-upgrade-keepvalidators-singleton-enabled", "cue-upgrade-evalv3-selfref-guard-enabled"},
+		"application":   {"application-re-sync-period", "application-default-auto-revision", "application-default-apply-policy-updates", "application-default-apply-data-changes", "allow-namespace-global-policies", "allow-skip-global-policies"},
 		"oam":           {"system-definition-namespace"},
 		"controller":    {"revision-limit", "application-revision-limit", "definition-revision-limit"},
 		"performance":   {"perf-enabled"},
@@ -772,6 +829,65 @@ func TestCoreOptions_AllConfigModulesHaveFlags(t *testing.T) {
 			assert.NotNil(t, flag, "Flag %s should exist in flagset %s", flagName, setName)
 		}
 	}
+}
+
+func TestCoreOptions_CUEUpgradeFlagsSyncToGlobals(t *testing.T) {
+	origList := upgrade.EnableListConcatUpgrade
+	origError := upgrade.EnableErrorFieldLabelUpgrade
+	origBool := upgrade.EnableBoolDefaultGuardUpgrade
+	origGeneric := upgrade.EnableGenericDefaultGuardUpgrade
+	origKeep := upgrade.EnableKeepValidatorsSingletonUpgrade
+	origEvalv3 := upgrade.EnableEvalv3SelfRefGuardUpgrade
+	origWFList := wfupgrade.EnableListConcatUpgrade
+	origWFError := wfupgrade.EnableErrorFieldLabelUpgrade
+	origWFBool := wfupgrade.EnableBoolDefaultGuardUpgrade
+	origWFGeneric := wfupgrade.EnableGenericDefaultGuardUpgrade
+	origWFKeep := wfupgrade.EnableKeepValidatorsSingletonUpgrade
+	origWFEvalv3 := wfupgrade.EnableEvalv3SelfRefGuardUpgrade
+	defer func() {
+		upgrade.EnableListConcatUpgrade = origList
+		upgrade.EnableErrorFieldLabelUpgrade = origError
+		upgrade.EnableBoolDefaultGuardUpgrade = origBool
+		upgrade.EnableGenericDefaultGuardUpgrade = origGeneric
+		upgrade.EnableKeepValidatorsSingletonUpgrade = origKeep
+		upgrade.EnableEvalv3SelfRefGuardUpgrade = origEvalv3
+		wfupgrade.EnableListConcatUpgrade = origWFList
+		wfupgrade.EnableErrorFieldLabelUpgrade = origWFError
+		wfupgrade.EnableBoolDefaultGuardUpgrade = origWFBool
+		wfupgrade.EnableGenericDefaultGuardUpgrade = origWFGeneric
+		wfupgrade.EnableKeepValidatorsSingletonUpgrade = origWFKeep
+		wfupgrade.EnableEvalv3SelfRefGuardUpgrade = origWFEvalv3
+	}()
+
+	opt := NewCoreOptions()
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	for _, f := range opt.Flags().FlagSets {
+		fs.AddFlagSet(f)
+	}
+	err := fs.Parse([]string{
+		"--cue-upgrade-list-concat-enabled=false",
+		"--cue-upgrade-error-field-label-enabled=false",
+		"--cue-upgrade-bool-default-guard-enabled=false",
+		"--cue-upgrade-generic-default-guard-enabled=false",
+		"--cue-upgrade-keepvalidators-singleton-enabled=false",
+		"--cue-upgrade-evalv3-selfref-guard-enabled=false",
+	})
+	require.NoError(t, err)
+
+	opt.CUE.SyncToCUEGlobals(context.Background())
+
+	assert.False(t, upgrade.EnableListConcatUpgrade)
+	assert.False(t, upgrade.EnableErrorFieldLabelUpgrade)
+	assert.False(t, upgrade.EnableBoolDefaultGuardUpgrade)
+	assert.False(t, upgrade.EnableGenericDefaultGuardUpgrade)
+	assert.False(t, upgrade.EnableKeepValidatorsSingletonUpgrade)
+	assert.False(t, upgrade.EnableEvalv3SelfRefGuardUpgrade)
+	assert.False(t, wfupgrade.EnableListConcatUpgrade)
+	assert.False(t, wfupgrade.EnableErrorFieldLabelUpgrade)
+	assert.False(t, wfupgrade.EnableBoolDefaultGuardUpgrade)
+	assert.False(t, wfupgrade.EnableGenericDefaultGuardUpgrade)
+	assert.False(t, wfupgrade.EnableKeepValidatorsSingletonUpgrade)
+	assert.False(t, wfupgrade.EnableEvalv3SelfRefGuardUpgrade)
 }
 
 func TestCoreOptions_CLIOverridesWork(t *testing.T) {
@@ -849,7 +965,7 @@ func TestCoreOptions_CLIOverridesWork(t *testing.T) {
 	opt.OAM.SyncToOAMGlobals()
 	opt.Application.SyncToApplicationGlobals()
 	opt.Performance.SyncToPerformanceGlobals()
-	opt.CUE.SyncToCUEGlobals()
+	opt.CUE.SyncToCUEGlobals(context.Background())
 
 	// Verify globals got the CLI values
 	assert.Equal(t, 999, wfTypes.MaxWorkflowWaitBackoffTime, "Global should have CLI value")
@@ -917,7 +1033,7 @@ func TestCoreOptions_CompleteIntegration(t *testing.T) {
 	assert.Equal(t, 30*time.Second, opt.MultiCluster.ClusterMetricsInterval)
 
 	// Sync all configurations that need it
-	opt.CUE.SyncToCUEGlobals()
+	opt.CUE.SyncToCUEGlobals(context.Background())
 	opt.Workflow.SyncToWorkflowGlobals()
 	opt.Resource.SyncToResourceGlobals()
 	opt.OAM.SyncToOAMGlobals()

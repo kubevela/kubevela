@@ -1,0 +1,22 @@
+# Everything in this file is the platform team's business. An application author
+# never reads any of it directly - the SourceDefinitions do, and expose only what
+# their schema: blocks declare.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: checkout-prod
+  labels:
+    platform.io/team: payments
+    platform.io/cost-centre: CC-4471
+    platform.io/environment: production
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: registry-info
+  namespace: vela-system
+data:
+  # A real registry, so the demo actually pulls. Swap for your own.
+  host: docker.io
+  project: library
+  pullPolicy: IfNotPresent

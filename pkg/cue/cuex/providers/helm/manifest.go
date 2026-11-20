@@ -153,37 +153,30 @@ func isTestResource(resource *unstructured.Unstructured) bool {
 	return false
 }
 
-// cleanResource removes any nil values from a resource map
+// cleanResource removes nil values, keeping empty maps and lists (e.g. `emptyDir: {}`) since they carry meaning.
 func cleanResource(resource map[string]interface{}) map[string]interface{} {
-	cleaned := make(map[string]interface{})
+	cleaned := make(map[string]interface{}, len(resource))
 	for k, v := range resource {
-		if v != nil {
-			switch val := v.(type) {
-			case map[string]interface{}:
-				// Recursively clean nested maps
-				cleanedMap := cleanResource(val)
-				if len(cleanedMap) > 0 {
-					cleaned[k] = cleanedMap
+		switch val := v.(type) {
+		case nil:
+			continue
+		case map[string]interface{}:
+			cleaned[k] = cleanResource(val)
+		case []interface{}:
+			cleanedArray := make([]interface{}, 0, len(val))
+			for _, item := range val {
+				switch it := item.(type) {
+				case nil:
+					continue
+				case map[string]interface{}:
+					cleanedArray = append(cleanedArray, cleanResource(it))
+				default:
+					cleanedArray = append(cleanedArray, it)
 				}
-			case []interface{}:
-				// Clean arrays
-				cleanedArray := make([]interface{}, 0)
-				for _, item := range val {
-					if item != nil {
-						if m, ok := item.(map[string]interface{}); ok {
-							cleanedArray = append(cleanedArray, cleanResource(m))
-						} else {
-							cleanedArray = append(cleanedArray, item)
-						}
-					}
-				}
-				if len(cleanedArray) > 0 {
-					cleaned[k] = cleanedArray
-				}
-			default:
-				// Keep non-nil values
-				cleaned[k] = v
 			}
+			cleaned[k] = cleanedArray
+		default:
+			cleaned[k] = v
 		}
 	}
 	return cleaned

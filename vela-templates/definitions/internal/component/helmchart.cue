@@ -21,13 +21,14 @@ import (
 					if len(_criteria) > 0 {
 						_criteriaResults: [ for criterion in _criteria {
 							_targetKind: criterion.resource.kind
-							_targetName: criterion.resource.name
+							// an empty name matches any resource of the kind
+							_targetName: [if criterion.resource.name != _|_ {criterion.resource.name}, ""][0]
 							_conditionType: criterion.condition.type
 							_conditionStatus: *"True" | criterion.condition.status
 							// Search through all outputs for matching resource
 							_matchingResources: [ for outputKey, resource in context.outputs 
 								if resource.kind == _targetKind && 
-									(_targetName == _|_ || resource.metadata.name == _targetName) { 
+									(_targetName == "" || resource.metadata.name == _targetName) { 
 									resource 
 								} 
 							]
@@ -111,15 +112,15 @@ template: {
 			// decode, validate, or inspect JWT structure or claims. Token freshness,
 			// audience, and revocation remain the user's responsibility.
 			//
-			// The Secret MUST live in either the release namespace or the
-			// Application namespace. Cross-namespace references are rejected
-			// (mirrors the valuesFrom policy).
+			// The Secret MUST live in the Application namespace. Any other is
+			// rejected, the release namespace included (mirrors the valuesFrom
+			// policy).
 			auth?: {
 				// Reference to a Kubernetes Secret containing credentials.
 				secretRef?: {
 					// Secret name.
 					name: string
-					// Secret namespace. MAY be omitted (defaults to the release namespace).
+					// Secret namespace. MAY be omitted (defaults to the Application namespace).
 					namespace?: string
 				}
 			}
@@ -142,7 +143,7 @@ template: {
 			kind: "Secret" | "ConfigMap"
 			// +usage=Name of the Secret or ConfigMap.
 			name: string
-			// +usage=Namespace of the Secret or ConfigMap. Defaults to the chart release namespace, which itself defaults to the Application's own namespace when release.namespace is unset. Cross-namespace references are rejected to prevent cross-tenant reads via the controller's cluster-wide RBAC.
+			// +usage=Namespace of the Secret or ConfigMap. Defaults to, and MUST be, the Application's own namespace. Any other is rejected, the release namespace included, to prevent cross-tenant reads via the controller's cluster-wide RBAC.
 			namespace?: string
 			// +usage=Key inside .data whose value is parsed as YAML. Defaults to "values.yaml" (FluxCD / Helm convention). Only ConfigMap.data and Secret.data are read; ConfigMap.binaryData is rejected.
 			key?: string
@@ -198,9 +199,12 @@ template: {
 				// TTL for this specific chart (overrides automatic detection)
 				// Examples: "24h", "5m", "30s", "0" (disable cache)
 				ttl?: string
-				// Or specify different TTLs for immutable vs mutable versions
-				immutableTTL?: string | *"24h" // TTL for semantic versions (1.2.3, v2.0.0)
-				mutableTTL?:   string | *"5m"  // TTL for mutable tags (latest, dev, main)
+				// Or specify different TTLs for immutable vs mutable versions.
+				// When omitted, the controller's cluster-wide defaults apply
+				// (--helm-cache-immutable-ttl default "24h",
+				// --helm-cache-mutable-ttl default "5m").
+				immutableTTL?: string // TTL for semantic versions (1.2.3, v2.0.0)
+				mutableTTL?:   string // TTL for mutable tags (latest, dev, main)
 			}
 
 			// Post-rendering - Future enhancement
@@ -214,14 +218,17 @@ template: {
 		}
 	}
 
-	// Set default release configuration
+	// The release name and namespace default independently.
 	_release: {
+		name:      *context.name | string
+		namespace: *context.namespace | string
 		if parameter.release != _|_ {
-			parameter.release
-		}
-		if parameter.release == _|_ {
-			name:      context.name
-			namespace: context.namespace
+			if parameter.release.name != _|_ {
+				name: parameter.release.name
+			}
+			if parameter.release.namespace != _|_ {
+				namespace: parameter.release.namespace
+			}
 		}
 	}
 
@@ -229,6 +236,11 @@ template: {
 	_options: {
 		if parameter.options != _|_ {
 			parameter.options
+		}
+		if parameter.options != _|_ && parameter.options.cache == _|_ {
+			cache: {
+				key: "\(context.appName)-\(context.name)"
+			}
 		}
 		if parameter.options == _|_ {
 			cache: {
@@ -249,9 +261,12 @@ template: {
 	// (self-reference) instead of KubeVela's runtime context object.
 	_velaContext: {
 		appName:      context.appName
-		appNamespace: context.namespace
+		appNamespace: context.appNamespace
 		name:         context.name
 		namespace:    context.namespace
+		if context.cluster != _|_ {
+			cluster: context.cluster
+		}
 	}
 
 	// Render the Helm chart using the provider

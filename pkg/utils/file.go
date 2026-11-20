@@ -93,6 +93,15 @@ func IsJSONYAMLorCUEFile(path string) bool {
 		strings.HasSuffix(path, ".cue")
 }
 
+// CUETestFileSuffix marks a CUE file as definition tests, run by `vela def test`.
+const CUETestFileSuffix = "_test.cue"
+
+// IsCUETestFile reports whether path is a CUE definition test file. Tools that
+// read definitions from a directory skip these, as the cue loader does.
+func IsCUETestFile(path string) bool {
+	return strings.HasSuffix(filepath.Base(path), CUETestFileSuffix)
+}
+
 // IsCUEFile check if the path is a cue file
 func IsCUEFile(path string) bool {
 	return strings.HasSuffix(path, ".cue")

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -114,10 +115,10 @@ func TestApplyComponentsDepends(t *testing.T) {
 	}
 
 	applyMap := &sync.Map{}
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
-		return nil, nil, true, nil
+		return nil, nil, true, "", nil
 	}
 	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
@@ -158,31 +159,31 @@ func TestApplyComponentsIO(t *testing.T) {
 		applyMap    = new(sync.Map)
 		ctx         = context.Background()
 	)
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
-		return nil, nil, true, nil
+		return nil, nil, true, "", nil
 	}
 	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
 		return found, nil, &unstructured.Unstructured{Object: map[string]interface{}{
-				"spec": map[string]interface{}{
-					"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-				},
-			}}, []*unstructured.Unstructured{
-				{
-					Object: map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"labels": map[string]interface{}{
-								oam.TraitResource: "obj",
-							},
-						},
-						"spec": map[string]interface{}{
-							"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+			"spec": map[string]interface{}{
+				"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+			},
+		}}, []*unstructured.Unstructured{
+			{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"labels": map[string]interface{}{
+							oam.TraitResource: "obj",
 						},
 					},
+					"spec": map[string]interface{}{
+						"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+					},
 				},
-			}, nil
+			},
+		}, nil
 	}
 
 	resetStore := func() {
@@ -293,7 +294,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			output  *unstructured.Unstructured
 			outputs []*unstructured.Unstructured
 		}
-		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 			time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 			key := storeKey(clusterName, comp)
 			result := applyResult{
@@ -318,7 +319,7 @@ func TestApplyComponentsIO(t *testing.T) {
 				},
 			}
 			applyMap.Store(storeKey(clusterName, comp), result)
-			return nil, nil, true, nil
+			return nil, nil, true, "", nil
 		}
 		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 			key := storeKey(clusterName, comp)
@@ -407,4 +408,87 @@ func TestApplyComponentsIO(t *testing.T) {
 		r.True(healthy)
 
 	})
+}
+
+// A reader beside its producer is not applied in a placement until the producer
+// is healthy there.
+func TestApplyComponentsHoldsAReader(t *testing.T) {
+	components := []apicommon.ApplicationComponent{{Name: "cache"}, {Name: "api", DependsOn: []string{"cache"}}}
+	placements := []v1alpha1.PlacementDecision{{Cluster: "east"}, {Cluster: "west"}}
+	applied := &sync.Map{}
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, _ *cue.Value, cluster, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+		applied.Store(cluster+"/"+comp.Name, true)
+		// The cache comes up in east only.
+		return nil, nil, comp.Name != "cache" || cluster == "east", "", nil
+	}
+	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, _ *cue.Value, cluster, _ string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		_, ok := applied.Load(cluster + "/" + comp.Name)
+		return ok && (comp.Name != "cache" || cluster == "east"), nil, nil, nil, nil
+	}
+	for i := 0; i < 2; i++ {
+		_, _, err := applyComponents(context.Background(), apply, healthCheck, components, placements, 2)
+		require.NoError(t, err)
+	}
+	_, eastAPI := applied.Load("east/api")
+	_, westAPI := applied.Load("west/api")
+	require.True(t, eastAPI)
+	require.False(t, westAPI, "west's api waits on west's cache")
+}
+
+// A component waiting on a read is reported with its reason, and is not an
+// error: the step retries it as it would any component not yet healthy.
+func TestApplyComponentsReportsAReadWait(t *testing.T) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, _ *cue.Value, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+		return nil, nil, false, `waiting for component "db" in hub to be healthy`, nil
+	}
+	healthCheck := func(context.Context, apicommon.ApplicationComponent, *cue.Value, string, string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		return false, nil, nil, nil, nil
+	}
+	healthy, reason, err := applyComponents(context.Background(), apply, healthCheck,
+		[]apicommon.ApplicationComponent{{Name: "api"}}, []v1alpha1.PlacementDecision{{Cluster: "east"}}, 1)
+	require.NoError(t, err)
+	require.False(t, healthy)
+	require.Equal(t, `east///api is waiting for component "db" in hub to be healthy`, reason)
+}
+
+func TestOutputViewHyphenatedOutputName(t *testing.T) {
+	build := func(s string) cue.Value { return cuecontext.New().CompileString(s) }
+	workload := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "ConfigMap",
+		"metadata": map[string]interface{}{"name": "app-settings"},
+		"data":     map[string]interface{}{"color": "blue"},
+	}}
+	extra := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "ConfigMap",
+		"metadata": map[string]interface{}{"name": "app-extra", "labels": map[string]interface{}{oam.TraitResource: "objects-1"}},
+		"data":     map[string]interface{}{"size": "large"},
+	}}
+
+	svc := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "Service",
+		"metadata": map[string]interface{}{"name": "web", "labels": map[string]interface{}{oam.TraitResource: "my-svc"}},
+		"spec":     map[string]interface{}{"clusterIP": "10.0.0.1"},
+	}}
+
+	view, err := OutputView(workload, []*unstructured.Unstructured{extra, svc}, build)
+	require.NoError(t, err)
+	require.NoError(t, view.Err())
+
+	color, err := LookupOutput(view, "output.data.color")
+	require.NoError(t, err)
+	s, err := color.String()
+	require.NoError(t, err)
+	require.Equal(t, "blue", s)
+
+	size, err := LookupOutput(view, `outputs["objects-1"].data.size`)
+	require.NoError(t, err)
+	s, err = size.String()
+	require.NoError(t, err)
+	require.Equal(t, "large", s)
+
+	ip, err := LookupOutput(view, `outputs["my-svc"].spec.clusterIP`)
+	require.NoError(t, err)
+	s, err = ip.String()
+	require.NoError(t, err)
+	require.Equal(t, "10.0.0.1", s)
 }

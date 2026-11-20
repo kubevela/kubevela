@@ -1,0 +1,7 @@
+name: broken-imports
+version: 1.0.5
+description: "Deliberately broken _imports.cue: two sources for one module."
+tags:
+  - test
+  - module-import
+dependencies: []

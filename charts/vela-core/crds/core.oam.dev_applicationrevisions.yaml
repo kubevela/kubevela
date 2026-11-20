@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.5
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: applicationrevisions.core.oam.dev
 spec:
   group: core.oam.dev
@@ -196,6 +196,62 @@ spec:
                           - type
                           type: object
                         type: array
+                      sources:
+                        description: Sources defines external sources that properties
+                          can read with $(source...).
+                        items:
+                          description: ApplicationSource defines a source binding
+                            under spec.sources.
+                          properties:
+                            autoUpdate:
+                              description: |-
+                                AutoUpdate controls whether a change to this source's resolved value
+                                re-dispatches the components and traits that read it, without waiting for
+                                the workflow to run again.
+
+                                Unset defers to the EnableSourceAutoUpdate feature gate, so a platform can
+                                set the fleet-wide default and an Application can disagree per binding: a
+                                registry address worth picking up immediately and a feature flag that
+                                should wait for the next rollout can sit side by side.
+
+                                A publishVersion pin freezes only the gate's default. True here keeps the
+                                binding live under a pin: it refreshes data and never cuts a new version.
+                              type: boolean
+                            name:
+                              type: string
+                            properties:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                            statusPolicy:
+                              description: StatusPolicy controls what source resolution
+                                details are exposed on Application status.
+                              properties:
+                                exposeConsumedValues:
+                                  description: |-
+                                    ExposeConsumedValues controls whether the values a reader took from this
+                                    source are written to status. When false the properties that read it are
+                                    still listed, without their values.
+
+                                    Unset means expose, so the knobs in this struct stay independent: asking
+                                    for one path to be masked is a narrower request than asking for silence,
+                                    and must not be read as the wider one.
+                                  type: boolean
+                                maskPaths:
+                                  description: |-
+                                    MaskPaths redacts source attributes before they are written to status, in
+                                    addition to those the definition marks +sensitive. Paths are dot-delimited,
+                                    for example "nested.token".
+                                  items:
+                                    type: string
+                                  type: array
+                              type: object
+                            type:
+                              type: string
+                          required:
+                          - name
+                          - type
+                          type: object
+                        type: array
                       workflow:
                         description: |-
                           Workflow defines how to customize the control logic.
@@ -217,6 +273,12 @@ spec:
                                 type: string
                             type: object
                           ref:
+                            description: |-
+                              Ref names a Workflow object to run in place of Steps: the one in the Application's
+                              namespace, else a shared one of that name in the system definition namespace
+                              (vela-system unless set otherwise).
+                              The author needs get on it where definition permissions or AuthenticateApplication
+                              are enforced.
                             type: string
                           steps:
                             items:
@@ -229,6 +291,41 @@ spec:
                                   items:
                                     type: string
                                   type: array
+                                forEach:
+                                  description: |-
+                                    ForEach runs the step once per item. On a step-group, the whole group runs once
+                                    per item.
+                                  properties:
+                                    from:
+                                      description: |-
+                                        From reads the list from a workflow variable, with the same path syntax as
+                                        inputs[].from.
+                                      type: string
+                                    items:
+                                      description: |-
+                                        Items is the list itself. It is any JSON value rather than a list so that a
+                                        KubeVela Application can give a single $( ) expression, resolved to the list
+                                        before the workflow runs.
+                                      x-kubernetes-preserve-unknown-fields: true
+                                    key:
+                                      description: |-
+                                        Key names each item's steps by its value instead of its index: paths into the
+                                        item whose values, joined with "-", replace the index in the step names. Each
+                                        value must be a string or an integer, and the joined keys unique in the list.
+                                      items:
+                                        type: string
+                                      maxItems: 8
+                                      minItems: 1
+                                      type: array
+                                    mode:
+                                      description: 'Mode is StepByStep (the default:
+                                        one item at a time) or DAG (every item at
+                                        once).'
+                                      enum:
+                                      - StepByStep
+                                      - DAG
+                                      type: string
+                                  type: object
                                 if:
                                   description: If is the if condition of the step
                                   type: string
@@ -568,6 +665,41 @@ spec:
                           - type
                           type: object
                         type: array
+                      dependencies:
+                        description: |-
+                          Dependencies is what each component depends on: the components named in
+                          its dependsOn, those whose outputs its inputs read, and those its property
+                          expressions read.
+                        items:
+                          description: |-
+                            ComponentDependency is one component another depends on. A dependency on a
+                            component beside the dependent, in its own cluster and namespace, orders the
+                            dependent after it. One from an expression that names a cluster or namespace
+                            is read there, and is ordered by the workflow instead.
+                          properties:
+                            cluster:
+                              description: Cluster is the cluster an expression reads
+                                the component in, when it names one.
+                              type: string
+                            component:
+                              description: Component is the component that depends.
+                              type: string
+                            dependsOn:
+                              description: DependsOn is the component depended on.
+                              type: string
+                            namespace:
+                              description: Namespace is the namespace an expression
+                                reads the component in, when it names one.
+                              type: string
+                            source:
+                              description: Source is where the dependency is declared.
+                              type: string
+                          required:
+                          - component
+                          - dependsOn
+                          - source
+                          type: object
+                        type: array
                       latestRevision:
                         description: LatestRevision of the application configuration
                           it generates
@@ -722,6 +854,180 @@ spec:
                           - name
                           type: object
                         type: array
+                      sources:
+                        description: |-
+                          Sources reports each spec.sources[] binding: whether it resolved, what
+                          backs it, when that expires, whether it auto-updates, and who read it.
+
+                          Application-level because a binding is declared once for the whole
+                          Application. The per-component list under Services says only what that
+                          component consumed.
+                        items:
+                          description: ApplicationSourceStatus records source resolution
+                            status.
+                          properties:
+                            autoUpdate:
+                              description: |-
+                                AutoUpdate reports whether a change to this binding re-dispatches the
+                                components reading it, after the feature gate, the binding's own setting and
+                                any publishVersion pin have all been resolved. When it is false and the
+                                binding asked for true, Message says which of them won.
+                              type: boolean
+                            consumedBy:
+                              description: |-
+                                ConsumedBy records who read this source and what each of them got.
+
+                                Consumption hangs off the source rather than off each consumer because the
+                                consumers do not all have somewhere to put it: a workflow step's status is
+                                workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, which
+                                resolves a step's expressions through KubeVela's resolvers without knowing
+                                what a source is.
+                              items:
+                                description: SourceConsumer records one reader of
+                                  a source and the values it received.
+                                properties:
+                                  cluster:
+                                    description: |-
+                                      Cluster and Namespace place the read. The same binding resolves separately
+                                      per cluster when its cache key varies by one, so two entries here may
+                                      legitimately hold different values, and an override policy can put the same
+                                      component in two namespaces of one cluster.
+                                    type: string
+                                  definitionKind:
+                                    description: |-
+                                      DefinitionKind is the kind of definition that read it: component, trait,
+                                      workflowstep or policy.
+                                    type: string
+                                  name:
+                                    description: |-
+                                      Name identifies the reader within its kind - the component, the step, the
+                                      policy. A trait is named "<component>/<trait>", since a trait has no
+                                      identity apart from the component it is attached to.
+                                    type: string
+                                  namespace:
+                                    type: string
+                                  type:
+                                    description: |-
+                                      Type is the reader's own definition type, e.g. "webservice", so a reader can
+                                      be understood without cross-referencing the spec.
+                                    type: string
+                                  values:
+                                    description: |-
+                                      Values are what this reader took, each saying which source attribute was
+                                      read and which of the reader's properties received it. A list rather than a
+                                      map because one source attribute can feed several properties, and one
+                                      property can be assembled from several attributes -
+                                      "host: $(source.db.addr):$(source.db.port)" is two values into one
+                                      property, which a map cannot express.
+
+                                      Attributes the definition marks sensitive, and any the binding's
+                                      statusPolicy masks, are redacted here exactly as they are elsewhere.
+                                    items:
+                                      description: 'SourceValue is one value taken
+                                        from a source: what was read and where it
+                                        went.'
+                                      properties:
+                                        property:
+                                          description: |-
+                                            Property is the reader's property that received it, e.g. "image" or
+                                            "env[0].value".
+                                          type: string
+                                        sourceAttr:
+                                          description: SourceAttr is the attribute
+                                            of the source that was read, e.g. "data.image".
+                                          type: string
+                                        value:
+                                          description: |-
+                                            Value is what was read, redacted where the attribute is sensitive or masked.
+
+                                            Schemaless because a source value is whatever the source returns - a string,
+                                            a number, a list, a struct. RawExtension alone generates "type: object",
+                                            which rejects every scalar and takes the whole status write down with it.
+                                          x-kubernetes-preserve-unknown-fields: true
+                                      required:
+                                      - sourceAttr
+                                      type: object
+                                    type: array
+                                required:
+                                - definitionKind
+                                - name
+                                type: object
+                              type: array
+                            message:
+                              description: |-
+                                Message explains a result about the binding as a whole - most often why
+                                AutoUpdate is false on a binding that asked for true. A failure to resolve
+                                belongs to the entry that failed, and is reported on that Resolution.
+                              type: string
+                            name:
+                              description: Name is the spec.sources[] binding this
+                                reports on.
+                              type: string
+                            phase:
+                              description: |-
+                                Phase is Resolved, Stale, Failed or Unused. Stale means a refresh failed and
+                                the previous value is still being served, which is a working Application
+                                with data that has stopped moving - the case a bare healthy/unhealthy cannot
+                                express.
+                              type: string
+                            resolutions:
+                              description: |-
+                                Resolutions are the cache entries backing this binding.
+
+                                More than one when the binding's cache key varies by something that varies -
+                                most often the cluster, since a source keying on context.cluster resolves
+                                separately in each. Collapsing them into a single config and expiry meant
+                                status named one entry when there were three, and named it arbitrarily.
+                              items:
+                                description: |-
+                                  SourceResolution is one stored entry backing a binding, and the state of it.
+
+                                  Keyed by the storage key rather than by cluster because the key is what a
+                                  resolution is. A source keyed on the cluster has an entry per cluster; one
+                                  keyed on the component has an entry per component within a single cluster; one
+                                  keyed on nothing has a single entry serving everything. Cluster is only ever
+                                  one of the things a key may vary by.
+                                properties:
+                                  clusters:
+                                    description: |-
+                                      Clusters this entry served, as context. Not the identity: a cache key may
+                                      vary by namespace, appName, componentName or a label just as readily as by
+                                      cluster, so two entries can serve one cluster and one entry can serve
+                                      several.
+                                    items:
+                                      type: string
+                                    type: array
+                                  expiresAt:
+                                    description: ExpiresAt is the RFC3339 timestamp
+                                      when this entry's value expires.
+                                    type: string
+                                  message:
+                                    description: Message carries the failure when
+                                      this entry is Failed or Stale.
+                                    type: string
+                                  phase:
+                                    description: |-
+                                      Phase is Resolved, Stale or Failed for this entry specifically. The binding's
+                                      own Phase is the worst of these.
+                                    type: string
+                                  storageKey:
+                                    description: |-
+                                      StorageKey identifies the entry, and is the name of the object holding it -
+                                      inspect that directly to see when it last synced. Named for the storage.key
+                                      a SourceDefinition author writes and vela def show reports, rather than for
+                                      the store it happens to live in.
+                                    type: string
+                                type: object
+                              type: array
+                            type:
+                              description: |-
+                                Type is the SourceDefinition that resolved it, carrying the pinned revision
+                                where one was requested, e.g. "configmap@v2".
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
                       status:
                         description: ApplicationPhase is a label for the condition
                           of an application at the current time
@@ -775,6 +1081,31 @@ spec:
                                 type: string
                             type: object
                             x-kubernetes-map-type: atomic
+                          dependencies:
+                            description: |-
+                              Dependencies is what each workflow step waits on before it starts, whether
+                              named in its dependsOn or read by its expressions.
+                            items:
+                              description: |-
+                                WorkflowStepDependency is one step a workflow step waits on before it starts,
+                                and why. Its own type rather than the workflow engine's, so that this API does
+                                not change with the engine's version.
+                              properties:
+                                dependsOn:
+                                  type: string
+                                source:
+                                  description: |-
+                                    Source says why the step waits on DependsOn: dependsOn when the step names
+                                    it in its dependsOn, expression when one of the step's expressions reads it.
+                                  type: string
+                                step:
+                                  type: string
+                              required:
+                              - dependsOn
+                              - source
+                              - step
+                              type: object
+                            type: array
                           endTime:
                             format: date-time
                             nullable: true
@@ -785,6 +1116,51 @@ spec:
                             type: string
                           mode:
                             type: string
+                          ref:
+                            description: |-
+                              Ref is the Workflow spec.workflow.ref resolved to: the one in the Application's namespace,
+                              else the shared one in the system namespace.
+                            properties:
+                              apiVersion:
+                                description: API version of the referent.
+                                type: string
+                              fieldPath:
+                                description: |-
+                                  If referring to a piece of an object instead of an entire object, this string
+                                  should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+                                  For example, if the object reference is to a container within a pod, this would take on a value like:
+                                  "spec.containers{name}" (where "name" refers to the name of the container that triggered
+                                  the event) or if no container name is specified "spec.containers[2]" (container with
+                                  index 2 in this pod). This syntax is chosen only to have some well-defined way of
+                                  referencing a part of an object.
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind of the referent.
+                                  More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                                type: string
+                              name:
+                                description: |-
+                                  Name of the referent.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                type: string
+                              namespace:
+                                description: |-
+                                  Namespace of the referent.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+                                type: string
+                              resourceVersion:
+                                description: |-
+                                  Specific resourceVersion to which this reference is made, if any.
+                                  More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+                                type: string
+                              uid:
+                                description: |-
+                                  UID of the referent.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
+                                type: string
+                            type: object
+                            x-kubernetes-map-type: atomic
                           startTime:
                             format: date-time
                             type: string
@@ -935,6 +1311,22 @@ spec:
                       description: ComponentDefinitionSpec defines the desired state
                         of ComponentDefinition
                       properties:
+                        abstract:
+                          description: |-
+                            Abstract marks this definition as one that may only be extended, never
+                            named directly by an Application. A base that applies a platform's rules
+                            is not something to use as-is, and saying so here is what makes the
+                            definitions built on it the only way through.
+
+                            It is not inherited: a definition that extends an abstract one is usable
+                            unless it marks itself abstract too.
+                          type: boolean
+                        apiVersion:
+                          description: |-
+                            APIVersion is the API line of the module this definition belongs to, for
+                            example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          pattern: ^v\d+(alpha\d+|beta\d+)?$
+                          type: string
                         childResourceKinds:
                           description: ChildResourceKinds are the list of GVK of the
                             child resources this workload generates
@@ -959,16 +1351,200 @@ spec:
                             - kind
                             type: object
                           type: array
+                        extends:
+                          description: |-
+                            Extends names a ComponentDefinition this one builds on. The parent renders
+                            with the parameters this definition's template passes it in its `$super`
+                            block; this definition declares parameters of its own and does not
+                            inherit the parent's. It adds to what the parent renders and never
+                            changes it: its output and outputs merge onto the parent's, a field the
+                            parent set is changed only through `$super`, and its workload is the
+                            parent's. One of the parent's outputs may be left out with
+                            `$inherit: {outputs: {<name>: false}}` unless the parent marks it
+                            `+required`, and a field the parent marks `+final` takes no additions.
+
+                            A DefinitionRevision may be named to pin the parent, as in
+                            "webservice@v3"; an unqualified name tracks whatever is current. The
+                            ancestors a render resolved are recorded in the ApplicationRevision, so an
+                            application keeps rendering the same way after a parent changes.
+                          type: string
                         extension:
                           description: Extension is used for extension needs by OAM
                             platform builders
                           type: object
                           x-kubernetes-preserve-unknown-fields: true
+                        module:
+                          description: |-
+                            Module names the module this definition was published in, for example
+                            "s3". It identifies a versioned definition on the spec itself, not only
+                            through labels. Set it together with apiVersion, or leave both empty.
+                          type: string
                         podSpecPath:
                           description: |-
                             PodSpecPath indicates where/if this workload has K8s podSpec field
                             if one workload has podSpec, trait can do lot's of assumption such as port, env, volume fields.
                           type: string
+                        restrictions:
+                          description: |-
+                            Restrictions limits where this definition may be used. Absent or empty means
+                            usable anywhere. A non-empty block overrides the
+                            definition.oam.dev/restrict-namespaces annotation.
+                          properties:
+                            namespaceSelector:
+                              description: |-
+                                NamespaceSelector selects those namespaces by label instead, for membership
+                                that is not a naming convention. An empty selector matches every namespace;
+                                leave the field unset to express no opinion.
+
+                                Anyone who can label a namespace can bring it into scope, which a name glob
+                                does not allow without the right to create namespaces.
+                              properties:
+                                matchExpressions:
+                                  description: matchExpressions is a list of label
+                                    selector requirements. The requirements are ANDed.
+                                  items:
+                                    description: |-
+                                      A label selector requirement is a selector that contains values, a key, and an operator that
+                                      relates the key and values.
+                                    properties:
+                                      key:
+                                        description: key is the label key that the
+                                          selector applies to.
+                                        type: string
+                                      operator:
+                                        description: |-
+                                          operator represents a key's relationship to a set of values.
+                                          Valid operators are In, NotIn, Exists and DoesNotExist.
+                                        type: string
+                                      values:
+                                        description: |-
+                                          values is an array of string values. If the operator is In or NotIn,
+                                          the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                          the values array must be empty. This array is replaced during a strategic
+                                          merge patch.
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  description: |-
+                                    matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                    map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                    operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            namespaces:
+                              description: |-
+                                Namespaces are the namespaces whose Applications may use this definition, as
+                                names or globs ("tenant-*", matched with path.Match).
+                              items:
+                                type: string
+                              type: array
+                            quota:
+                              description: |-
+                                Quota limits how many uses of this definition one namespace may contain. The
+                                first entry matching the namespace applies, so an entry with no matcher reads
+                                as the default and belongs last. Absent or empty means unlimited.
+
+                                Only ComponentDefinition and TraitDefinition are counted, and a quota on any
+                                other kind is rejected when the definition is written. A namespace
+                                accumulates components and the traits on them; a policy, workflow step or
+                                source is part of how one Application is assembled.
+
+                                The system namespace is never subject to a quota: addons install their own
+                                Applications there using these definitions.
+                              items:
+                                description: |-
+                                  NamespaceQuota caps how many uses of a definition the namespaces it matches may
+                                  contain. Its matcher fields carry the same meaning as the ones on
+                                  DefinitionRestrictions, and an entry with neither matches every namespace.
+
+                                  Warn and Limit are both optional, and at least one must be set. Warn alone never
+                                  refuses, which is how a quota is introduced before it is enforced.
+                                properties:
+                                  limit:
+                                    description: |-
+                                      Limit is the most uses of this definition the namespace may contain. Omit to
+                                      warn without ever refusing; zero forbids the type outright.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                  namespaceSelector:
+                                    description: |-
+                                      NamespaceSelector selects those namespaces by label instead. It and
+                                      Namespaces are alternatives, so either one matching selects the entry.
+                                    properties:
+                                      matchExpressions:
+                                        description: matchExpressions is a list of
+                                          label selector requirements. The requirements
+                                          are ANDed.
+                                        items:
+                                          description: |-
+                                            A label selector requirement is a selector that contains values, a key, and an operator that
+                                            relates the key and values.
+                                          properties:
+                                            key:
+                                              description: key is the label key that
+                                                the selector applies to.
+                                              type: string
+                                            operator:
+                                              description: |-
+                                                operator represents a key's relationship to a set of values.
+                                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                                              type: string
+                                            values:
+                                              description: |-
+                                                values is an array of string values. If the operator is In or NotIn,
+                                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                                the values array must be empty. This array is replaced during a strategic
+                                                merge patch.
+                                              items:
+                                                type: string
+                                              type: array
+                                              x-kubernetes-list-type: atomic
+                                          required:
+                                          - key
+                                          - operator
+                                          type: object
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                      matchLabels:
+                                        additionalProperties:
+                                          type: string
+                                        description: |-
+                                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                        type: object
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                  namespaces:
+                                    description: |-
+                                      Namespaces are the namespaces this entry applies to, as names or globs
+                                      ("tenant-*", matched with path.Match). Leave both matchers unset to make the
+                                      entry the default.
+                                    items:
+                                      type: string
+                                    type: array
+                                  warn:
+                                    description: |-
+                                      Warn is the count at or above which the Application is admitted with a
+                                      warning.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                type: object
+                              type: array
+                          type: object
                         revisionLabel:
                           description: |-
                             RevisionLabel indicates which label for underlying resources(e.g. pods) of this workload
@@ -1276,6 +1852,12 @@ spec:
                       description: PolicyDefinitionSpec defines the desired state
                         of PolicyDefinition
                       properties:
+                        apiVersion:
+                          description: |-
+                            APIVersion is the API line of the module this definition belongs to, for
+                            example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          pattern: ^v\d+(alpha\d+|beta\d+)?$
+                          type: string
                         definitionRef:
                           description: Reference to the CustomResourceDefinition that
                             defines this trait kind.
@@ -1304,6 +1886,12 @@ spec:
                             ManageHealthCheck means the policy will handle health checking and skip application controller
                             built-in health checking.
                           type: boolean
+                        module:
+                          description: |-
+                            Module names the module this definition was published in, for example
+                            "s3". It identifies a versioned definition on the spec itself, not only
+                            through labels. Set it together with apiVersion, or leave both empty.
+                          type: string
                         priority:
                           description: |-
                             Priority defines the order in which global policies are applied.
@@ -1313,6 +1901,167 @@ spec:
                             If not specified, defaults to 0.
                           format: int32
                           type: integer
+                        restrictions:
+                          description: |-
+                            Restrictions limits where this definition may be used. Absent or empty means
+                            usable anywhere. A non-empty block overrides the
+                            definition.oam.dev/restrict-namespaces annotation.
+                          properties:
+                            namespaceSelector:
+                              description: |-
+                                NamespaceSelector selects those namespaces by label instead, for membership
+                                that is not a naming convention. An empty selector matches every namespace;
+                                leave the field unset to express no opinion.
+
+                                Anyone who can label a namespace can bring it into scope, which a name glob
+                                does not allow without the right to create namespaces.
+                              properties:
+                                matchExpressions:
+                                  description: matchExpressions is a list of label
+                                    selector requirements. The requirements are ANDed.
+                                  items:
+                                    description: |-
+                                      A label selector requirement is a selector that contains values, a key, and an operator that
+                                      relates the key and values.
+                                    properties:
+                                      key:
+                                        description: key is the label key that the
+                                          selector applies to.
+                                        type: string
+                                      operator:
+                                        description: |-
+                                          operator represents a key's relationship to a set of values.
+                                          Valid operators are In, NotIn, Exists and DoesNotExist.
+                                        type: string
+                                      values:
+                                        description: |-
+                                          values is an array of string values. If the operator is In or NotIn,
+                                          the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                          the values array must be empty. This array is replaced during a strategic
+                                          merge patch.
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  description: |-
+                                    matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                    map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                    operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            namespaces:
+                              description: |-
+                                Namespaces are the namespaces whose Applications may use this definition, as
+                                names or globs ("tenant-*", matched with path.Match).
+                              items:
+                                type: string
+                              type: array
+                            quota:
+                              description: |-
+                                Quota limits how many uses of this definition one namespace may contain. The
+                                first entry matching the namespace applies, so an entry with no matcher reads
+                                as the default and belongs last. Absent or empty means unlimited.
+
+                                Only ComponentDefinition and TraitDefinition are counted, and a quota on any
+                                other kind is rejected when the definition is written. A namespace
+                                accumulates components and the traits on them; a policy, workflow step or
+                                source is part of how one Application is assembled.
+
+                                The system namespace is never subject to a quota: addons install their own
+                                Applications there using these definitions.
+                              items:
+                                description: |-
+                                  NamespaceQuota caps how many uses of a definition the namespaces it matches may
+                                  contain. Its matcher fields carry the same meaning as the ones on
+                                  DefinitionRestrictions, and an entry with neither matches every namespace.
+
+                                  Warn and Limit are both optional, and at least one must be set. Warn alone never
+                                  refuses, which is how a quota is introduced before it is enforced.
+                                properties:
+                                  limit:
+                                    description: |-
+                                      Limit is the most uses of this definition the namespace may contain. Omit to
+                                      warn without ever refusing; zero forbids the type outright.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                  namespaceSelector:
+                                    description: |-
+                                      NamespaceSelector selects those namespaces by label instead. It and
+                                      Namespaces are alternatives, so either one matching selects the entry.
+                                    properties:
+                                      matchExpressions:
+                                        description: matchExpressions is a list of
+                                          label selector requirements. The requirements
+                                          are ANDed.
+                                        items:
+                                          description: |-
+                                            A label selector requirement is a selector that contains values, a key, and an operator that
+                                            relates the key and values.
+                                          properties:
+                                            key:
+                                              description: key is the label key that
+                                                the selector applies to.
+                                              type: string
+                                            operator:
+                                              description: |-
+                                                operator represents a key's relationship to a set of values.
+                                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                                              type: string
+                                            values:
+                                              description: |-
+                                                values is an array of string values. If the operator is In or NotIn,
+                                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                                the values array must be empty. This array is replaced during a strategic
+                                                merge patch.
+                                              items:
+                                                type: string
+                                              type: array
+                                              x-kubernetes-list-type: atomic
+                                          required:
+                                          - key
+                                          - operator
+                                          type: object
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                      matchLabels:
+                                        additionalProperties:
+                                          type: string
+                                        description: |-
+                                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                        type: object
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                  namespaces:
+                                    description: |-
+                                      Namespaces are the namespaces this entry applies to, as names or globs
+                                      ("tenant-*", matched with path.Match). Leave both matchers unset to make the
+                                      entry the default.
+                                    items:
+                                      type: string
+                                    type: array
+                                  warn:
+                                    description: |-
+                                      Warn is the count at or above which the Application is admitted with a
+                                      warning.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                type: object
+                              type: array
+                          type: object
                         schematic:
                           description: |-
                             Schematic defines the data format and template of the encapsulation of the policy definition.
@@ -1520,6 +2269,384 @@ spec:
                   x-kubernetes-preserve-unknown-fields: true
                 type: array
                 x-kubernetes-preserve-unknown-fields: true
+              sourceDefinitions:
+                additionalProperties:
+                  description: SourceDefinition is the Schema for sourcedefinitions
+                    API.
+                  properties:
+                    apiVersion:
+                      description: |-
+                        APIVersion defines the versioned schema of this representation of an object.
+                        Servers should convert recognized schemas to the latest internal value, and
+                        may reject unrecognized values.
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+                      type: string
+                    kind:
+                      description: |-
+                        Kind is a string value representing the REST resource this object represents.
+                        Servers may infer this from the endpoint the client submits requests to.
+                        Cannot be updated.
+                        In CamelCase.
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                      type: string
+                    metadata:
+                      properties:
+                        annotations:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        finalizers:
+                          items:
+                            type: string
+                          type: array
+                        labels:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      type: object
+                    spec:
+                      description: SourceDefinitionSpec defines the desired state
+                        of SourceDefinition.
+                      properties:
+                        restrictions:
+                          description: |-
+                            Restrictions limits where this definition may be used. Absent or empty means
+                            usable anywhere. A non-empty block overrides the
+                            definition.oam.dev/restrict-namespaces annotation.
+                          properties:
+                            namespaceSelector:
+                              description: |-
+                                NamespaceSelector selects those namespaces by label instead, for membership
+                                that is not a naming convention. An empty selector matches every namespace;
+                                leave the field unset to express no opinion.
+
+                                Anyone who can label a namespace can bring it into scope, which a name glob
+                                does not allow without the right to create namespaces.
+                              properties:
+                                matchExpressions:
+                                  description: matchExpressions is a list of label
+                                    selector requirements. The requirements are ANDed.
+                                  items:
+                                    description: |-
+                                      A label selector requirement is a selector that contains values, a key, and an operator that
+                                      relates the key and values.
+                                    properties:
+                                      key:
+                                        description: key is the label key that the
+                                          selector applies to.
+                                        type: string
+                                      operator:
+                                        description: |-
+                                          operator represents a key's relationship to a set of values.
+                                          Valid operators are In, NotIn, Exists and DoesNotExist.
+                                        type: string
+                                      values:
+                                        description: |-
+                                          values is an array of string values. If the operator is In or NotIn,
+                                          the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                          the values array must be empty. This array is replaced during a strategic
+                                          merge patch.
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  description: |-
+                                    matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                    map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                    operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            namespaces:
+                              description: |-
+                                Namespaces are the namespaces whose Applications may use this definition, as
+                                names or globs ("tenant-*", matched with path.Match).
+                              items:
+                                type: string
+                              type: array
+                            quota:
+                              description: |-
+                                Quota limits how many uses of this definition one namespace may contain. The
+                                first entry matching the namespace applies, so an entry with no matcher reads
+                                as the default and belongs last. Absent or empty means unlimited.
+
+                                Only ComponentDefinition and TraitDefinition are counted, and a quota on any
+                                other kind is rejected when the definition is written. A namespace
+                                accumulates components and the traits on them; a policy, workflow step or
+                                source is part of how one Application is assembled.
+
+                                The system namespace is never subject to a quota: addons install their own
+                                Applications there using these definitions.
+                              items:
+                                description: |-
+                                  NamespaceQuota caps how many uses of a definition the namespaces it matches may
+                                  contain. Its matcher fields carry the same meaning as the ones on
+                                  DefinitionRestrictions, and an entry with neither matches every namespace.
+
+                                  Warn and Limit are both optional, and at least one must be set. Warn alone never
+                                  refuses, which is how a quota is introduced before it is enforced.
+                                properties:
+                                  limit:
+                                    description: |-
+                                      Limit is the most uses of this definition the namespace may contain. Omit to
+                                      warn without ever refusing; zero forbids the type outright.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                  namespaceSelector:
+                                    description: |-
+                                      NamespaceSelector selects those namespaces by label instead. It and
+                                      Namespaces are alternatives, so either one matching selects the entry.
+                                    properties:
+                                      matchExpressions:
+                                        description: matchExpressions is a list of
+                                          label selector requirements. The requirements
+                                          are ANDed.
+                                        items:
+                                          description: |-
+                                            A label selector requirement is a selector that contains values, a key, and an operator that
+                                            relates the key and values.
+                                          properties:
+                                            key:
+                                              description: key is the label key that
+                                                the selector applies to.
+                                              type: string
+                                            operator:
+                                              description: |-
+                                                operator represents a key's relationship to a set of values.
+                                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                                              type: string
+                                            values:
+                                              description: |-
+                                                values is an array of string values. If the operator is In or NotIn,
+                                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                                the values array must be empty. This array is replaced during a strategic
+                                                merge patch.
+                                              items:
+                                                type: string
+                                              type: array
+                                              x-kubernetes-list-type: atomic
+                                          required:
+                                          - key
+                                          - operator
+                                          type: object
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                      matchLabels:
+                                        additionalProperties:
+                                          type: string
+                                        description: |-
+                                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                        type: object
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                  namespaces:
+                                    description: |-
+                                      Namespaces are the namespaces this entry applies to, as names or globs
+                                      ("tenant-*", matched with path.Match). Leave both matchers unset to make the
+                                      entry the default.
+                                    items:
+                                      type: string
+                                    type: array
+                                  warn:
+                                    description: |-
+                                      Warn is the count at or above which the Application is admitted with a
+                                      warning.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                type: object
+                              type: array
+                          type: object
+                        schematic:
+                          description: Schematic defines source resolution logic.
+                          properties:
+                            cue:
+                              description: CUE defines the encapsulation in CUE format
+                              properties:
+                                template:
+                                  description: |-
+                                    Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field.
+                                    Template is a required field if CUE is defined in Capability Definition.
+                                  type: string
+                              required:
+                              - template
+                              type: object
+                            terraform:
+                              description: Terraform is the struct to describe cloud
+                                resources managed by Hashicorp Terraform
+                              properties:
+                                configuration:
+                                  description: Configuration is Terraform Configuration
+                                  type: string
+                                customRegion:
+                                  description: Region is cloud provider's region.
+                                    It will override the region in the region field
+                                    of ProviderReference
+                                  type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
+                                  type: string
+                                providerRef:
+                                  description: ProviderReference specifies the reference
+                                    to Provider
+                                  properties:
+                                    name:
+                                      description: Name of the referenced object.
+                                      type: string
+                                    namespace:
+                                      default: default
+                                      description: Namespace of the referenced object.
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type:
+                                  default: hcl
+                                  description: Type specifies which Terraform configuration
+                                    it is, HCL or JSON syntax
+                                  enum:
+                                  - hcl
+                                  - json
+                                  - remote
+                                  type: string
+                                writeConnectionSecretToRef:
+                                  description: |-
+                                    WriteConnectionSecretToReference specifies the namespace and name of a
+                                    Secret to which any connection details for this managed resource should
+                                    be written. Connection details frequently include the endpoint, username,
+                                    and password required to connect to the managed resource.
+                                  properties:
+                                    name:
+                                      description: Name of the secret.
+                                      type: string
+                                    namespace:
+                                      description: Namespace of the secret.
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                              required:
+                              - configuration
+                              type: object
+                          type: object
+                        version:
+                          description: |-
+                            Version is the semantic version of this definition. Setting it makes each
+                            version a distinct DefinitionRevision, so a binding can pin one with
+                            `type: my-source@v1` and stop tracking whatever is newest.
+                          type: string
+                      type: object
+                    status:
+                      description: SourceDefinitionStatus defines the observed state
+                        of SourceDefinition.
+                      properties:
+                        conditions:
+                          description: Conditions of the resource.
+                          items:
+                            description: A Condition that may apply to a resource.
+                            properties:
+                              lastTransitionTime:
+                                description: |-
+                                  LastTransitionTime is the last time this condition transitioned from one
+                                  status to another.
+                                format: date-time
+                                type: string
+                              message:
+                                description: |-
+                                  A Message containing details about this condition's last transition from
+                                  one status to another, if any.
+                                type: string
+                              reason:
+                                description: A Reason for this condition's last transition
+                                  from one status to another.
+                                type: string
+                              status:
+                                description: Status of this condition; is it currently
+                                  True, False, or Unknown?
+                                type: string
+                              type:
+                                description: |-
+                                  Type of this condition. At most one of each condition type may apply to
+                                  a resource at any point in time.
+                                type: string
+                            required:
+                            - lastTransitionTime
+                            - reason
+                            - status
+                            - type
+                            type: object
+                          type: array
+                        configTemplateRef:
+                          description: ConfigTemplateRef references the ConfigTemplate
+                            generated from this SourceDefinition schema.
+                          properties:
+                            name:
+                              description: Name is the deterministic template name.
+                              type: string
+                            schemaHash:
+                              description: SchemaHash is the sha256 hash (hex) of
+                                the canonical schema cue snippet.
+                              type: string
+                          type: object
+                        latestRevision:
+                          description: LatestRevision of this source definition.
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the
+                                spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
+                      type: object
+                  type: object
+                description: SourceDefinitions records the snapshot of the SourceDefinitions
+                  related with the created/modified Application
+                type: object
               traitDefinitions:
                 additionalProperties:
                   description: |-
@@ -1566,6 +2693,22 @@ spec:
                       description: A TraitDefinitionSpec defines the desired state
                         of a TraitDefinition.
                       properties:
+                        abstract:
+                          description: |-
+                            Abstract marks this definition as one that may only be extended, never
+                            named directly by an Application. A base that applies a platform's rules
+                            is not something to use as-is, and saying so here is what makes the
+                            definitions built on it the only way through.
+
+                            It is not inherited: a definition that extends an abstract one is usable
+                            unless it marks itself abstract too.
+                          type: boolean
+                        apiVersion:
+                          description: |-
+                            APIVersion is the API line of the module this definition belongs to, for
+                            example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          pattern: ^v\d+(alpha\d+|beta\d+)?$
+                          type: string
                         appliesToWorkloads:
                           description: |-
                             AppliesToWorkloads specifies the list of workload kinds this trait
@@ -1608,6 +2751,24 @@ spec:
                           required:
                           - name
                           type: object
+                        extends:
+                          description: |-
+                            Extends names a TraitDefinition this one builds on. The parent renders
+                            with the parameters this definition's template passes it in its `$super`
+                            block; this definition declares parameters of its own and does not
+                            inherit the parent's. It adds to what the parent renders and never
+                            changes it: its patch, patchOutputs, outputs and processing merge onto
+                            the parent's, and a field the parent set is changed only through
+                            `$super`. One of the parent's outputs may be left out with
+                            `$inherit: {outputs: {<name>: false}}`, and one of its patchOutputs with
+                            `$inherit: {patchOutputs: {<name>: false}}`, unless the parent marks it
+                            `+required`, and a field the parent marks `+final` takes no additions.
+
+                            A DefinitionRevision may be named to pin the parent, as in "gateway@v2";
+                            an unqualified name tracks whatever is current. The ancestors a render
+                            resolved are recorded in the ApplicationRevision, so an application keeps
+                            rendering the same way after a parent changes.
+                          type: string
                         extension:
                           description: Extension is used for extension needs by OAM
                             platform builders
@@ -1617,10 +2778,189 @@ spec:
                           description: ManageWorkload defines the trait would be responsible
                             for creating the workload
                           type: boolean
+                        module:
+                          description: |-
+                            Module names the module this definition was published in, for example
+                            "s3". It identifies a versioned definition on the spec itself, not only
+                            through labels. Set it together with apiVersion, or leave both empty.
+                          type: string
                         podDisruptive:
-                          description: PodDisruptive specifies whether using the trait
-                            will cause the pod to restart or not.
+                          description: |-
+                            PodDisruptive indicates that this trait is disruptive to the pod: applying or
+                            updating it should cause the workload's pods to restart. If the trait's CUE
+                            template patches the workload's pod template directly (`patch:` on
+                            `spec.template`), the restart happens automatically via the normal Kubernetes
+                            rollout mechanism and this field is not required.
+
+                            If the trait instead renders separate objects via `outputs:` (e.g. a ConfigMap
+                            consumed by the workload), set this to true so KubeVela stamps a content hash of
+                            the trait's rendered output onto the workload's pod template annotations
+                            (`app.oam.dev/trait-restart-hash-<traitType>`). This causes the pod template to
+                            change whenever the trait's applied configuration changes, which in turn causes
+                            the owning controller (Deployment/StatefulSet/CloneSet/...) to roll the pods.
+                            Workloads without a `spec.template` (e.g. a bare Service) are unaffected.
                           type: boolean
+                        restrictions:
+                          description: |-
+                            Restrictions limits where this definition may be used. Absent or empty means
+                            usable anywhere. A non-empty block overrides the
+                            definition.oam.dev/restrict-namespaces annotation.
+                          properties:
+                            namespaceSelector:
+                              description: |-
+                                NamespaceSelector selects those namespaces by label instead, for membership
+                                that is not a naming convention. An empty selector matches every namespace;
+                                leave the field unset to express no opinion.
+
+                                Anyone who can label a namespace can bring it into scope, which a name glob
+                                does not allow without the right to create namespaces.
+                              properties:
+                                matchExpressions:
+                                  description: matchExpressions is a list of label
+                                    selector requirements. The requirements are ANDed.
+                                  items:
+                                    description: |-
+                                      A label selector requirement is a selector that contains values, a key, and an operator that
+                                      relates the key and values.
+                                    properties:
+                                      key:
+                                        description: key is the label key that the
+                                          selector applies to.
+                                        type: string
+                                      operator:
+                                        description: |-
+                                          operator represents a key's relationship to a set of values.
+                                          Valid operators are In, NotIn, Exists and DoesNotExist.
+                                        type: string
+                                      values:
+                                        description: |-
+                                          values is an array of string values. If the operator is In or NotIn,
+                                          the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                          the values array must be empty. This array is replaced during a strategic
+                                          merge patch.
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  description: |-
+                                    matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                    map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                    operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            namespaces:
+                              description: |-
+                                Namespaces are the namespaces whose Applications may use this definition, as
+                                names or globs ("tenant-*", matched with path.Match).
+                              items:
+                                type: string
+                              type: array
+                            quota:
+                              description: |-
+                                Quota limits how many uses of this definition one namespace may contain. The
+                                first entry matching the namespace applies, so an entry with no matcher reads
+                                as the default and belongs last. Absent or empty means unlimited.
+
+                                Only ComponentDefinition and TraitDefinition are counted, and a quota on any
+                                other kind is rejected when the definition is written. A namespace
+                                accumulates components and the traits on them; a policy, workflow step or
+                                source is part of how one Application is assembled.
+
+                                The system namespace is never subject to a quota: addons install their own
+                                Applications there using these definitions.
+                              items:
+                                description: |-
+                                  NamespaceQuota caps how many uses of a definition the namespaces it matches may
+                                  contain. Its matcher fields carry the same meaning as the ones on
+                                  DefinitionRestrictions, and an entry with neither matches every namespace.
+
+                                  Warn and Limit are both optional, and at least one must be set. Warn alone never
+                                  refuses, which is how a quota is introduced before it is enforced.
+                                properties:
+                                  limit:
+                                    description: |-
+                                      Limit is the most uses of this definition the namespace may contain. Omit to
+                                      warn without ever refusing; zero forbids the type outright.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                  namespaceSelector:
+                                    description: |-
+                                      NamespaceSelector selects those namespaces by label instead. It and
+                                      Namespaces are alternatives, so either one matching selects the entry.
+                                    properties:
+                                      matchExpressions:
+                                        description: matchExpressions is a list of
+                                          label selector requirements. The requirements
+                                          are ANDed.
+                                        items:
+                                          description: |-
+                                            A label selector requirement is a selector that contains values, a key, and an operator that
+                                            relates the key and values.
+                                          properties:
+                                            key:
+                                              description: key is the label key that
+                                                the selector applies to.
+                                              type: string
+                                            operator:
+                                              description: |-
+                                                operator represents a key's relationship to a set of values.
+                                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                                              type: string
+                                            values:
+                                              description: |-
+                                                values is an array of string values. If the operator is In or NotIn,
+                                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                                the values array must be empty. This array is replaced during a strategic
+                                                merge patch.
+                                              items:
+                                                type: string
+                                              type: array
+                                              x-kubernetes-list-type: atomic
+                                          required:
+                                          - key
+                                          - operator
+                                          type: object
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                      matchLabels:
+                                        additionalProperties:
+                                          type: string
+                                        description: |-
+                                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                        type: object
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                  namespaces:
+                                    description: |-
+                                      Namespaces are the namespaces this entry applies to, as names or globs
+                                      ("tenant-*", matched with path.Match). Leave both matchers unset to make the
+                                      entry the default.
+                                    items:
+                                      type: string
+                                    type: array
+                                  warn:
+                                    description: |-
+                                      Warn is the count at or above which the Application is admitted with a
+                                      warning.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                type: object
+                              type: array
+                          type: object
                         revisionEnabled:
                           description: Revision indicates whether a trait is aware
                             of component revision
@@ -1874,6 +3214,40 @@ spec:
                           items:
                             type: string
                           type: array
+                        forEach:
+                          description: |-
+                            ForEach runs the step once per item. On a step-group, the whole group runs once
+                            per item.
+                          properties:
+                            from:
+                              description: |-
+                                From reads the list from a workflow variable, with the same path syntax as
+                                inputs[].from.
+                              type: string
+                            items:
+                              description: |-
+                                Items is the list itself. It is any JSON value rather than a list so that a
+                                KubeVela Application can give a single $( ) expression, resolved to the list
+                                before the workflow runs.
+                              x-kubernetes-preserve-unknown-fields: true
+                            key:
+                              description: |-
+                                Key names each item's steps by its value instead of its index: paths into the
+                                item whose values, joined with "-", replace the index in the step names. Each
+                                value must be a string or an integer, and the joined keys unique in the list.
+                              items:
+                                type: string
+                              maxItems: 8
+                              minItems: 1
+                              type: array
+                            mode:
+                              description: 'Mode is StepByStep (the default: one item
+                                at a time) or DAG (every item at once).'
+                              enum:
+                              - StepByStep
+                              - DAG
+                              type: string
+                          type: object
                         if:
                           description: If is the if condition of the step
                           type: string
@@ -2044,6 +3418,12 @@ spec:
                       description: WorkflowStepDefinitionSpec defines the desired
                         state of WorkflowStepDefinition
                       properties:
+                        apiVersion:
+                          description: |-
+                            APIVersion is the API line of the module this definition belongs to, for
+                            example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          pattern: ^v\d+(alpha\d+|beta\d+)?$
+                          type: string
                         definitionRef:
                           description: Reference to the CustomResourceDefinition that
                             defines this trait kind.
@@ -2058,6 +3438,173 @@ spec:
                               type: string
                           required:
                           - name
+                          type: object
+                        module:
+                          description: |-
+                            Module names the module this definition was published in, for example
+                            "s3". It identifies a versioned definition on the spec itself, not only
+                            through labels. Set it together with apiVersion, or leave both empty.
+                          type: string
+                        restrictions:
+                          description: |-
+                            Restrictions limits where this definition may be used. Absent or empty means
+                            usable anywhere. A non-empty block overrides the
+                            definition.oam.dev/restrict-namespaces annotation.
+                          properties:
+                            namespaceSelector:
+                              description: |-
+                                NamespaceSelector selects those namespaces by label instead, for membership
+                                that is not a naming convention. An empty selector matches every namespace;
+                                leave the field unset to express no opinion.
+
+                                Anyone who can label a namespace can bring it into scope, which a name glob
+                                does not allow without the right to create namespaces.
+                              properties:
+                                matchExpressions:
+                                  description: matchExpressions is a list of label
+                                    selector requirements. The requirements are ANDed.
+                                  items:
+                                    description: |-
+                                      A label selector requirement is a selector that contains values, a key, and an operator that
+                                      relates the key and values.
+                                    properties:
+                                      key:
+                                        description: key is the label key that the
+                                          selector applies to.
+                                        type: string
+                                      operator:
+                                        description: |-
+                                          operator represents a key's relationship to a set of values.
+                                          Valid operators are In, NotIn, Exists and DoesNotExist.
+                                        type: string
+                                      values:
+                                        description: |-
+                                          values is an array of string values. If the operator is In or NotIn,
+                                          the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                          the values array must be empty. This array is replaced during a strategic
+                                          merge patch.
+                                        items:
+                                          type: string
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                    required:
+                                    - key
+                                    - operator
+                                    type: object
+                                  type: array
+                                  x-kubernetes-list-type: atomic
+                                matchLabels:
+                                  additionalProperties:
+                                    type: string
+                                  description: |-
+                                    matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                    map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                    operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                  type: object
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            namespaces:
+                              description: |-
+                                Namespaces are the namespaces whose Applications may use this definition, as
+                                names or globs ("tenant-*", matched with path.Match).
+                              items:
+                                type: string
+                              type: array
+                            quota:
+                              description: |-
+                                Quota limits how many uses of this definition one namespace may contain. The
+                                first entry matching the namespace applies, so an entry with no matcher reads
+                                as the default and belongs last. Absent or empty means unlimited.
+
+                                Only ComponentDefinition and TraitDefinition are counted, and a quota on any
+                                other kind is rejected when the definition is written. A namespace
+                                accumulates components and the traits on them; a policy, workflow step or
+                                source is part of how one Application is assembled.
+
+                                The system namespace is never subject to a quota: addons install their own
+                                Applications there using these definitions.
+                              items:
+                                description: |-
+                                  NamespaceQuota caps how many uses of a definition the namespaces it matches may
+                                  contain. Its matcher fields carry the same meaning as the ones on
+                                  DefinitionRestrictions, and an entry with neither matches every namespace.
+
+                                  Warn and Limit are both optional, and at least one must be set. Warn alone never
+                                  refuses, which is how a quota is introduced before it is enforced.
+                                properties:
+                                  limit:
+                                    description: |-
+                                      Limit is the most uses of this definition the namespace may contain. Omit to
+                                      warn without ever refusing; zero forbids the type outright.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                  namespaceSelector:
+                                    description: |-
+                                      NamespaceSelector selects those namespaces by label instead. It and
+                                      Namespaces are alternatives, so either one matching selects the entry.
+                                    properties:
+                                      matchExpressions:
+                                        description: matchExpressions is a list of
+                                          label selector requirements. The requirements
+                                          are ANDed.
+                                        items:
+                                          description: |-
+                                            A label selector requirement is a selector that contains values, a key, and an operator that
+                                            relates the key and values.
+                                          properties:
+                                            key:
+                                              description: key is the label key that
+                                                the selector applies to.
+                                              type: string
+                                            operator:
+                                              description: |-
+                                                operator represents a key's relationship to a set of values.
+                                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                                              type: string
+                                            values:
+                                              description: |-
+                                                values is an array of string values. If the operator is In or NotIn,
+                                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                                the values array must be empty. This array is replaced during a strategic
+                                                merge patch.
+                                              items:
+                                                type: string
+                                              type: array
+                                              x-kubernetes-list-type: atomic
+                                          required:
+                                          - key
+                                          - operator
+                                          type: object
+                                        type: array
+                                        x-kubernetes-list-type: atomic
+                                      matchLabels:
+                                        additionalProperties:
+                                          type: string
+                                        description: |-
+                                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                        type: object
+                                    type: object
+                                    x-kubernetes-map-type: atomic
+                                  namespaces:
+                                    description: |-
+                                      Namespaces are the namespaces this entry applies to, as names or globs
+                                      ("tenant-*", matched with path.Match). Leave both matchers unset to make the
+                                      entry the default.
+                                    items:
+                                      type: string
+                                    type: array
+                                  warn:
+                                    description: |-
+                                      Warn is the count at or above which the Application is admitted with a
+                                      warning.
+                                    format: int32
+                                    minimum: 0
+                                    type: integer
+                                type: object
+                              type: array
                           type: object
                         schematic:
                           description: |-
@@ -2541,6 +4088,31 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  dependencies:
+                    description: |-
+                      Dependencies is what each workflow step waits on before it starts, whether
+                      named in its dependsOn or read by its expressions.
+                    items:
+                      description: |-
+                        WorkflowStepDependency is one step a workflow step waits on before it starts,
+                        and why. Its own type rather than the workflow engine's, so that this API does
+                        not change with the engine's version.
+                      properties:
+                        dependsOn:
+                          type: string
+                        source:
+                          description: |-
+                            Source says why the step waits on DependsOn: dependsOn when the step names
+                            it in its dependsOn, expression when one of the step's expressions reads it.
+                          type: string
+                        step:
+                          type: string
+                      required:
+                      - dependsOn
+                      - source
+                      - step
+                      type: object
+                    type: array
                   endTime:
                     format: date-time
                     nullable: true
@@ -2551,6 +4123,51 @@ spec:
                     type: string
                   mode:
                     type: string
+                  ref:
+                    description: |-
+                      Ref is the Workflow spec.workflow.ref resolved to: the one in the Application's namespace,
+                      else the shared one in the system namespace.
+                    properties:
+                      apiVersion:
+                        description: API version of the referent.
+                        type: string
+                      fieldPath:
+                        description: |-
+                          If referring to a piece of an object instead of an entire object, this string
+                          should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+                          For example, if the object reference is to a container within a pod, this would take on a value like:
+                          "spec.containers{name}" (where "name" refers to the name of the container that triggered
+                          the event) or if no container name is specified "spec.containers[2]" (container with
+                          index 2 in this pod). This syntax is chosen only to have some well-defined way of
+                          referencing a part of an object.
+                        type: string
+                      kind:
+                        description: |-
+                          Kind of the referent.
+                          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                        type: string
+                      name:
+                        description: |-
+                          Name of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      namespace:
+                        description: |-
+                          Namespace of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+                        type: string
+                      resourceVersion:
+                        description: |-
+                          Specific resourceVersion to which this reference is made, if any.
+                          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+                        type: string
+                      uid:
+                        description: |-
+                          UID of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
                   startTime:
                     format: date-time
                     type: string

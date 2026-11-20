@@ -1,0 +1,92 @@
+/*
+Copyright 2026 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package appkeeper
+
+import (
+	"path/filepath"
+	"testing"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+)
+
+var testEnv *envtest.Environment
+var testClient client.Client
+
+var workerEnv *envtest.Environment
+var workerClient client.Client
+
+func TestAppKeeper(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "AppKeeper Suite")
+}
+
+var _ = BeforeSuite(func() {
+	By("Bootstrapping test environment")
+	testEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		CRDDirectoryPaths: []string{
+			filepath.Join("../..", "charts/vela-core/crds"), // this has all the required CRDs,
+		},
+		UseExistingCluster:    ptr.To(false),
+		ErrorIfCRDPathMissing: true,
+	}
+	var err error
+	cfg, err := testEnv.Start()
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(cfg).ShouldNot(BeNil())
+
+	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
+
+	testClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(testClient).ShouldNot(BeNil())
+
+	workerEnv = &envtest.Environment{
+		ControlPlaneStartTimeout: time.Minute,
+		ControlPlaneStopTimeout:  time.Minute,
+		CRDDirectoryPaths: []string{
+			filepath.Join("../..", "charts/vela-core/crds"), // this has all the required CRDs,
+		},
+		UseExistingCluster:    ptr.To(false),
+		ErrorIfCRDPathMissing: true,
+	}
+	cfg, err = workerEnv.Start()
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(cfg).ShouldNot(BeNil())
+	workerClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(workerClient).ShouldNot(BeNil())
+})
+
+var _ = AfterSuite(func() {
+	if testEnv != nil {
+		Expect(testEnv.Stop()).Should(Succeed())
+	}
+	if workerEnv != nil { // BeforeSuite may have failed before starting it
+		Expect(workerEnv.Stop()).Should(Succeed())
+	}
+})

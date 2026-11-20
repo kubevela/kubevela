@@ -112,6 +112,7 @@ func ListResourcesInApp(ctx context.Context, params *ListParams) (*ListResult[Re
 	if appResList == nil {
 		appResList = make([]Resource, 0)
 	}
+	appResList = withoutSecretDataIn(appResList)
 	return &ListResult[Resource]{List: appResList}, nil
 }
 

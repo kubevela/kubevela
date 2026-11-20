@@ -8,7 +8,7 @@ import (
 		"category": "Config Management"
 	}
 	labels: {}
-	description: "List the configs"
+	description: "List the configs of a template, Config-backed and legacy, each once"
 }
 template: {
 	output: config.#ListConfig & {

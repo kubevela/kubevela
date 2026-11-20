@@ -1,0 +1,7 @@
+name: kit-suite
+version: 1.0.0
+description: "Test addon importing widget-kit 1.0.0 and gadget-kit 1.0.0."
+tags:
+  - test
+  - module-import
+dependencies: []

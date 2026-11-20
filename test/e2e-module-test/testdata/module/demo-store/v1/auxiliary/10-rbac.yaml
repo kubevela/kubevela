@@ -1,0 +1,28 @@
+# A second line-level auxiliary file, in YAML and multi-document, to show that
+# the .yaml and .cue auxiliary formats mix freely inside one directory.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: demo-store-v1-reader
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: demo-store-v1-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: demo-store-v1-reader
+subjects:
+  - kind: ServiceAccount
+    name: demo-store-runner
+    # This ServiceAccount comes from the module-level auxiliary tier, which is
+    # applied before this one -- that ordering is what the tier dependency
+    # exists for. No namespace here: a ServiceAccount subject with no
+    # namespace defaults to the RoleBinding's own namespace, which is
+    # whatever namespace the module is installed into -- hardcoding
+    # vela-system would break an install into any other namespace.
