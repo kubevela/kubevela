@@ -295,6 +295,20 @@ _web: {
 	]}]
 }
 
+"envFrom imports a whole Secret and ConfigMap": test.#ComponentRender & _web & {
+	parameter: {
+		image: "shop:1.0"
+		envFrom: [
+			{secretRef: {name: "shop-db"}},
+			{prefix: "CONF_", configMapRef: {name: "shop-conf", optional: true}},
+		]
+	}
+	expect: output: spec: template: spec: containers: [{envFrom: [
+		{secretRef: {name: "shop-db"}},
+		{prefix: "CONF_", configMapRef: {name: "shop-conf", optional: true}},
+	]}]
+}
+
 "a deprecated emptyDir volume keeps its medium": test.#ComponentRender & _web & {
 	parameter: {
 		image: "shop:1.0"

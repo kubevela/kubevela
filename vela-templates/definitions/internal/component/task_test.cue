@@ -216,3 +216,17 @@ _task: {
 		volumes: [{name: "cache", emptyDir: medium: "Memory"}]
 	}
 }
+
+"envFrom imports a whole Secret and ConfigMap": test.#ComponentRender & _task & {
+	parameter: {
+		image: "shop-migrate:1.0"
+		envFrom: [
+			{secretRef: {name: "shop-db"}},
+			{prefix: "CONF_", configMapRef: {name: "shop-conf", optional: true}},
+		]
+	}
+	expect: output: spec: template: spec: containers: [{envFrom: [
+		{secretRef: {name: "shop-db"}},
+		{prefix: "CONF_", configMapRef: {name: "shop-conf", optional: true}},
+	]}]
+}
