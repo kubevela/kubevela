@@ -81,17 +81,25 @@ func (cmm *ClusterMetricsMgr) Refresh() ([]VirtualCluster, error) {
 
 // Start will start polling cluster api to collect metrics
 func (cmm *ClusterMetricsMgr) Start(ctx context.Context) {
+	refreshFunc := func() {
+		clusters, _ := cmm.Refresh()
+		for _, cluster := range clusters {
+			exportMetrics(cluster.Metrics, cluster.Name)
+		}
+	}
+
+	refreshFunc()
+
+	ticker := time.NewTicker(cmm.refreshPeriod)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			klog.Warning("Stop cluster metrics polling loop.")
 			return
-		default:
-			clusters, _ := cmm.Refresh()
-			for _, cluster := range clusters {
-				exportMetrics(cluster.Metrics, cluster.Name)
-			}
-			time.Sleep(cmm.refreshPeriod)
+		case <-ticker.C:
+			refreshFunc()
 		}
 	}
 }
