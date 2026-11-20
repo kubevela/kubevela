@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/oam-dev/kubevela/pkg/cue/nesting"
@@ -27,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	admissionv1 "k8s.io/api/admission/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -136,6 +138,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep(fmt.Sprintf("validator-%d", i)).WithError(err).Error(err, "TraitDefinition custom validator failed - definition does not meet validation requirements", "validatorIndex", i)
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
+		}
+
+		if err := ValidateConflictsWith(ctx, *obj); err != nil {
+			logger.WithStep("validate-conflicts-with").WithError(err).Error(err, "TraitDefinition conflictsWith contains invalid labelSelector rule")
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
 
 		// Judged outside the block below, which is where everything else about
@@ -254,6 +261,23 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 			// add more validators here
 		},
 	}})
+}
+
+// ValidateConflictsWith validates label selector rules in spec.conflictsWith.
+func ValidateConflictsWith(_ context.Context, td v1beta1.TraitDefinition) error {
+	for _, rule := range td.Spec.ConflictsWith {
+		if !strings.HasPrefix(rule, "labelSelector:") {
+			continue
+		}
+		expr := strings.TrimPrefix(rule, "labelSelector:")
+		if strings.TrimSpace(expr) == "" {
+			return fmt.Errorf("invalid spec.conflictsWith rule %q: empty label selector", rule)
+		}
+		if _, err := labels.Parse(expr); err != nil {
+			return fmt.Errorf("invalid spec.conflictsWith rule %q: %w", rule, err)
+		}
+	}
+	return nil
 }
 
 // ValidateDefinitionReference validates whether the trait definition is valid if
