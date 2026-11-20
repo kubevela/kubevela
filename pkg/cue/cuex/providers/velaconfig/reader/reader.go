@@ -25,9 +25,11 @@ import (
 	"strings"
 
 	"github.com/kubevela/pkg/util/singleton"
+	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 )
@@ -45,6 +47,20 @@ func (r Config) ReadConfig(ctx context.Context, namespace, name string) (*velaco
 	cli := r.Client
 	if cli == nil {
 		cli = singleton.KubeClient.Get()
+	}
+	// A source resolves as the controller; the Application it resolves for may read only what
+	// config.AllowConfigAccess allows it, asked about the Application's user under authentication.
+	// With no Application recorded the read is a CLI's, as its caller.
+	if consumer, ok := velaconfig.ConsumerNamespaceFrom(ctx); ok {
+		checkCtx := ctx
+		if _, named := auth.NamedUserFrom(ctx); !named {
+			if u, recorded := velaconfig.ConsumerUserFrom(ctx); recorded {
+				checkCtx = request.WithUser(ctx, u)
+			}
+		}
+		if err := config.AllowConfigAccess(checkCtx, cli, "get", namespace, name, "", consumer); err != nil {
+			return nil, err
+		}
 	}
 	factory := config.NewConfigFactory(cli)
 

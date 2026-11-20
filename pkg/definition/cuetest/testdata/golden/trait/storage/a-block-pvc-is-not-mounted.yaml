@@ -1,0 +1,58 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: test-app-v1
+      app.oam.dev/component: web
+      app.oam.dev/name: test-app
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cuetest-workload
+    name: web
+    namespace: default
+  spec:
+    template:
+      metadata:
+        annotations:
+          app.oam.dev/trait-restart-hash-storage: cd3f93aa502a820b
+      spec:
+        containers:
+        - env: []
+          image: shop:1.0
+          name: web
+          volumeDevices:
+          - devicePath: /dev/xvda
+            name: pvc-raw
+          volumeMounts: []
+        - image: fluentbit:3
+          name: log
+        volumes:
+        - name: pvc-raw
+          persistentVolumeClaim:
+            claimName: raw
+outputs:
+  pvc-raw:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      annotations: {}
+      labels:
+        app.oam.dev/appRevision: test-app-v1
+        app.oam.dev/component: web
+        app.oam.dev/name: test-app
+        app.oam.dev/namespace: default
+        app.oam.dev/resourceType: TRAIT
+        trait.oam.dev/resource: pvc-raw
+        trait.oam.dev/type: storage
+      name: raw
+      namespace: default
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 8Gi
+      volumeMode: Block

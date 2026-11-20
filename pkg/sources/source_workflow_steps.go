@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	celengine "github.com/kubevela/pkg/cel"
 	"github.com/kubevela/workflow/pkg/cue/process"
@@ -32,9 +34,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
 
-// pinnedSourcesKey is the workflow context entry holding the sources a run has
+// PinnedSourcesKey is the workflow context entry holding the sources a run has
 // read, so every step of the run reads the value the first one did.
-const pinnedSourcesKey = "kubevela-pinned-sources"
+const PinnedSourcesKey = "kubevela-pinned-sources"
 
 // pinnedSources is what a run has read of each source, and where each value
 // came from. A workflow context outlives a run, so a value pinned in another run
@@ -43,6 +45,9 @@ type pinnedSources struct {
 	Run    string                            `json:"run"`
 	Values map[string]map[string]interface{} `json:"values"`
 	From   map[string]pinnedFrom             `json:"from,omitempty"`
+	// Sealed are the fields of each source kept in SensitivePins, by their path in its value,
+	// list indices included. Each holds, here, the pointer SensitivePins gives it.
+	Sealed map[string][][]string `json:"sealed,omitempty"`
 }
 
 // pinnedFrom is the storage key a pinned value was resolved from, when that entry
@@ -54,6 +59,16 @@ type pinnedFrom struct {
 	Message   string `json:"message,omitempty"`
 }
 
+// SensitivePins keeps the sensitive fields of a run's pinned sources, which the workflow
+// context, a ConfigMap, must not hold. A field is stored under its key: the source's name and
+// the field's path, dot-joined. Load returns nothing for another run.
+type SensitivePins interface {
+	// Ref is what the workflow context holds in place of the field stored under key.
+	Ref(key string) string
+	Load(ctx context.Context, run string) (map[string]interface{}, error)
+	Save(ctx context.Context, run string, fields map[string]interface{}) error
+}
+
 // StepExpressions are the roots KubeVela answers for a workflow step's
 // expressions, which the workflow resolves when the step runs: context and
 // source, read as the step's own render would. stepContext is the render
@@ -61,9 +76,11 @@ type pinnedFrom struct {
 // is given what each step's sources resolved to.
 //
 // A source holds for the whole run: each is resolved the first time a step reads
-// it, and every later step reads that value, typed again against its schema.
+// it, and every later step reads that value, typed again against its schema. Its
+// sensitive fields are pinned in vault; with no vault a source that has any is not
+// pinned, and each step resolves it.
 func StepExpressions(stepContext func(step, stepType string) process.Context,
-	record func(step, stepType string, statuses map[string]SourceResolutionStatus)) wftypes.ExpressionOptions {
+	record func(step, stepType string, statuses map[string]SourceResolutionStatus), vault SensitivePins) wftypes.ExpressionOptions {
 	resolverFor := func(ctx context.Context) (*sourceResolver, expressions.RunScope, error) {
 		scope, ok := expressions.RunFrom(ctx)
 		if !ok {
@@ -94,7 +111,7 @@ func StepExpressions(stepContext func(step, stepType string) process.Context,
 				if err != nil {
 					return nil, err
 				}
-				pins, err := readPins(scope)
+				pins, err := readPins(ctx, scope, vault)
 				if err != nil {
 					return nil, err
 				}
@@ -121,7 +138,7 @@ func StepExpressions(stepContext func(step, stepType string) process.Context,
 						pins.From[name] = pinnedFrom{Config: st.Config, ExpiresAt: st.ExpiresAt, Message: st.Message}
 					}
 				}
-				if err := writePins(scope, pins); err != nil {
+				if err := writePins(ctx, scope, vault, pins, r.sensitiveMasks); err != nil {
 					return nil, err
 				}
 				if readErr != nil {
@@ -143,9 +160,12 @@ func rootNamed(name string) celengine.Root {
 	return celengine.Root{Name: name}
 }
 
-func readPins(scope expressions.RunScope) (pinnedSources, error) {
+// readPins reads what this run has pinned, putting each sealed field's value from vault back in
+// place of its pointer. A source with a field the vault no longer has is dropped, so it is
+// resolved again rather than read with the pointer.
+func readPins(ctx context.Context, scope expressions.RunScope, vault SensitivePins) (pinnedSources, error) {
 	pins := pinnedSources{Run: scope.Run, Values: map[string]map[string]interface{}{}, From: map[string]pinnedFrom{}}
-	raw := scope.Store.GetMutableValue(pinnedSourcesKey)
+	raw := scope.Store.GetMutableValue(PinnedSourcesKey)
 	if raw == "" {
 		return pins, nil
 	}
@@ -153,20 +173,145 @@ func readPins(scope expressions.RunScope) (pinnedSources, error) {
 	if err := json.Unmarshal([]byte(raw), &saved); err != nil {
 		return pins, fmt.Errorf("read the sources pinned for this run: %w", err)
 	}
-	if saved.Run == scope.Run && saved.Values != nil {
-		pins.Values = saved.Values
-		if saved.From != nil {
-			pins.From = saved.From
+	if saved.Run != scope.Run || saved.Values == nil {
+		return pins, nil
+	}
+	pins.Values = saved.Values
+	if saved.From != nil {
+		pins.From = saved.From
+	}
+	if len(saved.Sealed) == 0 {
+		return pins, nil
+	}
+	var fields map[string]interface{}
+	if vault != nil {
+		var err error
+		if fields, err = vault.Load(ctx, scope.Run); err != nil {
+			return pins, fmt.Errorf("read the sensitive sources pinned for this run: %w", err)
+		}
+	}
+	for name, paths := range saved.Sealed {
+		for _, path := range paths {
+			v, ok := fields[sealedKey(name, path)]
+			if ok {
+				ok = setAt(pins.Values[name], path, v)
+			}
+			if !ok {
+				delete(pins.Values, name)
+				delete(pins.From, name)
+				break
+			}
 		}
 	}
 	return pins, nil
 }
 
-func writePins(scope expressions.RunScope, pins pinnedSources) error {
-	raw, err := json.Marshal(pins)
+// writePins pins the run's sources in the workflow context, except their sensitive fields:
+// those go to vault, and the context holds the pointer vault gives each. With no vault, a
+// source with sensitive fields is not pinned.
+func writePins(ctx context.Context, scope expressions.RunScope, vault SensitivePins, pins pinnedSources,
+	masksOf func(source string) map[string]struct{}) error {
+	public := pinnedSources{Run: pins.Run, Values: map[string]map[string]interface{}{}, From: map[string]pinnedFrom{}}
+	fields := map[string]interface{}{}
+	for name, values := range pins.Values {
+		masks := masksOf(name)
+		if len(masks) > 0 && vault == nil {
+			continue
+		}
+		if len(masks) > 0 {
+			var sealed [][]string
+			values, _ = seal(values, nil, "", masks, func(path []string, v interface{}) interface{} {
+				key := sealedKey(name, path)
+				fields[key] = v
+				sealed = append(sealed, path)
+				return vault.Ref(key)
+			}).(map[string]interface{})
+			if len(sealed) > 0 {
+				if public.Sealed == nil {
+					public.Sealed = map[string][][]string{}
+				}
+				public.Sealed[name] = sealed
+			}
+		}
+		public.Values[name] = values
+		if from, ok := pins.From[name]; ok {
+			public.From[name] = from
+		}
+	}
+	if len(fields) > 0 {
+		if err := vault.Save(ctx, pins.Run, fields); err != nil {
+			return fmt.Errorf("pin the sensitive sources for this run: %w", err)
+		}
+	}
+	raw, err := json.Marshal(public)
 	if err != nil {
 		return err
 	}
-	scope.Store.SetMutableValue(string(raw), pinnedSourcesKey)
+	scope.Store.SetMutableValue(string(raw), PinnedSourcesKey)
 	return nil
+}
+
+// seal copies v with every field marked sensitive replaced by what keep returns for it. path
+// is where v sits, list indices included; markPath is the same without them, as marks are
+// written.
+func seal(v interface{}, path []string, markPath string, masks map[string]struct{},
+	keep func(path []string, v interface{}) interface{}) interface{} {
+	if markPath != "" && MaskedPath(markPath, masks) {
+		return keep(append([]string{}, path...), v)
+	}
+	switch val := v.(type) {
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(val))
+		for k, child := range val {
+			out[k] = seal(child, append(path, k), joinMaskPath(markPath, k), masks, keep)
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(val))
+		for i, child := range val {
+			out[i] = seal(child, append(path, strconv.Itoa(i)), markPath, masks, keep)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+// setAt puts v at path inside root, reporting whether the path was there to put it.
+func setAt(root map[string]interface{}, path []string, v interface{}) bool {
+	if root == nil || len(path) == 0 {
+		return false
+	}
+	var parent interface{} = root
+	for i, seg := range path {
+		last := i == len(path)-1
+		switch node := parent.(type) {
+		case map[string]interface{}:
+			if _, ok := node[seg]; !ok {
+				return false
+			}
+			if last {
+				node[seg] = v
+				return true
+			}
+			parent = node[seg]
+		case []interface{}:
+			idx, err := strconv.Atoi(seg)
+			if err != nil || idx < 0 || idx >= len(node) {
+				return false
+			}
+			if last {
+				node[idx] = v
+				return true
+			}
+			parent = node[idx]
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+func sealedKey(source string, path []string) string {
+	return source + "." + strings.Join(path, ".")
 }

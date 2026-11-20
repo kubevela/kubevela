@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 
+	k8stypes "k8s.io/apimachinery/pkg/types"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,13 +52,11 @@ func legacyTemplateExists(ctx context.Context, cli client.Client, ns, name strin
 	return config.ObjectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &corev1.ConfigMap{})
 }
 
-// legacyTemplateMigrated reports whether the legacy template name in ns was
-// adopted by migration: its ConfigMap names a ConfigTemplate UID (migratedTo, the
-// migrated-to annotation) and that CR still exists in the same namespace. Once
-// the CR is gone the ConfigMap counts as plain legacy again, which is the
-// downgrade story.
-func legacyTemplateMigrated(ctx context.Context, cli client.Client, ns, name, migratedTo string) (bool, error) {
-	if migratedTo == "" {
+// legacyTemplateMigrated reports whether the ConfigTemplate CR name in ns stands for the
+// legacy ConfigMap whose migrated-to annotation and controller UID are given. Once the CR is
+// gone the ConfigMap counts as plain legacy again.
+func legacyTemplateMigrated(ctx context.Context, cli client.Client, ns, name, migratedTo, cmController string) (bool, error) {
+	if migratedTo == "" && cmController == "" {
 		return false, nil
 	}
 	var ct configv1alpha1.ConfigTemplate
@@ -66,7 +66,7 @@ func legacyTemplateMigrated(ctx context.Context, cli client.Client, ns, name, mi
 		}
 		return false, err
 	}
-	return string(ct.UID) == migratedTo, nil
+	return config.TemplateStandsFor(ct.UID, config.ControllerUID(&ct), k8stypes.UID(migratedTo), k8stypes.UID(cmController)), nil
 }
 
 // legacyTemplateShadowed reports whether a legacy template ConfigMap for name
@@ -78,7 +78,7 @@ func legacyTemplateShadowed(ctx context.Context, cli client.Client, ns, name str
 	if err != nil || !exists {
 		return false, err
 	}
-	migrated, err := legacyTemplateMigrated(ctx, cli, ns, name, cm.Annotations[types.AnnotationConfigMigratedTo])
+	migrated, err := legacyTemplateMigrated(ctx, cli, ns, name, cm.Annotations[types.AnnotationConfigMigratedTo], string(config.ControllerUID(&cm)))
 	if err != nil {
 		return false, err
 	}

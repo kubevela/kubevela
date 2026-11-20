@@ -95,7 +95,7 @@ type ListDefinitionsInput struct {
 	// Type limits the result to one definition type: component, trait, policy or workflow-step.
 	Type string `json:"type,omitempty" jsonschema:"Limit to one definition type: component, trait, policy or workflow-step. Empty lists all four."`
 	// Namespace limits the result to one namespace plus the system namespace.
-	Namespace string `json:"namespace,omitempty" jsonschema:"Namespace to list in addition to the system namespace. Empty lists every namespace the caller can read. Also decides which definition is marked default."`
+	Namespace string `json:"namespace,omitempty" jsonschema:"Namespace to list in addition to the system namespace. Empty lists every namespace (requires cluster-wide list permission on definitions), or the server's allowed namespaces when it is restricted. Also decides which definition is marked default."`
 	// Provides keeps definitions that provide a capability: labelled ones, and
 	// unlabelled ones whose name or description mentions it.
 	Provides string `json:"provides,omitempty" jsonschema:"Keep definitions that provide this capability, such as postgres, to compare alternatives: those the platform labels with it, and unlabelled ones whose name or description mentions it, which matchedBy marks."`
@@ -205,11 +205,13 @@ func (d *deps) describeDefinition(ctx context.Context, _ *sdk.CallToolRequest, i
 	if cli == nil {
 		return nil, out, errNoConfig
 	}
-	summary, template, err := d.findDefinition(ctx, cli, in)
+	summary, schematic, err := d.findDefinition(ctx, cli, in)
 	if err != nil {
 		return nil, out, err
 	}
 	out.DefinitionSummary = summary
+	out.Default = defaultIn(out.DefaultFor, in.Namespace)
+	template := cueTemplate(schematic)
 	var sch *openapi3.Schema
 	out.Parameters, out.Required, sch, err = parameterSchema(ctx, template)
 	if err != nil {
@@ -221,6 +223,11 @@ func (d *deps) describeDefinition(ctx context.Context, _ *sdk.CallToolRequest, i
 		return nil, out, fmt.Errorf("parameter schema for %s %q: %w", summary.Type, summary.Name, err)
 	}
 	out.Meta = d.meta(ctx)
+	if kind := nonCUESchematic(schematic); kind != "" {
+		// An example built from no schema would read as taking no parameters.
+		out.Meta.Warnings = append(out.Meta.Warnings, nonCUESchemaWarning(kind))
+		return nil, out, nil
+	}
 	if example, err := definitionExample(summary.Type, summary.Name, sch); err != nil {
 		out.Meta.Warnings = append(out.Meta.Warnings, "no example could be generated: "+err.Error())
 	} else {
@@ -315,10 +322,24 @@ func (d *deps) listDefinitionType(ctx context.Context, cli client.Client, defTyp
 	return out, more, nil
 }
 
+// definitionNotFoundError is what findDefinition returns when every lookup
+// answered NotFound, so callers can tell a definition that is not published
+// from one that could not be read.
+type definitionNotFoundError struct {
+	name       string
+	namespaces []string
+}
+
+func (e *definitionNotFoundError) Error() string {
+	return fmt.Sprintf("definition %q not found in %s", e.name, strings.Join(e.namespaces, ", "))
+}
+
 // findDefinition looks a definition up by name, trying the requested
 // namespace then the system namespace, and each type in order when no type
-// was given. It returns the summary and the CUE template.
-func (d *deps) findDefinition(ctx context.Context, cli client.Client, in DescribeDefinitionInput) (DefinitionSummary, string, error) {
+// was given. It returns the summary and the schematic. When no lookup
+// found it, the error is a *definitionNotFoundError; any other error means
+// a lookup failed, for example because RBAC refused it.
+func (d *deps) findDefinition(ctx context.Context, cli client.Client, in DescribeDefinitionInput) (DefinitionSummary, *oamcommon.Schematic, error) {
 	namespaces := []string{d.opts.SystemNamespace}
 	if in.Namespace != "" && in.Namespace != d.opts.SystemNamespace {
 		namespaces = []string{in.Namespace, d.opts.SystemNamespace}
@@ -329,47 +350,47 @@ func (d *deps) findDefinition(ctx context.Context, cli client.Client, in Describ
 	}
 	for _, ns := range namespaces {
 		for _, t := range typesToTry {
-			summary, tpl, err := getDefinition(ctx, cli, t, ns, in.Name)
+			summary, schematic, err := getDefinition(ctx, cli, t, ns, in.Name)
 			if err == nil {
-				return summary, tpl, nil
+				return summary, schematic, nil
 			}
 			if !apierrors.IsNotFound(err) {
-				return DefinitionSummary{}, "", fmt.Errorf("get %s %q in %q: %w", t, in.Name, ns, err)
+				return DefinitionSummary{}, nil, fmt.Errorf("get %s %q in %q: %w", t, in.Name, ns, err)
 			}
 		}
 	}
-	return DefinitionSummary{}, "", fmt.Errorf("definition %q not found in %s", in.Name, strings.Join(namespaces, ", "))
+	return DefinitionSummary{}, nil, &definitionNotFoundError{name: in.Name, namespaces: namespaces}
 }
 
-func getDefinition(ctx context.Context, cli client.Client, defType, ns, name string) (DefinitionSummary, string, error) {
+func getDefinition(ctx context.Context, cli client.Client, defType, ns, name string) (DefinitionSummary, *oamcommon.Schematic, error) {
 	key := client.ObjectKey{Namespace: ns, Name: name}
 	switch defType {
 	case DefinitionTypeComponent:
 		var o v1beta1.ComponentDefinition
 		if err := cli.Get(ctx, key, &o); err != nil {
-			return DefinitionSummary{}, "", err
+			return DefinitionSummary{}, nil, err
 		}
-		return summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision), cueTemplate(o.Spec.Schematic), nil
+		return summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision), o.Spec.Schematic, nil
 	case DefinitionTypeTrait:
 		var o v1beta1.TraitDefinition
 		if err := cli.Get(ctx, key, &o); err != nil {
-			return DefinitionSummary{}, "", err
+			return DefinitionSummary{}, nil, err
 		}
-		return summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision), cueTemplate(o.Spec.Schematic), nil
+		return summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision), o.Spec.Schematic, nil
 	case DefinitionTypePolicy:
 		var o v1beta1.PolicyDefinition
 		if err := cli.Get(ctx, key, &o); err != nil {
-			return DefinitionSummary{}, "", err
+			return DefinitionSummary{}, nil, err
 		}
-		return summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision), cueTemplate(o.Spec.Schematic), nil
+		return summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision), o.Spec.Schematic, nil
 	case DefinitionTypeWorkflowStep:
 		var o v1beta1.WorkflowStepDefinition
 		if err := cli.Get(ctx, key, &o); err != nil {
-			return DefinitionSummary{}, "", err
+			return DefinitionSummary{}, nil, err
 		}
-		return summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision), cueTemplate(o.Spec.Schematic), nil
+		return summarize(defType, &o.ObjectMeta, o.Spec.Version, o.Status.LatestRevision), o.Spec.Schematic, nil
 	}
-	return DefinitionSummary{}, "", fmt.Errorf("unknown definition type %q", defType)
+	return DefinitionSummary{}, nil, fmt.Errorf("unknown definition type %q", defType)
 }
 
 func summarize(defType string, meta interface {
@@ -412,6 +433,24 @@ func splitList(v string) []string {
 		}
 	}
 	return out
+}
+
+// nonCUESchematic names the kind of a schematic that is set but is not CUE,
+// such as Terraform, whose parameter schema this server does not read. It
+// returns "" for a CUE schematic or none.
+func nonCUESchematic(s *oamcommon.Schematic) string {
+	if s == nil || s.CUE != nil {
+		return ""
+	}
+	if s.Terraform != nil {
+		return "Terraform"
+	}
+	return ""
+}
+
+// nonCUESchemaWarning says why a definition's parameters are reported empty.
+func nonCUESchemaWarning(kind string) string {
+	return fmt.Sprintf("the parameter schema for a %s schematic is not available from this server, so parameters and required are empty; that does not mean the definition takes no parameters", kind)
 }
 
 func cueTemplate(s *oamcommon.Schematic) string {

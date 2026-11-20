@@ -43,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var handler ValidatingHandler
@@ -212,6 +213,50 @@ var _ = Describe("Test workflowstepdefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(string(resp.Result.Message)).Should(ContainSubstring("Only one can be present"))
+		})
+
+		updateRequest := func(stored, updated v1beta1.WorkflowStepDefinition) admission.Request {
+			storedRaw, _ := json.Marshal(stored)
+			updatedRaw, _ := json.Marshal(updated)
+			return admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Update,
+				Resource:  reqResource,
+				Object:    runtime.RawExtension{Raw: updatedRaw},
+				OldObject: runtime.RawExtension{Raw: storedRaw},
+			}}
+		}
+		brokenDefinition := func() v1beta1.WorkflowStepDefinition {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd-stored-invalid-cue")
+			wsd.SetNamespace("default")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{Schematic: &common.Schematic{CUE: &common.CUE{Template: inValidCueTemplate}}}
+			return wsd
+		}
+
+		It("admits a label change to a stored definition whose template does not compile, with a warning", func() {
+			updated := brokenDefinition()
+			updated.SetLabels(map[string]string{"team": "platform"})
+			resp := handler.Handle(context.TODO(), updateRequest(brokenDefinition(), updated))
+			Expect(resp.Allowed).Should(BeTrue(), "%v", resp.Result)
+			Expect(resp.Warnings).ShouldNot(BeEmpty())
+		})
+
+		It("refuses a template change that still does not compile", func() {
+			updated := brokenDefinition()
+			updated.Spec.Schematic.CUE.Template = inValidCueTemplate + "\n// edited\n"
+			resp := handler.Handle(context.TODO(), updateRequest(brokenDefinition(), updated))
+			Expect(resp.Allowed).Should(BeFalse())
+		})
+
+		It("refuses a revision annotation that conflicts with spec.version, whatever the spec", func() {
+			stored := brokenDefinition()
+			stored.Spec.Schematic.CUE.Template = validCueTemplate
+			stored.Spec.Version = "1.0.0"
+			updated := stored
+			updated.SetAnnotations(map[string]string{oam.AnnotationDefinitionRevisionName: "1.0.0"})
+			resp := handler.Handle(context.TODO(), updateRequest(stored, updated))
+			Expect(resp.Allowed).Should(BeFalse())
 		})
 
 		It("Test WorkflowStepDefinition with an invalid CUE template is denied", func() {

@@ -26,9 +26,12 @@ import (
 	"reflect"
 	"strings"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
+
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+	"github.com/oam-dev/kubevela/pkg/features"
 
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
@@ -40,6 +43,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
@@ -1054,6 +1058,7 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) velaprocess
 		// has one. Callers rendering for a specific cluster overwrite this.
 		Cluster:              pkgmulticluster.Local,
 		Namespace:            appfile.Namespace,
+		AppNamespace:         appfile.Namespace,
 		AppName:              appfile.Name,
 		CompName:             wlName,
 		AppRevisionName:      appfile.AppRevisionName,
@@ -1112,12 +1117,37 @@ func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 				if err := cli.Get(ctx, key, obj); err != nil {
 					return err
 				}
+				if err := af.authorCanRead(ctx, cli, key); err != nil {
+					return err
+				}
 				af.ExternalWorkflow = obj.(*wfTypesv1alpha1.Workflow)
 				return nil
 			}
 			return cli.Get(ctx, key, obj)
 		},
 	}
+}
+
+// authorCanRead refuses a Workflow the Application's author may not get. The controller reads it
+// with its own identity, from its cache, where impersonation does not reach, so with
+// AuthenticateApplication on the author's access is asked for explicitly. Once per parse.
+func (af *Appfile) authorCanRead(ctx context.Context, cli client.Client, key client.ObjectKey) error {
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) || af.app == nil ||
+		(af.ExternalWorkflow != nil && af.ExternalWorkflow.Namespace == key.Namespace && af.ExternalWorkflow.Name == key.Name) {
+		return nil
+	}
+	author := auth.UserInfoOf(auth.GetUserInfoInAnnotation(&af.app.ObjectMeta))
+	allowed, err := auth.UserCan(ctx, cli, author, authorizationv1.ResourceAttributes{
+		Verb: "get", Group: wfTypesv1alpha1.SchemeGroupVersion.Group, Version: wfTypesv1alpha1.SchemeGroupVersion.Version,
+		Resource: "workflows", Namespace: key.Namespace, Name: key.Name,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot check whether %q may read Workflow %q: %w", author.Username, key.String(), err)
+	}
+	if !allowed {
+		return fmt.Errorf("cannot read Workflow %q: user %q may not get it", key.String(), author.Username)
+	}
+	return nil
 }
 
 // PolicyClient cache retrieved policy if ApplicationRevision not exists in appfile

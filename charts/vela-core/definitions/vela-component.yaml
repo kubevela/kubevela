@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: SourceDefinition
 metadata:
   annotations:
-    definition.oam.dev/cache-key-rules: 6ac674fa
+    definition.oam.dev/cache-key-rules: 62eb1959
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: The status of one placement of one component of a KubeVela Application - health, message, details and traits keyed by type, the first of each type where a component carries more than one. Status only; never its spec.
   name: vela-component

@@ -271,3 +271,15 @@ _email: {
 		message: =~"reaches outside the cluster"
 	}
 }
+
+"a zero timeout is rejected": test.#WorkflowStepExec & _posted & {
+	definition: "notification"
+	parameter: {
+		timeout: "0"
+		slack: {url: value: "https://hooks.slack.com/services/T0/B0/x", message: text: "shop deployed"}
+	}
+	expect: {
+		phase:   "failed"
+		message: =~"timeout"
+	}
+}

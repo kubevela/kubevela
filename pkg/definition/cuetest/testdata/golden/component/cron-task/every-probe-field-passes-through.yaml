@@ -1,0 +1,61 @@
+calls: {}
+output:
+  apiVersion: batch/v1
+  kind: CronJob
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: report
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cron-task
+    name: report
+    namespace: default
+  spec:
+    concurrencyPolicy: Allow
+    failedJobsHistoryLimit: 1
+    jobTemplate:
+      metadata:
+        labels:
+          app.oam.dev/component: report
+          app.oam.dev/name: shop
+      spec:
+        backoffLimit: 6
+        completions: 1
+        parallelism: 1
+        template:
+          metadata:
+            labels:
+              app.oam.dev/component: report
+              app.oam.dev/name: shop
+          spec:
+            containers:
+            - image: shop-report:1.0
+              livenessProbe:
+                failureThreshold: 6
+                httpGet:
+                  path: /healthz
+                  port: 8080
+                initialDelaySeconds: 5
+                periodSeconds: 20
+                successThreshold: 1
+                timeoutSeconds: 2
+              name: report
+              readinessProbe:
+                exec:
+                  command:
+                  - cat
+                  - /alive
+                failureThreshold: 5
+                initialDelaySeconds: 3
+                periodSeconds: 15
+                successThreshold: 2
+                timeoutSeconds: 4
+            restartPolicy: Never
+    schedule: 0 2 * * *
+    successfulJobsHistoryLimit: 3
+    suspend: false
+outputs: {}
+traits: {}

@@ -3,7 +3,7 @@ import "vela/test"
 // Rendering a chart fetches it, so helm.#Render is mocked.
 _chart: {
 	definition: "helmchart"
-	context: {name: "redis", appName: "shop", namespace: "team-a"}
+	context: {name: "redis", appName: "shop", namespace: *"team-a" | string}
 	_source: *"redis" | string
 	parameter: chart: {source: _source, repoURL: "https://charts.example.com", version: "18.1.0"}
 	_resources: *[
@@ -58,11 +58,27 @@ _chart: {
 	expect: calls: "vela/helm": "#Render": [{$params: context: cluster: "local"}]
 }
 
+"a topology namespace takes the release, and the Application keeps ownership": test.#ComponentRender & _chart & {
+	context: {namespace: "team-a-prod", appNamespace: "team-a"}
+	expect: calls: "vela/helm": "#Render": [{$params: {
+		release: {name: "redis", namespace: "team-a-prod"}
+		context: {appNamespace: "team-a", namespace: "team-a-prod"}
+	}}]
+}
+
 "a named release keeps the Application's namespace": test.#ComponentRender & _chart & {
 	parameter: release: name: "cache"
 	expect: {
 		output: metadata: name: "cache-helm-release"
 		calls: "vela/helm": "#Render": [{$params: release: {name: "cache", namespace: "team-a"}}]
+	}
+}
+
+"a release namespace alone keeps the component's name": test.#ComponentRender & _chart & {
+	parameter: release: namespace: "cache-ns"
+	expect: {
+		output: metadata: name: "redis-helm-release"
+		calls: "vela/helm": "#Render": [{$params: release: {name: "redis", namespace: "cache-ns"}}]
 	}
 }
 
@@ -153,23 +169,25 @@ _chart: {
 	}}]
 }
 
+// Credentials and values sources are read from the Application's namespace, wherever the release
+// is installed.
 "chart credentials, a release namespace and values sources pass through": test.#ComponentRender & _chart & {
 	parameter: {
-		chart: auth: secretRef: {name: "charts-login", namespace: "cache"}
+		chart: auth: secretRef: {name: "charts-login", namespace: "team-a"}
 		release: {name: "cache", namespace: "cache"}
 		valuesFrom: [
 			{kind: "ConfigMap", name: "redis-defaults"},
-			{kind: "Secret", name: "redis-auth", namespace: "cache", key: "values.yaml", optional: true},
+			{kind: "Secret", name: "redis-auth", namespace: "team-a", key: "values.yaml", optional: true},
 		]
 	}
 	expect: {
 		output: metadata: {name: "cache-helm-release", namespace: "cache"}
 		calls: "vela/helm": "#Render": [{$params: {
-			chart: auth: secretRef: {name: "charts-login", namespace: "cache"}
+			chart: auth: secretRef: {name: "charts-login", namespace: "team-a"}
 			release: {name: "cache", namespace: "cache"}
 			valuesFrom: [
 				{kind: "ConfigMap", name: "redis-defaults", optional?: _|_},
-				{kind: "Secret", name: "redis-auth", namespace: "cache", key: "values.yaml", optional: true},
+				{kind: "Secret", name: "redis-auth", namespace: "team-a", key: "values.yaml", optional: true},
 			]
 		}}]
 	}

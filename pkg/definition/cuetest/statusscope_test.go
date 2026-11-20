@@ -85,3 +85,25 @@ func TestClusterScopedKindsMatchTheAPIServer(t *testing.T) {
 	}
 	require.Empty(t, missing)
 }
+
+// A component placed in another namespace has its objects there, as the controller applies them,
+// and its status reads them there.
+func TestStatusReadsAPlacedComponentWhereItIsPlaced(t *testing.T) {
+	s := Subject{
+		Kind: KindComponent,
+		Name: "settings",
+		Template: `
+output: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	data: a: "1"
+}
+parameter: {}
+`,
+		HealthPolicy: `isHealth: true`,
+		CustomStatus: `message: "in \(context.output.metadata.namespace)"`,
+	}
+	res, err := Status(s, Input{Context: Context{Name: "settings", Namespace: "placed", AppNamespace: "team-a"}}, Observed{})
+	require.NoError(t, err)
+	require.Equal(t, "in placed", res.Message)
+}

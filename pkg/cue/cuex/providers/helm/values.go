@@ -76,11 +76,8 @@ var errCrossNamespaceValuesFrom = stderrors.New("cross-namespace valuesFrom sour
 // semantics diverge slightly from `helm CLI --values a.yaml --values b.yaml`
 // which uses chartutil.CoalesceValues.
 //
-// A valuesFrom entry that omits `namespace` resolves to releaseNamespace (the
-// natural co-location with the chart's deployed resources). An entry that sets
-// an explicit Namespace is only allowed if it matches either releaseNamespace
-// or appNamespace; any other namespace is rejected to block cross-tenant reads
-// via the controller's cluster-wide RBAC.
+// Every valuesFrom entry is read from appNamespace, which is also the default
+// for one that names none; resolveValuesFromNamespace refuses any other.
 func (p *Provider) mergeValues(ctx context.Context, baseValues interface{}, valuesFrom []ValuesFromParams, appNamespace, releaseNamespace string) (map[string]interface{}, error) {
 	accumulated := map[string]interface{}{}
 
@@ -164,20 +161,19 @@ func (p *Provider) loadValuesFromSource(ctx context.Context, source ValuesFromPa
 	}
 }
 
-// resolveValuesFromNamespace returns the effective namespace for a valuesFrom
-// entry. The default (empty) resolves to releaseNamespace — the natural place
-// to co-locate chart values with the chart's resources. An explicit namespace
-// is accepted only if it matches releaseNamespace or appNamespace; any other
-// value is rejected so a tenant cannot coerce the controller's cluster-wide
-// RBAC into reading Secrets from unrelated namespaces.
+// resolveValuesFromNamespace returns the namespace a valuesFrom entry is read from: the
+// Application's, the default for an entry that names none. Any other is refused, the release
+// namespace included: the author chooses it, so it is no grant to read there with the
+// controller's rights. With no Application namespace known, nothing is read.
 func resolveValuesFromNamespace(source ValuesFromParams, appNamespace, releaseNamespace string) (string, error) {
-	if source.Namespace == "" {
-		return releaseNamespace, nil
+	if appNamespace == "" {
+		return "", fmt.Errorf("%w: %s %q cannot be read: no Application namespace to read it from",
+			errCrossNamespaceValuesFrom, source.Kind, source.Name)
 	}
-	if source.Namespace == releaseNamespace || source.Namespace == appNamespace {
-		return source.Namespace, nil
+	if source.Namespace == "" || source.Namespace == appNamespace {
+		return appNamespace, nil
 	}
-	return "", fmt.Errorf("%w: %s %q requested namespace %q but Application is in %q and release is in %q",
+	return "", fmt.Errorf("%w: %s %q requested namespace %q but MUST be in the Application namespace %q (the release namespace %q is not a source)",
 		errCrossNamespaceValuesFrom, source.Kind, source.Name, source.Namespace, appNamespace, releaseNamespace)
 }
 

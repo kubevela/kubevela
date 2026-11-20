@@ -114,6 +114,12 @@ func Create(ctx context.Context, deps Deps, ccp CreateConfigProperties) error {
 			return err
 		}
 	}
+	// The step creates the config or overwrites it, so a write elsewhere needs both.
+	for _, verb := range []string{"create", "update"} {
+		if err := configAllowed(ctx, deps, verb, ccp.Namespace, ccp.Name, ""); err != nil {
+			return err
+		}
+	}
 	// The template is read with the controller's identity, as the Config controller reads it
 	// to render; who may use it was decided above, before any of it is rendered.
 	item, err := deps.Factory.ParseConfig(auth.ContextClearUserInfo(ctx), tmpl, config.Metadata{
@@ -190,6 +196,29 @@ func templateAllowed(ctx context.Context, deps Deps, tmpl config.NamespacedName,
 		return fmt.Errorf("%s; %s may not", access.Reason, user.GetName())
 	}
 	return nil
+}
+
+// readContext is what a read the step was allowed is made with: outside the Application's
+// namespace, the controller's own identity, since access was already decided (a shared system
+// config, or a user reviewed for it) and the user need not hold the read themselves.
+func readContext(ctx context.Context, deps Deps, namespace string) context.Context {
+	if from := deps.AppLabels[oam.LabelAppNamespace]; from != "" && namespace != from {
+		return auth.ContextClearUserInfo(ctx)
+	}
+	return ctx
+}
+
+// configAllowed keeps a step to its Application's namespace, as config.AllowConfigAccess rules.
+// The step acts as the controller, so its namespace property alone cannot reach another
+// tenant's configs. Every controller path names the Application (workflow steps and policy
+// templates); a caller with no namespace label runs outside the controller, the CLI or a velaql
+// view, with its own client, and is not limited here.
+func configAllowed(ctx context.Context, deps Deps, verb, namespace, name, template string) error {
+	from := deps.AppLabels[oam.LabelAppNamespace]
+	if from == "" {
+		return nil
+	}
+	return config.AllowConfigAccess(ctx, deps.Client, verb, namespace, name, template, from)
 }
 
 // configKindServed is the kind probe over the runtime's client; with no client there is
@@ -357,6 +386,10 @@ type ReadReturns = oamprovidertypes.Returns[ReadReturnVars]
 // A Secret an Available Config has not yet shown the cache is a wait too. With no Config
 // (or no Config kind) the Secret is the legacy one and is read as it always was.
 func Read(ctx context.Context, deps Deps, nn config.NamespacedName) (map[string]any, error) {
+	if err := configAllowed(ctx, deps, "get", nn.Namespace, nn.Name, ""); err != nil {
+		return nil, err
+	}
+	ctx = readContext(ctx, deps, nn.Namespace)
 	crBacked := false
 	if deps.Client != nil {
 		var cfg configv1alpha1.Config
@@ -408,6 +441,10 @@ func List(ctx context.Context, deps Deps, vars ListVars) ([]map[string]any, erro
 	if vars.Template == "" || vars.Namespace == "" {
 		return nil, ErrRequestInvalid
 	}
+	if err := configAllowed(ctx, deps, "list", vars.Namespace, "", vars.Template); err != nil {
+		return nil, err
+	}
+	ctx = readContext(ctx, deps, vars.Namespace)
 	template := config.ParseTemplateRef(vars.Template).Name
 	configs, err := deps.Factory.ListAllConfigs(ctx, vars.Namespace, template)
 	if err != nil {
@@ -446,6 +483,9 @@ const configStepResourceCreator = "workflow"
 // a caller with no handler, takes the factory's delete, which routes on what holds the
 // config.
 func Delete(ctx context.Context, deps Deps, nn config.NamespacedName) error {
+	if err := configAllowed(ctx, deps, "delete", nn.Namespace, nn.Name, ""); err != nil {
+		return err
+	}
 	if deps.Delete != nil && deps.Client != nil {
 		var cfg configv1alpha1.Config
 		switch err := deps.Client.Get(ctx, client.ObjectKey{Namespace: nn.Namespace, Name: nn.Name}, &cfg); {

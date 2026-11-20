@@ -17,14 +17,21 @@ limitations under the License.
 package mcp
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -101,9 +108,16 @@ var _ = Describe("explain_application", func() {
 		Expect(out.Events).To(HaveLen(2), "the event on the unmanaged object is excluded")
 		Expect(out.Events[0].Object).To(Equal("Pod/web-abc-2"))
 		Expect(out.Events[0].Message).To(Equal("Back-off restarting failed container web; token=" + redactedValue))
+		var backOff []Finding
 		for _, f := range out.Findings {
 			Expect(f.Message).NotTo(ContainSubstring("Back-off"), "observed text stays out of the server's sentence")
+			Expect(f.Message).NotTo(ContainSubstring("BackOff"), "the event reason is cluster text too")
+			if strings.Contains(f.Message, "warning event on Pod/web-abc-2") {
+				backOff = append(backOff, f)
+			}
 		}
+		Expect(backOff).To(HaveLen(1), toJSON(out.Findings))
+		Expect(backOff[0].Observed).To(Equal("BackOff; Back-off restarting failed container web; token=" + redactedValue))
 		Expect(out.Events[1].Object).To(Equal("Application/web"))
 
 		messages := []string{}
@@ -115,7 +129,7 @@ var _ = Describe("explain_application", func() {
 			ContainSubstring(`error: component "db" uses type "helm" which is not published`),
 			ContainSubstring("warning: status describes generation 2 but the spec is at generation 3"),
 			ContainSubstring(`warning: component "web": pods under Deployment web have restarted 4 times`),
-			ContainSubstring("warning: warning event BackOff on Pod/web-abc-2, seen 3 times"),
+			ContainSubstring("warning: warning event on Pod/web-abc-2, seen 3 times"),
 			ContainSubstring("info: workflow is suspended at approve; next action: vela workflow resume web -n team-a"),
 			ContainSubstring("info: application phase is workflowSuspending"),
 		))
@@ -202,5 +216,66 @@ var _ = Describe("explain_application", func() {
 			ContainSubstring(`workflow step "run" (deploy) failed`),
 			ContainSubstring("no component status has been recorded yet"),
 		))
+	})
+
+	It("reports a definition it could not read as unknown, not as unpublished", func() {
+		forbidDefs := &interceptor.Funcs{Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*v1beta1.ComponentDefinition); ok {
+				return apierrors.NewForbidden(schema.GroupResource{Group: "core.oam.dev", Resource: "componentdefinitions"}, key.Name, errors.New("denied"))
+			}
+			return c.Get(ctx, key, obj, opts...)
+		}}
+		h = startHarnessIntercepted(Options{}, nil, forbidDefs, explainAppFixtures()...)
+		var out ExplainApplicationOutput
+		res := h.call("explain_application", map[string]any{"name": "web", "namespace": "team-a"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(out.Components[0].DefinitionFound).To(BeFalse())
+		for _, f := range out.Findings {
+			Expect(f.Message).NotTo(ContainSubstring("not published"), "a refused read says nothing about whether the type exists")
+		}
+		Expect(out.Unknowns).To(ContainElement(SatisfyAll(ContainSubstring(`component "web"`), ContainSubstring(`"webservice"`), ContainSubstring("forbidden"))))
+	})
+
+	It("does not report a pending trait as unhealthy", func() {
+		objs := explainAppFixtures()
+		for _, o := range objs {
+			if app, ok := o.(*v1beta1.Application); ok && app.Name == "web" {
+				app.Status.Services[0].Traits[0] = oamcommon.ApplicationTraitStatus{Type: "scaler", Healthy: false, Pending: true}
+			}
+		}
+		h = startHarness(Options{}, objs...)
+		var out ExplainApplicationOutput
+		res := h.call("explain_application", map[string]any{"name": "web", "namespace": "team-a"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		for _, f := range out.Findings {
+			Expect(f.Message).NotTo(ContainSubstring(`trait "scaler"`), toJSON(out.Findings))
+		}
+	})
+
+	It("reports a failed sub-step of a step group with the sub-step's own name and reason", func() {
+		objs := explainAppFixtures()
+		for _, o := range objs {
+			if app, ok := o.(*v1beta1.Application); ok && app.Name == "batch" {
+				app.Status.Workflow.Steps = []workflowv1alpha1.WorkflowStepStatus{{
+					StepStatus: workflowv1alpha1.StepStatus{Name: "group", Type: "step-group", Phase: workflowv1alpha1.WorkflowStepPhaseRunning},
+					SubStepsStatus: []workflowv1alpha1.StepStatus{
+						{Name: "ok", Type: "deploy", Phase: workflowv1alpha1.WorkflowStepPhaseSucceeded},
+						{Name: "push", Type: "apply-object", Phase: workflowv1alpha1.WorkflowStepPhaseFailed, Reason: "Execute", Message: "quota exceeded"},
+					},
+				}}
+			}
+		}
+		h = startHarness(Options{}, objs...)
+		var out ExplainApplicationOutput
+		h.call("explain_application", map[string]any{"name": "batch", "namespace": "team-b"}, &out)
+		var found *Finding
+		for i := range out.Findings {
+			if out.Findings[i].Message == `workflow step "push" (apply-object) failed` {
+				found = &out.Findings[i]
+			}
+		}
+		Expect(found).NotTo(BeNil(), toJSON(out.Findings))
+		Expect(found.Severity).To(Equal(SeverityError))
+		Expect(found.Observed).To(Equal("Execute; quota exceeded"))
 	})
 })

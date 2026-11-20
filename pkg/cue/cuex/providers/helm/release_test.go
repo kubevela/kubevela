@@ -32,6 +32,8 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
 )
@@ -361,6 +363,104 @@ var _ = Describe("release", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(version).To(Equal(1), "pin must suppress the upgrade")
 			Expect(manifest).To(Equal("pinned-manifest"))
+		})
+	})
+
+	Describe("installOrUpgradeChart ownership", func() {
+		const (
+			relName = "redis"
+			relNS   = "ns"
+		)
+
+		// seedOwned stores a deployed release labelled as owned by app/component, with its
+		// release Secret in the fake clientset, as a KubeVela install leaves them.
+		seedOwned := func(cfg *action.Configuration, p *Provider, app, appNS, comp string) {
+			labels := map[string]string{
+				"app.oam.dev/name":      app,
+				"app.oam.dev/namespace": appNS,
+				"app.oam.dev/component": comp,
+			}
+			Expect(cfg.Releases.Create(&release.Release{
+				Name: relName, Namespace: relNS, Version: 1,
+				Info:   &release.Info{Status: release.StatusDeployed},
+				Chart:  minimalChart("c", "1.0.0"),
+				Config: map[string]interface{}{"owner": app},
+				Labels: labels,
+			})).To(Succeed())
+			cs, err := p.kubeClientFactory(context.Background())
+			Expect(err).ShouldNot(HaveOccurred())
+			secretLabels := map[string]string{"owner": "helm", "name": relName}
+			for k, v := range labels {
+				secretLabels[k] = v
+			}
+			_, err = cs.CoreV1().Secrets(relNS).Create(context.Background(), &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "sh.helm.release.v1." + relName + ".v1", Namespace: relNS, Labels: secretLabels},
+			}, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+		}
+
+		It("refuses a release another existing Application owns, naming the owner", func() {
+			cfg := fakeActionConfig()
+			p := installProviderWithFake(cfg)
+			p.ownerAppExists = func(_ context.Context, ns, name string) (bool, error) {
+				return ns == "team-a" && name == "shop", nil
+			}
+			seedOwned(cfg, p, "shop", "team-a", "redis")
+
+			velaCtx := &ContextParams{AppName: "blog", AppNamespace: relNS, Name: "redis"}
+			_, _, _, err := p.installOrUpgradeChart(context.Background(), minimalChart("c", "1.0.0"), relName, relNS,
+				map[string]interface{}{"owner": "blog"}, nil, velaCtx)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("team-a/shop"))
+			Expect(err.Error()).To(ContainSubstring("release.name"))
+
+			last, err := cfg.Releases.Last(relName)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(last.Version).To(Equal(1), "the other app's release must not be upgraded")
+		})
+
+		It("refuses a release owned by another component of the same Application", func() {
+			cfg := fakeActionConfig()
+			p := installProviderWithFake(cfg)
+			p.ownerAppExists = func(context.Context, string, string) (bool, error) { return true, nil }
+			seedOwned(cfg, p, "shop", relNS, "cache")
+
+			velaCtx := &ContextParams{AppName: "shop", AppNamespace: relNS, Name: "redis"}
+			_, _, _, err := p.installOrUpgradeChart(context.Background(), minimalChart("c", "1.0.0"), relName, relNS,
+				map[string]interface{}{}, nil, velaCtx)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("component cache"))
+		})
+
+		It("adopts a release whose owning Application no longer exists, relabelling its Secrets", func() {
+			cfg := fakeActionConfig()
+			p := installProviderWithFake(cfg)
+			p.ownerAppExists = func(context.Context, string, string) (bool, error) { return false, nil }
+			seedOwned(cfg, p, "shop", "elsewhere", "redis")
+
+			velaCtx := &ContextParams{AppName: "shop", AppNamespace: relNS, Name: "redis"}
+			_, _, version, err := p.installOrUpgradeChart(context.Background(), minimalChart("c", "1.0.0"), relName, relNS,
+				map[string]interface{}{}, nil, velaCtx)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(version).To(Equal(2))
+
+			cs, _ := p.kubeClientFactory(context.Background())
+			s, err := cs.CoreV1().Secrets(relNS).Get(context.Background(), "sh.helm.release.v1."+relName+".v1", metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(s.Labels).To(HaveKeyWithValue("app.oam.dev/namespace", relNS))
+		})
+
+		It("surfaces an error looking up the owning Application instead of adopting", func() {
+			cfg := fakeActionConfig()
+			p := installProviderWithFake(cfg)
+			p.ownerAppExists = func(context.Context, string, string) (bool, error) { return false, errors.New("forbidden") }
+			seedOwned(cfg, p, "shop", "team-a", "redis")
+
+			velaCtx := &ContextParams{AppName: "blog", AppNamespace: relNS, Name: "redis"}
+			_, _, _, err := p.installOrUpgradeChart(context.Background(), minimalChart("c", "1.0.0"), relName, relNS,
+				map[string]interface{}{}, nil, velaCtx)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("forbidden"))
 		})
 	})
 

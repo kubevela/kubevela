@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: SourceDefinition
 metadata:
   annotations:
-    definition.oam.dev/cache-key-rules: 6ac674fa
+    definition.oam.dev/cache-key-rules: 62eb1959
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: Reads a file from a registry configured in this cluster, optionally at a given branch or tag. YAML and JSON are parsed; anything else comes back as a string.
   name: git-file

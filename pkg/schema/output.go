@@ -392,28 +392,30 @@ func withStatus(s *openapi3.Schema) {
 	s.Properties[statusFieldName] = openapi3.NewSchemaRef("", &openapi3.Schema{})
 }
 
-// Extend lays the output schemas of a definition that extends this one over
-// this one's, as its render merges them: field by field, with outputs joining
-// by name. output and outputs say whether the child inherits each; one it does
-// not is the child's alone. A field the child writes untyped, such as one read
-// from `$super`, keeps the type this one gives it.
-func (s *OutputSchemas) Extend(child *OutputSchemas, output, outputs bool) *OutputSchemas {
+// Extend lays a child's schemas over its parent's, as its render merges them:
+// the output is always the parent's with the child's fields on it, and the
+// outputs join by name, except those the child left out with `$inherit`, where
+// the child's own entry, if any, stands alone.
+func (s *OutputSchemas) Extend(child *OutputSchemas, dropped map[string]bool) *OutputSchemas {
 	if s == nil {
 		s = &OutputSchemas{}
 	}
 	if child == nil {
 		child = &OutputSchemas{}
 	}
-	out := &OutputSchemas{Output: child.Output, Outputs: child.Outputs}
-	if output {
-		out.Output = overlay(s.Output, child.Output)
-	}
-	if outputs && len(s.Outputs) > 0 {
+	out := &OutputSchemas{Output: overlay(s.Output, child.Output), Outputs: child.Outputs}
+	if len(s.Outputs) > 0 {
 		out.Outputs = map[string]*openapi3.Schema{}
 		for k, v := range s.Outputs {
-			out.Outputs[k] = v
+			if !dropped[k] {
+				out.Outputs[k] = v
+			}
 		}
 		for k, v := range child.Outputs {
+			if dropped[k] {
+				out.Outputs[k] = v
+				continue
+			}
 			out.Outputs[k] = overlay(s.Outputs[k], v)
 		}
 	}
@@ -470,12 +472,11 @@ func ChainOutputSchemas(ctx context.Context, levels []inherit.Level) (*OutputSch
 			schemas = own
 			continue
 		}
-		output, err := inherit.Inherits(lvl, OutputFieldName)
+		dropped, err := inherit.DroppedOutputs(lvl, OutputsFieldName)
 		if err != nil {
 			return nil, fmt.Errorf("level %s: %w", lvl.Name, err)
 		}
-		outputs, _ := inherit.Inherits(lvl, OutputsFieldName)
-		schemas = schemas.Extend(own, output, outputs)
+		schemas = schemas.Extend(own, dropped)
 	}
 	return schemas, nil
 }

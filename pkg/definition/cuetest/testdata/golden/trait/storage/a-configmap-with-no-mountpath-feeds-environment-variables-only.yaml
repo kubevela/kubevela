@@ -1,0 +1,38 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: test-app-v1
+      app.oam.dev/component: web
+      app.oam.dev/name: test-app
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cuetest-workload
+    name: web
+    namespace: default
+  spec:
+    template:
+      spec:
+        containers:
+        - env:
+          - name: MODE
+            valueFrom:
+              configMapKeyRef:
+                key: mode
+                name: shop-config
+          - name: REGION
+            valueFrom:
+              configMapKeyRef:
+                key: region
+                name: shop-config
+          image: shop:1.0
+          name: web
+          volumeDevices: []
+          volumeMounts: []
+        - image: fluentbit:3
+          name: log
+        volumes: []
+outputs: {}

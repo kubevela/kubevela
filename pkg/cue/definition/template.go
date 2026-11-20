@@ -97,6 +97,10 @@ type AbstractEngine interface {
 }
 type def struct {
 	name string
+	// typ is the definition a component names, when that differs from name.
+	// A refusal from an inheritance chain names both, since an Application
+	// author knows the component and a definition author knows the type.
+	typ string
 	// ancestors are the definitions this one extends, nearest parent first.
 	// Empty for a definition that extends nothing, which is the common case and
 	// renders exactly as it always did.
@@ -119,6 +123,20 @@ func NewWorkloadAbstractEngine(name string, ancestors ...inherit.Level) Abstract
 	return &workloadDef{
 		def: def{
 			name:      name,
+			ancestors: ancestors,
+		},
+		surface: sources.SurfaceComponent,
+	}
+}
+
+// NewComponentAbstractEngine is NewWorkloadAbstractEngine for a component of a
+// named type, so an error from its inheritance chain names the definition as
+// well as the component.
+func NewComponentAbstractEngine(name, typ string, ancestors ...inherit.Level) AbstractEngine {
+	return &workloadDef{
+		def: def{
+			name:      name,
+			typ:       typ,
 			ancestors: ancestors,
 		},
 		surface: sources.SurfaceComponent,
@@ -430,7 +448,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 
 	processing := val.LookupPath(value.FieldPath("processing"))
 	if processing.Exists() {
-		if val, err = task.Process(val); err != nil {
+		if val, err = task.Process(ctx.GetCtx(), val); err != nil {
 			return errors.WithMessagef(err, "invalid process of trait %s", td.name)
 		}
 	}

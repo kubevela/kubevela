@@ -1,7 +1,7 @@
 header:
   schema-version: 2.0.0
-  last-updated: '2026-11-12'
-  last-reviewed: '2026-11-12'
+  last-updated: '2026-11-18'
+  last-reviewed: '2026-11-18'
   url: https://github.com/kubevela/kubevela/blob/master/security-insights.yml
   comment: |
     Security Insights manifest for the KubeVela project, following the OpenSSF
@@ -76,12 +76,18 @@ project:
     - name: cluster-gateway
       url: https://github.com/oam-dev/cluster-gateway
       comment: Multi-cluster gateway KubeVela uses to reach managed clusters.
+    - name: cluster-register
+      url: https://github.com/oam-dev/cluster-register
+      comment: Registers a managed cluster with a KubeVela hub through Open Cluster Management.
+    - name: docker-terraform
+      url: https://github.com/oam-dev/docker-terraform
+      comment: Terraform runtime image used by terraform-controller to execute configurations.
   vulnerability-reporting:
     reports-accepted: true
     bug-bounty-available: false
     security-policy: https://github.com/kubevela/kubevela/blob/master/SECURITY.md
     comment: |
-      Report vulnerabilities privately by email to security@mail.kubevela.io.
+      Report vulnerabilities privately by email to cncf-kubevela-security@lists.cncf.io.
       Reports are read by a restricted group of maintainers and acknowledged
       with a non-automated response within three working days.
 

@@ -24,12 +24,16 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // These specs pin the security properties the package documents: the
@@ -100,7 +104,9 @@ var _ = Describe("security properties", func() {
 
 			// Restricted to the Application's namespace: foreign and
 			// cluster-scoped objects are withheld and counted.
-			// The client records every read, so "never reads" is checked, not assumed.
+			// The client records any Get in kube-system or of the cluster-scoped
+			// team-b Namespace, and any List in kube-system, so "never reads" is
+			// checked for the two withheld objects, not assumed.
 			var foreign []string
 			record := func(what string) { foreign = append(foreign, what) }
 			funcs := &interceptor.Funcs{
@@ -311,6 +317,155 @@ var _ = Describe("security properties", func() {
 			opts := logOptions(GetLogsInput{TailLines: 1 << 20, SinceSeconds: -5})
 			Expect(*opts.TailLines).To(Equal(maxTailLines))
 			Expect(opts.SinceSeconds).To(BeNil())
+		})
+	})
+
+	Context("Secret reads", func() {
+		It("lists Secrets for the tree pass as metadata only, in the shape the caller asked for", func() {
+			labelled := map[string]string{"app": "web"}
+			base := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(
+				&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "team-a", Labels: labelled}, Type: corev1.SecretTypeOpaque, Data: map[string][]byte{"k": []byte("hunter2")}},
+				&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "b", Namespace: "team-a", Labels: labelled}, StringData: map[string]string{"k": "hunter2"}},
+				&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "c", Namespace: "other"}, Data: map[string][]byte{"k": []byte("hunter2")}},
+			).Build()
+			fullLists, metadataLists := 0, 0
+			cli := secretMetadataClient{interceptor.NewClient(base, interceptor.Funcs{List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				if _, partial := list.(*metav1.PartialObjectMetadataList); partial {
+					metadataLists++
+				} else if isSecretList(list) {
+					fullLists++
+				}
+				return c.List(ctx, list, opts...)
+			}})}
+
+			ul := &unstructured.UnstructuredList{}
+			ul.SetAPIVersion("v1")
+			ul.SetKind("SecretList")
+			Expect(cli.List(context.Background(), ul, client.InNamespace("team-a"), client.MatchingLabels(labelled))).To(Succeed())
+			Expect(ul.Items).To(HaveLen(2))
+			for _, item := range ul.Items {
+				Expect(item.GetKind()).To(Equal("Secret"))
+				Expect(item.GetAPIVersion()).To(Equal("v1"))
+				Expect(item.GetNamespace()).To(Equal("team-a"))
+				Expect(item.GetLabels()).To(Equal(labelled))
+				Expect(item.Object).NotTo(HaveKey("data"))
+				Expect(item.Object).NotTo(HaveKey("stringData"))
+				Expect(item.Object).NotTo(HaveKey("type"))
+			}
+
+			sl := &corev1.SecretList{}
+			Expect(cli.List(context.Background(), sl, client.InNamespace("team-a"))).To(Succeed())
+			Expect(sl.Items).To(HaveLen(2))
+			for _, item := range sl.Items {
+				Expect(item.Name).NotTo(BeEmpty())
+				Expect(item.Data).To(BeEmpty())
+				Expect(item.StringData).To(BeEmpty())
+				Expect(item.Type).To(BeEmpty())
+			}
+
+			Expect(fullLists).To(Equal(0), "no list of Secrets returns their data")
+			Expect(metadataLists).To(Equal(2))
+
+			cms := &unstructured.UnstructuredList{}
+			cms.SetAPIVersion("v1")
+			cms.SetKind("ConfigMapList")
+			Expect(cli.List(context.Background(), cms)).To(Succeed(), "other kinds pass through")
+			Expect(metadataLists).To(Equal(2))
+		})
+
+		It("checks a rendered Secret that already exists without reading the live Secret's data", func() {
+			live := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "db", Namespace: "team-a", ResourceVersion: "41"}, Data: map[string][]byte{"url": []byte("postgres://u:live@db")}}
+			var fullReads []string
+			metadataReads := 0
+			base := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(live).Build()
+			cli := interceptor.NewClient(base, interceptor.Funcs{Create: func(_ context.Context, _ client.WithWatch, obj client.Object, _ ...client.CreateOption) error {
+				// The fake client does not report a dry-run create of an
+				// existing object as a conflict; the API server does.
+				return apierrors.NewAlreadyExists(corev1.Resource("secrets"), obj.GetName())
+			}, Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, partial := obj.(*metav1.PartialObjectMetadata); partial {
+					metadataReads++
+				} else if isSecretObject(obj) {
+					fullReads = append(fullReads, key.String())
+				}
+				return c.Get(ctx, key, obj, opts...)
+			}})
+			rendered := &unstructured.Unstructured{Object: map[string]any{
+				"apiVersion": "v1", "kind": "Secret",
+				"metadata":   map[string]any{"name": "db"},
+				"stringData": map[string]any{"url": "postgres://u:rendered@db"},
+			}}
+			Expect(dryRunObject(context.Background(), cli, rendered, "team-a")).To(Succeed())
+			Expect(fullReads).To(BeEmpty(), "the live resourceVersion comes from a metadata-only read")
+			Expect(metadataReads).To(Equal(1))
+		})
+	})
+
+	Context("change set values", func() {
+		obj := func(kind string, fields map[string]any) *unstructured.Unstructured {
+			o := map[string]any{"apiVersion": "v1", "kind": kind, "metadata": map[string]any{"name": "web", "namespace": "team-a"}}
+			for k, v := range fields {
+				o[k] = v
+			}
+			return &unstructured.Unstructured{Object: o}
+		}
+
+		It("never shows a ConfigMap's payload, only that it changed", func() {
+			rc := compareObjects(
+				obj("ConfigMap", map[string]any{"data": map[string]any{"DB_HOST": "old-internal-value"}, "binaryData": map[string]any{"blob": "b2xk"}}),
+				obj("ConfigMap", map[string]any{"data": map[string]any{"DB_HOST": "new-internal-value"}, "binaryData": map[string]any{"blob": "bmV3"}}))
+			Expect(rc).NotTo(BeNil())
+			Expect(rc.Fields).To(HaveLen(2))
+			for _, f := range rc.Fields {
+				Expect(f.From).To(Equal(redactedValue), f.Path)
+				Expect(f.To).To(Equal(redactedValue), f.Path)
+			}
+			Expect(toJSON(rc)).NotTo(ContainSubstring("internal-value"))
+		})
+
+		It("never shows a ConfigMap payload that renders as a list", func() {
+			rc := compareObjects(
+				obj("ConfigMap", map[string]any{"data": []any{"old-internal-value"}}),
+				obj("ConfigMap", map[string]any{"data": []any{"new-internal-value"}}))
+			Expect(rc).NotTo(BeNil())
+			Expect(rc.Fields).To(HaveLen(1))
+			Expect(rc.Fields[0].Path).To(Equal("data[0]"))
+			Expect(rc.Fields[0].From).To(Equal(redactedValue))
+			Expect(rc.Fields[0].To).To(Equal(redactedValue))
+		})
+
+		It("redacts every leaf under a key that redaction replaces whole", func() {
+			rc := compareObjects(
+				obj("Widget", map[string]any{"spec": map[string]any{"auth": map[string]any{"credentials": map[string]any{"primary": "abc"}, "authorization": map[string]any{"bearer": "ghi"}}, "replicas": int64(1)}}),
+				obj("Widget", map[string]any{"spec": map[string]any{"auth": map[string]any{"credentials": map[string]any{"primary": "def"}, "authorization": map[string]any{"bearer": "jkl"}}, "replicas": int64(2)}}))
+			Expect(rc).NotTo(BeNil())
+			Expect(rc.Fields).To(HaveLen(3))
+			for _, f := range rc.Fields {
+				if f.Path == "spec.replicas" {
+					Expect(f.To).To(Equal(int64(2)), "unrelated leaves still show their values")
+					continue
+				}
+				Expect(f.From).To(Equal(redactedValue), f.Path)
+				Expect(f.To).To(Equal(redactedValue), f.Path)
+			}
+		})
+
+		It("drops embedded last-applied annotations a base revision carries", func() {
+			embedded := `{"spec":{"components":[{"properties":{"env":[{"name":"DB_PASSWORD","value":"hunter2"}]}}]}}`
+			// A literal list, so dropping a key from embeddedObjectAnnotations
+			// fails this spec instead of shrinking it.
+			for _, key := range []string{
+				"kubectl.kubernetes.io/last-applied-configuration",
+				"app.oam.dev/last-applied-configuration",
+				"kubevela.io/last-applied-configuration",
+			} {
+				base := obj("Deployment", map[string]any{"spec": map[string]any{"replicas": int64(1)}})
+				base.SetAnnotations(map[string]string{key: embedded})
+				target := obj("Deployment", map[string]any{"spec": map[string]any{"replicas": int64(1)}})
+				Expect(compareObjects(base, target)).To(BeNil(), key)
+				target.SetAnnotations(map[string]string{key: `{"other":"value"}`})
+				Expect(compareObjects(base, target)).To(BeNil(), key)
+			}
 		})
 	})
 

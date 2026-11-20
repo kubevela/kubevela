@@ -20,13 +20,16 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Masterminds/semver"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
+	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,13 +41,16 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velacache "github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // GenerateDefinitionRevision will generate a definition revision the generated revision
-// will be compare with the last revision to see if there's any difference.
+// will be compare with the last revision to see if there's any difference. It reports true
+// when the definition's status must point at the returned revision, which is created where it
+// does not exist yet.
 func GenerateDefinitionRevision(ctx context.Context, cli client.Client, def runtime.Object) (*v1beta1.DefinitionRevision, bool, error) {
 	isSpecVersion, defRevNamespacedName, err := isSpecVersionRevision(def)
 	if err != nil {
@@ -71,8 +77,38 @@ func GenerateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 		return defRev, isNewRev, err
 	}
 	if isNewRev {
-		defRevName, revNum := getDefNextRevision(defRev, lastRevision)
-		defRev.Name = defRevName
+		accessor, err := meta.Accessor(def)
+		if err != nil {
+			return defRev, false, err
+		}
+		history, err := readRevisionHistory(ctx, cli, accessor.GetNamespace(), defRev.Spec.DefinitionType, accessor.GetName())
+		if err != nil {
+			return defRev, false, err
+		}
+		revNum := history.next(lastRevision)
+		reuse := func(rev *v1beta1.DefinitionRevision) (*v1beta1.DefinitionRevision, bool, error) {
+			defRev.Name = rev.Name
+			defRev.Spec.Revision = rev.Spec.Revision
+			defRev.ResourceVersion = rev.ResourceVersion
+			return defRev, true, nil
+		}
+		if lastRevision == nil {
+			// A definition with no revision of its own yet: new, created again after a delete,
+			// or read before its status recorded the revision it just made. It takes back the
+			// number of content the name had, existing or recorded, so pins on it keep working.
+			if rev := history.holding(defRev); rev != nil {
+				return reuse(rev)
+			}
+			if n := history.hashedNumber(defRev.Spec.RevisionHash); n > 0 {
+				defRev.Name = ConstructDefinitionRevisionName(accessor.GetName(), strconv.FormatInt(n, 10))
+				defRev.Spec.Revision = n
+				return defRev, true, nil
+			}
+		} else if newest := history.newest(); newest != nil && newest.Spec.Revision == revNum-1 && DeepEqualDefRevision(newest, defRev) {
+			// Read before its status recorded the revision it just made.
+			return reuse(newest)
+		}
+		defRev.Name = ConstructDefinitionRevisionName(accessor.GetName(), strconv.FormatInt(revNum, 10))
 		defRev.Spec.Revision = revNum
 	}
 	return defRev, isNewRev, nil
@@ -258,12 +294,10 @@ func compareWithLastDefRevisionSpec(ctx context.Context, cli client.Client,
 	if lastRevision == nil {
 		return true, nil
 	}
-	if lastRevision.RevisionHash != newDefRev.Spec.RevisionHash {
-		return true, nil
-	}
 
-	// check if the DefinitionRevision is deep equal in Spec level
-	// get the last revision from K8s and double check
+	// The content decides, not the hash: the hash covers the spec's Go struct, so a release
+	// that adds a field changes every definition's hash, content unchanged, and the stored
+	// revisions Applications pin would be superseded and collected.
 	defRev := &v1beta1.DefinitionRevision{}
 	var namespace string
 	switch newDefRev.Spec.DefinitionType {
@@ -280,6 +314,9 @@ func compareWithLastDefRevisionSpec(ctx context.Context, cli client.Client,
 	}
 	if err := cli.Get(ctx, client.ObjectKey{Name: lastRevision.Name,
 		Namespace: namespace}, defRev); err != nil {
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
 		return false, errors.Wrapf(err, "get the definitionRevision %s", lastRevision.Name)
 	}
 
@@ -291,7 +328,6 @@ func compareWithLastDefRevisionSpec(ctx context.Context, cli client.Client,
 		newDefRev.ResourceVersion = defRev.ResourceVersion
 		return false, nil
 	}
-	// if reach here, it's same hash but different spec
 	return true, nil
 }
 
@@ -365,36 +401,64 @@ func ConstructDefinitionRevisionName(definitionName, revision string) string {
 	return strings.Join([]string{definitionName, fmt.Sprintf("v%s", revision)}, "-")
 }
 
-// CleanUpDefinitionRevision check all definitionRevisions, remove them if the number of them exceed the limit
+// LiveReader reads from the API server, set at setup. The revision garbage collector reads
+// Applications through it when the controller is sharded, since a sharded cache holds only this
+// shard's Applications; revision numbering reads through it always (liveReader).
+var LiveReader client.Reader
+
+// liveReader is LiveReader, or cli where none is set (tests). Revision numbering must see the
+// revision a reconcile just made, which the cache may not hold yet, and reading ConfigMaps
+// through the cache would start a cluster-wide informer for them.
+func liveReader(cli client.Client) client.Reader {
+	if LiveReader != nil {
+		return LiveReader
+	}
+	return cli
+}
+
+// CleanUpDefinitionRevision deletes a definition's oldest revisions beyond revisionLimit. The
+// revision in use and any revision an Application pins (type@vN) are kept and not counted.
 func CleanUpDefinitionRevision(ctx context.Context, cli client.Client, def runtime.Object, revisionLimit int) error {
+	// A negative limit keeps no extra revisions, as zero does.
+	revisionLimit = max(revisionLimit, 0)
 	var listOpts []client.ListOption
 	var usingRevision *common.Revision
+	var kind common.DefinitionType
+	defMeta, ok := def.(metav1.Object)
+	if !ok {
+		return fmt.Errorf("unsupported type %T", def)
+	}
 
 	switch definition := def.(type) {
 	case *v1beta1.ComponentDefinition:
+		kind = common.ComponentType
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelComponentDefinitionName: definition.Name},
 		}
 		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.TraitDefinition:
+		kind = common.TraitType
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelTraitDefinitionName: definition.Name},
 		}
 		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.PolicyDefinition:
+		kind = common.PolicyType
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelPolicyDefinitionName: definition.Name},
 		}
 		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.WorkflowStepDefinition:
+		kind = common.WorkflowStepType
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelWorkflowStepDefinitionName: definition.Name}}
 		usingRevision = definition.Status.LatestRevision
 	case *v1beta1.SourceDefinition:
+		kind = common.SourceType
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelSourceDefinitionName: definition.Name}}
@@ -409,28 +473,85 @@ func CleanUpDefinitionRevision(ctx context.Context, cli client.Client, def runti
 	if err := cli.List(ctx, defRevList, listOpts...); err != nil {
 		return err
 	}
-	needKill := len(defRevList.Items) - revisionLimit - 1
+	if len(defRevList.Items)-revisionLimit-1 <= 0 {
+		return nil
+	}
+	pinned, err := pinnedRevisions(ctx, cli, kind, defMeta, defRevList.Items)
+	if err != nil {
+		return err
+	}
+	var candidates []v1beta1.DefinitionRevision
+	for _, rev := range defRevList.Items {
+		if rev.Name != usingRevision.Name && !pinned[rev.Name] {
+			candidates = append(candidates, rev)
+		}
+	}
+	needKill := len(candidates) - revisionLimit
 	if needKill <= 0 {
 		return nil
 	}
-	klog.InfoS("cleanup old definitionRevision", "needKillNum", needKill)
+	klog.InfoS("cleanup old definitionRevision", "needKillNum", needKill, "pinned", len(pinned))
 
-	sortedRevision := defRevList.Items
-	sort.Sort(historiesByRevision(sortedRevision))
-
-	for _, rev := range sortedRevision {
-		if needKill <= 0 {
-			break
-		}
-		if rev.Name == usingRevision.Name {
-			continue
-		}
+	sort.Sort(historiesByRevision(candidates))
+	for _, rev := range candidates[:needKill] {
 		if err := cli.Delete(ctx, rev.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
-		needKill--
 	}
 	return nil
+}
+
+// pinnedRevisions returns the names of revs that an Application pins as <definition>@v<n>. A
+// definition in the system namespace may be pinned from any namespace, any other only from its
+// own.
+func pinnedRevisions(ctx context.Context, cli client.Client, kind common.DefinitionType, def metav1.Object, revs []v1beta1.DefinitionRevision) (map[string]bool, error) {
+	var reader client.Reader = cli
+	indexed := velacache.DefinitionPinIndexed
+	if sharding.EnableSharding && LiveReader != nil {
+		reader, indexed = LiveReader, false
+	}
+	var scope []client.ListOption
+	if def.GetNamespace() != oam.SystemDefinitionNamespace {
+		scope = append(scope, client.InNamespace(def.GetNamespace()))
+	}
+	pinOf := func(rev v1beta1.DefinitionRevision) (string, bool) {
+		version, ok := strings.CutPrefix(rev.Name, def.GetName()+"-v")
+		return def.GetName() + "@v" + version, ok
+	}
+
+	pinned := map[string]bool{}
+	if indexed {
+		for _, rev := range revs {
+			pin, ok := pinOf(rev)
+			if !ok {
+				continue
+			}
+			apps := &v1beta1.ApplicationList{}
+			opts := append([]client.ListOption{client.MatchingFields{velacache.DefinitionPinIndex: velacache.PinKey(kind, pin)}}, scope...)
+			if err := reader.List(ctx, apps, opts...); err != nil {
+				return nil, err
+			}
+			pinned[rev.Name] = len(apps.Items) > 0
+		}
+		return pinned, nil
+	}
+
+	apps := &v1beta1.ApplicationList{}
+	if err := reader.List(ctx, apps, append([]client.ListOption{client.UnsafeDisableDeepCopy}, scope...)...); err != nil {
+		return nil, err
+	}
+	keys := map[string]bool{}
+	for i := range apps.Items {
+		for _, k := range velacache.DefinitionPinsOf(&apps.Items[i]) {
+			keys[k] = true
+		}
+	}
+	for _, rev := range revs {
+		if pin, ok := pinOf(rev); ok && keys[velacache.PinKey(kind, pin)] {
+			pinned[rev.Name] = true
+		}
+	}
+	return pinned, nil
 }
 
 type historiesByRevision []v1beta1.DefinitionRevision
@@ -480,6 +601,13 @@ func ReconcileDefinitionRevision(ctx context.Context,
 		}
 		klog.InfoS("Successfully updated the status.latestRevision of the definition", "Definition", klog.KRef(definition.GetNamespace(), definition.GetName()),
 			"Name", defRev.Name, "Revision", defRev.Spec.Revision, "RevisionHash", defRev.Spec.RevisionHash)
+	}
+
+	// Recorded on every reconcile, after any create, so a definition that never changes is
+	// recorded too, and a reconcile running in between sees the revision before its number.
+	if err := recordRevisionNumber(ctx, cli, definition.GetNamespace(), defRev.Spec.DefinitionType, definition.GetName(), defRev.Spec.Revision, defRev.Spec.RevisionHash); err != nil {
+		klog.InfoS("Failed to record the definition's revision number", "definition", klog.KObj(definition), "err", err)
+		record.Event(definition, event.Warning("failed to record the DefinitionRevision number", err))
 	}
 
 	if err = CleanUpDefinitionRevision(ctx, cli, definition, revisionLimit); err != nil {

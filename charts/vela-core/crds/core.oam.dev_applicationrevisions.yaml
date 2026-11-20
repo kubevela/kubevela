@@ -273,6 +273,12 @@ spec:
                                 type: string
                             type: object
                           ref:
+                            description: |-
+                              Ref names a Workflow object to run in place of Steps: the one in the Application's
+                              namespace, else a shared one of that name in the system definition namespace
+                              (vela-system unless set otherwise).
+                              The author needs get on it where definition permissions or AuthenticateApplication
+                              are enforced.
                             type: string
                           steps:
                             items:
@@ -1110,6 +1116,51 @@ spec:
                             type: string
                           mode:
                             type: string
+                          ref:
+                            description: |-
+                              Ref is the Workflow spec.workflow.ref resolved to: the one in the Application's namespace,
+                              else the shared one in the system namespace.
+                            properties:
+                              apiVersion:
+                                description: API version of the referent.
+                                type: string
+                              fieldPath:
+                                description: |-
+                                  If referring to a piece of an object instead of an entire object, this string
+                                  should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+                                  For example, if the object reference is to a container within a pod, this would take on a value like:
+                                  "spec.containers{name}" (where "name" refers to the name of the container that triggered
+                                  the event) or if no container name is specified "spec.containers[2]" (container with
+                                  index 2 in this pod). This syntax is chosen only to have some well-defined way of
+                                  referencing a part of an object.
+                                type: string
+                              kind:
+                                description: |-
+                                  Kind of the referent.
+                                  More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                                type: string
+                              name:
+                                description: |-
+                                  Name of the referent.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                type: string
+                              namespace:
+                                description: |-
+                                  Namespace of the referent.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+                                type: string
+                              resourceVersion:
+                                description: |-
+                                  Specific resourceVersion to which this reference is made, if any.
+                                  More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+                                type: string
+                              uid:
+                                description: |-
+                                  UID of the referent.
+                                  More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
+                                type: string
+                            type: object
+                            x-kubernetes-map-type: atomic
                           startTime:
                             format: date-time
                             type: string
@@ -1304,8 +1355,13 @@ spec:
                           description: |-
                             Extends names a ComponentDefinition this one builds on. The parent renders
                             with the parameters this definition's template passes it in its `$super`
-                            block, and its output, outputs and parameter schema are inherited unless
-                            the template says otherwise with `$inherit`.
+                            block; this definition declares parameters of its own and does not
+                            inherit the parent's. It adds to what the parent renders and never
+                            changes it: its output and outputs merge onto the parent's, a field the
+                            parent set is changed only through `$super`, and its workload is the
+                            parent's. One of the parent's outputs may be left out with
+                            `$inherit: {outputs: {<name>: false}}` unless the parent marks it
+                            `+required`, and a field the parent marks `+final` takes no additions.
 
                             A DefinitionRevision may be named to pin the parent, as in
                             "webservice@v3"; an unqualified name tracks whatever is current. The
@@ -2699,8 +2755,14 @@ spec:
                           description: |-
                             Extends names a TraitDefinition this one builds on. The parent renders
                             with the parameters this definition's template passes it in its `$super`
-                            block, and its patch, patchOutputs, outputs and parameter schema are
-                            inherited unless the template says otherwise with `$inherit`.
+                            block; this definition declares parameters of its own and does not
+                            inherit the parent's. It adds to what the parent renders and never
+                            changes it: its patch, patchOutputs, outputs and processing merge onto
+                            the parent's, and a field the parent set is changed only through
+                            `$super`. One of the parent's outputs may be left out with
+                            `$inherit: {outputs: {<name>: false}}`, and one of its patchOutputs with
+                            `$inherit: {patchOutputs: {<name>: false}}`, unless the parent marks it
+                            `+required`, and a field the parent marks `+final` takes no additions.
 
                             A DefinitionRevision may be named to pin the parent, as in "gateway@v2";
                             an unqualified name tracks whatever is current. The ancestors a render
@@ -4061,6 +4123,51 @@ spec:
                     type: string
                   mode:
                     type: string
+                  ref:
+                    description: |-
+                      Ref is the Workflow spec.workflow.ref resolved to: the one in the Application's namespace,
+                      else the shared one in the system namespace.
+                    properties:
+                      apiVersion:
+                        description: API version of the referent.
+                        type: string
+                      fieldPath:
+                        description: |-
+                          If referring to a piece of an object instead of an entire object, this string
+                          should contain a valid JSON/Go field access statement, such as desiredState.manifest.containers[2].
+                          For example, if the object reference is to a container within a pod, this would take on a value like:
+                          "spec.containers{name}" (where "name" refers to the name of the container that triggered
+                          the event) or if no container name is specified "spec.containers[2]" (container with
+                          index 2 in this pod). This syntax is chosen only to have some well-defined way of
+                          referencing a part of an object.
+                        type: string
+                      kind:
+                        description: |-
+                          Kind of the referent.
+                          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                        type: string
+                      name:
+                        description: |-
+                          Name of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                      namespace:
+                        description: |-
+                          Namespace of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+                        type: string
+                      resourceVersion:
+                        description: |-
+                          Specific resourceVersion to which this reference is made, if any.
+                          More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
+                        type: string
+                      uid:
+                        description: |-
+                          UID of the referent.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
                   startTime:
                     format: date-time
                     type: string

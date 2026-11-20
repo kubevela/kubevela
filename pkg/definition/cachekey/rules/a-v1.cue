@@ -58,6 +58,9 @@ keyed: {
 
 	namespace: {order: 4, segment: true}
 	appName: {order:   5, segment: true}
+	// The Application's own namespace, which namespace is not for a component a topology policy
+	// places elsewhere. Ordered after the rest so no existing key moves.
+	appNamespace: {order: 22, segment: true}
 
 	// Legitimately empty in normal operation - appRevision before the first
 	// revision exists, publishVersion and workflowName unless set - so they are

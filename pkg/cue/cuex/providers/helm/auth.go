@@ -49,7 +49,7 @@ const (
 // secretRef identifies a Kubernetes Secret carrying chart-repository credentials.
 type secretRef struct {
 	Name      string
-	Namespace string // empty -> resolver defaults to releaseNamespace
+	Namespace string // empty -> the Application namespace
 }
 
 // authResolveOptions controls cross-namespace policy and host matching.
@@ -90,21 +90,19 @@ func extractRegistryHost(source, repoURL string) string {
 	return ""
 }
 
-// resolveAuthSecretNamespace mirrors the valuesFrom cross-NS policy
-// (resolveValuesFromNamespace at helm.go:650-660): the secret namespace
-// MUST equal either the release namespace or the Application namespace.
-// An empty namespace defaults to the release namespace.
+// resolveAuthSecretNamespace returns the namespace a chart's auth Secret is read from: the
+// Application's, the default for a reference that names none. Any other is refused, the release
+// namespace included, as for valuesFrom (resolveValuesFromNamespace).
 func resolveAuthSecretNamespace(ref secretRef, opts authResolveOptions) (string, error) {
-	ns := ref.Namespace
-	if ns == "" {
-		return opts.ReleaseNamespace, nil
+	if opts.AppNamespace == "" {
+		return "", fmt.Errorf(`auth secret reference %q rejected: no Application namespace to read it from`, ref.Name)
 	}
-	if ns == opts.ReleaseNamespace || ns == opts.AppNamespace {
-		return ns, nil
+	if ref.Namespace == "" || ref.Namespace == opts.AppNamespace {
+		return opts.AppNamespace, nil
 	}
 	return "", fmt.Errorf(
-		`auth secret reference "%s/%s" rejected: namespace MUST equal the release namespace %q or the Application namespace %q`,
-		ns, ref.Name, opts.ReleaseNamespace, opts.AppNamespace)
+		`auth secret reference "%s/%s" rejected: namespace MUST be in the Application namespace %q (the release namespace %q is not a source)`,
+		ref.Namespace, ref.Name, opts.AppNamespace, opts.ReleaseNamespace)
 }
 
 // computeAuthCacheTag returns a deterministic short hex tag derived from the
@@ -137,8 +135,8 @@ func computeAuthCacheTag(ctx context.Context, params *ChartSourceParams, appName
 	if err := singleton.KubeClient.Get().Get(ctx, types.NamespacedName{Namespace: ns, Name: params.Auth.SecretRef.Name}, s); err != nil {
 		if apierrors.IsNotFound(err) {
 			return "", fmt.Errorf(
-				`auth secret "%s/%s" not found: it MUST exist in the release namespace %q or the Application namespace %q`,
-				ns, params.Auth.SecretRef.Name, releaseNamespace, appNamespace)
+				`auth secret "%s/%s" not found: it MUST exist in the Application namespace %q`,
+				ns, params.Auth.SecretRef.Name, appNamespace)
 		}
 		return "", fmt.Errorf(`reading auth secret "%s/%s": %w`, ns, params.Auth.SecretRef.Name, err)
 	}
@@ -427,8 +425,8 @@ func resolveAuthOptions(ctx context.Context, k8s client.Client, ref *secretRef, 
 	if err := k8s.Get(ctx, types.NamespacedName{Namespace: ns, Name: ref.Name}, s); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil, nil, fmt.Errorf(
-				`auth secret "%s/%s" not found: it MUST exist in the release namespace %q or the Application namespace %q`,
-				ns, ref.Name, opts.ReleaseNamespace, opts.AppNamespace)
+				`auth secret "%s/%s" not found: it MUST exist in the Application namespace %q`,
+				ns, ref.Name, opts.AppNamespace)
 		}
 		return nil, nil, fmt.Errorf(`reading auth secret "%s/%s": %w`, ns, ref.Name, err)
 	}

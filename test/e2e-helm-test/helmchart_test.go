@@ -621,12 +621,13 @@ var _ = Describe("Helmchart Destructive & Chaos", Label("core-helm"), func() {
 				for _, step := range appB.Status.Workflow.Steps {
 					messages = append(messages, step.Message)
 				}
-				g.Expect(strings.Join(messages, "\n")).Should(ContainSubstring("managed by other application"))
+				g.Expect(strings.Join(messages, "\n")).Should(ContainSubstring("belongs to Application " + h.AppNamespace + "/" + h.App.Name))
 			}).WithTimeout(90 * time.Second).Should(Succeed())
 
-			By("Verifying the first application remains healthy and unaffected")
+			By("Verifying the first application remains healthy and its release was never upgraded")
 			h.WaitForAppRunning()
 			h.WaitForDeploymentReady()
+			Expect(h.GetHelmSecrets().Items).Should(HaveLen(1))
 		})
 	})
 })
@@ -1236,12 +1237,14 @@ var _ = Describe("Helmchart Edge Cases", Label("core-helm"), func() {
 
 var _ = Describe("Helmchart valuesFrom", Label("core-helm"), func() {
 
+	// Values sources live in the Application's namespace, the only one valuesFrom reads. Each
+	// context puts its Application where its release is, so the sources are its own.
 	createCM := func(h *helmTestContext, name, key, valuesYAML string) {
 		if key == "" {
 			key = "values.yaml"
 		}
 		cm := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: h.Namespace},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: h.AppNamespace},
 			Data:       map[string]string{key: valuesYAML},
 		}
 		Expect(k8sClient.Create(h.Ctx, cm)).Should(Succeed())
@@ -1261,7 +1264,7 @@ var _ = Describe("Helmchart valuesFrom", Label("core-helm"), func() {
 
 	createSecret := func(h *helmTestContext, name, valuesYAML string) {
 		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: h.Namespace},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: h.AppNamespace},
 			Data:       map[string][]byte{"values.yaml": []byte(valuesYAML)},
 		}
 		Expect(k8sClient.Create(h.Ctx, secret)).Should(Succeed())
@@ -1404,11 +1407,12 @@ var _ = Describe("Helmchart valuesFrom", Label("core-helm"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 			createCMWithReplicas(h, "cm-only", 3)
 			createSecretWithReplicas(h, "secret-only", 2)
 			createCMWithReplicas(h, "inline-override", 2)
 			Expect(k8sClient.Create(h.Ctx, &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{Name: "multi-env", Namespace: h.Namespace},
+				ObjectMeta: metav1.ObjectMeta{Name: "multi-env", Namespace: h.AppNamespace},
 				Data: map[string]string{
 					"dev.yaml":  "replicaCount: 1\n",
 					"prod.yaml": "replicaCount: 5\n",
@@ -1591,6 +1595,7 @@ replicaCount: 2
 		var missing, badYAML, crossNS, noNS *v1beta1.Application
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}}
 			Expect(k8sClient.Create(h.Ctx, ns)).Should(Succeed())
 			DeferCleanup(func() {
@@ -1631,7 +1636,10 @@ replicaCount: 2
 
 	Context("Adoption of an existing vanilla Helm release with valuesFrom", FlakeAttempts(2), Ordered, func() {
 		h := newHelmTestContext()
-		BeforeAll(func() { h.CreateNamespace() })
+		BeforeAll(func() {
+			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
+		})
 		AfterAll(func() { h.Cleanup() })
 
 		It("should adopt the pre-existing release and merge CM values on the adoption upgrade", func() {
@@ -1663,7 +1671,10 @@ replicaCount: 2
 
 	Context("Auto-reconcile on ConfigMap content change (without spec edit)", Ordered, func() {
 		h := newHelmTestContext()
-		BeforeAll(func() { h.CreateNamespace() })
+		BeforeAll(func() {
+			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
+		})
 		AfterAll(func() { h.Cleanup() })
 
 		It("rolls out a new Helm revision when only the referenced ConfigMap changes", func() {
@@ -1679,7 +1690,7 @@ replicaCount: 2
 
 			By("editing the ConfigMap content (replicaCount: 2 -> 4) WITHOUT touching the Application spec")
 			cm := &corev1.ConfigMap{}
-			Expect(k8sClient.Get(h.Ctx, types.NamespacedName{Name: "vf-autorec-values", Namespace: h.Namespace}, cm)).Should(Succeed())
+			Expect(k8sClient.Get(h.Ctx, types.NamespacedName{Name: "vf-autorec-values", Namespace: h.AppNamespace}, cm)).Should(Succeed())
 			cm.Data["values.yaml"] = "replicaCount: 4\n"
 			Expect(k8sClient.Update(h.Ctx, cm)).Should(Succeed())
 

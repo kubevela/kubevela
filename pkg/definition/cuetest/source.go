@@ -139,9 +139,10 @@ func ResolveSource(s Subject, in SourceInput, parameter map[string]any, mocks Mo
 		return nil, err
 	}
 	values := map[string]any{
-		"namespace": ns,
-		"appName":   "test-app",
-		"cluster":   pkgmulticluster.Local,
+		"namespace":    ns,
+		"appNamespace": ns,
+		"appName":      "test-app",
+		"cluster":      pkgmulticluster.Local,
 	}
 	for k, v := range in.Context {
 		values[k] = v

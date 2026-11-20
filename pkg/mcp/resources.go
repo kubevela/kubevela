@@ -66,22 +66,30 @@ type ResourceHealth struct {
 // rule for most workload kinds and defaults them to Healthy, so without
 // this a crash-looping Deployment reads as healthy at the top line. All
 // pods failing is UnHealthy; some failing is Progressing. The original
-// verdict is kept in the message.
+// verdict is kept in the message. Jobs and CronJobs are judged only by
+// pods that failed outright: their pods run to completion, so a running pod
+// reads as Progressing and a retried one as failed while the Job is fine.
+// A Job whose every pod failed is UnHealthy; the tree does not read Job
+// conditions, so this is the only signal that its retries ran out.
 func deriveFromPods(nodes []ResourceNode) []ResourceNode {
 	if len(nodes) == 0 || nodes[0].Health.Status != string(querytypes.HealthStatusHealthy) {
 		return nodes
 	}
+	batch := nodes[0].Kind == "Job" || nodes[0].Kind == "CronJob"
 	pods, failing := 0, 0
 	for _, n := range nodes[1:] {
 		if n.Kind != podKind {
 			continue
 		}
 		pods++
-		if n.Health.Status != string(querytypes.HealthStatusHealthy) {
+		switch {
+		case batch && n.Health.Status == string(querytypes.HealthStatusUnHealthy):
+			failing++
+		case !batch && n.Health.Status != string(querytypes.HealthStatusHealthy):
 			failing++
 		}
 	}
-	if failing == 0 {
+	if failing == 0 || (batch && failing < pods) {
 		return nodes
 	}
 	status := string(querytypes.HealthStatusProgressing)
@@ -173,6 +181,11 @@ func (d *deps) getManagedResource(ctx context.Context, _ *sdk.CallToolRequest, i
 		out.Resources = append(out.Resources, viewManagedResource(res))
 	}
 	if in.ResourceName != "" && len(out.Resources) == 0 {
+		for _, r := range info.unread {
+			if r.Name == in.ResourceName && (in.Kind == "" || strings.EqualFold(r.Kind, in.Kind)) {
+				return nil, out, fmt.Errorf("%s %s in cluster %s is recorded by application %s/%s but could not be read: this server may not be allowed to read it, or it was deleted after it was recorded", r.Kind, objectName(r.Namespace, r.Name), clusterName(r.Cluster), app.Namespace, app.Name)
+			}
+		}
 		return nil, out, fmt.Errorf("%s %q is not managed by application %s/%s; only managed objects are read", kindLabel(in.Kind), in.ResourceName, app.Namespace, app.Name)
 	}
 	out.Meta = d.meta(ctx)
@@ -188,7 +201,7 @@ func (d *deps) getManagedResource(ctx context.Context, _ *sdk.CallToolRequest, i
 		if len(out.Resources[i].Tree) > maxTreeNodes {
 			out.Resources[i].Tree = out.Resources[i].Tree[:maxTreeNodes]
 			out.Meta.Truncated = true
-			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("%s %s has more than %d descendants; only the first %d are listed", out.Resources[i].Kind, out.Resources[i].Name, maxTreeNodes, maxTreeNodes))
+			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("%s %s has more than %d objects in its tree; only the first %d are listed", out.Resources[i].Kind, out.Resources[i].Name, maxTreeNodes, maxTreeNodes))
 		}
 	}
 	if len(out.Resources) == 1 && (in.ResourceName != "" || in.Kind != "") {
@@ -205,20 +218,17 @@ func withheldWarning(withheld int) []string {
 	return []string{fmt.Sprintf("%d managed resources are outside this server's allowed namespaces and were withheld", withheld)}
 }
 
-// listAppliedResources runs the same collector VelaQL's resource views use,
-// so the tree and health here match vela status --tree. When the server
-// has a namespace allowlist, resources recorded in other namespaces are
-// dropped before anything is read from them and the count is returned:
-// an Application can record objects anywhere a topology or read-only
-// policy points, and the allowlist must hold for those too. Cluster-scoped
-// objects have no namespace and are withheld under an allowlist.
 // appliedInfo is what listAppliedResources knows beyond the resources
-// themselves: how many it withheld, notes for the caller to surface, and
-// which resources it listed without tracing their tree.
+// themselves: how many it withheld, notes for the caller to surface, which
+// resources it listed without tracing their tree, and which recorded
+// resources the tree pass could not read.
 type appliedInfo struct {
 	withheld int
 	notes    []string
 	untraced map[string]bool
+	// unread are resources the trackers record that the tree pass did not
+	// return, so they are absent from the resources listed.
+	unread []querytypes.AppliedResource
 }
 
 // appliedKey identifies a managed resource for appliedInfo.untraced.
@@ -226,11 +236,20 @@ func appliedKey(r querytypes.AppliedResource) string {
 	return clusterName(r.Cluster) + "/" + r.Namespace + "/" + r.Kind + "/" + r.Name
 }
 
+// listAppliedResources runs the same collector VelaQL's resource views use,
+// so the tree and health here match vela status --tree. When the server
+// has a namespace allowlist, resources recorded in other namespaces are
+// dropped before anything is read from them and the count is returned:
+// an Application can record objects anywhere a topology or read-only
+// policy points, and the allowlist must hold for those too. Cluster-scoped
+// objects have no namespace and are withheld under an allowlist.
 func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Application, component, cluster string) ([]querytypes.AppliedResource, appliedInfo, error) {
-	cli := d.f.Client()
-	if cli == nil {
+	if d.f.Client() == nil {
 		return nil, appliedInfo{}, errNoConfig
 	}
+	// The tree pass reads every recorded root, a Secret included; this
+	// client turns that read into a metadata-only one.
+	cli := secretMetadataClient{d.f.Client()}
 	opt := query.Option{
 		Name:      app.Name,
 		Namespace: app.Namespace,
@@ -309,6 +328,7 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 			kept = append(kept, applied...)
 		}
 		info.notes = append(info.notes, unreadResources(allowed, kept)...)
+		info.unread = missingResources(allowed, kept)
 		return kept, info, nil
 	}
 	// The trackers say what the Application manages; the tree pass skips any
@@ -323,7 +343,92 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 	if err != nil {
 		return nil, appliedInfo{}, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 	}
-	return applied, appliedInfo{notes: unreadResources(recorded, applied)}, nil
+	return applied, appliedInfo{notes: unreadResources(recorded, applied), unread: missingResources(recorded, applied)}, nil
+}
+
+// secretMetadataClient serves Secret reads through the metadata-only API: a
+// Get of an unstructured Secret and a List of Secrets, unstructured or
+// typed. The collector's tree pass therefore gets a Secret's metadata,
+// enough for its tree node and health, and never its data or type. Every
+// other read passes through unchanged.
+type secretMetadataClient struct{ client.Client }
+
+func (c secretMetadataClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return c.Client.Get(ctx, key, obj, opts...)
+	}
+	gvk := u.GroupVersionKind()
+	if gvk.Group != "" || gvk.Kind != secretKind {
+		return c.Client.Get(ctx, key, obj, opts...)
+	}
+	pm := &metav1.PartialObjectMetadata{}
+	pm.SetGroupVersionKind(gvk)
+	if err := c.Client.Get(ctx, key, pm, opts...); err != nil {
+		return err
+	}
+	raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(pm)
+	if err != nil {
+		return err
+	}
+	u.Object = raw
+	u.SetGroupVersionKind(gvk)
+	return nil
+}
+
+// List serves a list of core Secrets, unstructured or typed, from the
+// metadata-only API. The tree pass lists Secrets as children of some kinds,
+// such as a Flux HelmRelease. Each item comes back with its metadata only.
+func (c secretMetadataClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	switch l := list.(type) {
+	case *unstructured.UnstructuredList:
+		gvk := l.GroupVersionKind()
+		if gvk.Group != "" || (gvk.Kind != secretKind+"List" && gvk.Kind != secretKind) {
+			return c.Client.List(ctx, list, opts...)
+		}
+		pml, err := c.listSecretMetadata(ctx, opts...)
+		if err != nil {
+			return err
+		}
+		items := make([]unstructured.Unstructured, 0, len(pml.Items))
+		for i := range pml.Items {
+			raw, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&pml.Items[i])
+			if err != nil {
+				return err
+			}
+			item := unstructured.Unstructured{Object: raw}
+			item.SetAPIVersion(corev1.SchemeGroupVersion.String())
+			item.SetKind(secretKind)
+			items = append(items, item)
+		}
+		l.Items = items
+		l.SetResourceVersion(pml.ResourceVersion)
+		l.SetContinue(pml.Continue)
+		l.SetRemainingItemCount(pml.RemainingItemCount)
+		return nil
+	case *corev1.SecretList:
+		pml, err := c.listSecretMetadata(ctx, opts...)
+		if err != nil {
+			return err
+		}
+		l.ListMeta = pml.ListMeta
+		l.Items = make([]corev1.Secret, len(pml.Items))
+		for i := range pml.Items {
+			l.Items[i] = corev1.Secret{TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: secretKind}, ObjectMeta: pml.Items[i].ObjectMeta}
+		}
+		return nil
+	}
+	return c.Client.List(ctx, list, opts...)
+}
+
+// listSecretMetadata lists core v1 Secrets through the metadata-only API.
+func (c secretMetadataClient) listSecretMetadata(ctx context.Context, opts ...client.ListOption) (*metav1.PartialObjectMetadataList, error) {
+	pml := &metav1.PartialObjectMetadataList{}
+	pml.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind(secretKind + "List"))
+	if err := c.Client.List(ctx, pml, opts...); err != nil {
+		return nil, err
+	}
+	return pml, nil
 }
 
 // maxUnreadListed bounds how many unread resources a note names.
@@ -359,6 +464,24 @@ func unreadResources(recorded, read []querytypes.AppliedResource) []string {
 	}
 	return []string{fmt.Sprintf("%d managed resources could not be read, or were deleted after they were recorded, so they and the pods and endpoints under them are missing from this answer: %s%s",
 		len(missing), strings.Join(listed, ", "), more)}
+}
+
+// missingResources returns the resources in recorded that read does not
+// contain, once each, for callers that must not mistake them for absent.
+func missingResources(recorded, read []querytypes.AppliedResource) []querytypes.AppliedResource {
+	got := make(map[string]bool, len(read))
+	for i := range read {
+		got[appliedKey(read[i])] = true
+	}
+	var missing []querytypes.AppliedResource
+	for i := range recorded {
+		k := appliedKey(recorded[i])
+		if !got[k] {
+			got[k] = true
+			missing = append(missing, recorded[i])
+		}
+	}
+	return missing
 }
 
 // attachLiveObject reads the selected object from its cluster. A Secret is

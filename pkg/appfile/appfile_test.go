@@ -2500,3 +2500,10 @@ func TestFilteredKeysTrimEachEntry(t *testing.T) {
 	assert.Subset(t, got, []string{"c", "d"})
 	assert.NotContains(t, got, " d")
 }
+
+func TestGenerateContextDataKeepsAppNamespaceUnderPlacement(t *testing.T) {
+	ctxData := GenerateContextDataFromAppFile(&Appfile{Name: "shop", Namespace: "team-a"}, "redis")
+	// What a topology policy's namespace does to the render context.
+	ctxData.Namespace = "team-a-prod"
+	assert.Equal(t, "team-a", ctxData.AppNamespace)
+}

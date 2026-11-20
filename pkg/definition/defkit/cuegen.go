@@ -22,6 +22,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 )
 
 // sortedKeys returns the keys of a map[string]V in sorted order.
@@ -1490,6 +1492,9 @@ func (g *CUEGenerator) writeResourceOutput(sb *strings.Builder, name string, res
 	}
 
 	quotedName := cueLabel(name)
+	if res.requiredOutput {
+		sb.WriteString(fmt.Sprintf("%s// %s\n", indent, inherit.RequiredTag))
+	}
 	sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, quotedName))
 	innerIndent := strings.Repeat(g.indent, depth+1)
 
@@ -1671,17 +1676,49 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 }
 
 // insertDirectiveIntoTree navigates to a node by path and adds a directive annotation.
+// The path is read like an assignment path, so `labels[app.oam.dev/name]`
+// reaches the same node a Set on that path writes.
 func (g *CUEGenerator) insertDirectiveIntoTree(root *fieldNode, path string, directive string) {
-	parts := splitPath(path)
-	current := root
-	for _, part := range parts {
-		if _, exists := current.children[part]; !exists {
-			current.children[part] = newFieldNode()
-			current.childOrder = append(current.childOrder, part)
-		}
-		current = current.children[part]
-	}
+	current := nodeAtPath(root, path)
 	current.directives = append(current.directives, directive)
+}
+
+// nodeAtPath walks a dotted path through the field tree, creating nodes on the
+// way. A part with brackets selects an array element (`containers[0]`) or a
+// map key (`labels[app.oam.dev/name]`) below the named field.
+func nodeAtPath(root *fieldNode, path string) *fieldNode {
+	current := root
+	for _, part := range splitPath(path) {
+		name, key, index := parseBracketAccess(part)
+
+		if _, exists := current.children[name]; !exists {
+			current.children[name] = newFieldNode()
+			current.childOrder = append(current.childOrder, name)
+		}
+		node := current.children[name]
+
+		switch {
+		case index >= 0:
+			node.isArray = true
+			idxKey := fmt.Sprintf("[%d]", index)
+			if _, exists := node.children[idxKey]; !exists {
+				node.children[idxKey] = newFieldNode()
+				node.children[idxKey].arrayIndex = index
+				node.childOrder = append(node.childOrder, idxKey)
+			}
+			current = node.children[idxKey]
+		case key != "":
+			keyNode := fmt.Sprintf("[%s]", key)
+			if _, exists := node.children[keyNode]; !exists {
+				node.children[keyNode] = newFieldNode()
+				node.childOrder = append(node.childOrder, keyNode)
+			}
+			current = node.children[keyNode]
+		default:
+			current = node
+		}
+	}
+	return current
 }
 
 // insertAnnotationIntoTree navigates to a node by path and sets its patchStrategy annotation.
@@ -1766,44 +1803,7 @@ func (g *CUEGenerator) insertIntoTree(root *fieldNode, path string, value Value,
 // Unlike insertIntoTree which sets a value, this adds a spread entry that will
 // be written inside the struct block at the given path.
 func (g *CUEGenerator) insertSpreadIntoTree(root *fieldNode, path string, value Value, cond Condition) {
-	parts := splitPath(path)
-	current := root
-
-	for _, part := range parts {
-		name, key, index := parseBracketAccess(part)
-
-		// Get or create node for the field name
-		if _, exists := current.children[name]; !exists {
-			current.children[name] = newFieldNode()
-			current.childOrder = append(current.childOrder, name)
-		}
-		node := current.children[name]
-
-		// Handle array access
-		switch {
-		case index >= 0:
-			node.isArray = true
-			idxKey := fmt.Sprintf("[%d]", index)
-			if _, exists := node.children[idxKey]; !exists {
-				node.children[idxKey] = newFieldNode()
-				node.children[idxKey].arrayIndex = index
-				node.childOrder = append(node.childOrder, idxKey)
-			}
-			current = node.children[idxKey]
-		case key != "":
-			// Map key access
-			keyNode := fmt.Sprintf("[%s]", key)
-			if _, exists := node.children[keyNode]; !exists {
-				node.children[keyNode] = newFieldNode()
-				node.childOrder = append(node.childOrder, keyNode)
-			}
-			current = node.children[keyNode]
-		default:
-			current = node
-		}
-	}
-
-	// Add spread entry to the final node
+	current := nodeAtPath(root, path)
 	current.spreads = append(current.spreads, spreadEntry{cond: cond, value: value})
 }
 
@@ -2325,6 +2325,10 @@ func (g *CUEGenerator) writeBracketKeyNode(sb *strings.Builder, name string, nod
 	key := strings.Trim(name, "[]")
 	quoted := fmt.Sprintf("%q", key)
 
+	for _, directive := range node.directives {
+		sb.WriteString(fmt.Sprintf("%s// +%s\n", indent, directive))
+	}
+
 	// Subtree: render as a nested struct (no condition handling — children
 	// carry their own conditions).
 	if node.value == nil {
@@ -2479,10 +2483,13 @@ func (g *CUEGenerator) filterNodeByCondition(node *fieldNode, condStr string) *f
 		return nil
 	}
 
+	// Directives describe the field itself, so a marker such as +final stays on
+	// the field in every block it is written in.
 	filtered := &fieldNode{
 		children:   make(map[string]*fieldNode),
 		childOrder: make([]string, 0),
 		value:      node.value,
+		directives: node.directives,
 	}
 	for _, childName := range node.childOrder {
 		child := node.children[childName]

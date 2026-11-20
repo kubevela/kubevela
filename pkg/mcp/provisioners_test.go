@@ -186,10 +186,30 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		Expect(p.EndpointOverride).To(Equal("http://aws-emulator.floci.svc.cluster.local:4566"))
 	})
 
+	It("redacts credentials in the endpoint override and its evidence", func() {
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", "http://admin:s3cr3t@localstack:4566/?token=t0k3n"))...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner).NotTo(BeNil())
+		Expect(out.Provisioner.EndpointOverride).To(Equal("http://admin:" + redactedValue + "@localstack:4566/?token=" + redactedValue))
+		Expect(toJSON(out)).NotTo(ContainSubstring("s3cr3t"))
+		Expect(toJSON(out)).NotTo(ContainSubstring("t0k3n"))
+	})
+
 	It("reports cloud when the controller carries no override", func() {
 		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeployment("dynamodb", ""))...)
-		p := platform(map[string]any{"service": "dynamodb"}).Provisioner
-		Expect(p.EndpointOverride).To(BeEmpty())
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("endpoint provenance unknown")), "an empty override with a readable controller is cloud, not unknown")
+	})
+
+	It("reports cloud, not valueFrom, when AWS_ENDPOINT_URL is an empty literal", func() {
+		empty := ackControllerDeploymentWith("dynamodb", "ack-dynamodb-dynamodb-chart",
+			corev1.Container{Name: "controller", Image: "c", Env: []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: ""}}})
+		h = startHarness(Options{}, objs(ackTableCRD(), empty)...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("valueFrom")))
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("endpoint provenance unknown")))
 	})
 
 	It("leaves the override empty and warns unknown when no controller Deployment is found", func() {
@@ -217,6 +237,17 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		out := platform(map[string]any{"service": "dynamodb"})
 		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
 		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("valueFrom")))
+	})
+
+	It("reports cloud when an empty literal sits beside envFrom, since env takes precedence", func() {
+		c := corev1.Container{Name: "controller", Image: "c",
+			Env:     []corev1.EnvVar{{Name: "AWS_ENDPOINT_URL", Value: ""}},
+			EnvFrom: []corev1.EnvFromSource{{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "cfg"}}}}}
+		h = startHarness(Options{}, objs(ackTableCRD(), ackControllerDeploymentWith("dynamodb", "ack-dynamodb-dynamodb-chart", c))...)
+		out := platform(map[string]any{"service": "dynamodb"})
+		Expect(out.Provisioner.EndpointOverride).To(BeEmpty())
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("endpoint provenance unknown")))
+		Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("envFrom")))
 	})
 
 	It("reports unknown when two controller Deployments make the endpoint ambiguous", func() {
@@ -283,11 +314,16 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		for i := 0; i < 400; i++ {
 			spec.Properties["field"+strings.Repeat("x", i%7)+string(rune('a'+i%26))+strings.Repeat("y", i/26)] = crdv1.JSONSchemaProps{Type: "string", Description: strings.Repeat("long description ", 40)}
 		}
+		spec.Properties["description"] = crdv1.JSONSchemaProps{Type: "string", Description: "The table's description."}
+		spec.Required = append(spec.Required, "description")
 		big.Spec.Versions[1].Schema.OpenAPIV3Schema.Properties["spec"] = spec
 		h = startHarness(Options{}, objs(big)...)
 		out := platform(map[string]any{"service": "dynamodb", "kind": "Table"})
 		Expect(toJSON(out.Provisioner.Resource.Spec)).NotTo(ContainSubstring("long description"))
 		Expect(out.Provisioner.Resource.Spec["properties"]).To(HaveKey("tableName"))
+		Expect(out.Provisioner.Resource.Required).To(ContainElement("description"))
+		Expect(out.Provisioner.Resource.Spec["properties"]).To(HaveKeyWithValue("description", map[string]any{"type": "string"}),
+			"a spec field named description is a property, not an annotation, and only its own description is dropped")
 		Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("field descriptions were dropped")))
 		Expect(out.Meta.Truncated).To(BeTrue(), "a cut schema marks the answer truncated")
 	})

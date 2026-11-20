@@ -203,6 +203,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -222,6 +223,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -239,6 +241,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -256,6 +259,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -273,6 +277,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -290,6 +295,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -304,20 +310,28 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		})
 	})
 
-	Context("secretRef.namespace omitted (defaults to release namespace)", Ordered, func() {
+	Context("secretRef.namespace omitted (defaults to the Application namespace)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = randomNamespaceName("helm-auth-app")
+			appNamespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: h.AppNamespace}}
+			Expect(k8sClient.Create(h.Ctx, appNamespace)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(h.Ctx, appNamespace,
+					client.PropagationPolicy(metav1.DeletePropagationForeground)))).To(Succeed())
+			})
 		})
 		AfterAll(func() {
 			h.Cleanup()
 		})
 
-		It("resolves the Secret from the release namespace", func() {
-			Expect(createSecretInline(h, "creds", corev1.SecretTypeOpaque, map[string]string{
+		It("resolves the Secret from the Application namespace, not the release namespace", func() {
+			Expect(h.AppNamespace).NotTo(Equal(h.Namespace))
+			Expect(createSecretInNamespace(h, "creds", h.AppNamespace, corev1.SecretTypeOpaque, map[string]string{
 				"username": authTestUser, "password": authTestPass,
 			})).To(Succeed())
-			// No secretRef.namespace; resolver defaults to release namespace.
+			// No secretRef.namespace; the resolver defaults to the Application namespace.
 			deployAuthAppSuccess(h, "auth-ns-omitted", "podinfo", chartWithRepoAuth(chartMuseumURL, "creds"))
 		})
 	})
@@ -353,6 +367,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -361,7 +376,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		It("fails with the not-found error", func() {
 			deployAuthAppExpectFailure(h, "auth-missing", "podinfo",
 				chartWithRepoAuth(chartMuseumURL, "nonexistent-secret"),
-				`not found: it MUST exist in the release namespace`)
+				`not found: it MUST exist in the Application namespace`)
 		})
 	})
 
@@ -369,6 +384,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -398,6 +414,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		otherNS := ""
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 			otherNS = "auth-cross-ns-other-" + helmTestSuffix()
 			Expect(k8sClient.Create(h.Ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}})).To(Succeed())
 			Expect(createSecretInNamespace(h, "creds", otherNS, corev1.SecretTypeOpaque, map[string]string{
@@ -409,10 +426,10 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 			h.Cleanup()
 		})
 
-		It("rejects a Secret reference outside release-ns and app-ns", func() {
+		It("rejects a Secret reference outside the Application namespace", func() {
 			deployAuthAppExpectFailure(h, "auth-cross-ns", "podinfo",
 				chartWithRepoAuth(chartMuseumURL, "creds", otherNS),
-				`namespace MUST equal the release namespace`)
+				`namespace MUST be in the Application namespace`)
 		})
 	})
 
@@ -420,6 +437,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -439,6 +457,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -458,6 +477,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -477,6 +497,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -496,6 +517,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()
@@ -515,6 +537,7 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = h.Namespace
 		})
 		AfterAll(func() {
 			h.Cleanup()

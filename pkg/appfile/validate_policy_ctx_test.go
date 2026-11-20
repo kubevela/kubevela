@@ -17,6 +17,7 @@ limitations under the License.
 package appfile
 
 import (
+	"context"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -110,7 +111,7 @@ func validateWithView(t *testing.T, tc ctxCase) error {
 	for _, tr := range comp.Traits {
 		templates = append(templates, tr.Template)
 	}
-	err := (&Parser{}).ValidateCUESchematicAppfile(af)
+	err := (&Parser{}).ValidateCUESchematicAppfile(context.Background(), af)
 	// The view is admission's alone: nothing it validated keeps it.
 	require.Equal(t, templates[0], comp.FullTemplate.TemplateStr)
 	for i, tr := range comp.Traits {

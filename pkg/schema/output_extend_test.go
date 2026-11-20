@@ -39,6 +39,7 @@ output: {
 outputs: svc: {
 	apiVersion: "v1"
 	kind:       "Service"
+	spec: clusterIP: "None"
 }
 `
 
@@ -71,7 +72,7 @@ output: metadata: {
 outputs: quota: kind: "ResourceQuota"
 `)
 
-	merged := parent.Extend(child, true, true)
+	merged := parent.Extend(child, nil)
 	assert.True(t, typeIs(schemaAt(merged.Output, "spec", "replicas"), openapi3.TypeInteger), "the parent's fields stand")
 	assert.True(t, typeIs(schemaAt(merged.Output, "metadata", "labels", "tenant"), openapi3.TypeString), "the child's are added")
 	assert.True(t, typeIs(schemaAt(merged.Output, "metadata", "name"), openapi3.TypeString),
@@ -79,12 +80,19 @@ outputs: quota: kind: "ResourceQuota"
 	assert.NotNil(t, schemaAt(merged.Output, "status"))
 	assert.ElementsMatch(t, []string{"svc", "quota"}, resourceNames(merged.Outputs), "outputs join by name")
 
-	replaced := parent.Extend(child, false, false)
-	assert.Nil(t, schemaAt(replaced.Output, "spec"), "$inherit: {output: false} takes the output over")
-	assert.ElementsMatch(t, []string{"quota"}, resourceNames(replaced.Outputs), "$inherit: {outputs: false} takes outputs over")
+	dropped := parent.Extend(child, map[string]bool{"svc": true})
+	assert.NotNil(t, schemaAt(dropped.Output, "spec"), "the output is always the parent's with the child's on it")
+	assert.ElementsMatch(t, []string{"quota"}, resourceNames(dropped.Outputs), "$inherit: {outputs: {svc: false}} leaves svc out")
 
-	assert.Same(t, parent.Output, parent.Extend(nil, true, true).Output, "a child declaring nothing leaves the parent's")
-	assert.Nil(t, (*OutputSchemas)(nil).Extend(nil, true, true).Output)
+	own := generated(t, "outputs: svc: {apiVersion: \"v1\", kind: \"Service\", spec: type: \"NodePort\"}\n")
+	replacedSvc := parent.Extend(own, map[string]bool{"svc": true})
+	assert.NotNil(t, schemaAt(replacedSvc.Outputs["svc"], "spec", "type"), "the child's own svc stands in its place")
+	assert.Nil(t, schemaAt(replacedSvc.Outputs["svc"], "spec", "clusterIP"), "nothing of the parent's svc is left under it")
+	assert.NotNil(t, schemaAt(parent.Extend(own, nil).Outputs["svc"], "spec", "clusterIP"),
+		"without the drop the parent's svc fields stay, so the check above can fail")
+
+	assert.Same(t, parent.Output, parent.Extend(nil, nil).Output, "a child declaring nothing leaves the parent's")
+	assert.Nil(t, (*OutputSchemas)(nil).Extend(nil, nil).Output)
 }
 
 func resourceNames(m map[string]*openapi3.Schema) []string {
