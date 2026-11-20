@@ -82,6 +82,11 @@ func repoCacheTag(sourceType, repoURL string) string {
 
 // isMutableVersion determines if a version string represents a mutable tag
 func isMutableVersion(version string) bool {
+	// OCI digests are content-addressed, so they never change. ':' cannot appear in a tag.
+	if strings.HasPrefix(strings.ToLower(version), "sha256:") {
+		return false
+	}
+
 	// Common mutable tags
 	mutableTags := []string{"latest", "dev", "develop", "main", "master", "edge", "canary", "nightly"}
 
