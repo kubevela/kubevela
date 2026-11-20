@@ -128,7 +128,16 @@ func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in G
 	out.Meta.ObservedAt = readAt.UTC()
 	if hit {
 		out.Meta.Source = SourceMixed
-		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("velaCLI, velaCore, gitRevision, kubernetes, featureGates, controller, clusterGateway and warnings come from a cached platform read at %s; addons, cloudProvisioners, provisioner and practice were read live by this call", readAt.UTC().Format(time.RFC3339)))
+		// Name only the fields this call reads: provisioner needs a service,
+		// practice a namespace.
+		live := []string{"addons", "cloudProvisioners"}
+		if in.Service != "" {
+			live = append(live, "provisioner")
+		}
+		if in.Namespace != "" {
+			live = append(live, "practice")
+		}
+		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("velaCLI, velaCore, gitRevision, kubernetes, featureGates, controller, clusterGateway and warnings come from a cached platform read at %s; %s were read live by this call", readAt.UTC().Format(time.RFC3339), strings.Join(live, ", ")))
 	}
 	if cli := d.f.Client(); cli != nil {
 		addons, more, err := enabledAddons(ctx, cli, d.opts.SystemNamespace)

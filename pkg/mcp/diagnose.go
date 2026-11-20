@@ -236,16 +236,21 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 			if e.Type != corev1.EventTypeWarning || !strings.HasPrefix(e.Reason, "Cannot") || !eventMatchesResource(e, *r) {
 				continue
 			}
-			if rule, code := classifyText(e.Message); rule != nil {
-				// the event is the evidence, so its own time dates the cause
-				since := synced.LastTransition
-				if e.Last != nil && !e.Last.IsZero() {
-					since = e.Last
-				}
-				r.Cause = newCause(rule, code, "Event "+e.Reason+" on "+e.Object, e.Message, since)
-				d.attachCause(r, &out, "", ackEndpointResult{})
-				out.Findings = append(out.Findings, causeFinding(*r))
+			// Events are newest first. A newer warning no rule recognises
+			// does not hide an older one that classifies; the older event's
+			// own time still dates the cause.
+			rule, code := classifyText(e.Message)
+			if rule == nil {
+				continue
 			}
+			// the event is the evidence, so its own time dates the cause
+			since := synced.LastTransition
+			if e.Last != nil && !e.Last.IsZero() {
+				since = e.Last
+			}
+			r.Cause = newCause(rule, code, "Event "+e.Reason+" on "+e.Object, e.Message, since)
+			d.attachCause(r, &out, "", ackEndpointResult{})
+			out.Findings = append(out.Findings, causeFinding(*r))
 			break
 		}
 	}

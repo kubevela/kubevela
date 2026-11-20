@@ -55,7 +55,8 @@ var _ = Describe("platform information", func() {
 		Expect(second.Meta.Source).To(Equal(SourceMixed), "addons and the rest are still read live")
 		Expect(second.Meta.Warnings).To(ContainElement(SatisfyAll(
 			ContainSubstring("cached platform read at "+first.Meta.ObservedAt.Format(time.RFC3339)),
-			ContainSubstring("addons, cloudProvisioners, provisioner and practice were read live"))))
+			ContainSubstring("; addons, cloudProvisioners were read live by this call"))),
+			"a call without service or namespace reads neither provisioner nor practice")
 		Expect(second.Meta.ObservedAt.After(first.Meta.ObservedAt)).To(BeFalse(),
 			"the cached snapshot is dated when it was read, not when it was served")
 		Expect(first.Meta.ObservedAt).To(BeTemporally("<=", secondStart.Add(-20*time.Millisecond)))

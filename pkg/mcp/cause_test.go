@@ -47,6 +47,10 @@ var _ = Describe("classifyCause", func() {
 			ResourceCondition{Type: "ACK.ResourceSynced", Status: "True"},
 			ResourceCondition{Type: "ACK.ReferencesResolved", Status: "False", Message: "resource reference wrapper or ID required: VPCID"},
 		), causeDependencyMissing, "ACK.ReferencesResolved", ownerApplicationSpec, "ACK.ReferencesResolved message"),
+		Entry("ACK reference still resolving reports Unknown, which is as unresolved as False", ack(
+			ResourceCondition{Type: "ACK.ResourceSynced", Status: "True"},
+			ResourceCondition{Type: "ACK.ReferencesResolved", Status: "Unknown", Message: "the referenced resource is not synced yet. resource:DBSubnetGroup, namespace:team-a, name:db-subnets"},
+		), causeDependencyMissing, "ACK.ReferencesResolved", ownerApplicationSpec, "ACK.ReferencesResolved message"),
 		Entry("Google RateLimitExceeded is a throttle, not an exhausted quota", &ResourceDiagnosis{Provider: providerCrossplane, Kind: "Instance", Name: "db", Conditions: []ResourceCondition{
 			{Type: "Synced", Status: "False", Reason: "ReconcileError", Message: "observe failed: googleapi: Error 429: RateLimitExceeded: Rate limit exceeded for this project"},
 		}}, causeThrottled, "RateLimitExceeded", ownerExternal, "Synced"),
