@@ -129,22 +129,38 @@ parameter: {
 	})
 
 	Describe("looking through the bound to the list", func() {
+		const (
+			// What CUE reports for an open list under a minimum size.
+			tooShort = "does not satisfy list.MinItems"
+			// What CUE reports for operands that cannot be unified.
+			conflict = "conflicting values"
+			// The fixture compiles without an error.
+			valid = ""
+		)
+
 		// field compiles one field on its own: a conflict would otherwise make
-		// the struct around it bottom. The source must parse, so a typo in a
-		// fixture cannot pass as a value that is "not a list".
-		field := func(imports, expr string) cue.Value {
+		// the struct around it bottom. Most fixtures are bottom on purpose, so
+		// each one names the error it is expected to carry. A typo, such as a
+		// function that does not exist, carries a different error and fails
+		// here instead of passing as a value that is "not a list".
+		field := func(imports, expr, wantErr string) cue.Value {
 			GinkgoHelper()
 			src := imports + "\n\nfield: " + expr
 			_, err := parser.ParseFile("fixture.cue", src)
 			Expect(err).NotTo(HaveOccurred(), "the fixture is not valid CUE")
 			value := cuecontext.New().CompileString(src).LookupPath(cue.ParsePath("field"))
 			Expect(value.Exists()).To(BeTrue(), "the fixture has no field")
+			if wantErr == valid {
+				Expect(value.Err()).NotTo(HaveOccurred(), "the fixture does not compile")
+			} else {
+				Expect(value.Err()).To(MatchError(ContainSubstring(wantErr)), "the fixture is bottom for another reason than intended")
+			}
 			return value
 		}
 
 		DescribeTable("finds the list",
 			func(imports, expr string) {
-				got, ok := listBehindSizeValidator(field(imports, expr))
+				got, ok := listBehindSizeValidator(field(imports, expr, tooShort))
 				Expect(ok).To(BeTrue())
 				Expect(got.IncompleteKind()).To(Equal(cue.ListKind))
 				element := got.LookupPath(cue.MakePath(cue.AnyIndex))
@@ -159,19 +175,19 @@ parameter: {
 		)
 
 		DescribeTable("leaves everything else as it is",
-			func(imports, expr string) {
-				_, ok := listBehindSizeValidator(field(imports, expr))
+			func(imports, expr, wantErr string) {
+				_, ok := listBehindSizeValidator(field(imports, expr, wantErr))
 				Expect(ok).To(BeFalse())
 			},
-			Entry("a list without a bound", ``, `[...string]`),
-			Entry("a maximum that an empty list already satisfies", `import "list"`, `list.MaxItems(2) & [...string]`),
-			Entry("a concrete list that is too short", `import "list"`, `list.MinItems(2) & [...string] & ["a"]`),
-			Entry("a minimum above the maximum", `import "list"`, `list.MinItems(3) & list.MaxItems(2) & [...string]`),
-			Entry("a bound without a list", `import "list"`, `list.MinItems(1)`),
-			Entry("another validator of the list package", `import "list"`, `list.UniqueItems() & list.MinItems(1) & [...string]`),
-			Entry("scalars that conflict", ``, `string & int`),
-			Entry("two lists whose element types conflict", `import "list"`, `list.MinItems(1) & [...string] & [...int]`),
-			Entry("a function of the same name from another package", `import "strings"`, `strings.MinRunes(1) & [...string]`),
+			Entry("a list without a bound", ``, `[...string]`, valid),
+			Entry("a maximum that an empty list already satisfies", `import "list"`, `list.MaxItems(2) & [...string]`, valid),
+			Entry("a concrete list that is too short", `import "list"`, `list.MinItems(2) & [...string] & ["a"]`, tooShort),
+			Entry("a minimum above the maximum", `import "list"`, `list.MinItems(3) & list.MaxItems(2) & [...string]`, tooShort),
+			Entry("a bound without a list", `import "list"`, `list.MinItems(1)`, valid),
+			Entry("another validator of the list package", `import "list"`, `list.UniqueItems() & list.MinItems(1) & [...string]`, tooShort),
+			Entry("scalars that conflict", ``, `string & int`, conflict),
+			Entry("two lists whose element types conflict", `import "list"`, `list.MinItems(1) & [...string] & [...int]`, tooShort),
+			Entry("a function of the same name from another package", `import "strings"`, `strings.MinRunes(1) & [...string]`, conflict),
 		)
 	})
 })
