@@ -559,6 +559,86 @@ template: {
 		})
 	})
 
+	Context("Validators on Trait", func() {
+		hpaTrait := func() *defkit.TraitDefinition {
+			return defkit.NewTrait("example-hpa").
+				Params(
+					defkit.Int("min").Default(1),
+					defkit.Int("max").Default(5),
+				).
+				Template(func(tpl *defkit.Template) {
+					tpl.Outputs("hpa", defkit.NewResource("autoscaling/v2", "HorizontalPodAutoscaler").
+						Set("spec.minReplicas", defkit.Int("min")).
+						Set("spec.maxReplicas", defkit.Int("max")))
+				})
+		}
+
+		It("should store validators via Validators method", func() {
+			v1 := defkit.Validate("a").WithName("_a")
+			v2 := defkit.Validate("b").WithName("_b")
+
+			t := defkit.NewTrait("test").Validators(v1, v2)
+			Expect(t.GetValidators()).To(HaveLen(2))
+			Expect(t.GetValidators()[0]).To(Equal(v1))
+			Expect(t.GetValidators()[1]).To(Equal(v2))
+		})
+
+		It("should accumulate validators across multiple calls", func() {
+			t := defkit.NewTrait("test").
+				Validators(defkit.Validate("a").WithName("_a")).
+				Validators(defkit.Validate("b").WithName("_b"))
+			Expect(t.GetValidators()).To(HaveLen(2))
+		})
+
+		It("should emit top-level validators inside the parameter block", func() {
+			cue := hpaTrait().
+				Validators(
+					defkit.Validate("min must not be greater than max").
+						WithName("_validateMinMax").
+						FailWhen(defkit.CUEExpr("parameter.min > parameter.max")),
+				).
+				ToCue()
+
+			Expect(cue).To(ContainSubstring("_validateMinMax: {"))
+			Expect(cue).To(ContainSubstring(`"min must not be greater than max": true`))
+			Expect(cue).To(ContainSubstring("if parameter.min > parameter.max {"))
+			// The validator must sit inside parameter: {}, not elsewhere in the template.
+			Expect(strings.Index(cue, "parameter: {")).To(BeNumerically("<", strings.Index(cue, "_validateMinMax")))
+		})
+
+		It("should add imports for a top-level ValidateValue message", func() {
+			cue := defkit.NewTrait("test").
+				Params(defkit.String("region")).
+				Validators(
+					defkit.ValidateValue(defkit.Interpolation(
+						defkit.Lit("region '"),
+						defkit.StringsToUpper(defkit.LocalField("region")),
+						defkit.Lit("' is not allowed"),
+					)).FailWhen(defkit.LocalField("region").Eq("x")).WithName("_v"),
+				).
+				Template(func(tpl *defkit.Template) {
+					tpl.Outputs("cm", defkit.NewResource("v1", "ConfigMap").
+						Set("data.region", defkit.String("region")))
+				}).
+				ToCue()
+
+			Expect(cue).To(ContainSubstring("strings.ToUpper(region)"))
+			Expect(cue).To(ContainSubstring(`"strings"`))
+		})
+
+		It("should not add imports for a fixed string validator", func() {
+			cue := hpaTrait().
+				Validators(defkit.Validate("bad").WithName("_v").
+					FailWhen(defkit.CUEExpr("parameter.min > parameter.max"))).
+				ToCue()
+			Expect(cue).NotTo(ContainSubstring("import"))
+		})
+
+		It("should not change output when no validators are set", func() {
+			Expect(hpaTrait().ToCue()).NotTo(ContainSubstring("_validate"))
+		})
+	})
+
 	Context("ToYAML Generation", func() {
 		It("should generate valid Kubernetes YAML", func() {
 			trait := defkit.NewTrait("scaler").
