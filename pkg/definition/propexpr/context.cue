@@ -17,8 +17,10 @@
 #AppIdentity: {
 	// +usage=The Application's name
 	appName: string
-	// +usage=The namespace the Application is deployed to
+	// +usage=The namespace being rendered for: the Application's, or the one a topology policy places the component in
 	namespace: string
+	// +usage=The Application's own namespace, wherever the component is placed
+	appNamespace: string
 	// +usage=Name of the current ApplicationRevision; empty before the first exists
 	appRevision: string
 	// +usage=Revision ordinal; 0 before the first revision exists

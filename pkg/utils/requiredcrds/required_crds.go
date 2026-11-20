@@ -27,14 +27,14 @@ limitations under the License.
 // upgrade, not with --force. It is a deliberate refusal on Helm's part, since
 // deleting a CRD takes every custom resource with it.
 //
-// Where the chart also ships instances of that kind, as it does for the nine
-// built-in SourceDefinitions, `helm upgrade` fails outright with "ensure CRDs
-// are installed first" and nothing changes. That is the loud case and it needs
-// no help from this package.
+// Helm itself fails an upgrade ("ensure CRDs are installed first") only for a
+// kind the release manifest holds an instance of. The builtin definitions, the
+// SourceDefinitions among them, are applied by a hook Job and are not in the
+// manifest, so a missing CRD of a kind with no instance there passes
+// `helm upgrade`, and it is this package that says why.
 //
-// The quiet cases are what this is for: a CRD deleted by hand, a partial
-// `kubectl apply` of the manifests, a chart that adds a watched kind with no
-// instances to trip Helm's check. Six kinds are watched with For(), and a watch
+// So are a CRD deleted by hand and a partial `kubectl apply` of the manifests.
+// Six kinds are watched with For(), and a watch
 // on a kind the API server does not serve takes the manager down with it, so one
 // missing CRD stops Application reconciliation entirely over a feature the
 // operator may not even use. The rest fail later and further away, on some

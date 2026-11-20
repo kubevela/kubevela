@@ -30,7 +30,11 @@ unit-test-core:
 test-definitions: envtest
 	$(GOBUILD_ENV) go build -o bin/vela -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" ./bin/vela def test vela-templates/definitions/internal --check-pending
-	VELA_SHIPPED_DEFINITION_TESTS=1 go test ./pkg/definition/cuetest/ -run 'TestShippedDefinitionsAreTested|TestShippedParametersAreCovered'
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" VELA_SHIPPED_DEFINITION_TESTS=1 go test ./pkg/definition/cuetest/ -run 'TestShippedDefinitionsAreTested|TestShippedParametersAreCovered|TestShippedDefinitionsMatchTheirGoldenRenders|TestShippedPatchStrategiesAgree'
+
+## update-definition-goldens: Rewrite the shipped definitions' golden renders after an intended change; note it for the release
+update-definition-goldens: envtest
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" VELA_SHIPPED_DEFINITION_TESTS=1 UPDATE_GOLDEN=1 go test ./pkg/definition/cuetest/ -run TestShippedDefinitionsMatchTheirGoldenRenders
 
 ## build: Build vela cli binary
 build: vela-cli kubectl-vela

@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
@@ -149,6 +150,43 @@ var _ = Describe("Test the commands of the config", func() {
 		Expect(lines).Should(HaveLen(3))
 		Expect(lines[1]).Should(MatchRegexp(`^legacy-only\s.*\slegacy\s+\d{4}-`))
 		Expect(lines[2]).Should(MatchRegexp(`^shadow-me\s.*\slegacy\s+\d{4}-`))
+	})
+
+	It("Test listing templates takes an addon's CR for the ConfigMap it installed before", func() {
+		inf := config.NewConfigFactory(k8sClient)
+		body, err := os.ReadFile("./test-data/config-templates/image-registry.cue")
+		Expect(err).Should(BeNil())
+		t, err := inf.ParseTemplate(context.TODO(), "addon-tpl", body)
+		Expect(err).Should(BeNil())
+		Expect(inf.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(Succeed())
+		apply := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		apply.SetArgs([]string{"apply", "-f", "./test-data/config-templates/image-registry.cue", "--name", "addon-tpl", "-n", "default"})
+		Expect(apply.Execute()).Should(Succeed())
+		DeferCleanup(func() {
+			cm := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "addon-tpl"}}
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), cm))).Should(Succeed())
+			ct := &configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "addon-tpl"}}
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), ct))).Should(Succeed())
+		})
+		addon := []metav1.OwnerReference{{APIVersion: "core.oam.dev/v1beta1", Kind: "Application", Name: "addon-registry", UID: "addon-app-uid", Controller: ptr.To(true)}}
+		for _, obj := range []client.Object{
+			&v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "addon-tpl"}},
+			&configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "addon-tpl"}},
+		} {
+			Expect(k8sClient.Get(context.TODO(), client.ObjectKeyFromObject(obj), obj)).Should(Succeed())
+			obj.SetOwnerReferences(addon)
+			Expect(k8sClient.Update(context.TODO(), obj)).Should(Succeed())
+		}
+
+		list := func(extra ...string) string {
+			buffer := bytes.NewBuffer(nil)
+			cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+			cmd.SetArgs(append([]string{"list", "-n", "default"}, extra...))
+			Expect(cmd.Execute()).Should(Succeed())
+			return buffer.String()
+		}
+		Expect(list()).ShouldNot(ContainSubstring("shadowed"))
+		Expect(list("--config-mode", "legacy")).Should(MatchRegexp(`(?m)^addon-tpl\s.*\slegacy \(migrated\)\s+\d{4}-`))
 	})
 
 	It("Test listing templates rejects an unknown --config-mode before any API call", func() {

@@ -35,6 +35,8 @@ e2e-setup-core-post-hook:
 	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
 
 .PHONY: e2e-setup-core-wo-auth
+# The suites run type: addon components from their own namespaces, so the install lifts the chart's
+# default restriction of the addon component to vela-system, as a platform that allows it would.
 e2e-setup-core-wo-auth:
 	helm upgrade --install                          \
 	    --create-namespace                          \
@@ -53,6 +55,7 @@ e2e-setup-core-wo-auth:
 		--set controllerArgs.allowNamespaceGlobalPolicies=true \
 		--set featureGates.enableAddonComponent=true \
 		--set featureGates.enableModuleComponent=true \
+		--set definitionRestrictions.overrides.addon=null \
 		--set featureGates.enableCelExpressions=true \
 		--set featureGates.requireCelExpressionOptIn=true \
 		--set featureGates.enableDefinitionInheritance=true \
@@ -221,6 +224,7 @@ e2e-addon-component-test-local:
 		--set image.pullPolicy=IfNotPresent \
 		--set admissionWebhooks.enabled=true \
 		--set featureGates.enableAddonComponent=true \
+		--set definitionRestrictions.overrides.addon=null \
 		--set applicationRevisionLimit=5 \
 		--set controllerArgs.reSyncPeriod=1m \
 		--wait --timeout 5m
@@ -329,6 +333,7 @@ e2e-local-cluster:
 		--set featureGates.validateResourcesExist=true \
 		--set featureGates.enableAddonComponent=true \
 		--set featureGates.enableModuleComponent=true \
+		--set definitionRestrictions.overrides.addon=null \
 		--set applicationRevisionLimit=5 \
 		--set controllerArgs.reSyncPeriod=1m \
 		--wait --timeout 3m

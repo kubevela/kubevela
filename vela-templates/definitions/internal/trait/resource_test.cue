@@ -56,11 +56,62 @@ _deployment: {
 	}}]
 }
 
-"cpu alone is both request and limit, with the default memory": test.#TraitRender & _web & {
+"cpu alone is both request and limit, and leaves memory alone": test.#TraitRender & _web & {
 	parameter: cpu: "500m"
 	expect: output: spec: template: spec: containers: [{resources: {
-		requests: {cpu: "500m", memory: "2048Mi"}
-		limits: {cpu: "500m", memory: "2048Mi"}
+		requests: {cpu: "500m"} @exact()
+		limits: {cpu: "500m"} @exact()
+	}}]
+}
+
+"cpu alone keeps the memory the workload already asks for": test.#TraitRender & _web & {
+	_workload: {
+		apiVersion: "apps/v1"
+		kind:       "Deployment"
+		metadata: name: "web"
+		spec: template: spec: containers: [{name: "web", image: "shop:1.0", resources: {
+			requests: memory: "512Mi"
+			limits: memory:   "512Mi"
+		}}]
+	}
+	parameter: cpu: "500m"
+	expect: output: spec: template: spec: containers: [{resources: {
+		requests: {cpu: "500m", memory: "512Mi"} @exact()
+		limits: {cpu: "500m", memory: "512Mi"} @exact()
+	}}]
+}
+
+"cpu alone replaces the cpu the workload asks for, and keeps its memory": test.#TraitRender & _web & {
+	_workload: {
+		apiVersion: "apps/v1"
+		kind:       "Deployment"
+		metadata: name: "web"
+		spec: template: spec: containers: [{name: "web", image: "shop:1.0", resources: {
+			requests: {cpu: "250m", memory: "512Mi"}
+			limits: {cpu: "250m", memory: "512Mi"}
+		}}]
+	}
+	parameter: cpu: "500m"
+	expect: output: spec: template: spec: containers: [{resources: {
+		requests: {cpu: "500m", memory: "512Mi"} @exact()
+		limits: {cpu: "500m", memory: "512Mi"} @exact()
+	}}]
+}
+
+"memory alone replaces the memory the workload asks for, and keeps its cpu": test.#TraitRender & _web & {
+	_workload: {
+		apiVersion: "apps/v1"
+		kind:       "Deployment"
+		metadata: name: "web"
+		spec: template: spec: containers: [{name: "web", image: "shop:1.0", resources: {
+			requests: {cpu: "250m", memory: "512Mi"}
+			limits: {cpu: "250m", memory: "512Mi"}
+		}}]
+	}
+	parameter: memory: "1Gi"
+	expect: output: spec: template: spec: containers: [{resources: {
+		requests: {cpu: "250m", memory: "1Gi"} @exact()
+		limits: {cpu: "250m", memory: "1Gi"} @exact()
 	}}]
 }
 
@@ -88,10 +139,10 @@ _deployment: {
 	}
 }
 
-"memory alone is both request and limit, with the default cpu": test.#TraitRender & _web & {
+"memory alone is both request and limit, and leaves cpu alone": test.#TraitRender & _web & {
 	parameter: memory: "256Mi"
 	expect: output: spec: template: spec: containers: [{resources: {
-		requests: {cpu: 1, memory: "256Mi"}
-		limits: {cpu: 1, memory: "256Mi"}
+		requests: {memory: "256Mi"} @exact()
+		limits: {memory: "256Mi"} @exact()
 	}}]
 }

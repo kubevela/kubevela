@@ -21,13 +21,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apiserver/pkg/authentication/user"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -122,4 +128,63 @@ func TestReadConfigOfAMissingConfig(t *testing.T) {
 
 	_, err := Config{Client: cli}.ReadConfig(context.Background(), "default", "nope")
 	require.True(t, kerrors.IsNotFound(err), "got %v", err)
+}
+
+// A source resolves as the controller, so the Application it resolves for may read only its
+// own namespace's configs, or shared system ones, unless its user may read the config.
+func TestReadConfigKeepsASourceToItsApplicationsNamespace(t *testing.T) {
+	cli := withConfig(t, plainTemplate, "api", map[string]interface{}{"url": "https://api.example.com"})
+	ctx := context.Background()
+	factory := config.NewConfigFactory(cli)
+	platform, err := factory.ParseConfig(ctx,
+		config.NamespacedName{Name: "endpoint", Namespace: "vela-system"},
+		config.Metadata{NamespacedName: config.NamespacedName{Name: "platform", Namespace: "vela-system"}, Properties: map[string]interface{}{"url": "https://platform.example.com"}})
+	require.NoError(t, err)
+	require.NoError(t, factory.CreateOrUpdateConfig(ctx, platform, "vela-system"))
+	r := Config{Client: cli}
+
+	_, err = r.ReadConfig(velaconfig.WithConsumerNamespace(ctx, "team-a"), "default", "api")
+	require.ErrorContains(t, err, "config default/api is outside the application's namespace team-a")
+
+	_, err = r.ReadConfig(velaconfig.WithConsumerNamespace(ctx, "default"), "default", "api")
+	require.NoError(t, err, "its own namespace")
+
+	_, err = r.ReadConfig(velaconfig.WithConsumerNamespace(ctx, "team-a"), "vela-system", "platform")
+	require.NoError(t, err, "a shared system config")
+
+	_, err = r.ReadConfig(velaconfig.WithConsumerNamespace(ctx, ""), "default", "api")
+	require.Error(t, err, "an Application recorded without a namespace keeps to none")
+
+	_, err = r.ReadConfig(ctx, "default", "api")
+	require.NoError(t, err, "no Application to keep to: a CLI read, as its caller")
+}
+
+// Under authentication a source reads another namespace's config only when the Application's user
+// may get it there: the access review asks about that user, recorded by the controller, since the
+// source itself resolves as the controller.
+func TestReadConfigAsksAboutTheApplicationsUser(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.AuthenticateApplication, true)
+	cli := withConfig(t, plainTemplate, "api", map[string]interface{}{"url": "https://api.example.com"})
+	asked := []string{}
+	reviewing := interceptor.NewClient(cli.(client.WithWatch), interceptor.Funcs{
+		Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+			if sar, ok := obj.(*authorizationv1.SubjectAccessReview); ok {
+				asked = append(asked, sar.Spec.User)
+				sar.Status.Allowed = sar.Spec.User == "alice"
+				return nil
+			}
+			return c.Create(ctx, obj, opts...)
+		},
+	})
+	r := Config{Client: reviewing}
+	forUser := func(name string) context.Context {
+		ctx := velaconfig.WithConsumerNamespace(context.Background(), "team-a")
+		return velaconfig.WithConsumerUser(ctx, &user.DefaultInfo{Name: name})
+	}
+
+	_, err := r.ReadConfig(forUser("alice"), "default", "api")
+	require.NoError(t, err, "alice may get configs in default")
+	_, err = r.ReadConfig(forUser("bob"), "default", "api")
+	require.ErrorContains(t, err, "bob may not")
+	require.Equal(t, []string{"alice", "bob"}, asked)
 }

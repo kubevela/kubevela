@@ -8,7 +8,7 @@ metadata:
     # Which inference policy generated $internal below. Admission loads the rules
     # with this hash rather than the current ones, so a later policy does not
     # invalidate a definition already committed.
-    definition.oam.dev/cache-key-rules: "6ac674fa"
+    definition.oam.dev/cache-key-rules: "62eb1959"
     definition.oam.dev/cache-key-rules-version: v1
 spec:
   schematic:

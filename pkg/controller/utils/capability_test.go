@@ -19,7 +19,10 @@ package utils
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,7 +39,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
+	"github.com/go-git/go-git/v5"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/testdata"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -400,10 +405,7 @@ variable "bbb" {
 func TestGetGitSSHPublicKey(t *testing.T) {
 	sshAuth := make(map[string][]byte)
 	sshAuth[corev1.SSHAuthPrivateKey] = testdata.PEMBytes["rsa"]
-	sshAuth[GitCredsKnownHosts] = []byte(`github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
-	+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7
-	VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKr
-	TJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==`)
+	sshAuth[GitCredsKnownHosts] = []byte(`github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==`)
 
 	pubKey, err := gitssh.NewPublicKeys("git", sshAuth[corev1.SSHAuthPrivateKey], "")
 	assert.NoError(t, err)
@@ -519,7 +521,8 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			publicKey, err := GetGitSSHPublicKey(ctx, tc.args.k8sClient, tc.args.GitCredentialsSecretReference)
+			t.Setenv("SSH_KNOWN_HOSTS", "")
+			publicKey, err := GetGitSSHPublicKey(ctx, tc.args.k8sClient, tc.args.GitCredentialsSecretReference, "default")
 
 			if len(tc.want.err) > 0 {
 				assert.Error(t, err, tc.want.err)
@@ -528,126 +531,25 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 			if tc.want.publicKey != nil {
 				assert.Equal(t, publicKey.Signer.PublicKey().Marshal(), tc.want.publicKey.Signer.PublicKey().Marshal())
 				assert.Equal(t, publicKey.User, tc.want.publicKey.User)
-				known_hosts_filepath := os.Getenv("SSH_KNOWN_HOSTS")
-				known_hosts, err := os.ReadFile(known_hosts_filepath)
+				// The known hosts are this key's own, not a file shared by every clone.
+				assert.Empty(t, os.Getenv("SSH_KNOWN_HOSTS"))
+				assert.NotNil(t, publicKey.HostKeyCallback)
+				_, stranger, err := ed25519.GenerateKey(rand.Reader)
 				assert.NoError(t, err)
-				assert.Equal(t, known_hosts, sshAuth[GitCredsKnownHosts])
+				signer, err := ssh.NewSignerFromKey(stranger)
+				assert.NoError(t, err)
+				assert.Error(t, publicKey.HostKeyCallback("github.com:22", &net.TCPAddr{IP: net.ParseIP("140.82.112.3"), Port: 22}, signer.PublicKey()),
+					"a host key not in the Secret's known_hosts is refused")
+				_, hosts, listed, _, _, err := ssh.ParseKnownHosts(sshAuth[GitCredsKnownHosts])
+				assert.NoError(t, err)
+				assert.Equal(t, []string{"github.com"}, hosts)
+				assert.NoError(t, publicKey.HostKeyCallback("github.com:22", &net.TCPAddr{IP: net.ParseIP("140.82.112.3"), Port: 22}, listed),
+					"the key the Secret's known_hosts lists for the host is accepted")
 			}
 		})
 	}
 }
 
-// TestReadTerraformConfigFromDir guards the remote Terraform loader against
-// GHSA-fmgp-q6jx-gg3x: a variables.tf (or a parent directory) that symlinks
-// outside the clone cache, and an oversized configuration file. The loader
-// must read normal regular files but refuse anything that escapes the cache
-// or exceeds the size cap, before any content is returned.
-func TestReadTerraformConfigFromDir(t *testing.T) {
-	// A sentinel file outside the clone cache. A successful escape would leak
-	// its content; the guards must prevent that.
-	outside := t.TempDir()
-	secretPath := filepath.Join(outside, "secret.txt")
-	assert.NoError(t, os.WriteFile(secretPath, []byte("top-secret-host-data"), 0600))
-
-	t.Run("reads variables.tf", func(t *testing.T) {
-		dir := t.TempDir()
-		assert.NoError(t, os.WriteFile(filepath.Join(dir, "variables.tf"), []byte(`variable "x" {}`), 0600))
-		got, err := readTerraformConfigFromDir(dir, "")
-		assert.NoError(t, err)
-		assert.Equal(t, `variable "x" {}`, got)
-	})
-
-	t.Run("falls back to main.tf", func(t *testing.T) {
-		dir := t.TempDir()
-		assert.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`resource "x" "y" {}`), 0600))
-		got, err := readTerraformConfigFromDir(dir, "")
-		assert.NoError(t, err)
-		assert.Equal(t, `resource "x" "y" {}`, got)
-	})
-
-	t.Run("errors when neither file is present", func(t *testing.T) {
-		dir := t.TempDir()
-		_, err := readTerraformConfigFromDir(dir, "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to find")
-	})
-
-	t.Run("refuses a variables.tf that symlinks outside the cache", func(t *testing.T) {
-		dir := t.TempDir()
-		// This is the advisory's attack: variables.tf -> a path outside the clone.
-		assert.NoError(t, os.Symlink(secretPath, filepath.Join(dir, "variables.tf")))
-		got, err := readTerraformConfigFromDir(dir, "")
-		assert.Error(t, err)
-		assert.NotContains(t, got, "top-secret-host-data")
-	})
-
-	t.Run("refuses a symlinked subdirectory that escapes the cache", func(t *testing.T) {
-		dir := t.TempDir()
-		outDir := t.TempDir()
-		assert.NoError(t, os.WriteFile(filepath.Join(outDir, "variables.tf"), []byte("secret-config"), 0600))
-		assert.NoError(t, os.Symlink(outDir, filepath.Join(dir, "evil")))
-		got, err := readTerraformConfigFromDir(dir, "evil")
-		assert.Error(t, err)
-		assert.NotContains(t, got, "secret-config")
-	})
-
-	t.Run("refuses a file larger than the size cap", func(t *testing.T) {
-		dir := t.TempDir()
-		big := make([]byte, maxTerraformConfigBytes+1024)
-		assert.NoError(t, os.WriteFile(filepath.Join(dir, "variables.tf"), big, 0600))
-		_, err := readTerraformConfigFromDir(dir, "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeds the maximum")
-	})
-
-	t.Run("accepts a file exactly at the size cap", func(t *testing.T) {
-		dir := t.TempDir()
-		atCap := make([]byte, maxTerraformConfigBytes)
-		assert.NoError(t, os.WriteFile(filepath.Join(dir, "variables.tf"), atCap, 0600))
-		got, err := readTerraformConfigFromDir(dir, "")
-		assert.NoError(t, err)
-		assert.Len(t, got, int(maxTerraformConfigBytes))
-	})
-
-	t.Run("refuses a file one byte over the size cap", func(t *testing.T) {
-		dir := t.TempDir()
-		overCap := make([]byte, maxTerraformConfigBytes+1)
-		assert.NoError(t, os.WriteFile(filepath.Join(dir, "variables.tf"), overCap, 0600))
-		_, err := readTerraformConfigFromDir(dir, "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "exceeds the maximum")
-	})
-
-	t.Run("refuses lexical ../ traversal via remotePath with no symlink", func(t *testing.T) {
-		dir := t.TempDir()
-		// A real variables.tf in a sibling of the cache dir, reached purely by a
-		// cleaned ".." in remotePath, with no symlink anywhere. The containment
-		// check (not the symlink check) must reject this.
-		sibling := filepath.Join(filepath.Dir(dir), "sibling-"+filepath.Base(dir))
-		assert.NoError(t, os.MkdirAll(sibling, 0700))
-		defer func() { _ = os.RemoveAll(sibling) }()
-		assert.NoError(t, os.WriteFile(filepath.Join(sibling, "variables.tf"), []byte("escaped-config"), 0600))
-		got, err := readTerraformConfigFromDir(dir, "../"+filepath.Base(sibling))
-		assert.Error(t, err)
-		assert.NotContains(t, got, "escaped-config")
-	})
-
-	t.Run("refuses even a contained in-cache symlink", func(t *testing.T) {
-		dir := t.TempDir()
-		// Pins the deliberate reject-all-symlinks policy: a symlink whose target
-		// is a regular file inside the cache is still refused.
-		assert.NoError(t, os.WriteFile(filepath.Join(dir, "real.tf"), []byte(`variable "x" {}`), 0600))
-		assert.NoError(t, os.Symlink(filepath.Join(dir, "real.tf"), filepath.Join(dir, "variables.tf")))
-		got, err := readTerraformConfigFromDir(dir, "")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "symlinked")
-		assert.NotContains(t, got, "variable")
-	})
-}
-
-// TestEnsureDirWithinLimits covers the clone caps that bound how large (bytes)
-// and how many files a cloned remote Terraform module may retain on disk
-// (GHSA-fmgp-q6jx-gg3x).
 func TestEnsureDirWithinLimits(t *testing.T) {
 	t.Run("passes when under the limits", func(t *testing.T) {
 		dir := t.TempDir()
@@ -722,8 +624,8 @@ func TestCacheMatchesRemote(t *testing.T) {
 	populated := func(t *testing.T, markerURL string, withMarker bool) string {
 		t.Helper()
 		cache := filepath.Join(t.TempDir(), "mod")
-		assert.NoError(t, os.MkdirAll(cache, 0700))
-		assert.NoError(t, os.WriteFile(filepath.Join(cache, "variables.tf"), []byte("x"), 0600))
+		_, err := git.PlainInit(cache, true)
+		assert.NoError(t, err)
 		if withMarker {
 			assert.NoError(t, os.WriteFile(cache+cacheRemoteMarkerSuffix, []byte(markerURL), 0600))
 		}
@@ -779,8 +681,8 @@ func TestRedactURLCredentials(t *testing.T) {
 // still reused for the same repository (GHSA-fmgp-q6jx-gg3x).
 func TestRecordCacheRemoteRedactsCredentials(t *testing.T) {
 	cache := filepath.Join(t.TempDir(), "mod")
-	assert.NoError(t, os.MkdirAll(cache, 0700))
-	assert.NoError(t, os.WriteFile(filepath.Join(cache, "variables.tf"), []byte("x"), 0600))
+	_, err := git.PlainInit(cache, true)
+	assert.NoError(t, err)
 
 	recordCacheRemote(cache, "https://user:s3cr3t@github.com/org/repo.git")
 
@@ -798,33 +700,38 @@ func TestRecordCacheRemoteRedactsCredentials(t *testing.T) {
 	assert.False(t, cacheMatchesRemote(cache, "https://github.com/org/other.git"))
 }
 
-// TestGetTerraformConfigurationFromRemoteInvalidatesCacheOnRejection exercises
-// the cache-reuse path with no network: a populated cache whose URL marker
-// matches skips the clone, so a poisoned cached variables.tf (a symlink escaping
-// the cache) is rejected AND the cache removed (GHSA-fmgp-q6jx-gg3x).
+// TestGetTerraformConfigurationFromRemoteInvalidatesCacheOnRejection: a module whose
+// variables.tf is a symlink escaping the module is rejected, and its clone removed, so the next
+// reconcile does not reuse it (GHSA-fmgp-q6jx-gg3x).
 func TestGetTerraformConfigurationFromRemoteInvalidatesCacheOnRejection(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-
-	outside := t.TempDir()
-	secret := filepath.Join(outside, "secret.txt")
-	assert.NoError(t, os.WriteFile(secret, []byte("top-secret-host-data"), 0600))
-
 	name := "poisoned-module"
-	url := "git://unused.invalid/repo.git"
-	cachePath := filepath.Join(home, ".vela", "terraform", name)
-	assert.NoError(t, os.MkdirAll(cachePath, 0700))
-	assert.NoError(t, os.Symlink(secret, filepath.Join(cachePath, "variables.tf")))
-	// Matching URL marker so the populated cache is reused and the clone is skipped.
-	assert.NoError(t, os.WriteFile(cachePath+cacheRemoteMarkerSuffix, []byte(url), 0600))
+	url := moduleRepo(t, nil, map[string]string{"variables.tf": "/etc/passwd"})
 
 	got, err := GetTerraformConfigurationFromRemote(name, url, "", nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "symlinked")
-	assert.NotContains(t, got, "top-secret-host-data")
+	assert.Empty(t, got)
 
-	_, statErr := os.Stat(cachePath)
+	_, statErr := os.Stat(filepath.Join(home, ".vela", "terraform", name))
 	assert.True(t, os.IsNotExist(statErr), "cache should be removed after a rejected read")
+}
+
+// A cache directory that is not a Git repository, such as one written by hand, is not served:
+// the module is cloned afresh.
+func TestACacheThatIsNotARepositoryIsClonedAfresh(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	url := moduleRepo(t, map[string]string{"variables.tf": moduleVars}, nil)
+	cachePath := filepath.Join(home, ".vela", "terraform", "planted")
+	assert.NoError(t, os.MkdirAll(cachePath, 0o700))
+	assert.NoError(t, os.WriteFile(filepath.Join(cachePath, "variables.tf"), []byte("planted"), 0o600))
+	assert.NoError(t, os.WriteFile(cachePath+cacheRemoteMarkerSuffix, []byte(url), 0o600))
+
+	got, err := GetTerraformConfigurationFromRemote("planted", url, "", nil)
+	assert.NoError(t, err)
+	assert.Equal(t, moduleVars, got)
 }
 
 // TestGetTerraformConfigurationFromRemoteCleansUpOnCloneFailure verifies that a
@@ -853,4 +760,22 @@ func TestGetTerraformConfigurationFromRemoteRejectsInvalidName(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid Terraform module name")
 	}
+}
+
+// A definition's SSH key Secret is read from the definition's own namespace, never from one the
+// definition names elsewhere: the controller reads it with its own rights.
+func TestTheSSHKeyComesFromTheDefinitionsNamespace(t *testing.T) {
+	data := map[string][]byte{corev1.SSHAuthPrivateKey: testdata.PEMBytes["rsa"], GitCredsKnownHosts: []byte("example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n")}
+	k8sClient := fake.NewClientBuilder().WithObjects(
+		&corev1.Secret{ObjectMeta: v1.ObjectMeta{Name: "deploy-key", Namespace: "team-a"}, Data: data},
+		&corev1.Secret{ObjectMeta: v1.ObjectMeta{Name: "deploy-key", Namespace: "team-b"}, Data: data},
+	).Build()
+	ctx := context.Background()
+
+	_, err := GetGitSSHPublicKey(ctx, k8sClient, &corev1.SecretReference{Name: "deploy-key", Namespace: "team-b"}, "team-a")
+	assert.ErrorContains(t, err, `must be in the definition's namespace "team-a"`)
+	_, err = GetGitSSHPublicKey(ctx, k8sClient, &corev1.SecretReference{Name: "deploy-key"}, "team-a")
+	assert.NoError(t, err, "no namespace means the definition's")
+	_, err = GetGitSSHPublicKey(ctx, k8sClient, &corev1.SecretReference{Name: "deploy-key", Namespace: "team-a"}, "team-a")
+	assert.NoError(t, err)
 }

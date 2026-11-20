@@ -23,7 +23,10 @@ import (
 	"maps"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
+
+	appvalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
@@ -34,6 +37,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -66,6 +70,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -99,7 +105,13 @@ type Reconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder event.Recorder
+	// APIReader reads Applications from the API server, past the cache. Without it a reconcile
+	// trusts the cache, and a status write that conflicts is not retried.
+	APIReader client.Reader
 	options
+	// ownWrites holds, per existing Application, the resourceVersion of the last copy a reconcile
+	// finished with, its own status write included. Nil turns the read-your-writes check off.
+	ownWrites *sync.Map
 }
 
 type options struct {
@@ -131,9 +143,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.
 	}, app); err != nil {
 		if !kerrors.IsNotFound(err) {
 			logCtx.Error(err, "get application")
+		} else if r.ownWrites != nil {
+			r.ownWrites.Delete(req.NamespacedName)
 		}
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
+	fresh, err := r.readOwnWrites(ctx, app)
+	if err != nil {
+		if !kerrors.IsNotFound(err) {
+			logCtx.Error(err, "get application")
+		}
+		return r.result(client.IgnoreNotFound(err)).ret()
+	}
+	app = fresh
+	defer r.recordOwnWrite(app)
 	defer func() {
 		logCtx.Info("Reconciled application", "phase", app.Status.Phase,
 			"requeueAfter", res.RequeueAfter.String(), "duration", time.Since(start).String(), "failed", retErr != nil)
@@ -153,6 +176,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.
 
 	logCtx.AddTag("resource_version", app.ResourceVersion).AddTag("generation", app.Generation)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	// Providers that read on the Application's behalf, vela/velaconfig among them, keep to its
+	// namespace by this, whichever definition calls them.
+	ctx = velaconfig.WithConsumerNamespace(ctx, app.Namespace)
+	// Under authentication the user it runs as, which a cross-namespace config read is reviewed for.
+	if feature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
+		ctx = velaconfig.WithConsumerUser(ctx, auth.GetUserInfoInAnnotation(&app.ObjectMeta))
+	}
 	logCtx.SetContext(ctx)
 	setVelaVersion(app)
 	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
@@ -206,6 +236,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.
 	}
 	appFile.SourceCacheStore = newConfigAPISourceCacheStore(r.Client, sourceTemplateRefsByType(logCtx, r.Client, appFile))
 	app.Status.SetConditions(condition.ReadyCondition("Parsed"))
+	r.recordRestrictionViolations(app, appvalidation.RestrictionViolations(logCtx, r.Client, app))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
 
 	if err := handler.PrepareCurrentAppRevision(logCtx, appFile); err != nil {
@@ -294,6 +325,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
 	app.Status.Workflow.Dependencies = workflow.WithStepReads(app.Status.Workflow.Dependencies, handler.stepReads)
+	app.Status.Workflow.Ref = resolvedWorkflowRef(appFile)
 	logDebug(logCtx, fmt.Sprintf("Workflow return state=%s", workflowState))
 	postDispatchApplied := false
 	applyPostDispatchTraits := func() error {
@@ -951,14 +983,118 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 		// Should never happen
 		panic("unknown method")
 	}
-	if err := f(); err != nil {
-		executor.StepStatusCache.Put(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1, time.Minute*5)
-		return err
+	// The status records the workflow steps that ran, some with side effects, so a write that
+	// conflicts with another writer is reapplied to the live Application rather than dropped.
+	// Only onto the same Application, and only while the live status is the one this reconcile last
+	// wrote or read: a status another writer set (a workflow resume, suspend or terminate) is kept,
+	// and the conflict requeues.
+	baseline, _ := ctx.Value(statusBaselineKey{}).(*statusBaseline)
+	for attempt := 1; ; attempt++ {
+		err := f()
+		if err == nil {
+			break
+		}
+		if !kerrors.IsConflict(err) || r.APIReader == nil || baseline == nil || attempt == maxStatusWriteAttempts {
+			resetStepGuard(app, baseline)
+			return err
+		}
+		live := &v1beta1.Application{}
+		if getErr := r.APIReader.Get(ctx, client.ObjectKeyFromObject(app), live); getErr != nil {
+			resetStepGuard(app, baseline)
+			return err
+		}
+		if live.UID != app.UID || !equality.Semantic.DeepEqual(live.Status, baseline.status) {
+			resetStepGuard(app, baseline)
+			return err
+		}
+		live.Status = app.Status
+		*app = *live
 	}
+	statusWritten(ctx, app)
 	if feature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationStatusMetrics) {
 		r.updateMetricsAndLog(ctx, app)
 	}
 	return nil
+}
+
+// resetStepGuard sets the workflow step guard back to the steps the stored status records, after a
+// status write that did not land: the engine set it to the steps it holds in memory, and the next
+// reconcile starts from the stored status. A write with no baseline (outside a reconcile) leaves
+// the guard as it is.
+func resetStepGuard(app *v1beta1.Application, baseline *statusBaseline) {
+	if executor.StepStatusCache == nil || baseline == nil {
+		return
+	}
+	steps := 0
+	if baseline.status.Workflow != nil {
+		steps = len(baseline.status.Workflow.Steps)
+	}
+	executor.StepStatusCache.Put(fmt.Sprintf("%s-%s", app.Name, app.Namespace), steps, time.Minute*5)
+}
+
+// maxStatusWriteAttempts bounds how often a reconcile writes its status against concurrent writers.
+const maxStatusWriteAttempts = 3
+
+// recordOwnWrite remembers the copy of app a reconcile finished with. Patch and Update refresh
+// app's resourceVersion in place, so after a status write it is the write's.
+func (r *Reconciler) recordOwnWrite(app *v1beta1.Application) {
+	if r.ownWrites != nil && app.ResourceVersion != "" {
+		r.ownWrites.Store(client.ObjectKeyFromObject(app), app.ResourceVersion)
+	}
+}
+
+// readOwnWrites returns app, or the live Application when the cache has not yet caught up with
+// the copy the last reconcile finished with. A reconcile from an older copy would miss the
+// workflow steps that reconcile recorded, and run them again.
+func (r *Reconciler) readOwnWrites(ctx context.Context, app *v1beta1.Application) (*v1beta1.Application, error) {
+	if r.APIReader == nil || r.ownWrites == nil {
+		return app, nil
+	}
+	key := client.ObjectKeyFromObject(app)
+	last, ok := r.ownWrites.Load(key)
+	if !ok || last == app.ResourceVersion {
+		return app, nil
+	}
+	live := &v1beta1.Application{}
+	if err := r.APIReader.Get(ctx, key, live); err != nil {
+		if kerrors.IsNotFound(err) {
+			r.ownWrites.Delete(key)
+		}
+		return nil, err
+	}
+	return live, nil
+}
+
+// restrictionViolationCondition reports restricted definitions an Application uses.
+const restrictionViolationCondition condition.ConditionType = "RestrictionViolation"
+
+// recordRestrictionViolations reports the restricted definitions app uses, as a condition and,
+// when they change, a Warning event. Admission refuses new uses; these are ones it let through,
+// such as an Application admitted before the restriction, and the Application keeps rendering.
+func (r *Reconciler) recordRestrictionViolations(app *v1beta1.Application, violations field.ErrorList) {
+	previous := app.Status.GetCondition(restrictionViolationCondition)
+	if len(violations) == 0 {
+		if previous.Status == corev1.ConditionTrue {
+			app.Status.SetConditions(condition.Condition{
+				Type: restrictionViolationCondition, Status: corev1.ConditionFalse,
+				Reason: "NoRestrictedDefinitions", LastTransitionTime: metav1.Now(),
+			})
+		}
+		return
+	}
+	var lines []string
+	for _, v := range violations {
+		lines = append(lines, fmt.Sprintf("%s: %s", v.Field, v.Detail))
+	}
+	message := strings.Join(lines, "; ")
+	if previous.Status == corev1.ConditionTrue && previous.Message == message {
+		return
+	}
+	app.Status.SetConditions(condition.Condition{
+		Type: restrictionViolationCondition, Status: corev1.ConditionTrue,
+		Reason: "RestrictedDefinitionUsed", Message: message, LastTransitionTime: metav1.Now(),
+	})
+	r.Recorder.Event(app, event.Warning("RestrictedDefinitionUsed", errors.New(message)))
 }
 
 func keepConditionTransitionTimes(status *condition.ConditionedStatus, stored condition.ConditionedStatus) {
@@ -1072,6 +1208,10 @@ func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta
 	if state == workflowv1alpha1.WorkflowStateSucceeded {
 		// The workflow applied the components with the current policy context.
 		r.recordPolicyContextHash(logCtx, handler)
+		if err := helm.SweepHubReleases(logCtx, app, handler.resourceKeeper); err != nil {
+			logCtx.Error(err, "Failed to remove hub releases left behind by helmchart components")
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
+		}
 		app.Status.SetConditions(condition.ReadyCondition(common.WorkflowCondition.String()))
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 	}
@@ -1118,51 +1258,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.Funcs{
 			// filter the changes in workflow status
 			// let workflow handle its reconcile
-			UpdateFunc: func(e ctrlEvent.UpdateEvent) bool {
-				newApp, isNewApp := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
-				old, isOldApp := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
-				if !isNewApp || !isOldApp {
-					return filterManagedFieldChangesUpdate(e)
-				}
-
-				// We think this event is triggered by resync
-				if reflect.DeepEqual(old, newApp) {
-					return true
-				}
-
-				// filter managedFields changes
-				old.ManagedFields = nil
-				newApp.ManagedFields = nil
-
-				// if the generation is changed, return true to let the controller handle it
-				if old.Generation != newApp.Generation {
-					return true
-				}
-
-				// filter the events triggered by initial application status
-				if newApp.Status.Phase == common.ApplicationRendering || (old.Status.Phase == common.ApplicationRendering && newApp.Status.Phase == common.ApplicationRunningWorkflow) {
-					return false
-				}
-
-				// ignore the changes in workflow status
-				if old.Status.Workflow != nil && newApp.Status.Workflow != nil {
-					// only workflow execution will change the status.workflow
-					// let workflow backoff to requeue the event
-					newApp.Status.Workflow.Steps = old.Status.Workflow.Steps
-					newApp.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
-					newApp.Status.Workflow.Message = old.Status.Workflow.Message
-					newApp.Status.Workflow.EndTime = old.Status.Workflow.EndTime
-				}
-
-				// appliedResources and Services will be changed during the execution of workflow
-				// once the resources is added, the managed fields will also be changed
-				newApp.Status.AppliedResources = old.Status.AppliedResources
-				newApp.Status.Services = old.Status.Services
-				// the resource version will be changed if the object is changed
-				// ignore this change and let reflect.DeepEqual to compare the rest of the object
-				newApp.ResourceVersion = old.ResourceVersion
-				return !reflect.DeepEqual(old, newApp)
-			},
+			UpdateFunc: applicationUpdateNeedsReconcile,
 			CreateFunc: func(e ctrlEvent.CreateEvent) bool {
 				return true
 			},
@@ -1173,6 +1269,59 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&v1beta1.PolicyDefinition{}, r.policyDefinitionEventHandler()).
 		For(&v1beta1.Application{}).
 		Complete(r)
+}
+
+// applicationUpdateNeedsReconcile filters Application update events: workflow status changes are
+// left to the workflow's own requeue, and a spec or controller-requirement change always passes.
+func applicationUpdateNeedsReconcile(e ctrlEvent.UpdateEvent) bool {
+	newApp, isNewApp := e.ObjectNew.DeepCopyObject().(*v1beta1.Application)
+	old, isOldApp := e.ObjectOld.DeepCopyObject().(*v1beta1.Application)
+	if !isNewApp || !isOldApp {
+		return filterManagedFieldChangesUpdate(e)
+	}
+
+	// We think this event is triggered by resync
+	if reflect.DeepEqual(old, newApp) {
+		return true
+	}
+
+	// filter managedFields changes
+	old.ManagedFields = nil
+	newApp.ManagedFields = nil
+
+	// if the generation is changed, return true to let the controller handle it
+	if old.Generation != newApp.Generation {
+		return true
+	}
+
+	// a frozen Application being released (vela workflow rollback) reconciles whatever its phase
+	if oam.GetControllerRequirement(old) != oam.GetControllerRequirement(newApp) {
+		return true
+	}
+
+	// filter the events triggered by initial application status
+	if newApp.Status.Phase == common.ApplicationRendering || (old.Status.Phase == common.ApplicationRendering && newApp.Status.Phase == common.ApplicationRunningWorkflow) {
+		return false
+	}
+
+	// ignore the changes in workflow status
+	if old.Status.Workflow != nil && newApp.Status.Workflow != nil {
+		// only workflow execution will change the status.workflow
+		// let workflow backoff to requeue the event
+		newApp.Status.Workflow.Steps = old.Status.Workflow.Steps
+		newApp.Status.Workflow.ContextBackend = old.Status.Workflow.ContextBackend
+		newApp.Status.Workflow.Message = old.Status.Workflow.Message
+		newApp.Status.Workflow.EndTime = old.Status.Workflow.EndTime
+	}
+
+	// appliedResources and Services will be changed during the execution of workflow
+	// once the resources is added, the managed fields will also be changed
+	newApp.Status.AppliedResources = old.Status.AppliedResources
+	newApp.Status.Services = old.Status.Services
+	// the resource version will be changed if the object is changed
+	// ignore this change and let reflect.DeepEqual to compare the rest of the object
+	newApp.ResourceVersion = old.ResourceVersion
+	return !reflect.DeepEqual(old, newApp)
 }
 
 // Setup adds a controller that reconciles App.
@@ -1193,10 +1342,12 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 	}
 
 	reconciler := Reconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
-		options:  parseOptions(args),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		Recorder:  event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
+		APIReader: mgr.GetAPIReader(),
+		options:   parseOptions(args),
+		ownWrites: &sync.Map{},
 	}
 	return reconciler.SetupWithManager(mgr)
 }
@@ -1360,7 +1511,24 @@ const (
 )
 
 func withOriginalApp(ctx context.Context, app *v1beta1.Application) context.Context {
+	ctx = context.WithValue(ctx, statusBaselineKey{}, &statusBaseline{status: *app.Status.DeepCopy()})
 	return context.WithValue(ctx, OriginalAppKey, app.DeepCopy())
+}
+
+type statusBaselineKey struct{}
+
+// statusWritten records app's status as the one this reconcile last wrote. Every status write
+// of the reconcile calls it, so a later write's conflict is judged against the stored status.
+func statusWritten(ctx context.Context, app *v1beta1.Application) {
+	if baseline, ok := ctx.Value(statusBaselineKey{}).(*statusBaseline); ok {
+		baseline.status = *app.Status.DeepCopy()
+	}
+}
+
+// statusBaseline is the status a reconcile last read or wrote: what the stored status is, unless
+// another writer has changed it since.
+type statusBaseline struct {
+	status common.AppStatus
 }
 
 func originalAppFrom(ctx context.Context) (*v1beta1.Application, bool) {

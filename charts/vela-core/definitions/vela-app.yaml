@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: SourceDefinition
 metadata:
   annotations:
-    definition.oam.dev/cache-key-rules: 6ac674fa
+    definition.oam.dev/cache-key-rules: 62eb1959
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: The status of another KubeVela Application - phase, overall health, workflow state, and per-component status broken down by the cluster each is placed in. Status only; never its spec.
   name: vela-app

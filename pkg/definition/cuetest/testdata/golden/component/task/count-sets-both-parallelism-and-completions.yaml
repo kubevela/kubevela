@@ -1,0 +1,30 @@
+calls: {}
+output:
+  apiVersion: batch/v1
+  kind: Job
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: migrate
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: task
+    name: shop-migrate
+    namespace: default
+  spec:
+    completions: 3
+    parallelism: 3
+    template:
+      metadata:
+        labels:
+          app.oam.dev/component: migrate
+          app.oam.dev/name: shop
+      spec:
+        containers:
+        - image: shop-migrate:1.0
+          name: migrate
+        restartPolicy: Never
+outputs: {}
+traits: {}

@@ -85,11 +85,14 @@ func NamedUserFrom(ctx context.Context) (user.Info, bool) {
 	return u, true
 }
 
-// SetUserInfoInAnnotation set username and group from userInfo into annotations
-// it will clear the existing service account annotation in avoid of permission leak
+// SetUserInfoInAnnotation records the requester as the Application's identity: their username
+// when authentication.withUser is on, and their groups matching the group pattern. With withUser
+// off no username is kept, so the Application runs as the default user whatever it was given.
 func SetUserInfoInAnnotation(obj *metav1.ObjectMeta, userInfo authv1.UserInfo) {
 	if AuthenticationWithUser {
 		metav1.SetMetaDataAnnotation(obj, oam.AnnotationApplicationUsername, userInfo.Username)
+	} else {
+		delete(obj.Annotations, oam.AnnotationApplicationUsername)
 	}
 	re := regexp.MustCompile(strings.ReplaceAll(AuthenticationGroupPattern, "*", ".*"))
 	var groups []string
@@ -101,20 +104,26 @@ func SetUserInfoInAnnotation(obj *metav1.ObjectMeta, userInfo authv1.UserInfo) {
 	metav1.SetMetaDataAnnotation(obj, oam.AnnotationApplicationGroup, strings.Join(groups, groupSeparator))
 }
 
-// GetUserInfoInAnnotation extract user info from annotations
-// support compatibility for serviceAccount when name is empty
+// GetUserInfoInAnnotation is the identity an Application runs as, from its annotations: the
+// username, else the service account named, else, with AuthenticateApplication on, the default
+// user. With AuthenticateApplication on and authentication.withUser off, it is always the default
+// user: the webhook keeps no username in that mode, so one found here was not stamped by it.
 func GetUserInfoInAnnotation(obj *metav1.ObjectMeta) user.Info {
 	annotations := obj.GetAnnotations()
 	if annotations == nil {
 		annotations = map[string]string{}
 	}
+	authenticated := utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication)
 
 	name := annotations[oam.AnnotationApplicationUsername]
 	if serviceAccountName := annotations[oam.AnnotationApplicationServiceAccountName]; serviceAccountName != "" && name == "" {
 		name = fmt.Sprintf("system:serviceaccount:%s:%s", obj.GetNamespace(), serviceAccountName)
 	}
+	if authenticated && !AuthenticationWithUser {
+		name = ""
+	}
 
-	if name == "" && utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
+	if name == "" && authenticated {
 		name = AuthenticationDefaultUser
 	}
 

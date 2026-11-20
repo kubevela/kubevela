@@ -196,17 +196,16 @@ caBundle: {{ default "Cg==" $ca }}
 
 {{/*
 Renders the failurePolicy line of one webhook. Takes a dict of "root", "hooks",
-"name" and "policy". "policy" applies when the chart does not patch the
-webhooks. With patching on, webhooks start as Ignore until the caBundle is set.
-When vela-core manages the cert, vela-core then sets
-admissionWebhooks.failurePolicy. Thus the chart keeps the live policy on
-upgrade.
+"name" and "policy". When vela-core manages the cert, webhooks start as Ignore
+until it serves and sets admissionWebhooks.failurePolicy itself, and the chart
+keeps the live policy on upgrade. With cert-manager or a supplied cert nothing
+else sets it, so "policy" applies from the start.
 */}}
 {{- define "kubevela.webhookFailurePolicy" -}}
 {{- $live := dig .name "failurePolicy" "" .hooks -}}
 {{- if and (include "kubevela.webhookRuntimeCerts" .root) $live -}}
 failurePolicy: {{ $live }}
-{{- else if .root.Values.admissionWebhooks.patch.enabled -}}
+{{- else if include "kubevela.webhookRuntimeCerts" .root -}}
 failurePolicy: Ignore
 {{- else -}}
 failurePolicy: {{ .policy }}

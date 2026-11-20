@@ -17,6 +17,7 @@ limitations under the License.
 package http
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -25,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +38,7 @@ import (
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/http/testdata"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
@@ -158,53 +161,73 @@ func TestHTTPCmdRunWithCustomTimeout(t *testing.T) {
 	assert.Error(t, err, "expected timeout error with 50ms deadline on a 200ms server")
 }
 
-func TestHTTPCmdRunWithInvalidTimeout(t *testing.T) {
-	s := NewMock()
-	defer s.Close()
+func TestHTTPCmdRunRefusesAnInvalidTimeout(t *testing.T) {
+	runner, _ := newHTTPCmd(cue.Value{})
+	for _, timeout := range []string{"not-a-duration", "0s", "-5s", "61s"} {
+		req := cuecontext.New().CompileString(fmt.Sprintf(`{
+			method: "GET"
+			url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
+			request: timeout: %q
+		}`, timeout))
+		_, err := runner.Run(&registry.Meta{Obj: req.Value()})
+		require.ErrorContains(t, err, timeout)
+	}
+}
+
+func TestHTTPCmdRunStopsWithItsContext(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
 
 	runner, _ := newHTTPCmd(cue.Value{})
+	req := cuecontext.New().CompileString(fmt.Sprintf(`{method: "GET", url: %q, request: timeout: "30s"}`, srv.URL))
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := runner.Run(&registry.Meta{Context: ctx, Obj: req.Value()})
+	require.Error(t, err)
+	require.Less(t, time.Since(start), 5*time.Second)
+}
 
-	// Invalid timeout value should be silently ignored and use the default 3s
-	reqInvalid := cuecontext.New().CompileString(`{
-		method: "GET"
-		url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
-		request: {
-			timeout: "not-a-duration"
-			header: {
-				"Accept-Language": "en,nl"
-			}
+// A maximum below the default timeout bounds a request that sets none.
+func TestHTTPCmdRunKeepsAnUnsetTimeoutWithinTheMaximum(t *testing.T) {
+	maxTimeout := httpguard.MaxRequestTimeout
+	httpguard.MaxRequestTimeout = 200 * time.Millisecond
+	defer func() { httpguard.MaxRequestTimeout = maxTimeout }()
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
 		}
-	}`)
-	got, err := runner.Run(&registry.Meta{Obj: reqInvalid.Value()})
-	assert.NoError(t, err)
-	body := (got.(map[string]interface{}))["body"].(string)
-	assert.Equal(t, `{"token":"test-token"}`, body)
+	}))
+	defer srv.Close()
+	defer close(release)
 
-	// Zero timeout should be rejected and fall back to default 3s
-	reqZero := cuecontext.New().CompileString(`{
-		method: "GET"
-		url: "http://127.0.0.1:8090/api/v1/token?val=test-zero"
-		request: {
-			timeout: "0s"
-		}
-	}`)
-	got, err = runner.Run(&registry.Meta{Obj: reqZero.Value()})
-	assert.NoError(t, err)
-	body = (got.(map[string]interface{}))["body"].(string)
-	assert.Equal(t, `{"token":"test-zero"}`, body)
+	runner, _ := newHTTPCmd(cue.Value{})
+	req := cuecontext.New().CompileString(fmt.Sprintf(`{method: "GET", url: %q}`, srv.URL))
+	start := time.Now()
+	_, err := runner.Run(&registry.Meta{Context: context.Background(), Obj: req.Value()})
+	require.Error(t, err)
+	require.Less(t, time.Since(start), 2*time.Second)
+}
 
-	// Negative timeout should be rejected and fall back to default 3s
-	reqNegative := cuecontext.New().CompileString(`{
-		method: "GET"
-		url: "http://127.0.0.1:8090/api/v1/token?val=test-negative"
-		request: {
-			timeout: "-5s"
-		}
-	}`)
-	got, err = runner.Run(&registry.Meta{Obj: reqNegative.Value()})
-	assert.NoError(t, err)
-	body = (got.(map[string]interface{}))["body"].(string)
-	assert.Equal(t, `{"token":"test-negative"}`, body)
+func TestHTTPCmdRunRefusesAnOversizedBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("x", int(httpguard.MaxResponseBytes)+1)))
+	}))
+	defer srv.Close()
+
+	runner, _ := newHTTPCmd(cue.Value{})
+	req := cuecontext.New().CompileString(fmt.Sprintf(`{method: "GET", url: %q}`, srv.URL))
+	_, err := runner.Run(&registry.Meta{Obj: req.Value()})
+	require.ErrorContains(t, err, "exceeds")
 }
 
 func TestHTTPCmdRun_blocksLinkLocalMetadata(t *testing.T) {

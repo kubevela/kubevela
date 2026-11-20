@@ -167,6 +167,9 @@ type Provider struct {
 	// adoption path and background health checks do not leak to the active
 	// cluster.
 	kubeClientFactory func(ctx context.Context) (kubernetes.Interface, error)
+	// ownerAppExists reports whether an Application exists on the hub. It decides whether a
+	// release labelled for another Application is still owned or left behind. Tests stub it.
+	ownerAppExists func(ctx context.Context, namespace, name string) (bool, error)
 }
 
 var (
@@ -301,6 +304,7 @@ func NewProvider() *Provider {
 		globalProvider.hubConfig = globalProvider.helmClient.RESTClientGetter().ToRESTConfig
 		globalProvider.actionConfigFactory = globalProvider.getActionConfig
 		globalProvider.kubeClientFactory = globalProvider.getKubeClientset
+		globalProvider.ownerAppExists = hubAppExists
 	})
 	return globalProvider
 }
@@ -338,6 +342,7 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 	p.hubConfig = p.helmClient.RESTClientGetter().ToRESTConfig
 	p.actionConfigFactory = p.getActionConfig
 	p.kubeClientFactory = p.getKubeClientset
+	p.ownerAppExists = hubAppExists
 	return p
 }
 

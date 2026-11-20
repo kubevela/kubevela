@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: SourceDefinition
 metadata:
   annotations:
-    definition.oam.dev/cache-key-rules: 6ac674fa
+    definition.oam.dev/cache-key-rules: 62eb1959
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: GETs a URL. The response is parsed when Content-Type says JSON or YAML; a non-2xx fails the source rather than becoming its value.
   name: http-get

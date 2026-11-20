@@ -46,22 +46,29 @@ template: {
 	}
 
 	fail: op.#Steps & {
-		if req.$returns.statusCode > 400 {
+		if req.$returns.statusCode >= 400 {
 			requestFail: op.#Fail & {
 				message: "request of \(parameter.url) is fail: \(req.$returns.statusCode)"
 			}
 		}
 	}
 
-	response: json.Unmarshal(req.$returns.body)
+	// The body is kept as sent; response holds it parsed, only when it is JSON, so an empty
+	// or text reply succeeds rather than failing the step after the request has been made.
+	if req.$returns != _|_ {
+		responseBody: req.$returns.body
+		if json.Valid(req.$returns.body) {
+			response: json.Unmarshal(req.$returns.body)
+		}
+	}
 
 	parameter: {
 		url:    string
 		method: *"GET" | "POST" | "PUT" | "DELETE"
 		body?: {...}
 		header?: [string]: string
-		// +usage=The timeout of this request (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted. Invalid values fail when the step runs.
-		timeout?: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
+		// +usage=The timeout of this request (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted; must be greater than 0 and at most the controller's maximum, 60s by default. Invalid values fail when the step runs.
+		timeout?: string & =~"^(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+$"
 		// +usage=Headers whose values are sourced from Kubernetes Secrets
 		headersFromSecret?: [...{
 			// +usage=The HTTP header name to set

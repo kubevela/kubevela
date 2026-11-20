@@ -57,6 +57,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/cue/nesting"
 	"github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -1605,6 +1606,9 @@ func (h *Installer) renderNotes(addon *InstallPackage) (string, error) {
 		return "", err
 	}
 	notesFile := contextFile + "\n" + addon.Notes.Data
+	if err := nesting.Check(notesFile, nesting.MaxDepth); err != nil {
+		return "", errors.Wrap(err, addon.Notes.Name)
+	}
 	val := cuecontext.New().CompileString(notesFile)
 	if valErr := val.Err(); valErr != nil {
 		return "", errors.Wrap(valErr, "build values for NOTES.cue")
