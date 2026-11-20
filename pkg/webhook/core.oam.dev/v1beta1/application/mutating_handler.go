@@ -51,7 +51,22 @@ type appMutator func(ctx context.Context, req admission.Request, oldApp *v1beta1
 
 func (h *MutatingHandler) handleIdentity(_ context.Context, req admission.Request, _ *v1beta1.Application, app *v1beta1.Application) (bool, error) {
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
-		return false, nil
+		// Authentication is disabled: the impersonating round tripper is not wired,
+		// so these annotations carry no privilege. Strip any user-supplied identity
+		// annotations to prevent them lingering as forged identity if the feature is
+		// later enabled. See issue #7139 (privilege escalation via app.oam.dev/group).
+		modified := false
+		for _, annotation := range []string{
+			oam.AnnotationApplicationUsername,
+			oam.AnnotationApplicationGroup,
+			oam.AnnotationApplicationServiceAccountName,
+		} {
+			if _, exists := app.Annotations[annotation]; exists {
+				delete(app.Annotations, annotation)
+				modified = true
+			}
+		}
+		return modified, nil
 	}
 
 	if slices.Contains(h.skipUsers, req.UserInfo.Username) {
