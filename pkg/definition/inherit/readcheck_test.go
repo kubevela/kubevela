@@ -46,11 +46,14 @@ parameter: {tenant: string}
 // One that does read them gets them.
 func TestReadSuperFieldsAreFilled(t *testing.T) {
 	child := `
-$inherit: {output: false}
-
 $super: properties: {image: parameter.image}
 
-output: $super.output
+outputs: mirror: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: name: context.name
+	data: kind: $super.output.kind
+}
 
 parameter: {
 	image:  string
@@ -94,11 +97,9 @@ parameter: {tenant: string}
 
 func TestReadSuperOutputsAreFilled(t *testing.T) {
 	child := `
-$inherit: {outputs: false}
-
 $super: properties: {image: parameter.image}
 
-outputs: $super.outputs
+outputs: mirror: $super.outputs.svc
 
 parameter: {tenant: string}
 `

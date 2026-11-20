@@ -18,6 +18,7 @@ package definitions_test
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -79,6 +80,40 @@ parameter: {
 	image:  string
 	tenant: string
 }
+`
+
+// A parent that renders a Deployment whose pod security context is +final.
+const inheritFinalParentTemplate = `
+output: {
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	metadata: name: context.name
+	spec: {
+		selector: matchLabels: "app.oam.dev/component": context.name
+		template: {
+			metadata: labels: "app.oam.dev/component": context.name
+			spec: {
+				// +final
+				securityContext: {runAsNonRoot: true, runAsUser: 1000}
+				containers: [{
+					name:  context.name
+					image: parameter.image
+				}]
+			}
+		}
+	}
+}
+
+parameter: image: string
+`
+
+// A child that adds a field the parent did not set to its pod security context.
+const inheritFinalBreakingChildTemplate = `
+$super: properties: {image: parameter.image}
+
+output: spec: template: spec: securityContext: fsGroup: 2000
+
+parameter: image: string
 `
 
 func componentDefinitionIn(namespace, name, extends, template string, status *common.Status) *v1beta1.ComponentDefinition {
@@ -174,24 +209,6 @@ var _ = Describe("ComponentDefinition inheritance", Label("core-definitions"), f
 		silent.Spec.Workload = common.WorkloadTypeDescriptor{}
 		Expect(k8sClient.Create(ctx, silent)).Should(Succeed())
 
-		By("a child that replaces the output renders a Job of its own")
-		job := componentDefinitionIn(namespace, "workload-job", "workload-parent", `
-$inherit: output: false
-$super: properties: {image: "busybox"}
-output: {
-	apiVersion: "batch/v1"
-	kind:       "Job"
-	metadata: name: context.name
-	spec: template: spec: {
-		restartPolicy: "Never"
-		containers: [{name: context.name, image: "busybox", command: ["true"]}]
-	}
-}
-parameter: {}
-`, nil)
-		job.Spec.Workload = common.WorkloadTypeDescriptor{}
-		Expect(k8sClient.Create(ctx, job)).Should(Succeed())
-
 		app := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{Name: "workload-app", Namespace: namespace},
 			Spec: v1beta1.ApplicationSpec{
@@ -201,7 +218,6 @@ parameter: {}
 						Type:       "workload-silent",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.27","tenant":"acme"}`)},
 					},
-					{Name: "from-job", Type: "workload-job"},
 				},
 			},
 		}
@@ -215,47 +231,22 @@ parameter: {}
 				workloads[svc.Name] = svc.WorkloadDefinition
 			}
 			g.Expect(workloads).Should(HaveKeyWithValue("from-silent", common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}))
-			g.Expect(workloads).Should(HaveKeyWithValue("from-job", common.WorkloadGVK{}))
 		}, time.Second*60, time.Second*2).Should(Succeed())
 	})
 
-	It("keeps a workload the child declares", func() {
+	It("refuses a child that declares a workload other than its parent's", func() {
 		parent := componentDefinitionIn(namespace, "declared-parent", "", inheritParentTemplate, nil)
 		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
 
-		child := componentDefinitionIn(namespace, "declared-child", "declared-parent", `
-$inherit: output: false
-$super: properties: {image: "busybox"}
-output: {
-	apiVersion: "batch/v1"
-	kind:       "Job"
-	metadata: name: context.name
-	spec: template: spec: {
-		restartPolicy: "Never"
-		containers: [{name: context.name, image: "busybox", command: ["true"]}]
-	}
-}
-parameter: {}
-`, nil)
+		child := componentDefinitionIn(namespace, "declared-child", "declared-parent",
+			"$super: properties: {image: parameter.image}\nparameter: image: string\n", nil)
 		child.Spec.Workload = common.WorkloadTypeDescriptor{
-			Definition: common.WorkloadGVK{APIVersion: "batch/v1", Kind: "Job"},
+			Definition: common.WorkloadGVK{APIVersion: "apps/v1", Kind: "StatefulSet"},
 		}
-		Expect(k8sClient.Create(ctx, child)).Should(Succeed())
-
-		app := &v1beta1.Application{
-			ObjectMeta: metav1.ObjectMeta{Name: "declared-app", Namespace: namespace},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{{Name: "from-declared", Type: "declared-child"}},
-			},
-		}
-		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-
-		Eventually(func(g Gomega) {
-			got := &v1beta1.Application{}
-			g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "declared-app", Namespace: namespace}, got)).Should(Succeed())
-			g.Expect(got.Status.Services).ShouldNot(BeEmpty())
-			g.Expect(got.Status.Services[0].WorkloadDefinition).Should(Equal(common.WorkloadGVK{APIVersion: "batch/v1", Kind: "Job"}))
-		}, time.Second*60, time.Second*2).Should(Succeed())
+		err := k8sClient.Create(ctx, child)
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring(
+			"component declared-child declares workload apps/v1 StatefulSet, but declared-parent declares apps/v1 Deployment"))
 	})
 
 	It("composes health with the policy it extends", func() {
@@ -359,5 +350,162 @@ parameter: {}
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: "the-paved-road", Namespace: namespace}, deploy)
 		}, time.Second*60, time.Second*2).Should(Succeed())
+	})
+	It("refuses a child that adds to a field its parent marks +final", func() {
+		parent := componentDefinitionIn(namespace, "final-parent", "", inheritFinalParentTemplate, nil)
+		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
+
+		By("a child that adds to the final field is refused when it is written")
+		breaking := componentDefinitionIn(namespace, "final-breaking-child", "final-parent",
+			inheritFinalBreakingChildTemplate, nil)
+		err := k8sClient.Create(ctx, breaking)
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring(
+			"component final-breaking-child adds to output.spec.template.spec.securityContext, which final-parent marks +final"))
+
+		By("a child that adds beside it is accepted and renders the parent's field as it is")
+		child := componentDefinitionIn(namespace, "final-child", "final-parent",
+			"$super: properties: {image: parameter.image}\n"+
+				"output: metadata: labels: team: \"payments\"\n"+
+				"parameter: image: string\n", nil)
+		Expect(k8sClient.Create(ctx, child)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "final-app", Namespace: namespace},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name:       "secured",
+					Type:       "final-child",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.27"}`)},
+				}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		deploy := &appsv1.Deployment{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "secured", Namespace: namespace}, deploy)
+		}, time.Second*60, time.Second*2).Should(Succeed())
+		Expect(deploy.Labels["team"]).Should(Equal("payments"))
+		Expect(*deploy.Spec.Template.Spec.SecurityContext.RunAsUser).Should(BeEquivalentTo(1000))
+	})
+
+	It("holds a +final added to a parent after its child was accepted", func() {
+		By("apply a parent without the marker and a child that adds to the field")
+		plain := componentDefinitionIn(namespace, "late-final-parent", "", strings.Replace(
+			inheritFinalParentTemplate, "// +final\n", "", 1), nil)
+		Expect(k8sClient.Create(ctx, plain)).Should(Succeed())
+		child := componentDefinitionIn(namespace, "late-final-child", "late-final-parent",
+			inheritFinalBreakingChildTemplate, nil)
+		Expect(k8sClient.Create(ctx, child)).Should(Succeed())
+
+		By("mark the field +final on the parent")
+		Eventually(func() error {
+			current := &v1beta1.ComponentDefinition{}
+			if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(plain), current); err != nil {
+				return err
+			}
+			current.Spec.Schematic.CUE.Template = inheritFinalParentTemplate
+			return k8sClient.Update(ctx, current)
+		}, time.Second*10, time.Millisecond*500).Should(Succeed())
+
+		By("an application using the child is refused at render")
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "late-final-app", Namespace: namespace},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name:       "late",
+					Type:       "late-final-child",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.27"}`)},
+				}},
+			},
+		}
+		Eventually(func() string {
+			err := k8sClient.Create(ctx, app)
+			if err == nil {
+				_ = k8sClient.Delete(ctx, app)
+				return ""
+			}
+			return err.Error()
+		}, time.Second*30, time.Second*2).Should(ContainSubstring(
+			"adds to output.spec.template.spec.securityContext, which late-final-parent marks +final"))
+	})
+	It("refuses a child that replaces or changes what its parent renders", func() {
+		parent := componentDefinitionIn(namespace, "road-parent", "", inheritParentTemplate+`
+outputs: {
+	// +required
+	svc: {
+		apiVersion: "v1"
+		kind:       "Service"
+		metadata: name: context.name
+		spec: {
+			selector: "app.oam.dev/component": context.name
+			ports: [{port: 80}]
+		}
+	}
+}
+`, nil)
+		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
+
+		for name, c := range map[string]struct{ template, want string }{
+			"road-replaces": {
+				template: "$super: properties: {image: parameter.image}\n$inherit: {output: false}\noutput: {apiVersion: \"batch/v1\", kind: \"Job\"}\nparameter: image: string\n",
+				want:     "`$inherit: {output: false}` is not allowed in road-replaces",
+			},
+			"road-overrides": {
+				template: "$super: properties: {image: parameter.image}\noutput: spec: replicas: 5\nparameter: image: string\n",
+				want:     "component road-overrides sets output.spec.replicas, which road-parent already sets",
+			},
+			"road-drops": {
+				template: "$super: properties: {image: parameter.image}\n$inherit: {outputs: {svc: false}}\nparameter: image: string\n",
+				want:     "component road-drops leaves out outputs.svc, which road-parent marks +required",
+			},
+		} {
+			err := k8sClient.Create(ctx, componentDefinitionIn(namespace, name, "road-parent", c.template, nil))
+			Expect(err).Should(HaveOccurred(), name)
+			Expect(err.Error()).Should(ContainSubstring(c.want), name)
+		}
+	})
+
+	It("renders a child that leaves out an optional output and writes its own", func() {
+		parent := componentDefinitionIn(namespace, "drop-parent", "", inheritParentTemplate+`
+outputs: cfg: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: name: context.name + "-cfg"
+	data: from: "parent"
+}
+`, nil)
+		Expect(k8sClient.Create(ctx, parent)).Should(Succeed())
+		child := componentDefinitionIn(namespace, "drop-child", "drop-parent", `
+$super: properties: {image: parameter.image}
+$inherit: {outputs: {cfg: false}}
+outputs: cfg: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: name: context.name + "-cfg"
+	data: from: "child"
+}
+parameter: image: string
+`, nil)
+		Expect(k8sClient.Create(ctx, child)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "drop-app", Namespace: namespace},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name:       "dropped",
+					Type:       "drop-child",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.27"}`)},
+				}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		cm := &corev1.ConfigMap{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "dropped-cfg", Namespace: namespace}, cm)
+		}, time.Second*60, time.Second*2).Should(Succeed())
+		Expect(cm.Data).Should(Equal(map[string]string{"from": "child"}), "only the child's own, not merged with the parent's")
 	})
 })

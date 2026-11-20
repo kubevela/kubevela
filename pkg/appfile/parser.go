@@ -627,7 +627,7 @@ func (p *Parser) convertTemplate2Component(name, typ string, capType types.CapTy
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
-		engine:             newEngineFor(capType, name, templ.Ancestors...),
+		engine:             newEngineFor(capType, name, cpType, templ.Ancestors...),
 	}, nil
 }
 
@@ -1101,11 +1101,11 @@ func nonNilStrings(in map[string]string) map[string]string {
 // surface, so its expressions see the context a policy render actually has.
 // newEngineFor picks the engine for a capability. Ancestors are only meaningful
 // to the workload engine: a policy cannot extend anything.
-func newEngineFor(capType types.CapType, name string, ancestors ...inherit.Level) definition.AbstractEngine {
+func newEngineFor(capType types.CapType, name, typ string, ancestors ...inherit.Level) definition.AbstractEngine {
 	if capType == types.TypePolicy {
 		return definition.NewPolicyAbstractEngine(name)
 	}
-	return definition.NewWorkloadAbstractEngine(name, ancestors...)
+	return definition.NewComponentAbstractEngine(name, typ, ancestors...)
 }
 
 // policyAppScoped reports whether a policy type is an Application-scoped

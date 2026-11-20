@@ -235,18 +235,18 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 		require.Equal(t, deployment, tmpl.Reference)
 	})
 
+	// A child always merges its parent's output since #7607, so there is no
+	// level that renders something else and would keep a workload of its own.
 	for name, template := range map[string]string{
 		"$inherit: false":         "$inherit: false\noutput: {}",
 		"$inherit: output: false": "$inherit: output: false\noutput: {}",
 	} {
-		t.Run(name+" keeps its own", func(t *testing.T) {
+		t.Run(name+" is refused", func(t *testing.T) {
 			child := compDef("child", "base", template)
 			child.Spec.Workload = autodetect
-			resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
-			require.Equal(t, autodetect, child.Spec.Workload)
-			require.Empty(t, child.Spec.PodSpecPath)
-			require.Empty(t, child.Spec.RevisionLabel)
-			require.Empty(t, child.Spec.ChildResourceKinds)
+			err := resolveComponentChain(context.Background(), &Template{}, child,
+				fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
+			require.ErrorContains(t, err, "is not allowed in child")
 		})
 	}
 
@@ -259,12 +259,12 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 		require.Equal(t, deployment, child.Spec.Workload)
 	})
 
-	t.Run("a partial GVK is the child's own", func(t *testing.T) {
-		own := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "batch/v1"}}
+	t.Run("a partial GVK that cannot be the parent's is refused", func(t *testing.T) {
 		child := compDef("child", "base", "")
-		child.Spec.Workload = own
-		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base})
-		require.Equal(t, own, child.Spec.Workload)
+		child.Spec.Workload = common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "batch/v1"}}
+		err := resolveComponentChain(context.Background(), &Template{}, child,
+			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
+		require.ErrorContains(t, err, "declares workload batch/v1, but base declares apps/v1 Deployment")
 	})
 
 	t.Run("a child without a CUE schematic inherits", func(t *testing.T) {
@@ -282,40 +282,16 @@ func TestWorkloadFollowsTheInheritedOutput(t *testing.T) {
 		child.Spec.Extension = &runtime.RawExtension{Raw: []byte(`{"template":"$inherit: output: false\noutput: {}"}`)}
 		_, err := newTemplateOfCompDefinition(context.Background(), child,
 			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
-		require.NoError(t, err)
-		require.Equal(t, autodetect, child.Spec.Workload)
-		require.Empty(t, child.Spec.PodSpecPath)
+		require.ErrorContains(t, err, "is not allowed in child", "the directive was read off spec.extension")
 	})
 
 	t.Run("a malformed $inherit is reported", func(t *testing.T) {
 		child := compDef("child", "base", "$inherit: output: \"no\"\noutput: {}")
 		err := resolveComponentChain(context.Background(), &Template{}, child,
 			fetcherOver(map[string]*v1beta1.ComponentDefinition{"base": base}))
-		require.ErrorContains(t, err, "expected true or false")
+		require.ErrorContains(t, err, "must be true or false")
 	})
 
-	t.Run("a middle that replaces output stops the chain", func(t *testing.T) {
-		middle := compDef("middle", "base", "$inherit: output: false\noutput: {}")
-		middle.Spec.Workload = autodetect
-		child := compDef("child", "middle", "")
-		child.Spec.Workload = autodetect
-		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base, "middle": middle})
-		require.Equal(t, autodetect, child.Spec.Workload)
-		require.Empty(t, child.Spec.PodSpecPath)
-	})
-
-	t.Run("a middle that replaces output still passes its own on", func(t *testing.T) {
-		job := common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "batch/v1", Kind: "Job"}}
-		middle := compDef("middle", "base", "$inherit: output: false\noutput: {}")
-		middle.Spec.Workload = job
-		middle.Spec.PodSpecPath = "spec.template.spec"
-		child := compDef("child", "middle", "")
-		child.Spec.Workload = autodetect
-		resolve(t, child, map[string]*v1beta1.ComponentDefinition{"base": base, "middle": middle})
-		require.Equal(t, job, child.Spec.Workload)
-		require.Equal(t, "spec.template.spec", child.Spec.PodSpecPath)
-		require.Empty(t, child.Spec.ChildResourceKinds)
-	})
 }
 
 // Status is carried rather than folded into the child, so a health policy can

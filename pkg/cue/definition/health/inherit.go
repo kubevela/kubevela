@@ -166,14 +166,15 @@ func checkHealthChain(templateContext map[string]interface{}, snippets []Snippet
 	return healthy, nil
 }
 
-// statusMessageChain evaluates a chain's custom status, root first.
+// statusMessageChain evaluates a chain's custom status.
 //
 // A level that states a message replaces its parent's, since a status line is
-// one line. `$super.message` is there for one that would rather extend it.
+// one line. `$super.message` is there for one that would rather extend it. So
+// the nearest level with a message is the one that speaks, and a level above it
+// is evaluated only when that message reads `$super`: a parent's message may
+// read an output the child replaced, and must not fail a message that never
+// uses it.
 func statusMessageChain(templateContext map[string]interface{}, snippets []Snippets, parameter interface{}) (string, error) {
-	message := ""
-	seen := false
-
 	if !anyCustom(snippets) {
 		return "", nil
 	}
@@ -182,25 +183,52 @@ func statusMessageChain(templateContext map[string]interface{}, snippets []Snipp
 	if err != nil {
 		return "", err
 	}
+	return messageFrom(runtimeContextBuff, snippets)
+}
 
-	for i := len(snippets) - 1; i >= 0; i-- {
-		custom := snippets[i].Custom
-		if strings.TrimSpace(custom) == "" {
+// messageFrom is the message of the nearest level in snippets that states one.
+// A level that reads `$super` is given its parent's message only when some
+// level above states one; otherwise `$super` stays undefined and the snippet
+// fails to evaluate, as it would with no inheritance at all.
+func messageFrom(runtimeContextBuff string, snippets []Snippets) (string, error) {
+	for i, s := range snippets {
+		if strings.TrimSpace(s.Custom) == "" {
 			continue
 		}
-		own := stripDirectives(custom)
-		if seen {
-			own = withSuper(own, superMessage(message))
+		own := stripDirectives(s.Custom)
+		if readsSuper(own) && anyCustom(snippets[i+1:]) {
+			above, err := messageFrom(runtimeContextBuff, snippets[i+1:])
+			if err != nil {
+				return "", err
+			}
+			own = withSuper(own, superMessage(above))
 		}
-
-		got, err := statusMessageWith(runtimeContextBuff, own)
-		if err != nil {
-			return message, err
-		}
-		message = got
-		seen = true
+		return statusMessageWith(runtimeContextBuff, own)
 	}
-	return message, nil
+	return "", nil
+}
+
+// readsSuper reports whether a snippet refers to `$super` as a value, as in
+// `$super.message` or an interpolation of it. The text inside a string literal
+// is not a reference, so `message: "$super is fine"` reads nothing.
+func readsSuper(snippet string) bool {
+	if !strings.Contains(snippet, SuperField) {
+		return false
+	}
+	file, err := parser.ParseFile("snippet.cue", snippet)
+	if err != nil {
+		// Unparsable here means unparsable when evaluated too; let that
+		// evaluation report it with the parent's message in place.
+		return true
+	}
+	found := false
+	ast.Walk(file, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == SuperField {
+			found = true
+		}
+		return !found
+	}, nil)
+	return found
 }
 
 // anyHealth and anyCustom report whether a chain declares anything at all, so a
