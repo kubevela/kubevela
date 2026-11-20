@@ -17,9 +17,12 @@ limitations under the License.
 package config
 
 import (
+	"time"
+
 	"github.com/spf13/pflag"
 
 	wfTypes "github.com/kubevela/workflow/pkg/types"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 )
 
 // WorkflowConfig contains workflow engine configuration.
@@ -28,6 +31,8 @@ type WorkflowConfig struct {
 	MaxFailedBackoffTime       int
 	MaxStepErrorRetryTimes     int
 	HTTPDenyConfigTemplateName string
+	MaxHTTPTimeout             time.Duration
+	MaxHTTPResponseBytes       int64
 }
 
 // VelaCoreHTTPDenyConfigTemplate is the vela-core chart ConfigTemplate name and
@@ -42,6 +47,8 @@ func NewWorkflowConfig() *WorkflowConfig {
 		MaxFailedBackoffTime:       300,
 		MaxStepErrorRetryTimes:     10,
 		HTTPDenyConfigTemplateName: VelaCoreHTTPDenyConfigTemplate,
+		MaxHTTPTimeout:             httpguard.MaxRequestTimeout,
+		MaxHTTPResponseBytes:       httpguard.MaxResponseBytes,
 	}
 }
 
@@ -63,6 +70,14 @@ func (c *WorkflowConfig) AddFlags(fs *pflag.FlagSet) {
 		"workflow-http-deny-config-template-name",
 		c.HTTPDenyConfigTemplateName,
 		"Discover and merge ConfigMaps produced by this ConfigTemplate in the controller namespace")
+	fs.DurationVar(&c.MaxHTTPTimeout,
+		"max-workflow-http-timeout",
+		c.MaxHTTPTimeout,
+		"Set the longest timeout a workflow or definition HTTP request may set; a request holds a reconcile worker for its duration")
+	fs.Int64Var(&c.MaxHTTPResponseBytes,
+		"max-workflow-http-response-bytes",
+		c.MaxHTTPResponseBytes,
+		"Set the largest response body, in bytes, a workflow or definition HTTP request may read")
 }
 
 // SyncToWorkflowGlobals syncs the parsed configuration values to workflow package global variables.
@@ -77,4 +92,6 @@ func (c *WorkflowConfig) SyncToWorkflowGlobals() {
 	wfTypes.MaxWorkflowWaitBackoffTime = c.MaxWaitBackoffTime
 	wfTypes.MaxWorkflowFailedBackoffTime = c.MaxFailedBackoffTime
 	wfTypes.MaxWorkflowStepErrorRetryTimes = c.MaxStepErrorRetryTimes
+	httpguard.MaxRequestTimeout = c.MaxHTTPTimeout
+	httpguard.MaxResponseBytes = c.MaxHTTPResponseBytes
 }

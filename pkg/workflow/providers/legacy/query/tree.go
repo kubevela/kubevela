@@ -886,8 +886,14 @@ func listItemByRule(clusterCTX context.Context, k8sClient client.Client, resourc
 	itemList.SetKind(fmt.Sprintf("%sList", resource.Kind))
 	var err error
 	if specifiedFunc == nil && defaultFunc == nil {
-		// if the relationShip between parent and child hasn't defined by any genListOption, list all subResource and filter by ownerReference UID
-		err = k8sClient.List(clusterCTX, &itemList)
+		// if the relationShip between parent and child hasn't defined by any genListOption, list all subResource and filter by ownerReference UID.
+		// A namespaced owner's dependents are in its namespace, so the list need not be cluster wide,
+		// which a reader confined to namespaces may not do.
+		var scope []client.ListOption
+		if ns := parentObject.GetNamespace(); ns != "" {
+			scope = append(scope, client.InNamespace(ns))
+		}
+		err = k8sClient.List(clusterCTX, &itemList, scope...)
 		if err != nil {
 			return nil, err
 		}
@@ -962,7 +968,8 @@ func iterateListSubResources(ctx context.Context, cluster string, k8sClient clie
 			clusterCTX := multicluster.ContextWithClusterName(ctx, cluster)
 			items, err := listItemByRule(clusterCTX, k8sClient, resource, *parentObject, specifiedFunc, rule.DefaultGenListOptionFunc, rule.DisableFilterByOwnerReference)
 			if err != nil {
-				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) || kerrors.IsNotFound(err) {
+				// A kind the reader may not list is left out rather than losing the parent with it.
+				if meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) || kerrors.IsNotFound(err) || kerrors.IsForbidden(err) {
 					klog.Warningf("ignore list resources: %s as %v", resource.Kind, err)
 					continue
 				}

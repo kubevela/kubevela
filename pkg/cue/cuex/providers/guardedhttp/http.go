@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package guardedhttp is the vela/http CueX package with the outbound HTTP
-// guard applied. It keeps the template and the request and response types of
+// guard applied. It keeps the template, types and request building of
 // github.com/kubevela/pkg/cue/cuex/providers/http and only replaces the client,
 // so component, trait, policy and source templates that import vela/http get
 // the same SSRF checks as workflow HTTP steps.
@@ -24,7 +24,6 @@ package guardedhttp
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	neturl "net/url"
 	"strings"
@@ -59,12 +58,10 @@ func Do(ctx context.Context, doParams *kvhttp.DoParams) (*kvhttp.DoReturns, erro
 			return nil, err
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, params.Method, params.URL, strings.NewReader(params.Request.Body))
+	req, err := kvhttp.NewRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
-	req.Header = params.Request.Header
-	req.Trailer = params.Request.Trailer
 
 	transport := httpguard.SecureTransport(nil, policy)
 	// The transport is built for this request, so release its idle
@@ -72,6 +69,9 @@ func Do(ctx context.Context, doParams *kvhttp.DoParams) (*kvhttp.DoReturns, erro
 	defer transport.CloseIdleConnections()
 	client := &http.Client{
 		Transport: transport,
+		// vela/http has no timeout parameter, so a request may take the longest a workflow HTTP
+		// request may set.
+		Timeout: httpguard.MaxRequestTimeout,
 		// A custom CheckRedirect replaces the net/http default, so the
 		// redirect limit is enforced here too.
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -88,7 +88,7 @@ func Do(ctx context.Context, doParams *kvhttp.DoParams) (*kvhttp.DoReturns, erro
 	defer func() {
 		_ = resp.Body.Close()
 	}()
-	b, err := io.ReadAll(resp.Body)
+	b, err := httpguard.ReadResponseBody(resp.Body)
 	if err != nil {
 		return nil, err
 	}

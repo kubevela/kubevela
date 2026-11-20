@@ -111,7 +111,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	if i, err := appParser.ValidateComponentNames(app); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].name", i)), app, err.Error()))
 	}
-	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
+	if err := appParser.ValidateCUESchematicAppfile(ctx, af); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, err.Error()))
 	}
 	return componentErrs
@@ -121,20 +121,14 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req admission.Request, resource, definitionType, appNamespace string) (bool, error) {
 	// Check permission in vela-system namespace first since most definitions are there
 	// This optimizes for the common case and reduces API calls
-	systemNsSar := &authv1.SubjectAccessReview{
-		Spec: authv1.SubjectAccessReviewSpec{
-			User:   req.UserInfo.Username,
-			Groups: req.UserInfo.Groups,
-			ResourceAttributes: &authv1.ResourceAttributes{
-				Verb:      "get",
-				Group:     "core.oam.dev",
-				Version:   "v1beta1",
-				Resource:  resource,
-				Namespace: oam.SystemDefinitionNamespace,
-				Name:      definitionType,
-			},
-		},
-	}
+	systemNsSar := requesterReview(req, authv1.ResourceAttributes{
+		Verb:      "get",
+		Group:     "core.oam.dev",
+		Version:   "v1beta1",
+		Resource:  resource,
+		Namespace: oam.SystemDefinitionNamespace,
+		Name:      definitionType,
+	})
 
 	if err := h.Client.Create(ctx, systemNsSar); err != nil {
 		return false, fmt.Errorf("failed to check %s permission in system namespace: %w", resource, err)
@@ -158,20 +152,14 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 
 	// If not in system namespace and app namespace is different, check app namespace
 	if appNamespace != oam.SystemDefinitionNamespace {
-		appNsSar := &authv1.SubjectAccessReview{
-			Spec: authv1.SubjectAccessReviewSpec{
-				User:   req.UserInfo.Username,
-				Groups: req.UserInfo.Groups,
-				ResourceAttributes: &authv1.ResourceAttributes{
-					Verb:      "get",
-					Group:     "core.oam.dev",
-					Version:   "v1beta1",
-					Resource:  resource,
-					Namespace: appNamespace,
-					Name:      definitionType,
-				},
-			},
-		}
+		appNsSar := requesterReview(req, authv1.ResourceAttributes{
+			Verb:      "get",
+			Group:     "core.oam.dev",
+			Version:   "v1beta1",
+			Resource:  resource,
+			Namespace: appNamespace,
+			Name:      definitionType,
+		})
 
 		if err := h.Client.Create(ctx, appNsSar); err != nil {
 			return false, fmt.Errorf("failed to check %s permission in namespace %s: %w", resource, appNamespace, err)
@@ -430,6 +418,8 @@ func (h *ValidatingHandler) ValidateDefinitionPermissions(ctx context.Context, a
 			return paths
 		})...)
 
+	errs = append(errs, h.validateIndirectReach(ctx, app, req)...)
+
 	return errs
 }
 
@@ -584,6 +574,10 @@ func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool
 
 // ValidateCreate validates the Application on creation
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
+	// First, before anything reads or compiles the Application's CUE.
+	if errs := ValidateCUEDepth(app); len(errs) > 0 {
+		return errs
+	}
 	return h.validateSoundness(ctx, app, nil, req)
 }
 
@@ -601,6 +595,10 @@ func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *
 
 // ValidateUpdate validates the Application on update
 func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
+	// First, before anything reads or compiles the Application's CUE.
+	if errs := ValidateCUEDepth(newApp); len(errs) > 0 {
+		return errs
+	}
 	errs := h.validateSoundness(ctx, newApp, oldApp, req)
 	errs = append(errs, h.ValidateImmutableFields(ctx, newApp, oldApp)...)
 	return errs

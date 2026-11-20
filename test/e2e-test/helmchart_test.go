@@ -1478,6 +1478,14 @@ var _ = Describe("Helmchart Edge Cases", func() {
 
 var _ = Describe("Helmchart valuesFrom", func() {
 
+	// A valuesFrom source is read from the Application's namespace, so the Application sits in
+	// the namespace the specs create their sources in.
+	newValuesFromContext := func() *helmTestContext {
+		h := newHelmTestContext()
+		h.appNamespace = h.namespace
+		return h
+	}
+
 	createCM := func(h *helmTestContext, name, key, valuesYAML string) {
 		if key == "" {
 			key = "values.yaml"
@@ -1629,7 +1637,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	}
 
 	Context("Values from ConfigMap", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1643,7 +1651,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	})
 
 	Context("Values from Secret", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1657,7 +1665,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	})
 
 	Context("Inline values override ConfigMap-supplied values", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1672,7 +1680,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	})
 
 	Context("Optional missing valuesFrom source is skipped", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1687,7 +1695,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	})
 
 	Context("Required missing valuesFrom source fails the workflow with a clear error", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1701,7 +1709,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	})
 
 	Context("Invalid YAML in a source is never swallowed by optional:true", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1718,7 +1726,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	})
 
 	Context("Custom key selects the right values.yaml inside a multi-env ConfigMap", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1741,7 +1749,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	})
 
 	Context("Cross-namespace valuesFrom references are rejected", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		otherNS := "helm-other-tenant-" + rand.RandomString(4)
 		BeforeAll(func() {
 			h.createNamespace()
@@ -1769,7 +1777,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	})
 
 	Context("Two ConfigMaps in valuesFrom — later overrides earlier on conflict", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1787,7 +1795,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	})
 
 	Context("Deep merge preserves orthogonal nested keys across sources", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1825,7 +1833,7 @@ replicaCount: 2
 	})
 
 	Context("Mixed ConfigMap and Secret in the same valuesFrom list", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1843,7 +1851,7 @@ replicaCount: 2
 	})
 
 	Context("Two Secrets in valuesFrom — later overrides earlier", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1861,7 +1869,7 @@ replicaCount: 2
 	})
 
 	Context("Application with only valuesFrom and no inline values", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1875,7 +1883,7 @@ replicaCount: 2
 	})
 
 	Context("Empty valuesFrom list behaves like no valuesFrom", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1888,7 +1896,7 @@ replicaCount: 2
 	})
 
 	Context("Optional missing source is skipped, subsequent required source is still applied", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1905,7 +1913,7 @@ replicaCount: 2
 	})
 
 	Context("Non-existent explicit namespace fails required lookup cleanly", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1921,7 +1929,7 @@ replicaCount: 2
 	})
 
 	Context("Array values are replaced wholesale by the later source (Helm semantics)", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1955,7 +1963,7 @@ replicaCount: 2
 	})
 
 	Context("valuesFrom combined with healthStatus criteria", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -1980,7 +1988,7 @@ replicaCount: 2
 	})
 
 	Context("Two helmchart components, each with its own valuesFrom source", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -2000,7 +2008,7 @@ replicaCount: 2
 	})
 
 	Context("Self-healing restores a CM-backed Deployment after manual delete", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -2025,7 +2033,7 @@ replicaCount: 2
 	})
 
 	Context("Adoption of an existing vanilla Helm release with valuesFrom", FlakeAttempts(2), Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -2056,7 +2064,7 @@ replicaCount: 2
 	})
 
 	Context("Auto-reconcile on ConfigMap content change (without spec edit)", Ordered, func() {
-		h := newHelmTestContext()
+		h := newValuesFromContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
@@ -2099,6 +2107,14 @@ replicaCount: 2
 // has been pushed to each.
 // ============================================================================
 var _ = Describe("Helmchart Auth", func() {
+
+	// Credentials are read from the Application's namespace, so the Application sits in the
+	// namespace the specs create their Secrets in.
+	newAuthContext := func() *helmTestContext {
+		h := newHelmTestContext()
+		h.appNamespace = h.namespace
+		return h
+	}
 
 	BeforeEach(func() {
 		if os.Getenv("KUBEVELA_E2E_AUTH") != "1" {
@@ -2259,7 +2275,7 @@ var _ = Describe("Helmchart Auth", func() {
 	// the resolver returns for the Opaque (basic) path here, so an
 	// extra OCI e2e against typed Secrets is duplicative coverage.
 	Context("OCI / Opaque (basic) with insecurePlainHTTP", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2278,7 +2294,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("HTTPS Helm-repo / kubernetes.io/basic-auth typed Secret", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2295,7 +2311,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("HTTPS Helm-repo / Opaque (basic)", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2312,7 +2328,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("HTTPS Helm-repo / Bearer token via nginx-fronted ChartMuseum", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2329,7 +2345,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("HTTPS Helm-repo / Opaque (basic + insecureSkipTLS)", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2346,7 +2362,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("URL direct .tgz / Opaque (basic)", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2363,26 +2379,33 @@ var _ = Describe("Helmchart Auth", func() {
 		})
 	})
 
-	Context("secretRef.namespace omitted (defaults to release namespace)", Ordered, func() {
-		h := newHelmTestContext()
+	Context("secretRef.namespace omitted (defaults to the Application namespace)", Ordered, func() {
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
+			h.appNamespace = "helm-auth-app-" + rand.RandomString(4)
+			appNamespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: h.appNamespace}}
+			Expect(k8sClient.Create(h.ctx, appNamespace)).To(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(h.ctx, appNamespace, client.PropagationPolicy(metav1.DeletePropagationForeground))
+			})
 		})
 		AfterAll(func() {
 			h.cleanup()
 		})
 
-		It("resolves the Secret from the release namespace", func() {
-			Expect(createSecretInline(h, "creds", corev1.SecretTypeOpaque, map[string]string{
+		It("resolves the Secret from the Application namespace, not the release namespace", func() {
+			Expect(h.appNamespace).NotTo(Equal(h.namespace))
+			Expect(createSecretInNamespace(h, "creds", h.appNamespace, corev1.SecretTypeOpaque, map[string]string{
 				"username": authTestUser, "password": authTestPass,
 			})).To(Succeed())
-			// No secretRef.namespace; resolver defaults to release namespace.
+			// No secretRef.namespace; the resolver defaults to the Application namespace.
 			deployAuthAppSuccess(h, "auth-ns-omitted", "podinfo", chartWithRepoAuth(chartMuseumURL, "creds"))
 		})
 	})
 
 	Context("secretRef.namespace explicitly set to Application namespace", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2394,14 +2417,14 @@ var _ = Describe("Helmchart Auth", func() {
 			Expect(createSecretInline(h, "creds", corev1.SecretTypeOpaque, map[string]string{
 				"username": authTestUser, "password": authTestPass,
 			})).To(Succeed())
-			deployAuthAppSuccess(h, "auth-ns-app", "podinfo", chartWithRepoAuth(chartMuseumURL, "creds", h.namespace))
+			deployAuthAppSuccess(h, "auth-ns-app", "podinfo", chartWithRepoAuth(chartMuseumURL, "creds", h.appNamespace))
 		})
 	})
 
 	// ----------- Negative paths ------------
 
 	Context("Missing Secret", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2412,12 +2435,12 @@ var _ = Describe("Helmchart Auth", func() {
 		It("fails with the not-found error", func() {
 			deployAuthAppExpectFailure(h, "auth-missing", "podinfo",
 				chartWithRepoAuth(chartMuseumURL, "nonexistent-secret"),
-				`not found: it MUST exist in the release namespace`)
+				`not found: it MUST exist in the Application namespace`)
 		})
 	})
 
 	Context("Wrong Secret type", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2445,7 +2468,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("Cross-namespace Secret rejected", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		otherNS := ""
 		BeforeAll(func() {
 			h.createNamespace()
@@ -2460,15 +2483,15 @@ var _ = Describe("Helmchart Auth", func() {
 			h.cleanup()
 		})
 
-		It("rejects a Secret reference outside release-ns and app-ns", func() {
+		It("rejects a Secret reference outside the Application namespace", func() {
 			deployAuthAppExpectFailure(h, "auth-cross-ns", "podinfo",
 				chartWithRepoAuth(chartMuseumURL, "creds", otherNS),
-				`namespace MUST equal the release namespace`)
+				`namespace MUST be in the Application namespace`)
 		})
 	})
 
 	Context("Opaque mixed credentials (basic + token)", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2487,7 +2510,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("Bearer token over plain http://", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2506,7 +2529,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("Bearer token + insecureSkipTLS", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2525,7 +2548,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("User-supplied Bearer on OCI source", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2544,7 +2567,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("Username containing ':'", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})
@@ -2563,7 +2586,7 @@ var _ = Describe("Helmchart Auth", func() {
 	})
 
 	Context("Bearer token charset violation", Ordered, func() {
-		h := newHelmTestContext()
+		h := newAuthContext()
 		BeforeAll(func() {
 			h.createNamespace()
 		})

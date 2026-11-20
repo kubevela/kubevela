@@ -140,6 +140,25 @@ var _ = Describe("values", func() {
 			Expect(errors.Is(err, errCrossNamespaceValuesFrom)).To(BeTrue())
 		})
 
+		// The release namespace is the author's to choose, so it is no grant to read there.
+		It("rejects the release namespace when it is not the Application's", func() {
+			_, err := p.loadSecretValues(context.Background(),
+				ValuesFromParams{Kind: "Secret", Name: "any", Namespace: "release-a"},
+				"tenant-a", "release-a")
+			Expect(errors.Is(err, errCrossNamespaceValuesFrom)).To(BeTrue())
+		})
+
+		It("reads an entry with no namespace from the Application's, not the release's", func() {
+			ns, err := resolveValuesFromNamespace(ValuesFromParams{Kind: "Secret", Name: "any"}, "tenant-a", "release-a")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ns).To(Equal("tenant-a"))
+		})
+
+		It("refuses when the Application namespace is unknown", func() {
+			_, err := resolveValuesFromNamespace(ValuesFromParams{Kind: "Secret", Name: "any"}, "", "release-a")
+			Expect(errors.Is(err, errCrossNamespaceValuesFrom)).To(BeTrue())
+		})
+
 		It("allows an explicit Namespace equal to the Application's namespace", func() {
 			cm := &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{Name: "same", Namespace: "tenant-a"},
@@ -150,21 +169,6 @@ var _ = Describe("values", func() {
 			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build())
 			values, err := p.loadConfigMapValues(context.Background(),
 				ValuesFromParams{Kind: "ConfigMap", Name: "same", Namespace: "tenant-a"},
-				"tenant-a", "release-a")
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(values["k"]).To(Equal("v"))
-		})
-
-		It("allows an explicit Namespace equal to the release's namespace", func() {
-			cm := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{Name: "same", Namespace: "release-a"},
-				Data:       map[string]string{"values.yaml": "k: v"},
-			}
-			scheme := runtime.NewScheme()
-			Expect(corev1.AddToScheme(scheme)).To(Succeed())
-			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build())
-			values, err := p.loadConfigMapValues(context.Background(),
-				ValuesFromParams{Kind: "ConfigMap", Name: "same", Namespace: "release-a"},
 				"tenant-a", "release-a")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(values["k"]).To(Equal("v"))

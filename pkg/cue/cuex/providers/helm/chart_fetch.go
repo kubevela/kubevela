@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -195,7 +196,12 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 
 		return chart, nil
 	}
-	v, err, _ := p.chartFlight.Do(cacheKey, func() (interface{}, error) {
+	// The fetch is shared by every render of this chart and key, so it runs on a context with the
+	// first caller's values but not its cancellation, bounded by the fetch's own timeouts; each
+	// caller stops waiting on its own context.
+	flightCtx := context.WithoutCancel(ctx)
+	flight := p.chartFlight.DoChan(cacheKey, func() (interface{}, error) {
+		ctx := flightCtx
 		missReason := missReasonAbsent
 
 		// Check if we have a cached chart. The auth-bound cache key above is
@@ -248,6 +254,13 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 		}
 		return &chartFetchResult{chart: chart, cacheHit: false, missReason: missReason}, nil
 	})
+	var v interface{}
+	select {
+	case r := <-flight:
+		v, err = r.Val, r.Err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -325,6 +338,52 @@ func (p *Provider) determineCacheTTL(version string, options *RenderOptionsParam
 	return p.cacheTTL.ImmutableVersionTTL
 }
 
+// ociPullTimeout bounds one OCI chart pull.
+const ociPullTimeout = 5 * time.Minute
+
+// awaitPull runs pull, which takes no context, and returns as soon as ctx is done. The pull's
+// requests are bound to ctx too (boundToContext), so they end with it.
+func awaitPull(ctx context.Context, pull func() (*registry.PullResult, error)) (*registry.PullResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	type outcome struct {
+		result *registry.PullResult
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		result, err := pull()
+		done <- outcome{result, err}
+	}()
+	select {
+	case o := <-done:
+		return o.result, o.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// contextTransport makes every request with ctx, for a client whose caller passes none.
+type contextTransport struct {
+	base http.RoundTripper
+	ctx  context.Context
+}
+
+func (t contextTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return t.base.RoundTrip(req.WithContext(t.ctx))
+}
+
+// boundToContext is c with every request made with ctx.
+func boundToContext(c *http.Client, ctx context.Context) *http.Client {
+	base := c.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	c.Transport = contextTransport{base: base, ctx: ctx}
+	return c
+}
+
 // fetchOCIChart fetches a chart from an OCI registry.
 func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) ([]byte, error) {
 	httpOpts, rawDockerCfg, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceTypeOCI)
@@ -332,7 +391,13 @@ func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams,
 		return nil, errors.Wrap(err, "auth resolution failed")
 	}
 
-	clientOpts := []registry.ClientOption{}
+	// The registry client dials through the outbound guard, as every other chart fetch does. Its
+	// requests carry no context, so each is bound to the pull's: the whole pull ends within
+	// ociPullTimeout, and with the render when that is cancelled.
+	pullCtx, cancel := context.WithTimeout(ctx, ociPullTimeout)
+	defer cancel()
+	httpClient := boundToContext(common.GuardedHTTPClient(), pullCtx)
+	clientOpts := []registry.ClientOption{registry.ClientOptHTTPClient(httpClient)}
 	if httpOpts != nil || rawDockerCfg != nil {
 		host := extractRegistryHost(params.Source, params.RepoURL)
 		credFile, cleanup, werr := writeOCIRegistryConfigFile(httpOpts, rawDockerCfg, host)
@@ -355,7 +420,7 @@ func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams,
 	if params.Version != "" {
 		ref = fmt.Sprintf("%s:%s", ref, params.Version)
 	}
-	result, err := registryClient.Pull(ref)
+	result, err := awaitPull(pullCtx, func() (*registry.PullResult, error) { return registryClient.Pull(ref) })
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to pull OCI chart %s", ref)
 	}

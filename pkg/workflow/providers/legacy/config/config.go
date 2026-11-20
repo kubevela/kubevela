@@ -57,6 +57,9 @@ func CreateConfig(ctx context.Context, params *CreateParams) (*any, error) {
 		namespace = namespacedName[0]
 		name = namespacedName[1]
 	}
+	if err := config.AllowStepConfigAccess(ctx, params.KubeClient, params.AppLabels, "create", ccp.Namespace, ccp.Name, ""); err != nil {
+		return nil, err
+	}
 	factory := params.ConfigFactory
 	configItem, err := factory.ParseConfig(ctx, config.NamespacedName{
 		Name:      name,
@@ -82,8 +85,11 @@ type ReadResult struct {
 // ReadConfig reads the config
 func ReadConfig(ctx context.Context, params *oamprovidertypes.OAMParams[config.NamespacedName]) (*ReadResult, error) {
 	nn := params.Params
+	if err := config.AllowStepConfigAccess(ctx, params.KubeClient, params.AppLabels, "get", nn.Namespace, nn.Name, ""); err != nil {
+		return nil, err
+	}
 	factory := params.ConfigFactory
-	content, err := factory.ReadConfig(ctx, nn.Namespace, nn.Name)
+	content, err := factory.ReadConfig(config.StepReadContext(ctx, params.AppLabels, nn.Namespace), nn.Namespace, nn.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -113,8 +119,15 @@ func ListConfig(ctx context.Context, params *oamprovidertypes.OAMParams[ListVars
 		namespacedName := strings.SplitN(template, "/", 2)
 		template = namespacedName[1]
 	}
+	if err := config.AllowStepConfigAccess(ctx, params.KubeClient, params.AppLabels, "list", namespace, "", template); err != nil {
+		return nil, err
+	}
 	factory := params.ConfigFactory
-	configs, err := factory.ListConfigs(ctx, namespace, template, "", false)
+	scope, err := config.StepListScope(ctx, params.KubeClient, params.AppLabels, namespace, template)
+	if err != nil {
+		return nil, err
+	}
+	configs, err := factory.ListConfigs(config.StepReadContext(ctx, params.AppLabels, namespace), namespace, template, scope, false)
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +146,9 @@ func ListConfig(ctx context.Context, params *oamprovidertypes.OAMParams[ListVars
 // DeleteConfig deletes a config
 func DeleteConfig(ctx context.Context, params *oamprovidertypes.OAMParams[config.NamespacedName]) (*any, error) {
 	nn := params.Params
+	if err := config.AllowStepConfigAccess(ctx, params.KubeClient, params.AppLabels, "delete", nn.Namespace, nn.Name, ""); err != nil {
+		return nil, err
+	}
 	factory := params.ConfigFactory
 	return nil, factory.DeleteConfig(ctx, nn.Namespace, nn.Name)
 }

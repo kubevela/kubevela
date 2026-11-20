@@ -53,9 +53,22 @@ import (
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 )
 
+// renderContext is the context a component renders under: the Appfile's own, which descends from
+// the request's, or the request's itself when the Appfile has none.
+func renderContext(ctx, appfileCtx context.Context) context.Context {
+	if appfileCtx != nil {
+		return appfileCtx
+	}
+	return ctx
+}
+
 // ValidateCUESchematicAppfile validates CUE schematic workloads in an Appfile
-func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
+func (p *Parser) ValidateCUESchematicAppfile(ctx context.Context, a *Appfile) error {
 	for _, wl := range a.ParsedComponents {
+		// The admission request is cancelled once the API server stops waiting for it.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// because helm & kube schematic has no CUE template
 		// it only validates CUE schematic workload
 		if wl.CapabilityCategory != types.CUECategory || wl.Type == v1alpha1.RefObjectsComponentType {
@@ -65,10 +78,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		ctxData := GenerateContextDataFromAppFile(a, wl.Name)
 		// Set dry-run mode so provider functions (e.g., helm.#Render) perform
 		// client-only rendering instead of real cluster installs during validation.
-		if ctxData.Ctx == nil {
-			ctxData.Ctx = context.Background()
-		}
-		ctxData.Ctx = helm.WithDryRun(ctxData.Ctx)
+		ctxData.Ctx = helm.WithDryRun(renderContext(ctx, ctxData.Ctx))
 
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
 			err := p.ValidateComponentParams(ctxData, wl, a)

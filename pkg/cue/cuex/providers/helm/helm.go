@@ -47,9 +47,9 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 
 	klog.V(2).Infof("Helm provider [%s]: Starting render for chart %s from %s", velaContextStr(renderParams.Context), renderParams.Chart.Source, renderParams.Chart.RepoURL)
 
-	// Application namespace is the tenant boundary. When the Application has no
-	// explicit context, fall back to the release namespace below so the same
-	// Application can be rendered outside a ComponentDefinition path.
+	// Application namespace is the tenant boundary. A render with no Application context
+	// (outside a ComponentDefinition path) installs into the release namespace, but reads no
+	// Secrets or ConfigMaps (readNamespace below).
 	appNamespace := ""
 	if renderParams.Context != nil {
 		appNamespace = renderParams.Context.AppNamespace
@@ -75,6 +75,9 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	if releaseNamespace == "" {
 		releaseNamespace = "default"
 	}
+	// Secrets and ConfigMaps (chart credentials, valuesFrom) are read only from the
+	// Application's own namespace, never from one the author chose; without one, none are.
+	readNamespace := appNamespace
 	if appNamespace == "" {
 		appNamespace = releaseNamespace
 	}
@@ -113,7 +116,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	klog.V(3).Infof("Helm provider: Release name=%s, namespace=%s", releaseName, releaseNamespace)
 
 	// Fetch the chart
-	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options, appNamespace, releaseNamespace)
+	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options, readNamespace, releaseNamespace)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch chart")
 	}
@@ -132,7 +135,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 			values = map[string]interface{}{}
 		}
 	} else {
-		values, err = p.mergeValues(ctx, renderParams.Values, renderParams.ValuesFrom, appNamespace, releaseNamespace)
+		values, err = p.mergeValues(ctx, renderParams.Values, renderParams.ValuesFrom, readNamespace, releaseNamespace)
 		if err != nil {
 			return nil, errors.Wrapf(err, "%s: failed to merge values", velaContextStr(renderParams.Context))
 		}
