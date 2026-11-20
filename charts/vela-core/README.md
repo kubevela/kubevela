@@ -140,13 +140,13 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### Builtin definitions parameters
 
-| Name                                           | Description                                                           | Value          |
-| ---------------------------------------------- | --------------------------------------------------------------------- | -------------- |
-| `builtinDefinitions.job.image.repository`      | Image the builtin definitions Job runs kubectl from                   | `alpine/k8s`   |
-| `builtinDefinitions.job.image.tag`             | Image tag of the builtin definitions Job                              | `1.31.13`      |
-| `builtinDefinitions.job.image.pullPolicy`      | Image pull policy of the builtin definitions Job                      | `IfNotPresent` |
-| `builtinDefinitions.job.rolloutTimeoutSeconds` | How long the Job waits for the controller to roll out before applying | `300`          |
-| `builtinDefinitions.job.applyRetries`          | How many times the Job applies the definitions before failing         | `6`            |
+| Name                                           | Description                                                           | Value                                                                             |
+| ---------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `builtinDefinitions.job.image.repository`      | Image the builtin definitions Job runs kubectl from                   | `alpine/k8s`                                                                      |
+| `builtinDefinitions.job.image.tag`             | Image tag of the builtin definitions Job                              | `1.34.13@sha256:4011c68d73de6803987509ad1ab9520124a27e31484e3f0e45f95a74ecac7a45` |
+| `builtinDefinitions.job.image.pullPolicy`      | Image pull policy of the builtin definitions Job                      | `IfNotPresent`                                                                    |
+| `builtinDefinitions.job.rolloutTimeoutSeconds` | How long the Job waits for the controller to roll out before applying | `300`                                                                             |
+| `builtinDefinitions.job.applyRetries`          | How many times the Job applies the definitions before failing         | `6`                                                                               |
 
 ### MultiCluster parameters
 
