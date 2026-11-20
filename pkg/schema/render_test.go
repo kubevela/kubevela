@@ -514,3 +514,18 @@ func TestGenerateRequiresOnlyUnderFullConjunction(t *testing.T) {
 	require.Len(t, ps.OpenAPI.OneOf, 2)
 	assert.Equal(t, []string{"mode"}, ps.OpenAPI.OneOf[0].Value.Required, "y is required only when mode is on as well")
 }
+
+func TestGenerateExclusiveBounds(t *testing.T) {
+	ps := generate(t, `parameter: {
+	replicas: int & >0 & <=10
+	ratio:    number & >=0 & <1
+}`)
+	for name, want := range map[string]string{
+		"replicas": `{"exclusiveMinimum":true,"maximum":10,"minimum":0,"title":"replicas","type":"integer"}`,
+		"ratio":    `{"exclusiveMaximum":true,"maximum":1,"minimum":0,"title":"ratio","type":"number"}`,
+	} {
+		got, err := ps.OpenAPI.Properties[name].Value.MarshalJSON()
+		require.NoError(t, err)
+		assert.JSONEq(t, want, string(got), name)
+	}
+}
