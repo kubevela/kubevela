@@ -198,7 +198,11 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 	if facts.schematic != "" {
 		out.Meta.Warnings = append(out.Meta.Warnings, nonCUESchemaWarning(facts.schematic))
 	}
-	out.Parameters, out.Required, _, err = parameterSchema(ctx, facts.template)
+	var schemaWarning string
+	out.Parameters, out.Required, _, schemaWarning, err = parameterSchema(ctx, facts.template)
+	if schemaWarning != "" {
+		out.Meta.Warnings = append(out.Meta.Warnings, schemaWarning)
+	}
 	if err != nil {
 		inherited := facts.extends != "" || refersToParent(facts.template)
 		if inspected.Err == "" && !inherited {

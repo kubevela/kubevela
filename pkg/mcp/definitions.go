@@ -213,7 +213,11 @@ func (d *deps) describeDefinition(ctx context.Context, _ *sdk.CallToolRequest, i
 	out.Default = defaultIn(out.DefaultFor, in.Namespace)
 	template := cueTemplate(schematic)
 	var sch *openapi3.Schema
-	out.Parameters, out.Required, sch, err = parameterSchema(ctx, template)
+	var schemaWarning string
+	out.Parameters, out.Required, sch, schemaWarning, err = parameterSchema(ctx, template)
+	if schemaWarning != "" {
+		out.Meta.Warnings = append(out.Meta.Warnings, schemaWarning)
+	}
 	if err != nil {
 		// A definition that extends another refers to its parent as $super,
 		// and its schema only exists once the chain is composed at render.
@@ -461,26 +465,60 @@ func cueTemplate(s *oamcommon.Schematic) string {
 }
 
 // parameterSchema turns a definition's CUE template into the JSON Schema of
-// its parameter block. It uses the same generator the controller uses to
-// publish definition schema ConfigMaps, so an agent sees exactly what
-// VelaUX and vela show see.
-func parameterSchema(ctx context.Context, template string) (map[string]any, []string, *openapi3.Schema, error) {
+// its parameter block. It generates the schema the way the controller does
+// when it publishes definition schema ConfigMaps: the source generator first,
+// and CUE's OpenAPI encoder only for a template that generator cannot read.
+// The encoder alone rejects a list with a minimum size, such as
+// `list.MinItems(1) & [...string]`, and drops a maximum size.
+//
+// The warning is not empty when the generator failed and the schema came from
+// the encoder: the caller reports it, so a reader knows the schema may lack
+// what the encoder drops.
+func parameterSchema(ctx context.Context, template string) (params map[string]any, required []string, sch *openapi3.Schema, warning string, err error) {
 	if strings.TrimSpace(template) == "" {
-		return map[string]any{}, []string{}, nil, nil
+		return map[string]any{}, []string{}, nil, "", nil
 	}
-	sch, err := schema.ParsePropertiesToSchema(ctx, template)
-	if err != nil {
-		return nil, nil, nil, err
+	ps, genErr := schema.GenerateParameterSchemas(ctx, template)
+	switch {
+	case genErr == nil && ps.OpenAPI != nil:
+		sch = ps.OpenAPI
+	default:
+		if sch, err = schema.ParsePropertiesToSchema(ctx, template); err != nil {
+			return nil, nil, nil, "", err
+		}
+		warning = encoderWarning(genErr, sch)
 	}
 	raw, err := json.Marshal(sch)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, "", err
 	}
-	out := map[string]any{}
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, nil, nil, err
+	params = map[string]any{}
+	if err := json.Unmarshal(raw, &params); err != nil {
+		return nil, nil, nil, "", err
 	}
-	return out, mustSupply(sch), sch, nil
+	return params, mustSupply(sch), sch, warning, nil
+}
+
+// encoderWarning is the warning for a schema that CUE's OpenAPI encoder
+// produced because the generator could not. It is empty for a schema with no
+// parameters, which has no limits to lose.
+func encoderWarning(genErr error, sch *openapi3.Schema) string {
+	if sch == nil || len(sch.Properties) == 0 {
+		return ""
+	}
+	reason := "it produced no schema"
+	if genErr != nil {
+		reason = firstLine(genErr.Error())
+	}
+	return fmt.Sprintf("the parameter schema was produced by CUE's OpenAPI encoder, because the schema generator could not read the template (%s); list size limits may be missing from it", reason)
+}
+
+// firstLine keeps a warning to one line when an error spans several.
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 // mustSupply lists the fields of an object schema a user has to provide. CUE marks
