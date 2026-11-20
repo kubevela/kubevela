@@ -17,6 +17,8 @@ limitations under the License.
 package defkit
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -26,6 +28,7 @@ import (
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	defast "github.com/oam-dev/kubevela/pkg/definition/ast"
 )
 
@@ -56,7 +59,8 @@ func definitionObject(kind, cueStr string) (map[string]any, error) {
 		case *ast.ImportDecl:
 			importDecls = append(importDecls, d)
 		case *ast.Field:
-			if ident, ok := d.Label.(*ast.Ident); ok && ident.Name == "template" {
+			// the label may be written as an identifier or as a quoted string
+			if defast.GetFieldLabel(d.Label) == "template" {
 				body, ok := d.Value.(*ast.StructLit)
 				if !ok {
 					return nil, fmt.Errorf("template of %s is not a struct", kind)
@@ -98,12 +102,40 @@ func definitionObject(kind, cueStr string) (map[string]any, error) {
 		return nil, err
 	}
 	spec["schematic"] = map[string]any{"cue": map[string]any{"template": template}}
+	if err := validateDefinitionSpec(kind, spec); err != nil {
+		return nil, fmt.Errorf("invalid definition spec: %w", err)
+	}
 	return map[string]any{
 		"apiVersion": "core.oam.dev/v1beta1",
 		"kind":       kind,
 		"metadata":   metadata,
 		"spec":       spec,
 	}, nil
+}
+
+// validateDefinitionSpec rejects a spec with a field the definition kind does
+// not have, such as a misspelled attribute, the way the API server would.
+func validateDefinitionSpec(kind string, spec map[string]any) error {
+	var typed any
+	switch kind {
+	case v1beta1.ComponentDefinitionKind:
+		typed = &v1beta1.ComponentDefinitionSpec{}
+	case v1beta1.TraitDefinitionKind:
+		typed = &v1beta1.TraitDefinitionSpec{}
+	case v1beta1.PolicyDefinitionKind:
+		typed = &v1beta1.PolicyDefinitionSpec{}
+	case v1beta1.WorkflowStepDefinitionKind:
+		typed = &v1beta1.WorkflowStepDefinitionSpec{}
+	default:
+		return nil
+	}
+	bs, err := json.Marshal(spec)
+	if err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(bs))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(typed)
 }
 
 func formatDecls(decls []ast.Decl) (string, error) {

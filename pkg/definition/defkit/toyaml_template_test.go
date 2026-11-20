@@ -192,4 +192,41 @@ var _ = Describe("ToYAML", func() {
 		_, err := defkit.NewComponent("raw").RawCUE("template: {\n\toutput: {}\n\tparameter: {}\n}").ToYAML()
 		Expect(err).To(MatchError(ContainSubstring("no metadata found")))
 	})
+
+	It("reads a template block whose label is quoted", func() {
+		raw := `"raw": {
+	type: "component"
+	attributes: workload: definition: {apiVersion: "v1", kind: "ConfigMap"}
+}
+"template": {
+	output: {apiVersion: "v1", kind: "ConfigMap"}
+	parameter: {}
+}`
+		out, err := defkit.NewComponent("raw").RawCUE(raw).ToYAML()
+		Expect(err).NotTo(HaveOccurred())
+
+		obj := map[string]any{}
+		Expect(yaml.Unmarshal(out, &obj)).To(Succeed())
+		template, found, err := unstructured.NestedString(obj, "spec", "schematic", "cue", "template")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue())
+		Expect(template).To(ContainSubstring("output:"))
+		Expect(template).NotTo(ContainSubstring("template"))
+	})
+
+	It("fails for an attribute the definition kind does not have", func() {
+		raw := `"raw": {
+	type: "component"
+	attributes: {
+		workload: definition: {apiVersion: "v1", kind: "ConfigMap"}
+		wrkload: type: "misspelled"
+	}
+}
+template: {
+	output: {apiVersion: "v1", kind: "ConfigMap"}
+	parameter: {}
+}`
+		_, err := defkit.NewComponent("raw").RawCUE(raw).ToYAML()
+		Expect(err).To(MatchError(And(ContainSubstring("invalid definition spec"), ContainSubstring("wrkload"))))
+	})
 })
