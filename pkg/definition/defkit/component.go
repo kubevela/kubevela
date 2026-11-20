@@ -328,45 +328,11 @@ func (c *ComponentDefinition) ToParameterSchema() string {
 
 // ToYAML generates the Kubernetes YAML representation of the ComponentDefinition.
 // This produces a ComponentDefinition custom resource that can be applied to a cluster.
-// Note: The CUE template is embedded in the spec.schematic.cue field.
+// The body of the CUE template is embedded in the spec.schematic.cue field.
 func (c *ComponentDefinition) ToYAML() ([]byte, error) {
-	cueStr := c.ToCue()
-
-	// Build the ComponentDefinition CR structure
-	cr := map[string]any{
-		"apiVersion": "core.oam.dev/v1beta1",
-		"kind":       "ComponentDefinition",
-		"metadata": map[string]any{
-			"name": c.GetName(),
-			"annotations": func() map[string]any {
-				a := map[string]any{}
-				for k, v := range c.GetAnnotations() {
-					a[k] = v
-				}
-				a["definition.oam.dev/description"] = c.GetDescription()
-				return a
-			}(),
-		},
-		"spec": map[string]any{
-			"workload": map[string]any{
-				"definition": map[string]any{
-					"apiVersion": c.workload.apiVersion,
-					"kind":       c.workload.kind,
-				},
-			},
-			"schematic": map[string]any{
-				"cue": map[string]any{
-					"template": cueStr,
-				},
-			},
-		},
-	}
-
-	// Handle autodetect workload type
-	if c.workload.autodetect {
-		cr["spec"].(map[string]any)["workload"] = map[string]any{
-			"type": "autodetects.core.oam.dev",
-		}
+	cr, err := definitionObject("ComponentDefinition", c.ToCue())
+	if err != nil {
+		return nil, err
 	}
 
 	if len(c.childResourceKinds) > 0 {

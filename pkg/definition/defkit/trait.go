@@ -424,32 +424,9 @@ func hasTopLevelTemplateBlock(cue string) bool {
 
 // ToYAML generates the Kubernetes YAML representation of the TraitDefinition.
 func (t *TraitDefinition) ToYAML() ([]byte, error) {
-	cueStr := t.ToCue()
-
-	// Build the TraitDefinition CR structure
-	cr := map[string]any{
-		"apiVersion": "core.oam.dev/v1beta1",
-		"kind":       "TraitDefinition",
-		"metadata": map[string]any{
-			"name": t.name,
-			"annotations": func() map[string]any {
-				a := map[string]any{}
-				for k, v := range t.GetAnnotations() {
-					a[k] = v
-				}
-				a["definition.oam.dev/description"] = t.description
-				return a
-			}(),
-		},
-		"spec": map[string]any{
-			"appliesToWorkloads": t.appliesToWorkloads,
-			"podDisruptive":      t.podDisruptive,
-			"schematic": map[string]any{
-				"cue": map[string]any{
-					"template": cueStr,
-				},
-			},
-		},
+	cr, err := definitionObject("TraitDefinition", t.ToCue())
+	if err != nil {
+		return nil, err
 	}
 
 	// Add conflictsWith if present

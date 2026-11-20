@@ -237,30 +237,9 @@ func (p *PolicyDefinition) ToCue() string {
 
 // ToYAML generates the Kubernetes YAML representation of the PolicyDefinition.
 func (p *PolicyDefinition) ToYAML() ([]byte, error) {
-	cueStr := p.ToCue()
-
-	// Build the PolicyDefinition CR structure
-	cr := map[string]any{
-		"apiVersion": "core.oam.dev/v1beta1",
-		"kind":       "PolicyDefinition",
-		"metadata": map[string]any{
-			"name": p.GetName(),
-			"annotations": func() map[string]any {
-				a := map[string]any{}
-				for k, v := range p.GetAnnotations() {
-					a[k] = v
-				}
-				a["definition.oam.dev/description"] = p.GetDescription()
-				return a
-			}(),
-		},
-		"spec": map[string]any{
-			"schematic": map[string]any{
-				"cue": map[string]any{
-					"template": cueStr,
-				},
-			},
-		},
+	cr, err := definitionObject("PolicyDefinition", p.ToCue())
+	if err != nil {
+		return nil, err
 	}
 
 	if p.manageHealthCheck {
