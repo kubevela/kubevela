@@ -318,30 +318,9 @@ func (w *WorkflowStepDefinition) ToCue() string {
 
 // ToYAML generates the Kubernetes YAML representation of the WorkflowStepDefinition.
 func (w *WorkflowStepDefinition) ToYAML() ([]byte, error) {
-	cueStr := w.ToCue()
-
-	// Build the WorkflowStepDefinition CR structure
-	cr := map[string]any{
-		"apiVersion": "core.oam.dev/v1beta1",
-		"kind":       "WorkflowStepDefinition",
-		"metadata": map[string]any{
-			"name": w.GetName(),
-			"annotations": func() map[string]any {
-				a := map[string]any{}
-				for k, v := range w.GetAnnotations() {
-					a[k] = v
-				}
-				a["definition.oam.dev/description"] = w.GetDescription()
-				return a
-			}(),
-		},
-		"spec": map[string]any{
-			"schematic": map[string]any{
-				"cue": map[string]any{
-					"template": cueStr,
-				},
-			},
-		},
+	cr, err := definitionObject("WorkflowStepDefinition", w.ToCue())
+	if err != nil {
+		return nil, err
 	}
 
 	if w.GetVersion() != "" {
