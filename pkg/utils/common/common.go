@@ -38,6 +38,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
+	"github.com/kubevela/pkg/cue/cuex"
 	workflowfeatures "github.com/kubevela/workflow/pkg/features"
 	"github.com/kubevela/workflow/pkg/utils/httpguard"
 	"github.com/oam-dev/terraform-config-inspect/tfconfig"
@@ -254,6 +255,23 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 		return cue.Value{}, velacue.ErrParameterNotExist
 	}
 
+	return val, nil
+}
+
+// GetCUExParameterValue converts definitions with cuex imports to cue format and extracts parameter field
+func GetCUExParameterValue(ctx context.Context, cueStr string) (cue.Value, error) {
+	template, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(
+		ctx,
+		cueStr+velacue.BaseTemplate,
+		cuex.DisableResolveProviderFunctions{},
+	)
+	if err != nil {
+		return cue.Value{}, err
+	}
+	val := template.LookupPath(cue.ParsePath(process.ParameterFieldName))
+	if !val.Exists() {
+		return cue.Value{}, velacue.ErrParameterNotExist
+	}
 	return val, nil
 }
 

@@ -22,6 +22,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+
+	clicommon "github.com/oam-dev/kubevela/references/common"
 )
 
 func TestInfo_CurrentContext(t *testing.T) {
@@ -44,6 +46,26 @@ func TestInfo_VelaCoreVersion(t *testing.T) {
 
 func TestInfo_GOLangVersion(t *testing.T) {
 	assert.Contains(t, GOLangVersion(), "go")
+}
+
+func TestInfo_K8SVersion_NilConfig(t *testing.T) {
+	assert.Equal(t, Unknown, K8SVersion(nil))
+}
+
+func TestInfo_VelaCoreRatio_NilConfig(t *testing.T) {
+	cpuL, memL, cpuR, memR := VelaCoreRatio(nil, nil)
+	assert.Equal(t, clicommon.MetricsNA, cpuL)
+	assert.Equal(t, clicommon.MetricsNA, memL)
+	assert.Equal(t, clicommon.MetricsNA, cpuR)
+	assert.Equal(t, clicommon.MetricsNA, memR)
+}
+
+func TestInfo_CLusterGatewayRatio_NilConfig(t *testing.T) {
+	cpuL, memL, cpuR, memR := CLusterGatewayRatio(nil, nil)
+	assert.Equal(t, clicommon.MetricsNA, cpuL)
+	assert.Equal(t, clicommon.MetricsNA, memL)
+	assert.Equal(t, clicommon.MetricsNA, cpuR)
+	assert.Equal(t, clicommon.MetricsNA, memR)
 }
 
 var _ = Describe("test info", func() {

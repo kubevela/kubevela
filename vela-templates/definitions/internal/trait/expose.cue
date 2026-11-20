@@ -13,21 +13,17 @@ expose: {
 		appliesToWorkloads: ["deployments.apps", "statefulsets.apps"]
 		status: {
 			customStatus: #"""
-				message: *"" | string
 				service: context.outputs.service
+				message: *"" | string
 				if service.spec.type == "ClusterIP" {
 					message: "ClusterIP: \(service.spec.clusterIP)"
 				}
 				if service.spec.type == "LoadBalancer" {
 					status: service.status
 					isHealth: *false | bool
+					message: *"ExternalIP: Pending" | string
 					if status != _|_ if status.loadBalancer != _|_ if status.loadBalancer.ingress != _|_ if len(status.loadBalancer.ingress) > 0 if status.loadBalancer.ingress[0].ip != _|_ {
 						isHealth: true
-					}
-					if !isHealth {
-						message: "ExternalIP: Pending"
-					}
-					if isHealth {
 						message: "ExternalIP: \(status.loadBalancer.ingress[0].ip)"
 					}
 				}

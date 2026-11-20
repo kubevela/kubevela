@@ -171,7 +171,7 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		Expect(err.Error()).Should(ContainSubstring("failed to re-apply"))
 	})
 
-	It("Test StateKeep apply-once does not re-create externally deleted resource", func() {
+	It("Test StateKeep apply-once does not re-create externally deleted resource and cleans up stale RT entry", func() {
 		cli := testClient
 
 		// Resource tracked in the resource tracker but not present in the cluster,
@@ -202,8 +202,19 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 				}},
 			},
 		}
-		h._currentRT = &v1beta1.ResourceTracker{
+
+		// Create the ResourceTracker in the API server so the stale-entry
+		// cleanup can persist its update.
+		rt := &v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-apply-once-gc-rt",
+				Labels: map[string]string{
+					oam.LabelAppName:      "app-apply-once-gc",
+					oam.LabelAppNamespace: "default",
+				},
+			},
 			Spec: v1beta1.ResourceTrackerSpec{
+				Type: v1beta1.ResourceTrackerTypeVersioned,
 				ManagedResources: []v1beta1.ManagedResource{{
 					ClusterObjectReference: createConfigMapClusterObjectReference("cm-apply-once-gc"),
 					OAMObjectReference:     common.NewOAMObjectReferenceFromObject(cm),
@@ -211,6 +222,8 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 				}},
 			},
 		}
+		Expect(cli.Create(context.Background(), rt)).Should(Succeed())
+		h._currentRT = rt
 
 		Expect(h.StateKeep(context.Background())).Should(Succeed())
 
@@ -220,6 +233,11 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		err = cli.Get(context.Background(), client.ObjectKeyFromObject(cm), got)
 		Expect(err).Should(HaveOccurred())
 		Expect(kerrors.IsNotFound(err)).Should(BeTrue())
+
+		// Verify the stale entry was removed from the ResourceTracker
+		updatedRT := &v1beta1.ResourceTracker{}
+		Expect(cli.Get(context.Background(), client.ObjectKeyFromObject(rt), updatedRT)).Should(Succeed())
+		Expect(updatedRT.Spec.ManagedResources).Should(BeEmpty())
 	})
 
 	It("Test StateKeep for shared resources", func() {
