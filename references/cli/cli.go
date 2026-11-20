@@ -126,6 +126,8 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewComponentsCommand(commandArgs, "3", ioStream),
 		NewTraitCommand(commandArgs, "4", ioStream),
 		DefinitionCommandGroup(commandArgs, "5", ioStream),
+		// Modules
+		NewModuleCommand(commandArgs, "6", ioStream),
 
 		// System
 		NewInstallCommand(commandArgs, "1", ioStream),
@@ -136,9 +138,10 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		// aux
 		KubeCommandGroup(f, "1", ioStream),
 		CueXCommandGroup(f, "2"),
-		NewQlCommand(commandArgs, "3", ioStream),
-		NewCompletionCommand("4"),
-		NewHelpCommand("5"),
+		NewMCPCommand(f, "3", ioStream),
+		NewQlCommand(commandArgs, "4", ioStream),
+		NewCompletionCommand("5"),
+		NewHelpCommand("6"),
 
 		// hide (below commands will not be displayed in help command but still
 		// can be used by direct call)

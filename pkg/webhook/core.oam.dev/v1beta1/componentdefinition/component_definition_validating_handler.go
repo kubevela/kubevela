@@ -22,7 +22,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/cue/nesting"
+
 	admissionv1 "k8s.io/api/admission/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -31,6 +34,10 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -44,20 +51,35 @@ type ValidatingHandler struct {
 	// Decoder decodes object
 	Decoder admission.Decoder
 	Client  client.Client
+	// Live reads straight from the API server, for resolving a chain against a
+	// parent that may have been written moments earlier. Nil falls back to
+	// Client, which is what tests supplying a fake want.
+	Live client.Client
 }
 
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate ComponentDefinition Spec here
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	// CUE's parser recurses once per level of nesting, and a deep enough template overflows the
+	// stack, which no recover catches: refuse one before anything parses it.
+	if req.Object.Raw != nil {
+		if err := nesting.CheckJSONStrings(req.Object.Raw, nesting.MaxDepth); err != nil {
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+	}
 	startTime := time.Now()
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "ComponentDefinitionValidator")
 
 	// Using the logger methods directly will show the correct file location
-	logger.WithStep("start").Info("Starting admission validation for ComponentDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
+	logger.WithStep("start").Debug("Starting admission validation for ComponentDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	obj := &v1beta1.ComponentDefinition{}
+	// Advisory findings, returned with an accepted definition rather than
+	// refusing it. Inheritance produces these: a parameter passed to a parent
+	// that does not declare it is almost certainly a typo, but CUE accepts it.
+	var warnings []string
 	if req.Resource.String() != componentDefGVR.String() {
 		err := fmt.Errorf("expect resource to be %s", componentDefGVR)
 		logger.WithStep("resource-check").WithError(err).Error(err, "Admission request targets unexpected resource type - rejecting request",
@@ -68,16 +90,28 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	if req.Operation == admissionv1.Create || req.Operation == admissionv1.Update {
+		var warnings []string
 		if err := h.Decoder.Decode(req, obj); err != nil {
 			logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into ComponentDefinition object - malformed request")
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+		// A terminating definition whose spec did not change is only having its
+		// finalizers removed. Skipping validation here lets a child whose parent
+		// is already gone finish deleting; otherwise the missing parent would
+		// refuse the update and the child would hang. A spec edit on a
+		// terminating definition is still validated as usual.
+		if obj.DeletionTimestamp != nil {
+			old := &v1beta1.ComponentDefinition{}
+			if err := h.Decoder.DecodeRaw(req.OldObject, old); err == nil && apiequality.Semantic.DeepEqual(old.Spec, obj.Spec) {
+				return admission.Allowed("")
+			}
 		}
 
 		// Add definition-specific fields to logger
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)
 		}
-		logger.WithStep("decode").Info("Successfully decoded ComponentDefinition from admission request",
+		logger.WithStep("decode").Debug("Successfully decoded ComponentDefinition from admission request",
 			"definitionName", obj.Name,
 			"namespace", obj.Namespace,
 			"workloadType", obj.Spec.Workload.Type,
@@ -88,22 +122,70 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("validate-workload").WithError(err).Error(err, "ComponentDefinition workload configuration is invalid - type and definition must be consistent")
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.WithStep("validate-workload").Info("ComponentDefinition workload configuration validated successfully", "workloadType", obj.Spec.Workload.Type)
+		logger.WithStep("validate-workload").Debug("ComponentDefinition workload configuration validated successfully", "workloadType", obj.Spec.Workload.Type)
+
+		// Judged outside the block below, which is where everything else about
+		// `extends` is checked: with no CUE schematic that block is skipped and a
+		// definition that composes nothing would be admitted unexamined.
+		if err := webhookutils.ValidateExtendsHasTemplate(
+			"ComponentDefinition", obj.Name, obj.Spec.Extends, obj.Spec.Schematic); err != nil {
+			logger.WithStep("validate-extends").WithError(err).Error(err, "ComponentDefinition extends another but has no template to call it from")
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
 
 		// Validate CUE template
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for ComponentDefinition schematic")
+			logger.WithStep("validate-cue").Debug("Validating CUE template syntax and semantics for ComponentDefinition schematic")
 
-			if err := webhookutils.ValidateCuexTemplate(ctx, obj.Spec.Schematic.CUE.Template); err != nil {
+			// Validate against the effective template; if auto-upgrade is enabled, rewrite legacy
+			// syntax before validation so the template compiles correctly.
+			cueTemplate := obj.Spec.Schematic.CUE.Template
+			if *upgrade.EnableCUEVersionCompatibility {
+				upgraded, wasUpgraded := upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+				if wasUpgraded {
+					warnings = append(warnings, "CUE template uses legacy syntax that will be auto-upgraded at render time. Run `vela def compat definitions` to scan all definitions for legacy syntax.")
+					cueTemplate = upgraded
+				}
+			}
+
+			if err := webhookutils.ValidateFinalPlacement(obj.Name, cueTemplate, inherit.ComponentSurface); err != nil {
+				logger.WithStep("validate-final").WithError(err).Error(err, "ComponentDefinition marks +final where it cannot be enforced")
+				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+			}
+
+			// A definition that extends another is judged against what it
+			// extends. Compiling its template alone would always fail: `$super` is
+			// declared nowhere in it, by design.
+			if obj.Spec.Extends != "" {
+				var ancestors []inherit.Level
+				err := webhookutils.ReadWithLiveRetry(h.Client, h.Live, func(cli client.Client) error {
+					var e error
+					ancestors, e = appfile.ComponentAncestors(ctx, cli, obj)
+					return e
+				})
+				if err != nil {
+					logger.WithStep("validate-extends").WithError(err).Error(err, "ComponentDefinition extends a definition that cannot be resolved")
+					return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+				}
+				warns, err := webhookutils.ValidateInheritedTemplate(
+					ctx, obj.Name, cueTemplate, ancestors, inherit.ComponentSurface,
+					webhookutils.StatusSources(obj.Spec.Status)...)
+				if err != nil {
+					logger.WithStep("validate-extends").WithError(err).Error(err, "ComponentDefinition does not satisfy the contract of the definition it extends")
+					return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+				}
+				warnings = append(warnings, warns...)
+				logger.WithStep("validate-extends").WithSuccess(true).Debug("ComponentDefinition inheritance validated", "extends", obj.Spec.Extends, "chainLength", len(ancestors))
+			} else if err := webhookutils.ValidateCuexTemplate(ctx, cueTemplate); err != nil {
 				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
 
-			if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper(), obj); err != nil {
+			if err := webhookutils.ValidateOutputResourcesExist(cueTemplate, h.Client.RESTMapper(), obj); err != nil {
 				logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
+			logger.WithStep("validate-cue").WithSuccess(true).Debug("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
 		}
 
 		// Validate semantic version
@@ -112,7 +194,19 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-version").WithError(err).Error(err, "ComponentDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-version").Info("ComponentDefinition version follows semantic versioning format", "version", obj.Spec.Version)
+			logger.WithStep("validate-version").Debug("ComponentDefinition version follows semantic versioning format", "version", obj.Spec.Version)
+		}
+
+		// Validate identity fields: module and apiVersion are set together or not at all.
+		if resp, denied := webhookutils.DenyOnInvalidIdentity(logger, "ComponentDefinition", obj.Spec.Module, obj.Spec.APIVersion, req.UID); denied {
+			return resp
+		}
+
+		// Validate namespace restrictions. A malformed glob would otherwise deny
+		// silently at render time, far from where it was written.
+		if err := nsrestrict.ValidateObject(obj); err != nil {
+			logger.WithStep("validate-namespace-restrictions").WithError(err).Error(err, "ComponentDefinition namespace restriction is not a valid list of namespace names or globs")
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
 
 		// Validate revision
@@ -123,7 +217,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-revision").WithError(err).Error(err, "ComponentDefinition revision conflicts with existing revision or has invalid format", "revisionName", revisionName, "expectedRevisionName", fmt.Sprintf("%s-v%s", obj.Name, revisionName))
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-revision").Info("ComponentDefinition revision validation completed - no conflicts detected", "revisionName", revisionName)
+			logger.WithStep("validate-revision").Debug("ComponentDefinition revision validation completed - no conflicts detected", "revisionName", revisionName)
 		}
 
 		// Check version conflicts
@@ -133,11 +227,16 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		// Log successful completion
-		logger.WithStep("complete").WithSuccess(true, startTime).Info("ComponentDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+		logger.WithStep("complete").WithSuccess(true, startTime).Debug("ComponentDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+		if len(warnings) > 0 {
+			return admission.ValidationResponse(true, "").WithWarnings(warnings...)
+		}
 	} else {
-		logger.WithStep("skip-validation").Info("Skipping ComponentDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
+		logger.WithStep("skip-validation").Debug("Skipping ComponentDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 	}
-	return admission.ValidationResponse(true, "")
+	resp := admission.ValidationResponse(true, "")
+	resp.Warnings = warnings
+	return resp
 }
 
 // RegisterValidatingHandler will register ComponentDefinition validation to webhook
@@ -145,6 +244,7 @@ func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1beta1-componentdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
 		Client:  mgr.GetClient(),
+		Live:    webhookutils.LiveClient(mgr),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}})
 }
@@ -152,8 +252,23 @@ func RegisterValidatingHandler(mgr manager.Manager) {
 // ValidateWorkload validates whether the Workload field is valid
 func ValidateWorkload(mapper meta.RESTMapper, cd *v1beta1.ComponentDefinition) error {
 
-	// If the Type and Definition are all empty, it will be rejected.
+	// If the Type and Definition are all empty, it will be rejected, unless this
+	// definition extends another: it then renders whatever its parent renders,
+	// and saying nothing about the workload means the parent's answer.
+	//
+	// That only holds for a definition with a template to call the parent from.
+	// Without one nothing reaches the parent, so the workload would stay empty
+	// and the definition would be admitted describing nothing.
 	if cd.Spec.Workload.Type == "" && cd.Spec.Workload.Definition == (common.WorkloadGVK{}) {
+		if cd.Spec.Extends != "" {
+			if cd.Spec.Schematic == nil || cd.Spec.Schematic.CUE == nil {
+				return fmt.Errorf(
+					"ComponentDefinition %s extends %s but has no CUE template to call it from; "+
+						"add a `%s: properties: {...}` block, or state the workload itself",
+					cd.Name, cd.Spec.Extends, inherit.SuperField)
+			}
+			return nil
+		}
 		return fmt.Errorf("neither the type nor the definition of the workload field in the ComponentDefinition %s can be empty", cd.Name)
 	}
 

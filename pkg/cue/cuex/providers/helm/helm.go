@@ -31,10 +31,13 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/singleton"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -47,34 +50,22 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 
 	klog.V(2).Infof("Helm provider [%s]: Starting render for chart %s from %s", velaContextStr(renderParams.Context), renderParams.Chart.Source, renderParams.Chart.RepoURL)
 
-	// Application namespace is the tenant boundary. When the Application has no
-	// explicit context, fall back to the release namespace below so the same
-	// Application can be rendered outside a ComponentDefinition path.
+	// Application namespace is the tenant boundary. A render with no Application context
+	// (outside a ComponentDefinition path) installs into the release namespace, but reads no
+	// Secrets or ConfigMaps (readNamespace below).
 	appNamespace := ""
 	if renderParams.Context != nil {
 		appNamespace = renderParams.Context.AppNamespace
+		// The render's Go context is the Application's, so the cluster comes from the template.
+		if cluster := renderParams.Context.Cluster; cluster != "" {
+			ctx = pkgmulticluster.WithCluster(ctx, cluster)
+		}
 	}
 
-	releaseName := "release"
-	releaseNamespace := appNamespace
-	if renderParams.Release != nil {
-		if renderParams.Release.Name != "" {
-			releaseName = renderParams.Release.Name
-		}
-		if renderParams.Release.Namespace != "" {
-			releaseNamespace = renderParams.Release.Namespace
-		}
-	}
-	// Guarantee a non-empty release namespace. Under the normal KubeVela
-	// code path the controller always sets Context.AppNamespace before
-	// calling Render, but callers that invoke the provider directly (tests,
-	// CLI tooling) may leave both context and Release.Namespace empty.
-	// Falling back to "default" preserves the pre-refactor behavior and
-	// keeps Helm's namespace resolution from depending on the caller's
-	// kubeconfig default.
-	if releaseNamespace == "" {
-		releaseNamespace = "default"
-	}
+	releaseName, releaseNamespace := releaseTarget(renderParams, appNamespace)
+	// Secrets and ConfigMaps (chart credentials, valuesFrom) are read only from the
+	// Application's own namespace, never from one the author chose; without one, none are.
+	readNamespace := appNamespace
 	if appNamespace == "" {
 		appNamespace = releaseNamespace
 	}
@@ -101,6 +92,8 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 			if pin := app.GetAnnotations()[oam.AnnotationPublishVersion]; pin != "" {
 				renderParams.Context.PublishVersion = pin
 			}
+			// Act as the Application's user, as the controller dispatches its resources.
+			ctx = auth.ContextWithUserInfo(ctx, &app)
 		case apierrors.IsNotFound(getErr):
 			// App is gone (deletion in flight). Proceed without a pin.
 		default:
@@ -113,7 +106,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	klog.V(3).Infof("Helm provider: Release name=%s, namespace=%s", releaseName, releaseNamespace)
 
 	// Fetch the chart
-	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options, appNamespace, releaseNamespace)
+	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options, readNamespace, releaseNamespace)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch chart")
 	}
@@ -132,7 +125,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 			values = map[string]interface{}{}
 		}
 	} else {
-		values, err = p.mergeValues(ctx, renderParams.Values, renderParams.ValuesFrom, appNamespace, releaseNamespace)
+		values, err = p.mergeValues(ctx, renderParams.Values, renderParams.ValuesFrom, readNamespace, releaseNamespace)
 		if err != nil {
 			return nil, errors.Wrapf(err, "%s: failed to merge values", velaContextStr(renderParams.Context))
 		}
@@ -145,7 +138,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	var notes string
 	if isDryRun(ctx) {
 		klog.V(2).Infof("Helm provider: Dry-run mode — rendering chart %s client-side only", ch.Name())
-		manifest, notes, err = p.dryRunRender(ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
+		manifest, notes, err = p.dryRunRender(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to dry-run render chart")
 		}
@@ -174,15 +167,16 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	// ResourceTracker records them and GC deletes them on Application deletion.
 	// The skeleton intentionally omits the data field — KubeVela's merge-patch
 	// strategy preserves unspecified fields, so Helm's data.release blob is
-	// untouched. No special dispatcher changes needed.
-	if renderParams.Context != nil {
-		releaseSecretNames := p.listReleaseSecretNames(releaseNamespace, releaseName)
+	// untouched. No special dispatcher changes needed. A dry-run installs
+	// nothing, so it has no release Secrets to track.
+	if renderParams.Context != nil && !isDryRun(ctx) {
+		releaseSecretNames := p.listReleaseSecretNames(ctx, releaseNamespace, releaseName)
 		for _, secName := range releaseSecretNames {
 			secretMeta := map[string]interface{}{
 				"name":      secName,
 				"namespace": releaseNamespace,
 			}
-			// Add KubeVela ownership labels so MustBeControlledByApp passes
+			// Add KubeVela ownership labels so the ownership check (apply.MustBeControlledBy) passes
 			// during pre-dispatch dryrun (especially for adoption of vanilla releases)
 			if renderParams.Context != nil {
 				secretMeta["labels"] = map[string]interface{}{
@@ -204,13 +198,13 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 		}
 	}
 
-	klog.Infof("Helm provider [%s]: Deployed %d resources for chart %s", velaContextStr(renderParams.Context), len(resources), renderParams.Chart.Source)
+	klog.V(common.LogDebug).Infof("Helm provider [%s]: Deployed %d resources for chart %s", velaContextStr(renderParams.Context), len(resources), renderParams.Chart.Source)
 
 	// Log resource summary for debugging
 	if len(resources) > 0 {
 		if kind, found, _ := unstructured.NestedString(resources[0], "kind"); found {
 			if name, found, _ := unstructured.NestedString(resources[0], "metadata", "name"); found {
-				klog.Infof("Helm provider [%s]: First resource is %s/%s", velaContextStr(renderParams.Context), kind, name)
+				klog.V(common.LogDebug).Infof("Helm provider [%s]: First resource is %s/%s", velaContextStr(renderParams.Context), kind, name)
 			}
 		}
 
@@ -253,3 +247,31 @@ var Template = template
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
 	"render": cuexruntime.GenericProviderFn[providers.Params[RenderParams], providers.Returns[RenderReturns]](Render),
 }))
+
+// releaseTarget is the release's name and namespace: those set on the component, else its
+// component's name and the namespace it is rendered in. The namespace falls back to the
+// Application's, then to "default" for direct callers (tests, CLI tooling) that set neither,
+// so Helm never resolves it from the caller's kubeconfig.
+func releaseTarget(params RenderParams, appNamespace string) (string, string) {
+	name, namespace := "release", appNamespace
+	if params.Context != nil {
+		if params.Context.Name != "" {
+			name = params.Context.Name
+		}
+		if params.Context.Namespace != "" {
+			namespace = params.Context.Namespace
+		}
+	}
+	if params.Release != nil {
+		if params.Release.Name != "" {
+			name = params.Release.Name
+		}
+		if params.Release.Namespace != "" {
+			namespace = params.Release.Namespace
+		}
+	}
+	if namespace == "" {
+		namespace = "default"
+	}
+	return name, namespace
+}

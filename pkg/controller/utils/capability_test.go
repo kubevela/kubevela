@@ -19,12 +19,16 @@ package utils
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"fmt"
+	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +39,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
+	"github.com/go-git/go-git/v5"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/testdata"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -399,10 +405,7 @@ variable "bbb" {
 func TestGetGitSSHPublicKey(t *testing.T) {
 	sshAuth := make(map[string][]byte)
 	sshAuth[corev1.SSHAuthPrivateKey] = testdata.PEMBytes["rsa"]
-	sshAuth[GitCredsKnownHosts] = []byte(`github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa
-	+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7
-	VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKr
-	TJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==`)
+	sshAuth[GitCredsKnownHosts] = []byte(`github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==`)
 
 	pubKey, err := gitssh.NewPublicKeys("git", sshAuth[corev1.SSHAuthPrivateKey], "")
 	assert.NoError(t, err)
@@ -518,7 +521,8 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			publicKey, err := GetGitSSHPublicKey(ctx, tc.args.k8sClient, tc.args.GitCredentialsSecretReference)
+			t.Setenv("SSH_KNOWN_HOSTS", "")
+			publicKey, err := GetGitSSHPublicKey(ctx, tc.args.k8sClient, tc.args.GitCredentialsSecretReference, "default")
 
 			if len(tc.want.err) > 0 {
 				assert.Error(t, err, tc.want.err)
@@ -527,11 +531,251 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 			if tc.want.publicKey != nil {
 				assert.Equal(t, publicKey.Signer.PublicKey().Marshal(), tc.want.publicKey.Signer.PublicKey().Marshal())
 				assert.Equal(t, publicKey.User, tc.want.publicKey.User)
-				known_hosts_filepath := os.Getenv("SSH_KNOWN_HOSTS")
-				known_hosts, err := os.ReadFile(known_hosts_filepath)
+				// The known hosts are this key's own, not a file shared by every clone.
+				assert.Empty(t, os.Getenv("SSH_KNOWN_HOSTS"))
+				assert.NotNil(t, publicKey.HostKeyCallback)
+				_, stranger, err := ed25519.GenerateKey(rand.Reader)
 				assert.NoError(t, err)
-				assert.Equal(t, known_hosts, sshAuth[GitCredsKnownHosts])
+				signer, err := ssh.NewSignerFromKey(stranger)
+				assert.NoError(t, err)
+				assert.Error(t, publicKey.HostKeyCallback("github.com:22", &net.TCPAddr{IP: net.ParseIP("140.82.112.3"), Port: 22}, signer.PublicKey()),
+					"a host key not in the Secret's known_hosts is refused")
+				_, hosts, listed, _, _, err := ssh.ParseKnownHosts(sshAuth[GitCredsKnownHosts])
+				assert.NoError(t, err)
+				assert.Equal(t, []string{"github.com"}, hosts)
+				assert.NoError(t, publicKey.HostKeyCallback("github.com:22", &net.TCPAddr{IP: net.ParseIP("140.82.112.3"), Port: 22}, listed),
+					"the key the Secret's known_hosts lists for the host is accepted")
 			}
 		})
 	}
+}
+
+func TestEnsureDirWithinLimits(t *testing.T) {
+	t.Run("passes when under the limits", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "a"), make([]byte, 1024), 0600))
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "b"), make([]byte, 1024), 0600))
+		assert.NoError(t, ensureDirWithinLimits(dir, 4096, 100))
+	})
+
+	t.Run("passes when cumulative size is exactly at the limit", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "a"), make([]byte, 4096), 0600))
+		assert.NoError(t, ensureDirWithinLimits(dir, 4096, 100))
+	})
+
+	t.Run("fails when cumulative size is one byte over the limit", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "a"), make([]byte, 4097), 0600))
+		err := ensureDirWithinLimits(dir, 4096, 100)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds the maximum allowed size")
+	})
+
+	t.Run("sums regular files across nested subdirectories", func(t *testing.T) {
+		dir := t.TempDir()
+		sub := filepath.Join(dir, "modules", "vpc")
+		assert.NoError(t, os.MkdirAll(sub, 0700))
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), make([]byte, 3000), 0600))
+		assert.NoError(t, os.WriteFile(filepath.Join(sub, "vars.tf"), make([]byte, 2000), 0600))
+		assert.Error(t, ensureDirWithinLimits(dir, 4096, 100))
+	})
+
+	t.Run("fails when the entry count exceeds the limit", func(t *testing.T) {
+		dir := t.TempDir()
+		for i := 0; i < 5; i++ {
+			assert.NoError(t, os.WriteFile(filepath.Join(dir, fmt.Sprintf("f%d", i)), []byte("x"), 0600))
+		}
+		err := ensureDirWithinLimits(dir, 4096, 3)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "entry count")
+	})
+
+	t.Run("counts directories toward the entry limit (inode-exhaustion guard)", func(t *testing.T) {
+		dir := t.TempDir()
+		// Many empty directories carry no regular-file bytes and no regular files,
+		// but each is an inode, so they must still trip the entry cap.
+		for i := 0; i < 10; i++ {
+			assert.NoError(t, os.MkdirAll(filepath.Join(dir, fmt.Sprintf("d%d", i)), 0700))
+		}
+		err := ensureDirWithinLimits(dir, 4096, 3)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "entry count")
+	})
+
+	t.Run("does not follow or count symlinks", func(t *testing.T) {
+		dir := t.TempDir()
+		outside := t.TempDir()
+		big := filepath.Join(outside, "big")
+		assert.NoError(t, os.WriteFile(big, make([]byte, 8192), 0600))
+		assert.NoError(t, os.Symlink(big, filepath.Join(dir, "link")))
+		// The symlink is skipped (not a regular file), so the 8192-byte target is
+		// neither followed nor counted against the 4096 cap.
+		assert.NoError(t, ensureDirWithinLimits(dir, 4096, 100))
+	})
+
+	t.Run("returns an error when the root does not exist", func(t *testing.T) {
+		assert.Error(t, ensureDirWithinLimits(filepath.Join(t.TempDir(), "missing"), 4096, 100))
+	})
+}
+
+// TestCacheMatchesRemote verifies the URL-keyed cache reuse decision.
+func TestCacheMatchesRemote(t *testing.T) {
+	populated := func(t *testing.T, markerURL string, withMarker bool) string {
+		t.Helper()
+		cache := filepath.Join(t.TempDir(), "mod")
+		_, err := git.PlainInit(cache, true)
+		assert.NoError(t, err)
+		if withMarker {
+			assert.NoError(t, os.WriteFile(cache+cacheRemoteMarkerSuffix, []byte(markerURL), 0600))
+		}
+		return cache
+	}
+
+	t.Run("matches when populated and the URL marker matches", func(t *testing.T) {
+		cache := populated(t, "git://example/repo.git", true)
+		assert.True(t, cacheMatchesRemote(cache, "git://example/repo.git"))
+	})
+
+	t.Run("does not match when the URL changed", func(t *testing.T) {
+		cache := populated(t, "git://example/old.git", true)
+		assert.False(t, cacheMatchesRemote(cache, "git://example/new.git"))
+	})
+
+	t.Run("does not match when the marker is missing", func(t *testing.T) {
+		cache := populated(t, "", false)
+		assert.False(t, cacheMatchesRemote(cache, "git://example/repo.git"))
+	})
+
+	t.Run("does not match when the cache is empty", func(t *testing.T) {
+		assert.False(t, cacheMatchesRemote(t.TempDir(), "git://example/repo.git"))
+	})
+}
+
+// TestRedactURLCredentials verifies credentials embedded in a remote URL are stripped
+// before the URL is logged or written to the cache marker (GHSA-fmgp-q6jx-gg3x).
+func TestRedactURLCredentials(t *testing.T) {
+	cases := map[string]struct {
+		in   string
+		want string
+	}{
+		"https with user and password":   {"https://user:s3cr3t@github.com/org/repo.git", "https://github.com/org/repo.git"},
+		"https with token as user":       {"https://ghp_TOKEN123@github.com/org/repo.git", "https://github.com/org/repo.git"},
+		"https without credentials":      {"https://github.com/org/repo.git", "https://github.com/org/repo.git"},
+		"ssh url with user":              {"ssh://git@github.com/org/repo.git", "ssh://github.com/org/repo.git"},
+		"scp-style ssh":                  {"git@github.com:org/repo.git", "github.com:org/repo.git"},
+		"git scheme without credentials": {"git://example/repo.git", "git://example/repo.git"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := redactURLCredentials(tc.in)
+			assert.Equal(t, tc.want, got)
+			assert.NotContains(t, got, "s3cr3t")
+			assert.NotContains(t, got, "ghp_TOKEN123")
+		})
+	}
+}
+
+// TestRecordCacheRemoteRedactsCredentials verifies the persisted cache marker never
+// contains credentials from an authenticated remote URL, while the populated cache is
+// still reused for the same repository (GHSA-fmgp-q6jx-gg3x).
+func TestRecordCacheRemoteRedactsCredentials(t *testing.T) {
+	cache := filepath.Join(t.TempDir(), "mod")
+	_, err := git.PlainInit(cache, true)
+	assert.NoError(t, err)
+
+	recordCacheRemote(cache, "https://user:s3cr3t@github.com/org/repo.git")
+
+	marker, err := os.ReadFile(filepath.Clean(cache + cacheRemoteMarkerSuffix))
+	assert.NoError(t, err)
+	assert.NotContains(t, string(marker), "s3cr3t")
+	assert.NotContains(t, string(marker), "user")
+	assert.Equal(t, "https://github.com/org/repo.git", string(marker))
+
+	// The same repository, with or without credentials, still matches the recorded
+	// marker, so a populated cache is reused rather than re-cloned.
+	assert.True(t, cacheMatchesRemote(cache, "https://user:s3cr3t@github.com/org/repo.git"))
+	assert.True(t, cacheMatchesRemote(cache, "https://github.com/org/repo.git"))
+	// A different repository does not match.
+	assert.False(t, cacheMatchesRemote(cache, "https://github.com/org/other.git"))
+}
+
+// TestGetTerraformConfigurationFromRemoteInvalidatesCacheOnRejection: a module whose
+// variables.tf is a symlink escaping the module is rejected, and its clone removed, so the next
+// reconcile does not reuse it (GHSA-fmgp-q6jx-gg3x).
+func TestGetTerraformConfigurationFromRemoteInvalidatesCacheOnRejection(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	name := "poisoned-module"
+	url := moduleRepo(t, nil, map[string]string{"variables.tf": "/etc/passwd"})
+
+	got, err := GetTerraformConfigurationFromRemote(name, url, "", nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "symlinked")
+	assert.Empty(t, got)
+
+	_, statErr := os.Stat(filepath.Join(home, ".vela", "terraform", name))
+	assert.True(t, os.IsNotExist(statErr), "cache should be removed after a rejected read")
+}
+
+// A cache directory that is not a Git repository, such as one written by hand, is not served:
+// the module is cloned afresh.
+func TestACacheThatIsNotARepositoryIsClonedAfresh(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	url := moduleRepo(t, map[string]string{"variables.tf": moduleVars}, nil)
+	cachePath := filepath.Join(home, ".vela", "terraform", "planted")
+	assert.NoError(t, os.MkdirAll(cachePath, 0o700))
+	assert.NoError(t, os.WriteFile(filepath.Join(cachePath, "variables.tf"), []byte("planted"), 0o600))
+	assert.NoError(t, os.WriteFile(cachePath+cacheRemoteMarkerSuffix, []byte(url), 0o600))
+
+	got, err := GetTerraformConfigurationFromRemote("planted", url, "", nil)
+	assert.NoError(t, err)
+	assert.Equal(t, moduleVars, got)
+}
+
+// TestGetTerraformConfigurationFromRemoteCleansUpOnCloneFailure verifies that a
+// failed clone (here a non-existent local repo) leaves no cache directory behind
+// for the next reconcile to reuse (GHSA-fmgp-q6jx-gg3x).
+func TestGetTerraformConfigurationFromRemoteCleansUpOnCloneFailure(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	name := "clone-fail-module"
+	bogus := filepath.Join(t.TempDir(), "does-not-exist.git")
+
+	_, err := GetTerraformConfigurationFromRemote(name, bogus, "", nil)
+	assert.Error(t, err)
+
+	cachePath := filepath.Join(home, ".vela", "terraform", name)
+	_, statErr := os.Stat(cachePath)
+	assert.True(t, os.IsNotExist(statErr), "cache should be removed after a failed clone")
+}
+
+// TestGetTerraformConfigurationFromRemoteRejectsInvalidName ensures a name that
+// could steer the cache path outside the cache directory is rejected up front.
+func TestGetTerraformConfigurationFromRemoteRejectsInvalidName(t *testing.T) {
+	for _, name := range []string{"", ".", "..", "a/b", "../evil"} {
+		_, err := GetTerraformConfigurationFromRemote(name, "git://example/repo.git", "", nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid Terraform module name")
+	}
+}
+
+// A definition's SSH key Secret is read from the definition's own namespace, never from one the
+// definition names elsewhere: the controller reads it with its own rights.
+func TestTheSSHKeyComesFromTheDefinitionsNamespace(t *testing.T) {
+	data := map[string][]byte{corev1.SSHAuthPrivateKey: testdata.PEMBytes["rsa"], GitCredsKnownHosts: []byte("example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl\n")}
+	k8sClient := fake.NewClientBuilder().WithObjects(
+		&corev1.Secret{ObjectMeta: v1.ObjectMeta{Name: "deploy-key", Namespace: "team-a"}, Data: data},
+		&corev1.Secret{ObjectMeta: v1.ObjectMeta{Name: "deploy-key", Namespace: "team-b"}, Data: data},
+	).Build()
+	ctx := context.Background()
+
+	_, err := GetGitSSHPublicKey(ctx, k8sClient, &corev1.SecretReference{Name: "deploy-key", Namespace: "team-b"}, "team-a")
+	assert.ErrorContains(t, err, `must be in the definition's namespace "team-a"`)
+	_, err = GetGitSSHPublicKey(ctx, k8sClient, &corev1.SecretReference{Name: "deploy-key"}, "team-a")
+	assert.NoError(t, err, "no namespace means the definition's")
+	_, err = GetGitSSHPublicKey(ctx, k8sClient, &corev1.SecretReference{Name: "deploy-key", Namespace: "team-a"}, "team-a")
+	assert.NoError(t, err)
 }

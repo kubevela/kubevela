@@ -1,0 +1,7 @@
+name: cache-probe
+version: 1.0.0
+description: "Test addon, build b. Both builds are version 1.0.0 on purpose (scenario 09)."
+tags:
+  - test
+  - module-import
+dependencies: []

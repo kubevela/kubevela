@@ -566,55 +566,61 @@ func CronJobHealth() *HealthBuilder {
 // These methods allow building health checks using composable expressions
 // that are then converted to CUE via HealthyWhenExpr().
 
+// At roots subsequent health expressions at the given context reference; without it they target the primary output.
+func (h *HealthBuilder) At(ref *ContextRef) *HealthScope {
+	if ref == nil {
+		return &HealthScope{}
+	}
+	return &HealthScope{root: ref.Path()}
+}
+
+// Every requires every output in the collection to satisfy fn; it returns the concrete *EveryExpr so AllowEmpty is chainable.
+func (h *HealthBuilder) Every(coll *OutputCollection, fn func(item *HealthScope) HealthExpression) *EveryExpr {
+	itemVar := "_" + sanitizeIdent(coll.prefix) + "Item"
+	scope := &HealthScope{root: itemVar, inline: true}
+	return &EveryExpr{prefix: coll.prefix, itemVar: itemVar, itemExpr: fn(scope)}
+}
+
 // Condition creates an expression to check a status condition.
 // Example: Health().Condition("Ready").IsTrue()
 func (h *HealthBuilder) Condition(condType string) *ConditionExpr {
-	return &ConditionExpr{
-		condType:       condType,
-		expectedStatus: "True", // default
-	}
+	return (&HealthScope{}).Condition(condType)
 }
 
 // Field creates an expression builder for a field path.
 // Example: Health().Field("status.replicas").Gt(0)
 func (h *HealthBuilder) Field(path string) *HealthFieldExpr {
-	return &HealthFieldExpr{path: path}
+	return (&HealthScope{}).Field(path)
 }
 
 // FieldRef creates a reference to another field for field-to-field comparisons.
 // Example: Health().Field("status.readyReplicas").Eq(Health().FieldRef("spec.replicas"))
 func (h *HealthBuilder) FieldRef(path string) *HealthFieldRefExpr {
-	return &HealthFieldRefExpr{path: path}
+	return (&HealthScope{}).FieldRef(path)
 }
 
 // Phase creates an expression to check if status.phase matches any of the given phases.
 // Example: Health().Phase("Running", "Succeeded")
 func (h *HealthBuilder) Phase(phases ...string) HealthExpression {
-	return &phaseExpr{
-		fieldPath: "context.output.status.phase",
-		phases:    phases,
-	}
+	return (&HealthScope{}).Phase(phases...)
 }
 
 // PhaseField creates an expression to check a custom phase field path.
 // Example: Health().PhaseField("status.currentPhase", "Active", "Ready")
 func (h *HealthBuilder) PhaseField(path string, phases ...string) HealthExpression {
-	return &phaseExpr{
-		fieldPath: "context.output." + path,
-		phases:    phases,
-	}
+	return (&HealthScope{}).PhaseField(path, phases...)
 }
 
 // Exists checks if a field exists (is not _|_).
 // Example: Health().Exists("status.loadBalancer.ingress")
 func (h *HealthBuilder) Exists(path string) HealthExpression {
-	return &existsExpr{path: path, negate: false}
+	return (&HealthScope{}).Exists(path)
 }
 
 // NotExists checks if a field does not exist (is _|_).
 // Example: Health().NotExists("status.error")
 func (h *HealthBuilder) NotExists(path string) HealthExpression {
-	return &existsExpr{path: path, negate: true}
+	return (&HealthScope{}).NotExists(path)
 }
 
 // And combines multiple health expressions with AND.

@@ -1,0 +1,59 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: db
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: statefulset
+    name: db
+    namespace: default
+  spec:
+    selector:
+      matchLabels:
+        app.oam.dev/component: db
+    template:
+      metadata:
+        labels:
+          app.oam.dev/component: db
+          app.oam.dev/name: shop
+      spec:
+        containers:
+        - image: postgres:16
+          name: db
+          ports:
+          - containerPort: 5432
+            name: port-5432
+            protocol: TCP
+outputs:
+  statefulsetsExpose:
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations: {}
+      labels:
+        app.oam.dev/appRevision: shop-v1
+        app.oam.dev/component: db
+        app.oam.dev/name: shop
+        app.oam.dev/namespace: default
+        app.oam.dev/resourceType: TRAIT
+        trait.oam.dev/resource: statefulsetsExpose
+        trait.oam.dev/type: AuxiliaryWorkload
+      name: db
+      namespace: default
+    spec:
+      ports:
+      - name: port-5432
+        nodePort: 30432
+        port: 5432
+        protocol: TCP
+        targetPort: 5432
+      selector:
+        app.oam.dev/component: db
+      type: NodePort
+traits: {}

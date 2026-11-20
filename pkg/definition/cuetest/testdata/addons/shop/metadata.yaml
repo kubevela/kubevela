@@ -1,0 +1,6 @@
+name: shop
+version: 1.2.0
+description: A test addon
+deployTo:
+  control_plane: true
+  runtime_cluster: false

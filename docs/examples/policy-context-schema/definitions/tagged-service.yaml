@@ -1,0 +1,45 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: tagged-service
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "A Deployment tagged with its owner, the way the platform wants."
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        parameter: {
+        	image: string
+        	// The policy suggests an owner; an Application may name another.
+        	owner: *context.custom.team | string
+        }
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	metadata: {
+        		name: context.name
+        		labels: {
+        			// Read directly: no properties value changes them.
+        			"platform.io/team":        context.custom.team
+        			"platform.io/cost-centre": context.custom.costCentre
+        			// From the parameter: the Application may name another owner.
+        			"platform.io/owner": parameter.owner
+        		}
+        		// Optional: guarded, so tenants without a mesh still validate.
+        		if context.custom.meshDomain != _|_ {
+        			annotations: "platform.io/mesh-domain": context.custom.meshDomain
+        		}
+        	}
+        	spec: {
+        		selector: matchLabels: app: context.name
+        		template: {
+        			metadata: labels: app: context.name
+        			spec: containers: [{name: context.name, image: parameter.image}]
+        		}
+        	}
+        }

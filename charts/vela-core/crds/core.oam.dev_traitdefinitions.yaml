@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.16.5
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: traitdefinitions.core.oam.dev
 spec:
   group: core.oam.dev
@@ -54,6 +54,22 @@ spec:
           spec:
             description: A TraitDefinitionSpec defines the desired state of a TraitDefinition.
             properties:
+              abstract:
+                description: |-
+                  Abstract marks this definition as one that may only be extended, never
+                  named directly by an Application. A base that applies a platform's rules
+                  is not something to use as-is, and saying so here is what makes the
+                  definitions built on it the only way through.
+
+                  It is not inherited: a definition that extends an abstract one is usable
+                  unless it marks itself abstract too.
+                type: boolean
+              apiVersion:
+                description: |-
+                  APIVersion is the API line of the module this definition belongs to, for
+                  example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                pattern: ^v\d+(alpha\d+|beta\d+)?$
+                type: string
               appliesToWorkloads:
                 description: |-
                   AppliesToWorkloads specifies the list of workload kinds this trait
@@ -96,6 +112,24 @@ spec:
                 required:
                 - name
                 type: object
+              extends:
+                description: |-
+                  Extends names a TraitDefinition this one builds on. The parent renders
+                  with the parameters this definition's template passes it in its `$super`
+                  block; this definition declares parameters of its own and does not
+                  inherit the parent's. It adds to what the parent renders and never
+                  changes it: its patch, patchOutputs, outputs and processing merge onto
+                  the parent's, and a field the parent set is changed only through
+                  `$super`. One of the parent's outputs may be left out with
+                  `$inherit: {outputs: {<name>: false}}`, and one of its patchOutputs with
+                  `$inherit: {patchOutputs: {<name>: false}}`, unless the parent marks it
+                  `+required`, and a field the parent marks `+final` takes no additions.
+
+                  A DefinitionRevision may be named to pin the parent, as in "gateway@v2";
+                  an unqualified name tracks whatever is current. The ancestors a render
+                  resolved are recorded in the ApplicationRevision, so an application keeps
+                  rendering the same way after a parent changes.
+                type: string
               extension:
                 description: Extension is used for extension needs by OAM platform
                   builders
@@ -105,10 +139,188 @@ spec:
                 description: ManageWorkload defines the trait would be responsible
                   for creating the workload
                 type: boolean
+              module:
+                description: |-
+                  Module names the module this definition was published in, for example
+                  "s3". It identifies a versioned definition on the spec itself, not only
+                  through labels. Set it together with apiVersion, or leave both empty.
+                type: string
               podDisruptive:
-                description: PodDisruptive specifies whether using the trait will
-                  cause the pod to restart or not.
+                description: |-
+                  PodDisruptive indicates that this trait is disruptive to the pod: applying or
+                  updating it should cause the workload's pods to restart. If the trait's CUE
+                  template patches the workload's pod template directly (`patch:` on
+                  `spec.template`), the restart happens automatically via the normal Kubernetes
+                  rollout mechanism and this field is not required.
+
+                  If the trait instead renders separate objects via `outputs:` (e.g. a ConfigMap
+                  consumed by the workload), set this to true so KubeVela stamps a content hash of
+                  the trait's rendered output onto the workload's pod template annotations
+                  (`app.oam.dev/trait-restart-hash-<traitType>`). This causes the pod template to
+                  change whenever the trait's applied configuration changes, which in turn causes
+                  the owning controller (Deployment/StatefulSet/CloneSet/...) to roll the pods.
+                  Workloads without a `spec.template` (e.g. a bare Service) are unaffected.
                 type: boolean
+              restrictions:
+                description: |-
+                  Restrictions limits where this definition may be used. Absent or empty means
+                  usable anywhere. A non-empty block overrides the
+                  definition.oam.dev/restrict-namespaces annotation.
+                properties:
+                  namespaceSelector:
+                    description: |-
+                      NamespaceSelector selects those namespaces by label instead, for membership
+                      that is not a naming convention. An empty selector matches every namespace;
+                      leave the field unset to express no opinion.
+
+                      Anyone who can label a namespace can bring it into scope, which a name glob
+                      does not allow without the right to create namespaces.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  namespaces:
+                    description: |-
+                      Namespaces are the namespaces whose Applications may use this definition, as
+                      names or globs ("tenant-*", matched with path.Match).
+                    items:
+                      type: string
+                    type: array
+                  quota:
+                    description: |-
+                      Quota limits how many uses of this definition one namespace may contain. The
+                      first entry matching the namespace applies, so an entry with no matcher reads
+                      as the default and belongs last. Absent or empty means unlimited.
+
+                      Only ComponentDefinition and TraitDefinition are counted, and a quota on any
+                      other kind is rejected when the definition is written. A namespace
+                      accumulates components and the traits on them; a policy, workflow step or
+                      source is part of how one Application is assembled.
+
+                      The system namespace is never subject to a quota: addons install their own
+                      Applications there using these definitions.
+                    items:
+                      description: |-
+                        NamespaceQuota caps how many uses of a definition the namespaces it matches may
+                        contain. Its matcher fields carry the same meaning as the ones on
+                        DefinitionRestrictions, and an entry with neither matches every namespace.
+
+                        Warn and Limit are both optional, and at least one must be set. Warn alone never
+                        refuses, which is how a quota is introduced before it is enforced.
+                      properties:
+                        limit:
+                          description: |-
+                            Limit is the most uses of this definition the namespace may contain. Omit to
+                            warn without ever refusing; zero forbids the type outright.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                        namespaceSelector:
+                          description: |-
+                            NamespaceSelector selects those namespaces by label instead. It and
+                            Namespaces are alternatives, so either one matching selects the entry.
+                          properties:
+                            matchExpressions:
+                              description: matchExpressions is a list of label selector
+                                requirements. The requirements are ANDed.
+                              items:
+                                description: |-
+                                  A label selector requirement is a selector that contains values, a key, and an operator that
+                                  relates the key and values.
+                                properties:
+                                  key:
+                                    description: key is the label key that the selector
+                                      applies to.
+                                    type: string
+                                  operator:
+                                    description: |-
+                                      operator represents a key's relationship to a set of values.
+                                      Valid operators are In, NotIn, Exists and DoesNotExist.
+                                    type: string
+                                  values:
+                                    description: |-
+                                      values is an array of string values. If the operator is In or NotIn,
+                                      the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                      the values array must be empty. This array is replaced during a strategic
+                                      merge patch.
+                                    items:
+                                      type: string
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                required:
+                                - key
+                                - operator
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            matchLabels:
+                              additionalProperties:
+                                type: string
+                              description: |-
+                                matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                operator is "In", and the values array contains only "value". The requirements are ANDed.
+                              type: object
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        namespaces:
+                          description: |-
+                            Namespaces are the namespaces this entry applies to, as names or globs
+                            ("tenant-*", matched with path.Match). Leave both matchers unset to make the
+                            entry the default.
+                          items:
+                            type: string
+                          type: array
+                        warn:
+                          description: |-
+                            Warn is the count at or above which the Application is admitted with a
+                            warning.
+                          format: int32
+                          minimum: 0
+                          type: integer
+                      type: object
+                    type: array
+                type: object
               revisionEnabled:
                 description: Revision indicates whether a trait is aware of component
                   revision

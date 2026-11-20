@@ -47,6 +47,11 @@ type Template struct {
 	rawParameterBlock string // Raw CUE for parameter: block
 	rawOutputsBlock   string // Raw CUE for outputs: block (for traits that generate K8s resources)
 	rawHeaderBlock    string // Raw CUE for let bindings and other pre-output declarations
+
+	// Inheritance: the call to the parent and which surface fields merge onto its
+	super           *SuperCall
+	droppedOutputs  map[string][]string // per field, the parent's outputs left out
+	requiredOutputs map[string]bool     // this definition's outputs marked +required
 }
 
 // NewTemplate creates a new template context.
@@ -137,6 +142,9 @@ func (t *Template) Output(r ...*Resource) *Resource {
 func (t *Template) Outputs(name string, r ...*Resource) *Resource {
 	if len(r) > 0 {
 		t.outputs[name] = r[0]
+		if t.requiredOutputs[name] {
+			r[0].requiredOutput = true
+		}
 	}
 	return t.outputs[name]
 }
@@ -146,6 +154,9 @@ func (t *Template) Outputs(name string, r ...*Resource) *Resource {
 func (t *Template) OutputsIf(cond Condition, name string, r *Resource) {
 	r.outputCondition = cond
 	t.outputs[name] = r
+	if t.requiredOutputs[name] {
+		r.requiredOutput = true
+	}
 }
 
 // GetOutput returns the primary output resource.
@@ -170,6 +181,9 @@ type OutputGroup struct {
 // Add adds a named resource to the output group.
 func (g *OutputGroup) Add(name string, r *Resource) *OutputGroup {
 	g.outputs[name] = r
+	if g.tpl.requiredOutputs[name] {
+		r.requiredOutput = true
+	}
 	return g
 }
 
@@ -181,14 +195,13 @@ func (t *Template) OutputsGroupIf(cond Condition, fn func(g *OutputGroup)) {
 		cond:    cond,
 		outputs: make(map[string]*Resource),
 	}
-	fn(group)
-	if t.outputGroups == nil {
-		t.outputGroups = make([]*outputGroup, 0)
-	}
+	// Registered before fn runs, so a RequireOutput call inside fn also
+	// reaches the resources fn has already added.
 	t.outputGroups = append(t.outputGroups, &outputGroup{
 		cond:    cond,
 		outputs: group.outputs,
 	})
+	fn(group)
 }
 
 // GetOutputGroups returns all output groups.

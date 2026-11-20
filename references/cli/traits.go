@@ -219,11 +219,26 @@ func PrintInstalledTraitDef(c common2.Args, io cmdutil.IOStreams, filter filterF
 		return errors.Wrap(err, "get trait definition list error")
 	}
 
+	// Leave out what the namespace the user is working in cannot use, so the list
+	// is what they can build with.
+	workingIn := currentNamespace(c)
+	objs := make([]client.Object, len(list.Items))
+	for i := range list.Items {
+		objs[i] = &list.Items[i]
+	}
+	usable, err := judgeUsability(context.Background(), clt, objs, workingIn)
+	if err != nil {
+		return err
+	}
+
 	table := newUITable()
 	table.AddRow("NAME", "APPLIES-TO")
 	table.AddRow("NAME", "APPLIES-TO", "DESCRIPTION")
 
-	for _, td := range list.Items {
+	for i, td := range list.Items {
+		if !usable[i] {
+			continue
+		}
 		data, err := json.Marshal(td)
 		if err != nil {
 			io.Infof("error encoding definition: %s\n", td.Name)

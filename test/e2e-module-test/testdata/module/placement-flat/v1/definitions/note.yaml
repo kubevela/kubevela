@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: note
+spec:
+  workload:
+    type: autodetects.core.oam.dev
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "v1"
+          kind:       "ConfigMap"
+          metadata: name: context.name
+          data: note: parameter.message
+        }
+        parameter: {
+          message: *"v1" | string
+        }

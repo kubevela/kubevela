@@ -23,9 +23,12 @@ import (
 	"strconv"
 	"strings"
 
-	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
-	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	upstreamcuex "github.com/kubevela/pkg/cue/cuex"
 
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
+	workflowproviders "github.com/oam-dev/kubevela/pkg/workflow/providers"
+
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
@@ -33,9 +36,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
+	"github.com/oam-dev/kubevela/pkg/logging"
 )
 
 // ContextRegex to match '**: reference "context" not found'
@@ -66,46 +71,187 @@ func ValidateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 
 // ValidateCueTemplate validate cueTemplate
 func ValidateCueTemplate(cueTemplate string) error {
-
 	val := cuecontext.New().CompileString(cueTemplate)
 	if e := checkError(val.Err()); e != nil {
 		return e
 	}
-
-	err := val.Validate()
+	err := val.Validate(cue.Final())
 	return checkError(err)
 }
 
-// ValidateCuexTemplate validate cueTemplate with CueX for types utilising it.
-// Uses WorkloadCompiler so that templates referencing internal provider
-// packages (e.g. "vela/helm") parse during admission validation.
+// ValidateCuexTemplate validates a ComponentDefinition or TraitDefinition CUE
+// template with CueX, using the workload compiler that renders those kinds.
 //
-// The compile runs under helm.WithDryRun so that any provider package that
-// honors the dry-run signal short-circuits to a side-effect-free path.
-// Without this, a ComponentDefinition whose CUE supplies fully concrete
-// arguments to helm.#Render could trigger a real chart fetch and helm
-// install during admission.
+// The compiler must match the one that renders the definition. Three import
+// paths, "vela/kube", "vela/http" and "vela/config", are registered by both the
+// workload and the workflow compiler but resolve to different packages with
+// different selectors and different $params schemas. Compiling against the wrong
+// flavor does not raise an error: a selector the flavor does not define is
+// silently accepted, and the $params schema check that would have caught a
+// misspelled or mistyped argument disappears with it. Validating a component
+// template against the workflow compiler therefore turns a checked template into
+// an unchecked one, quietly. See ValidateWorkflowStepCuexTemplate for the
+// counterpart used by workflow steps.
 func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
-	ctx = helm.WithDryRun(ctx)
-	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate, cue.Final())
+}
+
+// CompilePolicyTemplate compiles a PolicyDefinition template the way
+// ValidateCuexTemplate compiles a component's, with provider functions left
+// unresolved, but against the compiler that renders a policy of the given
+// scope. It returns the value instead of a verdict: a caller that runs more
+// than one check against a template compiles it once here, then hands the
+// value to ValidateCompiledCuexTemplate and to its own checks.
+func CompilePolicyTemplate(ctx context.Context, scope v1beta1.PolicyScope, cueTemplate string) (cue.Value, error) {
+	return compileForValidation(ctx, policyCompiler(scope), cueTemplate)
+}
+
+// CompileOpenPolicyTemplate is CompilePolicyTemplate with the fields a render
+// supplies, context and parameter, opened. A template that reads context does
+// not compile on its own, so this is what its parameter declaration is read
+// from.
+func CompileOpenPolicyTemplate(ctx context.Context, scope v1beta1.PolicyScope, cueTemplate string) (cue.Value, error) {
+	return compileForValidation(ctx, policyCompiler(scope), openTemplate(cueTemplate))
+}
+
+// policyCompiler returns the compiler a PolicyDefinition of the given scope is
+// rendered with, so admission checks the template against the packages render
+// will offer it.
+//
+// A default-scope policy is parsed into a component and rendered by the
+// workload engine, which compiles with WorkloadCompiler. Any other scope is
+// skipped by the parser and rendered in application_policies.go with the
+// upstream DefaultCompiler. The two register different packages: only the
+// upstream one has "vela/util", and only WorkloadCompiler has "vela/helm",
+// "vela/config" and the other KubeVela providers.
+func policyCompiler(scope v1beta1.PolicyScope) *upstreamcuex.Compiler {
+	if scope == v1beta1.DefaultScope {
+		return velacuex.WorkloadCompiler.Get()
+	}
+	return upstreamcuex.DefaultCompiler.Get()
+}
+
+// ValidateCompiledCuexTemplate is ValidateCuexTemplate for a value already
+// produced by CompilePolicyTemplate.
+func ValidateCompiledCuexTemplate(val cue.Value) error {
+	return validateCompiled(val, cue.Final())
+}
+
+// ValidateCuexTemplateWithoutProviders validates a template's shape without
+// executing the provider functions in it.
+//
+// A SourceDefinition's whole purpose is to fetch something, and admission runs
+// with no parameters supplied - so every provider call is either handed a
+// non-concrete value ("cannot convert incomplete value \"string\" to JSON") or,
+// worse, actually performed. Performing it would do the source's I/O on every
+// apply, which is the exact cost the cache exists to avoid, and would make
+// admission depend on a remote service being reachable.
+//
+// The shape checks that matter - the schema block, the storage block, the
+// generated key - are all static and unaffected.
+//
+// Every validator here now disables provider resolution, so this is equivalent
+// to ValidateCuexTemplate and is kept only so the SourceDefinition work that
+// introduced it keeps its API. It can be dropped once that is confirmed.
+func ValidateCuexTemplateWithoutProviders(ctx context.Context, cueTemplate string) error {
+	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate, cue.Final())
+}
+
+// ValidateSourceTemplate validates a SourceDefinition's template against the
+// packages a source is allowed to import.
+//
+// Compiling against SourceCompiler rather than WorkloadCompiler is what refuses
+// an acting package at apply time. Without it a source importing vela/helm would
+// be accepted and then install a chart on its first cache miss, since the render
+// path sets no dry-run.
+//
+// Not validated with cue.Final(): see validateCuexTemplateWith.
+func ValidateSourceTemplate(ctx context.Context, cueTemplate string) error {
+	return validateCuexTemplateWith(ctx, velacuex.SourceCompiler.Get(), cueTemplate)
+}
+
+// ValidateWorkflowStepCuexTemplate validates a WorkflowStepDefinition CUE
+// template against the workflow provider compiler.
+//
+// Step templates import workflow-only builtin packages that the workload
+// compiler does not register, "vela/op" above all. Validating them with
+// ValidateCuexTemplate rejects 27 of the 37 bundled step definitions with
+// `builtin package "vela/op" undefined`, so the two kinds cannot share a
+// compiler. They also cannot share the workflow one, for the reason described on
+// ValidateCuexTemplate.
+//
+// Not validated with cue.Final(): see validateCuexTemplateWith. op.#ApplyApplication
+// and friends carry internal fields a provider only fills in at run time (e.g.
+// apply-application.yaml's bare `op.#ApplyApplication & {}`); cue.Final() rejects
+// those as "undefined field", not as one of the incomplete/non-concrete shapes
+// checkError already tolerates. Confirmed empirically against the bundled
+// WorkflowStepDefinitions before adding this parameter.
+func ValidateWorkflowStepCuexTemplate(ctx context.Context, cueTemplate string) error {
+	return validateCuexTemplateWith(ctx, workflowproviders.DefaultCompiler.Get(), cueTemplate)
+}
+
+// validateCuexTemplateWith compiles cueTemplate against the given compiler and
+// reports whether it is a valid definition template.
+//
+// Compiles with DisableResolveProviderFunctions so provider functions are never
+// executed. Admission is a type check, and resolving would let a definition
+// whose CUE supplies fully concrete arguments trigger real side effects (a chart
+// fetch and helm install, a cluster read) merely by being submitted. Skipping
+// resolution also removes the need for the previous helm.WithDryRun guard, which
+// only protected the one provider that honored the signal; its other caller in
+// pkg/appfile stays, so the helper is not orphaned.
+//
+// Provider function arguments are still type-checked, because imports and
+// package schemas are resolved by BuildInstance before resolution would run.
+//
+// opts is cue.Final() for the kinds it is proven safe on (Component, Trait,
+// via ValidateCuexTemplate), which is what surfaces a reference to a provider
+// function CUE does not define, e.g. kube.#NotARealFunction, as an error
+// instead of silently passing. It is omitted for Source and WorkflowStep,
+// where it produces false positives on templates that ship today; see the
+// doc comments on ValidateSourceTemplate and ValidateWorkflowStepCuexTemplate.
+// Unresolved provider outputs ($returns) are left incomplete rather than
+// erroring either way, since templates are legitimately incomplete until an
+// Application supplies parameter values.
+func validateCuexTemplateWith(ctx context.Context, compiler *upstreamcuex.Compiler, cueTemplate string, opts ...cue.Option) error {
+	val, err := compileForValidation(ctx, compiler, cueTemplate)
 	if err != nil {
 		return err
 	}
+	return validateCompiled(val, opts...)
+}
+
+// compileForValidation is the compile half of validateCuexTemplateWith, shared
+// with CompilePolicyTemplate so both compile with provider functions off.
+func compileForValidation(ctx context.Context, compiler *upstreamcuex.Compiler, cueTemplate string) (cue.Value, error) {
+	return compiler.CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
+}
+
+// validateCompiled is the check half of validateCuexTemplateWith, shared with
+// ValidateCompiledCuexTemplate so both judge a compiled value the same way.
+func validateCompiled(val cue.Value, opts ...cue.Option) error {
 	if e := checkError(val.Err()); e != nil {
 		return e
 	}
-	err = val.Validate()
-	return checkError(err)
+	return checkError(val.Validate(opts...))
 }
 
 func checkError(err error) error {
 	re := regexp.MustCompile(ContextRegex)
 	if err != nil {
-		// ignore context not found error
+		// ignore context not found and uninstantiated parameter expressions
 		for _, e := range cueErrors.Errors(err) {
-			if !re.MatchString(e.Error()) {
-				return cueErrors.New(e.Error())
+			if re.MatchString(e.Error()) {
+				continue
 			}
+			format, _ := e.Msg()
+			if format == "cannot reference optional field: %s" ||
+				strings.HasPrefix(format, "incomplete ") ||
+				strings.Contains(e.Error(), "non-concrete value") ||
+				strings.Contains(e.Error(), "must be concrete") {
+				continue
+			}
+			return cueErrors.New(e.Error())
 		}
 	}
 	return nil
@@ -135,4 +281,46 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 		return fmt.Errorf("%s has both spec.version and revision name annotation. Only one can be present", objectType)
 	}
 	return nil
+}
+
+// ValidateDefinitionIdentity validates that a Definition's spec.module and
+// spec.apiVersion are set together or both left empty. The apiVersion format is
+// enforced by the CRD schema, not here.
+func ValidateDefinitionIdentity(module, apiVersion string) error {
+	switch {
+	case module != "" && apiVersion == "":
+		return errors.New("spec.module is set but spec.apiVersion is empty: set both or neither")
+	case module == "" && apiVersion != "":
+		return errors.New("spec.apiVersion is set but spec.module is empty: set both or neither")
+	}
+	if module != "" {
+		if errs := validation.IsDNS1123Label(module); len(errs) != 0 {
+			return errors.Errorf("spec.module %q is not a valid DNS-1123 label: %s", module, strings.Join(errs, ","))
+		}
+	}
+	return nil
+}
+
+// DenyOnInvalidIdentity runs ValidateDefinitionIdentity and, on failure, logs
+// it and builds the admission.Denied response every definition webhook uses
+// for it, so the four definition handlers (ComponentDefinition,
+// TraitDefinition, PolicyDefinition, WorkflowStepDefinition) share one call
+// instead of each copying the block with only the kind name changed.
+//
+// kind names the definition type in the log line (e.g. "ComponentDefinition").
+// The second return value is true when the request should be denied; the
+// caller returns the response immediately in that case and otherwise
+// continues to its next check.
+//
+// Logged at Info, not Error: an inconsistent module/apiVersion pair is the
+// requester's bad input, not a server-side fault, and WithError already
+// attaches the error to the structured log fields, so passing err again to
+// Error would log it twice for no extra signal.
+func DenyOnInvalidIdentity(logger logging.Logger, kind, module, apiVersion string, requestUID types.UID) (admission.Response, bool) {
+	if err := ValidateDefinitionIdentity(module, apiVersion); err != nil {
+		logger.WithStep("validate-identity").WithError(err).Info(
+			kind+" identity fields are inconsistent", "module", module, "apiVersion", apiVersion)
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), requestUID)), true
+	}
+	return admission.Response{}, false
 }

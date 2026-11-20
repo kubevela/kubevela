@@ -18,6 +18,7 @@ package helm
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 
@@ -80,6 +81,10 @@ metadata:
 				Expect(labels["app.oam.dev/name"]).To(Equal("my-app"))
 				Expect(labels["app.oam.dev/namespace"]).To(Equal("my-app-ns"))
 				Expect(labels["app.oam.dev/component"]).To(Equal("my-component"))
+				// owner.oam.dev/*, as every resource an Application owns carries
+				Expect(labels["owner.oam.dev/kind"]).To(Equal("Application"))
+				Expect(labels["owner.oam.dev/name"]).To(Equal("my-app"))
+				Expect(labels["owner.oam.dev/namespace"]).To(Equal("my-app-ns"))
 
 				annotations := obj.GetAnnotations()
 				Expect(annotations["app.oam.dev/owner"]).To(Equal("helm-provider"))
@@ -87,6 +92,40 @@ metadata:
 				Expect(annotations["meta.helm.sh/release-namespace"]).To(Equal("test-ns"))
 			}
 			Expect(resourceCount).To(Equal(2))
+		})
+
+		It("marks every resource managed by Helm, replacing a chart's own value Helm would refuse", func() {
+			manifest := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: plain
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: labelled
+  labels:
+    app.kubernetes.io/managed-by: Something
+`
+			renderer := &velaLabelPostRenderer{
+				context:          &ContextParams{AppName: "my-app", AppNamespace: "ns", Name: "comp"},
+				releaseName:      "my-release",
+				releaseNamespace: "ns",
+			}
+			result, err := renderer.Run(bytes.NewBufferString(manifest))
+			Expect(err).ShouldNot(HaveOccurred())
+			managedBy := map[string]string{}
+			decoder := kyaml.NewYAMLOrJSONDecoder(bytes.NewReader(result.Bytes()), 4096)
+			for {
+				obj := &unstructured.Unstructured{}
+				if err := decoder.Decode(obj); err != nil {
+					break
+				}
+				if len(obj.Object) > 0 {
+					managedBy[obj.GetName()] = obj.GetLabels()["app.kubernetes.io/managed-by"]
+				}
+			}
+			Expect(managedBy).To(Equal(map[string]string{"plain": "Helm", "labelled": "Helm"}))
 		})
 
 		It("should return original buffer when context is nil", func() {
@@ -107,7 +146,7 @@ metadata:
 		It("should not panic without a real cluster", func() {
 			p := NewProviderWithConfig(nil)
 			// Without a real cluster, Init will fail — we just verify no panic
-			_, err := p.getActionConfig("test-namespace")
+			_, err := p.getActionConfig(context.Background(), "test-namespace")
 			_ = err // error is expected
 		})
 	})
@@ -123,6 +162,9 @@ metadata:
 			Expect(labels["app.oam.dev/name"]).To(Equal("my-app"))
 			Expect(labels["app.oam.dev/namespace"]).To(Equal("my-ns"))
 			Expect(labels["app.oam.dev/component"]).To(Equal("my-component"))
+			Expect(labels["owner.oam.dev/kind"]).To(Equal("Application"))
+			Expect(labels["owner.oam.dev/name"]).To(Equal("my-app"))
+			Expect(labels["owner.oam.dev/namespace"]).To(Equal("my-ns"))
 		})
 
 		It("should return nil for nil context", func() {

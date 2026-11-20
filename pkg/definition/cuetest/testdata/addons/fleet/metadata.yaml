@@ -1,0 +1,5 @@
+name: fleet
+version: 0.1.0
+description: A test addon that deploys to runtime clusters without an application template
+deployTo:
+  runtimeCluster: true

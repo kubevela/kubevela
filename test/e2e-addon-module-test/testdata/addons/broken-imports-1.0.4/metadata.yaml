@@ -1,0 +1,7 @@
+name: broken-imports
+version: 1.0.4
+description: "Deliberately broken _imports.cue: semver range instead of an exact version."
+tags:
+  - test
+  - module-import
+dependencies: []

@@ -374,4 +374,43 @@ func TestGrantAndRevokePrivileges(t *testing.T) {
 		err = cli.Get(ctx, types.NamespacedName{Name: KubeVelaWriterRoleName + ":binding"}, binding)
 		r.True(kerrors.IsNotFound(err))
 	})
+
+	t.Run("RevokePrivileges leaves the remaining subjects exactly as they were", func(t *testing.T) {
+		// The service account, which has no apiGroup, moves into the revoked user's slot.
+		initialBinding := &rbacv1.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{Name: KubeVelaWriterRoleName + ":binding"},
+			RoleRef:    rbacv1.RoleRef{Kind: "ClusterRole", Name: KubeVelaWriterRoleName},
+			Subjects: []rbacv1.Subject{
+				{Kind: rbacv1.UserKind, Name: "user1", APIGroup: rbacv1.GroupName},
+				{Kind: rbacv1.ServiceAccountKind, Name: "deployer", Namespace: "team-a"},
+			},
+		}
+		cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(initialBinding).Build()
+
+		r.NoError(RevokePrivileges(ctx, cli, privileges, identityUser1, &bytes.Buffer{}))
+
+		binding := &rbacv1.ClusterRoleBinding{}
+		r.NoError(cli.Get(ctx, types.NamespacedName{Name: KubeVelaWriterRoleName + ":binding"}, binding))
+		r.Equal([]rbacv1.Subject{{Kind: rbacv1.ServiceAccountKind, Name: "deployer", Namespace: "team-a"}}, binding.Subjects)
+	})
+
+	t.Run("RevokePrivileges continues past a scope with no binding", func(t *testing.T) {
+		cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+		writer := &bytes.Buffer{}
+
+		// Only "present" holds the privilege, "missing" has never been granted.
+		r.NoError(GrantPrivileges(ctx, cli, []PrivilegeDescription{
+			&ScopedPrivilege{Cluster: "local", Namespace: "present"},
+		}, identityUser1, writer))
+		bindingKey := types.NamespacedName{Namespace: "present", Name: KubeVelaWriterRoleName + ":binding"}
+		r.NoError(cli.Get(ctx, bindingKey, &rbacv1.RoleBinding{}))
+
+		// The scope without a binding comes first and must not stop the revoke of the next one.
+		r.NoError(RevokePrivileges(ctx, cli, []PrivilegeDescription{
+			&ScopedPrivilege{Cluster: "local", Namespace: "missing"},
+			&ScopedPrivilege{Cluster: "local", Namespace: "present"},
+		}, identityUser1, writer))
+
+		r.True(kerrors.IsNotFound(cli.Get(ctx, bindingKey, &rbacv1.RoleBinding{})))
+	})
 }

@@ -22,8 +22,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/cue/nesting"
+
 	"github.com/pkg/errors"
 	admissionv1 "k8s.io/api/admission/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -32,6 +35,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -48,6 +54,8 @@ var traitDefGVR = v1beta1.TraitDefinitionGVR
 // ValidatingHandler handles validation of trait definition
 type ValidatingHandler struct {
 	Client client.Client
+	// Live reads straight from the API server; see the component handler.
+	Live client.Client
 
 	// Decoder decodes object
 	Decoder admission.Decoder
@@ -72,13 +80,23 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate trait definition
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	// CUE's parser recurses once per level of nesting, and a deep enough template overflows the
+	// stack, which no recover catches: refuse one before anything parses it.
+	if req.Object.Raw != nil {
+		if err := nesting.CheckJSONStrings(req.Object.Raw, nesting.MaxDepth); err != nil {
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+	}
 	startTime := time.Now()
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "TraitDefinitionValidator")
 
-	logger.WithStep("start").Info("Starting admission validation for TraitDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
+	logger.WithStep("start").Debug("Starting admission validation for TraitDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	obj := &v1beta1.TraitDefinition{}
+	// Advisory findings, returned with an accepted definition rather than
+	// refusing it.
+	var warnings []string
 	if req.Resource.String() != traitDefGVR.String() {
 		err := fmt.Errorf("expect resource to be %s", traitDefGVR)
 		logger.WithStep("resource-check").WithError(err).Error(err, "Admission request targets unexpected resource type - rejecting request",
@@ -93,10 +111,21 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into TraitDefinition object - malformed request")
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
+		// A terminating definition whose spec did not change is only having its
+		// finalizers removed. Skipping validation here lets a child whose parent
+		// is already gone finish deleting; otherwise the missing parent would
+		// refuse the update and the child would hang. A spec edit on a
+		// terminating definition is still validated as usual.
+		if obj.DeletionTimestamp != nil {
+			old := &v1beta1.TraitDefinition{}
+			if err := h.Decoder.DecodeRaw(req.OldObject, old); err == nil && apiequality.Semantic.DeepEqual(old.Spec, obj.Spec) {
+				return admission.Allowed("")
+			}
+		}
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)
 		}
-		logger.WithStep("decode").Info("Successfully decoded TraitDefinition from admission request",
+		logger.WithStep("decode").Debug("Successfully decoded TraitDefinition from admission request",
 			"definitionName", obj.Name,
 			"namespace", obj.Namespace,
 			"hasReference", len(obj.Spec.Reference.Name) > 0,
@@ -109,18 +138,66 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 		}
 
+		// Judged outside the block below, which is where everything else about
+		// `extends` is checked: with no CUE schematic that block is skipped and a
+		// definition that composes nothing would be admitted unexamined.
+		if err := webhookutils.ValidateExtendsHasTemplate(
+			"TraitDefinition", obj.Name, obj.Spec.Extends, obj.Spec.Schematic); err != nil {
+			logger.WithStep("validate-extends").WithError(err).Error(err, "TraitDefinition extends another but has no template to call it from")
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+
 		// validate cueTemplate
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for TraitDefinition schematic")
-			if err := webhookutils.ValidateCuexTemplate(ctx, obj.Spec.Schematic.CUE.Template); err != nil {
+			logger.WithStep("validate-cue").Debug("Validating CUE template syntax and semantics for TraitDefinition schematic")
+
+			// Validate against the effective template; with auto-upgrade is enabled
+			cueTemplate := obj.Spec.Schematic.CUE.Template
+			if *upgrade.EnableCUEVersionCompatibility {
+				upgraded, wasUpgraded := upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.TraitKind, upgrade.TemplateAreaMain)
+				if wasUpgraded {
+					warnings = append(warnings, "CUE template uses legacy syntax that will be auto-upgraded at render time. Run `vela def compat definitions` to scan all definitions for legacy syntax.")
+					cueTemplate = upgraded
+				}
+			}
+
+			if err := webhookutils.ValidateFinalPlacement(obj.Name, cueTemplate, inherit.TraitSurface); err != nil {
+				logger.WithStep("validate-final").WithError(err).Error(err, "TraitDefinition marks +final where it cannot be enforced")
+				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+			}
+
+			// A trait that extends another is judged against what it extends.
+			// Compiling its template alone would always fail: `$super` is declared
+			// nowhere in it, by design.
+			if obj.Spec.Extends != "" {
+				var ancestors []inherit.Level
+				err := webhookutils.ReadWithLiveRetry(h.Client, h.Live, func(cli client.Client) error {
+					var e error
+					ancestors, e = appfile.TraitAncestors(ctx, cli, obj)
+					return e
+				})
+				if err != nil {
+					logger.WithStep("validate-extends").WithError(err).Error(err, "TraitDefinition extends a definition that cannot be resolved")
+					return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+				}
+				warns, err := webhookutils.ValidateInheritedTemplate(
+					ctx, obj.Name, cueTemplate, ancestors, inherit.TraitSurface,
+					webhookutils.StatusSources(obj.Spec.Status)...)
+				if err != nil {
+					logger.WithStep("validate-extends").WithError(err).Error(err, "TraitDefinition does not satisfy the contract of the definition it extends")
+					return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+				}
+				warnings = append(warnings, warns...)
+				logger.WithStep("validate-extends").WithSuccess(true).Debug("TraitDefinition inheritance validated", "extends", obj.Spec.Extends, "chainLength", len(ancestors))
+			} else if err := webhookutils.ValidateCuexTemplate(ctx, cueTemplate); err != nil {
 				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper(), obj); err != nil {
+			if err := webhookutils.ValidateOutputResourcesExist(cueTemplate, h.Client.RESTMapper(), obj); err != nil {
 				logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
+			logger.WithStep("validate-cue").WithSuccess(true).Debug("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
 		}
 
 		if obj.Spec.Version != "" {
@@ -128,6 +205,18 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-version").WithError(err).Error(err, "TraitDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
+		}
+
+		// Validate identity fields: module and apiVersion are set together or not at all.
+		if resp, denied := webhookutils.DenyOnInvalidIdentity(logger, "TraitDefinition", obj.Spec.Module, obj.Spec.APIVersion, req.UID); denied {
+			return resp
+		}
+
+		// Validate namespace restrictions. A malformed glob would otherwise deny
+		// silently at render time, far from where it was written.
+		if err := nsrestrict.ValidateObject(obj); err != nil {
+			logger.WithStep("validate-namespace-restrictions").WithError(err).Error(err, "TraitDefinition namespace restriction is not a valid list of namespace names or globs")
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
 
 		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]
@@ -144,11 +233,13 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("validate-version-conflict").WithError(err).Error(err, "TraitDefinition has conflicting version specifications - cannot have both spec.version and revision annotation", "specVersion", version, "revisionName", revisionName)
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.WithStep("complete").WithSuccess(true, startTime).Info("TraitDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+		logger.WithStep("complete").WithSuccess(true, startTime).Debug("TraitDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
 	} else {
-		logger.WithStep("skip-validation").Info("Skipping TraitDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
+		logger.WithStep("skip-validation").Debug("Skipping TraitDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 	}
-	return admission.ValidationResponse(true, "")
+	resp := admission.ValidationResponse(true, "")
+	resp.Warnings = warnings
+	return resp
 }
 
 // RegisterValidatingHandler will register TraitDefinition validation to webhook
@@ -156,6 +247,7 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1beta1-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
 		Client:  mgr.GetClient(),
+		Live:    webhookutils.LiveClient(mgr),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 		Validators: []TraitDefValidator{
 			TraitDefValidatorFn(ValidateDefinitionReference),

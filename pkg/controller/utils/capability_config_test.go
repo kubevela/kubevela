@@ -17,37 +17,14 @@
 package utils
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetTerraformConfigurationFromRemote(t *testing.T) {
-	type want struct {
-		config string
-		errMsg string
-	}
-
-	type args struct {
-		name         string
-		url          string
-		path         string
-		data         []byte
-		variableFile string
-	}
-	cases := map[string]struct {
-		args args
-		want want
-	}{
-		"valid": {
-			args: args{
-				name: "valid",
-				url:  "https://github.com/kubevela-contrib/terraform-modules.git",
-				path: "unittest/",
-				data: []byte(`
+	t.Setenv("HOME", t.TempDir())
+	main := `
 variable "aaa" {
 	type = list(object({
 		type = string
@@ -55,72 +32,20 @@ variable "aaa" {
 		config = string
 	}))
 	default = []
-}`),
-				variableFile: "main.tf",
-			},
-			want: want{
-				config: `
-variable "aaa" {
-	type = list(object({
-		type = string
-		sourceArn = string
-		config = string
-	}))
-	default = []
-}`,
-			},
-		},
-		"configuration is remote with path": {
-			args: args{
-				name: "aws-subnet",
-				url:  "https://github.com/kubevela-contrib/terraform-modules.git",
-				path: "unittest/aws/subnet",
-				data: []byte(`
-variable "aaa" {
-	type = list(object({
-		type = string
-		sourceArn = string
-		config = string
-	}))
-	default = []
-}`),
-				variableFile: "variables.tf",
-			},
-			want: want{
-				config: `
-variable "aaa" {
-	type = list(object({
-		type = string
-		sourceArn = string
-		config = string
-	}))
-	default = []
-}`,
-			},
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			home, _ := os.UserHomeDir()
-			path := filepath.Join(home, ".vela", "terraform")
-			tmpPath := filepath.Join(path, tc.args.name, tc.args.path)
-			if len(tc.args.data) > 0 {
-				err := os.MkdirAll(tmpPath, os.ModePerm)
-				assert.NoError(t, err)
-				err = os.WriteFile(filepath.Clean(filepath.Join(tmpPath, tc.args.variableFile)), tc.args.data, 0644)
-				assert.NoError(t, err)
-			}
-			defer os.RemoveAll(tmpPath)
-
-			conf, err := GetTerraformConfigurationFromRemote(tc.args.name, tc.args.url, tc.args.path, nil)
-			if tc.want.errMsg != "" {
-				if err != nil && !strings.Contains(err.Error(), tc.want.errMsg) {
-					t.Errorf("\n%s\nGetTerraformConfigurationFromRemote(...): -want error %v, +got error:%s", name, err, tc.want.errMsg)
-				}
-			} else {
-				assert.Equal(t, tc.want.config, conf)
-			}
-		})
-	}
+}`
+	vars := `
+variable "aws_az" {
+  description = "AWS Availability Zone"
+  type        = string
+}`
+	t.Run("reads main.tf at the module's root path", func(t *testing.T) {
+		conf, err := GetTerraformConfigurationFromRemote("valid", moduleRepo(t, map[string]string{"unittest/main.tf": main}, nil), "unittest/", nil)
+		assert.NoError(t, err)
+		assert.Equal(t, main, conf)
+	})
+	t.Run("reads variables.tf at a nested path", func(t *testing.T) {
+		conf, err := GetTerraformConfigurationFromRemote("aws-subnet", moduleRepo(t, map[string]string{"unittest/aws/subnet/variables.tf": vars}, nil), "unittest/aws/subnet", nil)
+		assert.NoError(t, err)
+		assert.Equal(t, vars, conf)
+	})
 }

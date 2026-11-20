@@ -1,0 +1,25 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations: {}
+    labels:
+      app: shop
+      app.oam.dev/appRevision: test-app-v1
+      app.oam.dev/component: test-component
+      app.oam.dev/name: test-app
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      tier: frontend
+      workload.oam.dev/type: cuetest-workload
+    name: web
+    namespace: default
+  spec:
+    replicas: 3
+    template:
+      spec:
+        containers:
+        - image: shop:2.0
+          name: web
+outputs: {}

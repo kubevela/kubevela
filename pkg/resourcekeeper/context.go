@@ -18,21 +18,20 @@ package resourcekeeper
 
 import (
 	"context"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 type contextKey int
 
-const contextPhaseKey contextKey = iota
+const contextFailedRunKey contextKey = iota
 
-// WithPhase inject phase into context
-func WithPhase(ctx context.Context, phase common.ApplicationPhase) context.Context {
-	return context.WithValue(ctx, contextPhaseKey, phase)
+// WithFailedRun records whether the owner's current run failed (for an Application, its
+// workflow), so a garbage-collect policy with continueOnFailure still collects.
+func WithFailedRun(ctx context.Context, failed bool) context.Context {
+	return context.WithValue(ctx, contextFailedRunKey, failed)
 }
 
-// PhaseFrom extract phase from context
-func PhaseFrom(ctx context.Context) common.ApplicationPhase {
-	phase, _ := ctx.Value(contextPhaseKey).(common.ApplicationPhase)
-	return phase
+// failedRun reports what WithFailedRun recorded.
+func failedRun(ctx context.Context) bool {
+	failed, _ := ctx.Value(contextFailedRunKey).(bool)
+	return failed
 }

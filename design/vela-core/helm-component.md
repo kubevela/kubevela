@@ -244,9 +244,11 @@ Chart caching is critical for performance:
 **Cache Location**: Controller pod's ephemeral storage with configurable size
 
 **Cache Eviction**: LRU with configurable TTL:
-    - Immutable versions (1.2.3, v2.0.0): 24h default
-    - Mutable versions (latest, dev, main): 5m default
-    - User-configurable per-chart via options.cache.ttl
+    - Immutable versions (1.2.3, v2.0.0): 24h default (configurable cluster-wide via `--helm-cache-immutable-ttl`)
+    - Mutable versions (latest, dev, main): 5m default (configurable cluster-wide via `--helm-cache-mutable-ttl`)
+    - User-configurable per-chart via options.cache.ttl / options.cache.immutableTTL / options.cache.mutableTTL
+      (per-component values always win over the cluster-wide defaults; the component template leaves these
+      fields optional precisely so an empty `cache: {}` block honors the cluster defaults)
 
 **Cache Validation**: Version-based validation with smart TTL detection
 

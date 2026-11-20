@@ -17,6 +17,7 @@ limitations under the License.
 package http
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -25,13 +26,19 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
+	workflowfeatures "github.com/kubevela/workflow/pkg/features"
+	"github.com/kubevela/workflow/pkg/utils/httpguard"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/http/testdata"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
@@ -97,6 +104,158 @@ func TestHTTPCmdRun(t *testing.T) {
 
 	assert.Equal(t, "{\"token\":\"test-token-no-header\"}", body)
 
+}
+
+func TestHTTPCmdRunWithCustomTimeout(t *testing.T) {
+	// Start a slow server that takes 200ms to respond
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen on ephemeral port: %v", err)
+	}
+	ts.Listener.Close()
+	ts.Listener = l
+	ts.Start()
+	defer ts.Close()
+
+	// Derive the server URL from the listener address
+	serverURL := fmt.Sprintf("http://%s/api/v1/slow", l.Addr().String())
+
+	// Without custom timeout (default 3s) — should succeed since server responds in 200ms
+	reqDefault := cuecontext.New().CompileString(fmt.Sprintf(`{
+		method: "GET"
+		url: "%s"
+	}`, serverURL))
+	runner, _ := newHTTPCmd(cue.Value{})
+	got, err := runner.Run(&registry.Meta{Obj: reqDefault.Value()})
+	assert.NoError(t, err)
+	body := (got.(map[string]interface{}))["body"].(string)
+	assert.Equal(t, `{"status":"ok"}`, body)
+
+	// With explicit timeout of 1s — should also succeed
+	reqCustom := cuecontext.New().CompileString(fmt.Sprintf(`{
+		method: "GET"
+		url: "%s"
+		request: {
+			timeout: "1s"
+		}
+	}`, serverURL))
+	got, err = runner.Run(&registry.Meta{Obj: reqCustom.Value()})
+	assert.NoError(t, err)
+	body = (got.(map[string]interface{}))["body"].(string)
+	assert.Equal(t, `{"status":"ok"}`, body)
+
+	// With a very short timeout of 50ms — should fail
+	reqShort := cuecontext.New().CompileString(fmt.Sprintf(`{
+		method: "GET"
+		url: "%s"
+		request: {
+			timeout: "50ms"
+		}
+	}`, serverURL))
+	_, err = runner.Run(&registry.Meta{Obj: reqShort.Value()})
+	assert.Error(t, err, "expected timeout error with 50ms deadline on a 200ms server")
+}
+
+func TestHTTPCmdRunRefusesAnInvalidTimeout(t *testing.T) {
+	runner, _ := newHTTPCmd(cue.Value{})
+	for _, timeout := range []string{"not-a-duration", "0s", "-5s", "61s"} {
+		req := cuecontext.New().CompileString(fmt.Sprintf(`{
+			method: "GET"
+			url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
+			request: timeout: %q
+		}`, timeout))
+		_, err := runner.Run(&registry.Meta{Obj: req.Value()})
+		require.ErrorContains(t, err, timeout)
+	}
+}
+
+func TestHTTPCmdRunStopsWithItsContext(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	runner, _ := newHTTPCmd(cue.Value{})
+	req := cuecontext.New().CompileString(fmt.Sprintf(`{method: "GET", url: %q, request: timeout: "30s"}`, srv.URL))
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := runner.Run(&registry.Meta{Context: ctx, Obj: req.Value()})
+	require.Error(t, err)
+	require.Less(t, time.Since(start), 5*time.Second)
+}
+
+// A maximum below the default timeout bounds a request that sets none.
+func TestHTTPCmdRunKeepsAnUnsetTimeoutWithinTheMaximum(t *testing.T) {
+	maxTimeout := httpguard.MaxRequestTimeout
+	httpguard.MaxRequestTimeout = 200 * time.Millisecond
+	defer func() { httpguard.MaxRequestTimeout = maxTimeout }()
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	runner, _ := newHTTPCmd(cue.Value{})
+	req := cuecontext.New().CompileString(fmt.Sprintf(`{method: "GET", url: %q}`, srv.URL))
+	start := time.Now()
+	_, err := runner.Run(&registry.Meta{Context: context.Background(), Obj: req.Value()})
+	require.Error(t, err)
+	require.Less(t, time.Since(start), 2*time.Second)
+}
+
+func TestHTTPCmdRunRefusesAnOversizedBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("x", int(httpguard.MaxResponseBytes)+1)))
+	}))
+	defer srv.Close()
+
+	runner, _ := newHTTPCmd(cue.Value{})
+	req := cuecontext.New().CompileString(fmt.Sprintf(`{method: "GET", url: %q}`, srv.URL))
+	_, err := runner.Run(&registry.Meta{Obj: req.Value()})
+	require.ErrorContains(t, err, "exceeds")
+}
+
+func TestHTTPCmdRun_blocksLinkLocalMetadata(t *testing.T) {
+	runner, _ := newHTTPCmd(cue.Value{})
+	reqInst := cuecontext.New().CompileString(`method: "GET"
+url: "http://169.254.169.254/latest/meta-data/"`)
+	_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "blocked SSRF target")
+}
+
+func TestHTTPCmdRun_disableWorkflowHTTP(t *testing.T) {
+	previous := utilfeature.DefaultMutableFeatureGate.Enabled(workflowfeatures.DisableWorkflowHTTP)
+	require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+		string(workflowfeatures.DisableWorkflowHTTP): true,
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+			string(workflowfeatures.DisableWorkflowHTTP): previous,
+		}))
+	})
+
+	runner, _ := newHTTPCmd(cue.Value{})
+	reqInst := cuecontext.New().CompileString(`method: "GET"
+url: "http://127.0.0.1:8090/api/v1/token?val=test-token"`)
+	_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "DisableWorkflowHTTP")
 }
 
 func TestHTTPSRun(t *testing.T) {

@@ -19,7 +19,11 @@ package utils
 import (
 	"context"
 	"fmt"
+	"log"
+	"net"
+	"os/exec"
 	"strings"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -31,6 +35,11 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
+
+// dockerInspectTimeout bounds the `docker network inspect` call in
+// hostGatewayAddress. Generous enough for a healthy daemon on a loaded CI
+// runner, short enough that an unresponsive one does not stall e2e setup.
+const dockerInspectTimeout = 5 * time.Second
 
 var (
 	// Port is mock server's exposed port
@@ -47,6 +56,48 @@ metadata:
 `
 )
 
+// hostGatewayAddress returns an address reachable both from this process (the
+// CI runner host) and from pods running inside the "kind" Docker network, by
+// resolving that network's IPv4 bridge gateway IP. The "kind" network is
+// commonly dual-stack (IPv4 and IPv6 both enabled), and Docker does not
+// guarantee IPAM.Config ordering, so every configured gateway is inspected
+// and the first one that parses as IPv4 is used -- picking config[0]
+// unconditionally can select an IPv6 entry (sometimes left with no gateway at
+// all, e.g. under SLAAC), which is what silently produced an empty result
+// here before. Falls back to "127.0.0.1" if the network can't be inspected or
+// has no IPv4 gateway (e.g. Docker/kind not present) -- that fallback is only
+// reachable from the host itself, matching this function's original behavior.
+//
+// The inspect is bounded by dockerInspectTimeout. This runs from the mock
+// server's main() during e2e setup, so an unresponsive Docker daemon (present,
+// so the command starts, but never answering) would otherwise hang the whole
+// e2e run with no output; the timeout turns that into the same 127.0.0.1
+// fallback as a missing daemon.
+func hostGatewayAddress() string {
+	ctx, cancel := context.WithTimeout(context.Background(), dockerInspectTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", "network", "inspect", "kind", "--format", "{{range .IPAM.Config}}{{.Gateway}}{{\"\\n\"}}{{end}}").Output() // #nosec G204 -- fixed command and args, not user input
+	if err != nil {
+		log.Printf("could not resolve kind network gateway, falling back to 127.0.0.1 (unreachable from in-cluster pods): %v", err)
+		return "127.0.0.1"
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		gateway := strings.TrimSpace(line)
+		if gateway == "" {
+			continue
+		}
+		// Return the parsed form, not the raw string: To4 also accepts the
+		// IPv4-mapped IPv6 spelling (::ffff:172.18.0.1), and splicing that into
+		// http://host:port yields a malformed URL. To4().String() normalizes it to
+		// dotted-quad and leaves a plain IPv4 gateway unchanged.
+		if ip := net.ParseIP(gateway); ip != nil && ip.To4() != nil {
+			return ip.To4().String()
+		}
+	}
+	log.Printf("kind network inspect returned no IPv4 gateway (raw config: %q), falling back to 127.0.0.1", strings.TrimSpace(string(out)))
+	return "127.0.0.1"
+}
+
 // ApplyMockServerConfig config mock server as addon registry
 func ApplyMockServerConfig() error {
 	args := common.Args{Schema: common.Scheme}
@@ -58,8 +109,9 @@ func ApplyMockServerConfig() error {
 	originCm := v1.ConfigMap{}
 	cm := v1.ConfigMap{}
 
-	registryCmStr := strings.ReplaceAll(velaRegistry, "REGISTRY_ADDR", fmt.Sprintf("127.0.0.1:%d", Port))
-	registryCmStr = strings.ReplaceAll(registryCmStr, "HELM_ADDR", fmt.Sprintf("127.0.0.1:%d/helm", Port))
+	hostAddr := hostGatewayAddress()
+	registryCmStr := strings.ReplaceAll(velaRegistry, "REGISTRY_ADDR", fmt.Sprintf("%s:%d", hostAddr, Port))
+	registryCmStr = strings.ReplaceAll(registryCmStr, "HELM_ADDR", fmt.Sprintf("%s:%d/helm", hostAddr, Port))
 
 	err = yaml.Unmarshal([]byte(registryCmStr), &cm)
 	if err != nil {

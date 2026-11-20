@@ -1,0 +1,9 @@
+# no metadata.name
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata: {}
+spec:
+  schematic:
+    cue:
+      template: |
+        patch: {}

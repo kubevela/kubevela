@@ -1,0 +1,7 @@
+name: broken-imports
+version: 1.0.6
+description: "Deliberately broken _imports.cue: import entry without a module name."
+tags:
+  - test
+  - module-import
+dependencies: []

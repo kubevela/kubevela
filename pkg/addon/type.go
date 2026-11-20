@@ -20,6 +20,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/module"
 	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
@@ -29,6 +30,9 @@ type UIData struct {
 
 	APISchema *openapi3.Schema      `json:"schema"`
 	UISchema  []*schema.UIParameter `json:"uiSchema"`
+	// DefaultUISchema is the form generated from the addon's parameter, or
+	// nil where it could not be generated.
+	DefaultUISchema []*schema.UIParameter `json:"defaultUISchema,omitempty"`
 
 	// Detail is README.md in an addon
 	Detail string `json:"detail,omitempty"`
@@ -70,6 +74,18 @@ type InstallPackage struct {
 	AppTemplate    *v1beta1.Application `json:"appTemplate"`
 	AppCueTemplate ElementFile          `json:"appCueTemplate,omitempty"`
 	Notes          ElementFile          `json:"notes,omitempty"`
+
+	// Imports are the addon's modules/_imports.cue entries: external modules
+	// the addon references, each installed as a type: module component in
+	// the rendered addon Application. Empty when the addon has no
+	// modules/_imports.cue file.
+	Imports []ModuleImport `json:"imports,omitempty"`
+
+	// InlineModules are modules developed directly inside the addon's own
+	// modules/<name>/ directories and parsed from the addon's own
+	// bundled files -- no registry, no fetch.
+	// Empty when the addon has no inline modules.
+	InlineModules []*module.Module `json:"inlineModules,omitempty"`
 }
 
 // WholeAddonPackage contains all infos of an addon
@@ -77,6 +93,9 @@ type WholeAddonPackage struct {
 	InstallPackage
 
 	APISchema *openapi3.Schema `json:"schema"`
+	// DefaultUISchema is the form generated from the addon's parameter, or
+	// nil where it could not be generated.
+	DefaultUISchema []*schema.UIParameter `json:"defaultUISchema,omitempty"`
 
 	// Detail is README.md in an addon
 	Detail            string   `json:"detail,omitempty"`

@@ -1,0 +1,34 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: agent
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: daemon
+    name: agent
+    namespace: default
+  spec:
+    selector:
+      matchLabels:
+        app.oam.dev/component: agent
+    template:
+      metadata:
+        annotations:
+          owner: platform
+        labels:
+          app.oam.dev/component: agent
+          app.oam.dev/name: shop
+          app.oam.dev/revision: agent-v2
+          team: platform
+      spec:
+        containers:
+        - image: log-agent:1.0
+          name: agent
+outputs: {}
+traits: {}

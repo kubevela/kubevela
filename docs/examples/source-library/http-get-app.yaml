@@ -1,0 +1,32 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: http-demo
+  namespace: httpsrc
+  annotations: {app.oam.dev/cel-expressions: "true"}
+spec:
+  sources:
+    # Content-Type: application/json -> parsed
+    - name: cfg
+      type: http-get
+      properties: {url: "http://localhost:18080/app.json"}
+    # Content-Type: text/plain -> left as bytes
+    - name: note
+      type: http-get
+      properties:
+        url: "http://localhost:18080/plain.txt"
+  components:
+    - name: probe
+      type: webservice
+      properties:
+        image: nginx:1.25.0
+        port: 80
+        env:
+          - name: TIER
+            value: '$(string(source.cfg.content.tier))'
+          - name: REPLICAS
+            value: '$(string(source.cfg.content.replicas))'
+          - name: NOTE
+            value: '$(string(source.note.content))'
+          - name: STATUS
+            value: '$(string(source.cfg.statusCode))'

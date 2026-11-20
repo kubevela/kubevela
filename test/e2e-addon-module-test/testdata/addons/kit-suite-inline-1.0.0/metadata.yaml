@@ -1,0 +1,13 @@
+# Inline-module mirror of kit-suite-1.0.0: two modules bundled directly
+# (modules/widget-kit-inline/, modules/gadget-kit-inline/, both exact renames
+# of the published widget-kit-1.0.0/gadget-kit-1.0.0) instead of two
+# modules/_imports.cue entries. Proves scenario 03's two-modules-in-one-addon
+# behavior -- including the cross-module trait-name ambiguity on "labeler" --
+# holds the same way when both modules are inline.
+name: kit-suite-inline
+version: 1.0.0
+description: Test addon that bundles widget-kit-inline and gadget-kit-inline directly, no modules/_imports.cue.
+tags:
+  - test
+  - module-inline
+dependencies: []

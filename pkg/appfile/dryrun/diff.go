@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -495,6 +496,12 @@ func generateManifestFromAppRevision(parser *appfile.Parser, appRevision *v1beta
 	if err != nil {
 		return nil, err
 	}
+	if err := validateComponentReads(&appRevision.Spec.Application); err != nil {
+		return nil, err
+	}
+	af.Context = withPlaceholders(af.Context, &appRevision.Spec.Application)
+	// Rendered as the other side of the diff is, client-side, so a chart is not installed.
+	af.Context = helm.WithDryRun(af.Context)
 	comps, err := af.GenerateComponentManifests()
 	if err != nil {
 		return nil, err

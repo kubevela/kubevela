@@ -61,11 +61,11 @@ spec:
 					},
 				},
 			}
-			p.cache.Put("repo/my-chart/1.0.0", testChart, 1*time.Hour)
+			p.cache.Put("repo/"+sourceCacheID("my-chart")+"/1.0.0", createChartArchive(testChart), 1*time.Hour)
 
 			// Call the provider's internal render logic in dry-run mode
 			ctx := WithDryRun(context.Background())
-			manifest, notes, err := p.dryRunRender(testChart, "release", "default",
+			manifest, notes, err := p.dryRunRender(context.Background(), testChart, "release", "default",
 				map[string]interface{}{}, nil, nil)
 			Expect(err).ShouldNot(HaveOccurred())
 			_ = ctx
@@ -113,7 +113,7 @@ spec:
 					},
 				},
 			}
-			p.cache.Put("repo/render-dryrun/1.0.0", testChart, 1*time.Hour)
+			p.cache.Put("repo/"+sourceCacheID("render-dryrun")+"/1.0.0", createChartArchive(testChart), 1*time.Hour)
 
 			ctx := WithDryRun(context.Background())
 			result, err := Render(ctx, &providers.Params[RenderParams]{
@@ -162,7 +162,7 @@ data:
 					},
 				},
 			}
-			p.cache.Put("repo/render-defaults/2.0.0", testChart, 1*time.Hour)
+			p.cache.Put("repo/"+sourceCacheID("render-defaults")+"/2.0.0", createChartArchive(testChart), 1*time.Hour)
 
 			ctx := WithDryRun(context.Background())
 			result, err := Render(ctx, &providers.Params[RenderParams]{
@@ -177,6 +177,55 @@ data:
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result).ToNot(BeNil())
 			Expect(result.Returns.Resources).To(HaveLen(1))
+		})
+
+		It("names a release with only a namespace after the component", func() {
+			p := NewProvider()
+			testChart := &chart.Chart{
+				Metadata: &chart.Metadata{Name: "render-ns-only", Version: "1.0.0"},
+				Templates: []*chart.File{{Name: "templates/cm.yaml", Data: []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-cm
+`)}},
+			}
+			p.cache.Put("repo/"+sourceCacheID("render-ns-only")+"/1.0.0", createChartArchive(testChart), 1*time.Hour)
+
+			result, err := Render(WithDryRun(context.Background()), &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart:   ChartSourceParams{Source: "render-ns-only", Version: "1.0.0"},
+					Release: &ReleaseParams{Namespace: "cache-ns"},
+					Context: &ContextParams{AppName: "shop", AppNamespace: "team-a", Name: "redis", Namespace: "team-a"},
+				},
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result.Returns.Resources).To(HaveLen(1))
+			name, _, _ := unstructured.NestedString(result.Returns.Resources[0], "metadata", "name")
+			Expect(name).To(Equal("redis-cm"))
+		})
+
+		It("puts a release with no release params where the component is placed", func() {
+			p := NewProvider()
+			testChart := &chart.Chart{
+				Metadata: &chart.Metadata{Name: "render-placed", Version: "1.0.0"},
+				Templates: []*chart.File{{Name: "templates/cm.yaml", Data: []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cm
+  namespace: {{ .Release.Namespace }}
+`)}},
+			}
+			p.cache.Put("repo/"+sourceCacheID("render-placed")+"/1.0.0", createChartArchive(testChart), 1*time.Hour)
+
+			result, err := Render(WithDryRun(context.Background()), &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart:   ChartSourceParams{Source: "render-placed", Version: "1.0.0"},
+					Context: &ContextParams{AppName: "shop", AppNamespace: "team-a", Name: "redis", Namespace: "team-a-prod"},
+				},
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			ns, _, _ := unstructured.NestedString(result.Returns.Resources[0], "metadata", "namespace")
+			Expect(ns).To(Equal("team-a-prod"))
 		})
 
 		It("should return error when chart fetch fails", func() {
@@ -312,13 +361,13 @@ data:
 			singleton.KubeClient.Set(c)
 
 			p := NewProvider()
-			p.cache.Put("repo/render-defense-dryrun/1.0.0", &chart.Chart{
+			p.cache.Put("repo/"+sourceCacheID("render-defense-dryrun")+"/1.0.0", createChartArchive(&chart.Chart{
 				Metadata: &chart.Metadata{Name: "render-defense-dryrun", Version: "1.0.0"},
 				Templates: []*chart.File{{
 					Name: "templates/cm.yaml",
 					Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: {{ .Release.Name }}-cm\n"),
 				}},
-			}, 1*time.Hour)
+			}), 1*time.Hour)
 
 			ctx := WithDryRun(context.Background())
 			_, err := Render(ctx, &providers.Params[RenderParams]{

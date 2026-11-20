@@ -39,7 +39,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/addon"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -187,6 +186,9 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 	for i, registry := range registries {
 		if registry.Name == registryName {
 			var uiData *UIData
+			// Chart-backed registries have no AsyncReader. Sending one down the
+			// reader path fails with "registry don't have enough info to build a
+			// reader", which would block disabling an addon installed from it.
 			if !IsVersionRegistry(registry) {
 				installer := NewAddonInstaller(ctx, k8sClient, nil, nil, config, &registries[i], nil, nil, nil)
 				metas, err := installer.getAddonMeta()
@@ -195,16 +197,15 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 				}
 				meta := metas[addonName]
 				// only fetch definition files from registry.
-				uiData, err = registry.GetUIData(&meta, UnInstallOptions)
+				uiData, err = GetUIData(&registry, &meta, UnInstallOptions)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon difinition files from registry")
 				}
 			} else {
-				versionedRegistry := BuildVersionedRegistry(registry.Name, registry.Helm.URL, &common.HTTPOption{
-					Username:        registry.Helm.Username,
-					Password:        registry.Helm.Password,
-					InsecureSkipTLS: registry.Helm.InsecureSkipTLS,
-				})
+				versionedRegistry, err := ToVersionedRegistry(registry)
+				if err != nil {
+					return errors.Wrapf(err, "cannot read addon registry")
+				}
 				uiData, err = versionedRegistry.GetAddonUIData(ctx, addonName, "")
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon difinition files from registry")
@@ -264,7 +265,9 @@ func IsLocalRegistry(r Registry) bool {
 	return r.Name == LocalAddonRegistryName
 }
 
-// IsVersionRegistry  check the repo source if support multi-version addon
+// IsVersionRegistry check the repo source if support multi-version addon. Both
+// an indexed HTTP Helm repository and an OCI registry are Helm sources; the URL
+// scheme decides which transport reads it.
 func IsVersionRegistry(r Registry) bool {
 	return r.Helm != nil
 }
@@ -531,10 +534,10 @@ func validateAddonPackage(addonPkg *InstallPackage) error {
 		return fmt.Errorf("the addon package doesn't have `metadata.yaml`")
 	}
 	if addonPkg.Name == "" {
-		return fmt.Errorf("`matadata.yaml` must define the name of addon")
+		return fmt.Errorf("`metadata.yaml` must define the name of addon")
 	}
 	if addonPkg.Version == "" {
-		return fmt.Errorf("`matadata.yaml` must define the version of addon")
+		return fmt.Errorf("`metadata.yaml` must define the version of addon")
 	}
 	return nil
 }

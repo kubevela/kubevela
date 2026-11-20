@@ -30,9 +30,9 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/types"
 )
 
@@ -81,7 +81,7 @@ func (c *AppCollector) CollectResourceFromApp(ctx context.Context) ([]Resource, 
 
 // ListApplicationResources list application applied resources from tracker
 func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta1.Application) ([]types.AppliedResource, error) {
-	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
+	rootRT, currentRT, historyRTs, _, err := appkeeper.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		return nil, errors.WithMessage(err, "list application resource trackers")
 	}
@@ -205,7 +205,7 @@ func (c *AppCollector) ListApplicationResources(ctx context.Context, app *v1beta
 
 // FindResourceFromResourceTrackerSpec find resources from ResourceTracker spec
 func (c *AppCollector) FindResourceFromResourceTrackerSpec(ctx context.Context, app *v1beta1.Application) ([]Resource, error) {
-	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
+	rootRT, currentRT, historyRTs, _, err := appkeeper.ListApplicationResourceTrackers(ctx, c.k8sClient, app)
 	if err != nil {
 		klog.Errorf("query the resourcetrackers failure %s", err.Error())
 		return nil, err

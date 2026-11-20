@@ -62,7 +62,7 @@ func RenderComponent(ctx context.Context, params *oamprovidertypes.Params[cue.Va
 	for _, trait := range traits {
 		name := trait.GetLabels()[oam.TraitResource]
 		if name != "" {
-			v = v.FillPath(value.FieldPath("$returns", "outputs", name), workload.Object)
+			v = v.FillPath(value.FieldPath("$returns", "outputs", name), trait)
 		}
 	}
 
@@ -80,7 +80,12 @@ func ApplyComponent(ctx context.Context, params *oamprovidertypes.Params[cue.Val
 	if err != nil {
 		return cue.Value{}, err
 	}
-	workload, traits, healthy, err := params.ComponentApply(ctx, *comp, patcher, clusterName, overrideNamespace)
+	workload, traits, healthy, waiting, err := params.ComponentApply(ctx, *comp, patcher, clusterName, overrideNamespace)
+	if waiting != "" {
+		// Nothing was applied, so the step waits whatever waitHealthy says.
+		params.Action.Wait(waiting)
+		return v, nil
+	}
 	if err != nil {
 		return cue.Value{}, err
 	}

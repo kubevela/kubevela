@@ -1,0 +1,4 @@
+apiVersion: v2
+name: widgets
+description: Test chart with a CRD in crds/, a custom resource of it, and a hook.
+version: 0.1.0

@@ -1,0 +1,29 @@
+# New in widget-kit-inline 1.1.0: an additive change inside the existing v1 line.
+# Installed as widget-kit-inline-v1-gauge. Renders a plain ConfigMap.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: gauge
+  annotations:
+    definition.oam.dev/description: widget-kit-inline v1 Gauge (added in module 1.1.0).
+spec:
+  workload:
+    type: autodetects.core.oam.dev
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "v1"
+        	kind:       "ConfigMap"
+        	metadata: name: context.name
+        	data: {
+        		module: "widget-kit-inline"
+        		line:   "v1"
+        		reading: "\(parameter.reading)"
+        		since:  "1.1.0"
+        	}
+        }
+        parameter: {
+        	// +usage=Gauge reading
+        	reading: *50 | int & >=0 & <=100
+        }

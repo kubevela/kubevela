@@ -56,6 +56,11 @@ const (
 	AuthenticateApplication featuregate.Feature = "AuthenticateApplication"
 	// ValidateDefinitionPermissions enables RBAC validation for definition access in applications
 	ValidateDefinitionPermissions featuregate.Feature = "ValidateDefinitionPermissions"
+	// RestrictDefinitionNamespaces enforces a definition's spec.restrictions, or
+	// its definition.oam.dev/restrict-namespaces annotation, when an Application is
+	// written. Defaults on: it does nothing until a definition declares a
+	// restriction, and is here to switch enforcement off, not on.
+	RestrictDefinitionNamespaces featuregate.Feature = "RestrictDefinitionNamespaces"
 	// GzipResourceTracker enables the gzip compression for ResourceTracker. It can be useful if you have large
 	// application that needs to dispatch lots of resources or large resources (like CRD or huge ConfigMap),
 	// which at the cost of slower processing speed due to the extra overhead for compression and decompression.
@@ -134,10 +139,77 @@ const (
 	// separately control global policy discovery.
 	EnableApplicationScopedPolicies featuregate.Feature = "EnableApplicationScopedPolicies"
 
+	// EnableSourceAutoUpdate is the controller-wide default for source-driven
+	// re-dispatch: whether a component is re-applied when a value it read from a
+	// SourceDefinition changes. It decides only what happens to an Application
+	// carrying no opinion of its own - spec.sources[].autoUpdate overrides it in
+	// both directions, and a publishVersion pin suppresses the refresh regardless.
+	EnableSourceAutoUpdate featuregate.Feature = "EnableSourceAutoUpdate"
+
 	// ValidateUndeclaredParameters enables validation that rejects parameters not declared in the
 	// CUE definition schema. When enabled, any parameter field not present in the template's
 	// parameter stanza will cause a validation error at admission time.
 	ValidateUndeclaredParameters = "ValidateUndeclaredParameters"
+
+	// EnableAddonComponent enables installing an addon as an Application component via the
+	// type: addon ComponentDefinition. The ComponentDefinition and its vela/addon CueX
+	// package always ship, because the definition cannot compile without the package; this
+	// gate controls whether the render service is wired up and whether the shared Application
+	// webhook runs its addon-specific compatibility-validation branch. The shared Application
+	// webhook is always registered. When disabled, nothing addon-specific runs and an
+	// Application using type: addon fails at render with an actionable message.
+	EnableAddonComponent featuregate.Feature = "EnableAddonComponent"
+	// EnableCelExpressions turns on $( ) property expressions, and with them
+	// SourceDefinition, which cannot be used without them. The dependency runs one
+	// way: an expression reading $(context.namespace) needs no source at all, so
+	// this gate is named for the mechanism rather than for its first consumer.
+	//
+	// Off by default because the delimiter is Kubernetes' own: $(VAR_NAME) is the
+	// documented syntax for a dependent environment variable, and is ordinary in
+	// env, command and args. With the pass running, such a value is read as an
+	// expression and refused - at admission and again at render. An installed base
+	// that has never heard of this feature must not have to escape anything, so
+	// the pass does not run until an operator asks for it.
+	//
+	// When enabled, an Application still opts in individually unless
+	// RequireCelExpressionOptIn is turned off. See there for why.
+	EnableCelExpressions featuregate.Feature = "EnableCelExpressions"
+
+	// RequireCelExpressionOptIn keeps expressions to Applications that ask for
+	// them by annotation, so enabling the feature is not itself a fleet-wide
+	// change.
+	//
+	// Defaults on, so the safe path is the default one: switch the feature on,
+	// annotate the Applications that want it, and only relax this once the fleet
+	// has been checked for $(VAR) in env, command and args. Turning it off makes
+	// every Application eligible at once.
+	RequireCelExpressionOptIn featuregate.Feature = "RequireCelExpressionOptIn"
+
+	// EnableDefinitionInheritance enables spec.extends on ComponentDefinition and
+	// TraitDefinition, letting a definition render on top of another. With the
+	// gate off a definition that sets the field is refused rather than ignored,
+	// since ignoring it would render the child's template with an unresolved
+	// `$super`.
+	EnableDefinitionInheritance featuregate.Feature = "EnableDefinitionInheritance"
+
+	// EnableModuleComponent enables installing a module as an Application component via the
+	// type: module ComponentDefinition. As with EnableAddonComponent, the ComponentDefinition
+	// and its vela/module CueX package always ship, because the definition cannot compile
+	// without the package; this gate controls whether the render service is wired up and
+	// whether the shared Application webhook runs its module-specific validation branch.
+	// When disabled, an Application using type: module fails at render with an actionable
+	// message.
+	EnableModuleComponent featuregate.Feature = "EnableModuleComponent"
+
+	// AutoMigrateLegacyConfigs runs one adoption sweep when the controller starts:
+	// every legacy config template (config-template-* ConfigMap) and legacy config
+	// (velacore-config Secret) in the cluster is adopted into a ConfigTemplate or
+	// Config CR, the same as `vela config-template migrate --all` in every
+	// namespace. Legacy objects are kept; conflicts and failures are reported as
+	// Events, log lines and the kubevela_config_migration_total metric, never as a
+	// startup error. Off by default: the CLI command is the on-demand path, this
+	// gate is for operators who want the upgrade itself to do it.
+	AutoMigrateLegacyConfigs featuregate.Feature = "AutoMigrateLegacyConfigs"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -150,6 +222,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	ApplyResourceByReplace:                        {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:                       {Default: false, PreRelease: featuregate.Alpha},
 	ValidateDefinitionPermissions:                 {Default: false, PreRelease: featuregate.Alpha},
+	RestrictDefinitionNamespaces:                  {Default: true, PreRelease: featuregate.Beta},
 	GzipResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
 	ZstdResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
 	ApplyOnce:                                     {Default: false, PreRelease: featuregate.Alpha},
@@ -169,6 +242,13 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableGlobalPolicies:                          {Default: false, PreRelease: featuregate.Alpha},
 	EnableApplicationScopedPolicies:               {Default: false, PreRelease: featuregate.Alpha},
 	ValidateUndeclaredParameters:                  {Default: false, PreRelease: featuregate.Alpha},
+	EnableAddonComponent:                          {Default: false, PreRelease: featuregate.Alpha},
+	EnableSourceAutoUpdate:                        {Default: false, PreRelease: featuregate.Alpha},
+	EnableCelExpressions:                          {Default: false, PreRelease: featuregate.Alpha},
+	RequireCelExpressionOptIn:                     {Default: true, PreRelease: featuregate.Alpha},
+	EnableDefinitionInheritance:                   {Default: false, PreRelease: featuregate.Alpha},
+	EnableModuleComponent:                         {Default: false, PreRelease: featuregate.Alpha},
+	AutoMigrateLegacyConfigs:                      {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

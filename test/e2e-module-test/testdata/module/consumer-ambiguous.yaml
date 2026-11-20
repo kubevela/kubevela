@@ -1,0 +1,19 @@
+# Expected to be REJECTED. The bare Form 1 reference "bucket" matches both
+# demo-store-v1-bucket and demo-store-v2-bucket, because the capability name is
+# the same in both lines and the API line is what distinguishes the installed
+# objects.
+#
+# Resolution finds no legacy definition named "bucket", falls back to a label
+# search, gets two hits, and refuses rather than guessing. The error names the
+# modules involved and tells the author to qualify the reference.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: demo-store-consumer-ambiguous
+  namespace: default
+spec:
+  components:
+    - name: ambiguous
+      type: bucket
+      properties:
+        bucketName: ambiguous

@@ -414,7 +414,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		_, file, _, _ := sysruntime.Caller(0)
 		for _, trait := range []string{"gateway", "storage", "env", "affinity", "scaler"} {
-			Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../../../../charts/vela-core/templates/defwithtemplate/", trait+".yaml"), func(s string) string {
+			Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../../../../charts/vela-core/definitions/", trait+".yaml"), func(s string) string {
 				return strings.ReplaceAll(s, `{{ include "systemDefinitionNamespace" . }}`, "vela-system")
 			})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		}

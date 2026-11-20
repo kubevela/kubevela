@@ -35,8 +35,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/config"
 )
 
-// ComponentApply apply oam component.
-type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error)
+// ComponentApply apply oam component. A non-empty waiting is why the component
+// was not applied yet: it has not failed, and is to be retried as a component
+// that is not yet healthy, with waiting as the reason.
+type ComponentApply func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (workload *unstructured.Unstructured, traits []*unstructured.Unstructured, healthy bool, waiting string, err error)
 
 // ComponentRender render oam component.
 type ComponentRender func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error)

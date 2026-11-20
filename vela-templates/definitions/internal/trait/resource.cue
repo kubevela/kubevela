@@ -11,7 +11,7 @@ template: {
 	patch: {
 		let resourceContent = {
 			resources: {
-				if parameter.cpu != _|_ if parameter.memory != _|_ if parameter.requests == _|_ if parameter.limits == _|_ {
+				if parameter.cpu != _|_ && parameter.memory != _|_ && parameter.requests == _|_ && parameter.limits == _|_ {
 					// +patchStrategy=retainKeys
 					requests: {
 						cpu:    parameter.cpu
@@ -41,24 +41,57 @@ template: {
 			}
 		}
 
+		// cpu or memory alone sets only itself, leaving whatever the workload asks of the other.
+		// It is a patch of its own because CUE carries a field's patch-strategy comment from every
+		// branch that declares it, taken or not, and retainKeys would drop the other.
+		let onlyOne = (parameter.cpu != _|_) != (parameter.memory != _|_) && parameter.requests == _|_ && parameter.limits == _|_
+
+		// One of cpu or memory replaces that value and keeps the other as the workload has it:
+		// retainKeys on a scalar replaces it in place, where a plain patch would conflict.
+		let oneContent = {
+			resources: {
+				requests: {
+					if parameter.cpu != _|_ {
+						// +patchStrategy=retainKeys
+						cpu: parameter.cpu
+					}
+					if parameter.memory != _|_ {
+						// +patchStrategy=retainKeys
+						memory: parameter.memory
+					}
+				}
+				limits: {
+					if parameter.cpu != _|_ {
+						// +patchStrategy=retainKeys
+						cpu: parameter.cpu
+					}
+					if parameter.memory != _|_ {
+						// +patchStrategy=retainKeys
+						memory: parameter.memory
+					}
+				}
+			}
+		}
+		let content = [if onlyOne {oneContent}, if !onlyOne {resourceContent}][0]
+
 		if context.output.spec != _|_ if context.output.spec.template != _|_ {
 			spec: template: spec: {
 				// +patchKey=name
-				containers: [resourceContent]
+				containers: [content]
 			}
 		}
 		if context.output.spec != _|_ if context.output.spec.jobTemplate != _|_ {
 			spec: jobTemplate: spec: template: spec: {
 				// +patchKey=name
-				containers: [resourceContent]
+				containers: [content]
 			}
 		}
 	}
 
 	parameter: {
-		// +usage=Specify the amount of cpu for requests and limits
+		// +usage=Specify the amount of cpu for requests and limits; set alone, memory is left as the workload sets it
 		cpu?: *1 | number | string
-		// +usage=Specify the amount of memory for requests and limits
+		// +usage=Specify the amount of memory for requests and limits; set alone, cpu is left as the workload sets it
 		memory?: *"2048Mi" | =~"^([1-9][0-9]{0,63})(E|P|T|G|M|K|Ei|Pi|Ti|Gi|Mi|Ki)$"
 		// +usage=Specify the resources in requests
 		requests?: {

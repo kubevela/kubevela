@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: v2-consumer
+  namespace: default
+spec:
+  components:
+    - name: premium-widget
+      type: widget-kit/v2/widget
+      properties:
+        size: S
