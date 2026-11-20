@@ -17,6 +17,8 @@ limitations under the License.
 package mcp
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -91,5 +93,48 @@ var _ = Describe("definition description", func() {
 		res = h.call("explain_definition", map[string]any{"name": "rds", "type": "component"}, &expl)
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
 		Expect(expl.Meta.Warnings).To(ContainElement(ContainSubstring("parameter schema for a Terraform schematic is not available from this server")))
+	})
+})
+
+// CUE's OpenAPI encoder alone fails a list with a minimum size with "invalid
+// value [] (does not satisfy list.MinItems(1))" and silently drops a maximum
+// size; the controller's generator reads both.
+var _ = Describe("parameter schema of size-bounded lists", func() {
+	const template = `import (
+	"list"
+	"strings"
+)
+
+output: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	data: name: parameter.keySchema[0].attributeName
+}
+#KeySchemaElement: {
+	attributeName!: string & strings.MinRunes(1)
+	keyType!:       "HASH" | "RANGE"
+}
+parameter: {
+	attributeDefinitions!: list.MinItems(1) & [...{
+		attributeName!: string & strings.MinRunes(1) & strings.MaxRunes(255)
+		attributeType!: "S" | "N" | "B"
+	}]
+	keySchema!: list.MinItems(1) & list.MaxItems(2) & [...#KeySchemaElement]
+	nonKey?:    list.MinItems(1) & [...string]
+	tags?:      list.MaxItems(50) & [...string]
+}
+`
+
+	It("keeps minItems and maxItems instead of failing", func() {
+		params, required, sch, err := parameterSchema(context.Background(), template)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(required).To(ConsistOf("attributeDefinitions", "keySchema"))
+
+		props := params["properties"].(map[string]any)
+		Expect(props["attributeDefinitions"]).To(And(HaveKeyWithValue("type", "array"), HaveKeyWithValue("minItems", BeEquivalentTo(1))))
+		Expect(props["keySchema"]).To(And(HaveKeyWithValue("type", "array"), HaveKeyWithValue("minItems", BeEquivalentTo(1)), HaveKeyWithValue("maxItems", BeEquivalentTo(2))))
+		Expect(props["nonKey"]).To(And(HaveKeyWithValue("type", "array"), HaveKeyWithValue("minItems", BeEquivalentTo(1))))
+		Expect(props["tags"]).To(And(HaveKeyWithValue("type", "array"), HaveKeyWithValue("maxItems", BeEquivalentTo(50))))
+		Expect(sch.Properties["keySchema"].Value.Items.Value.Properties).To(HaveKey("attributeName"))
 	})
 })
