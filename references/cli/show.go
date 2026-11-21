@@ -263,13 +263,15 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		return fmt.Errorf("unsupported type: %v", capabilityType)
 	}
 	suffix := capabilityName
+	pageType := capabilityType
 	if versionDocs != nil && versionDocs.Page != "" {
 		suffix = versionDocs.Page
+		pageType = versionDocs.PageType
 	}
 	if suffix != "" {
 		suffix = "/" + suffix
 	}
-	url := fmt.Sprintf("http://127.0.0.1%s/#/%s%s", Port, capabilityType, suffix)
+	url := fmt.Sprintf("http://127.0.0.1%s/#/%s%s", Port, pageType, suffix)
 	server := &http.Server{
 		Addr:         Port,
 		Handler:      http.FileServer(http.Dir(docsPath)),

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -594,71 +595,64 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, ns,
 // A full version (1.2.3) must match exactly; a partial one (3, 3.1) matches every version with
 // those leading numbers, and the highest matching version wins.
 func GetCapabilityFromDefinitionVersion(ctx context.Context, c common.Args, ns, defName, version string) (*types.Capability, error) {
+	return getCapabilityFromRevisionFlag(ctx, c, ns, defName, 0, version)
+}
+
+// GetCapabilityFromRevisionNumber gets capabilities for a bare --revision number. Each definition
+// type of defName is resolved on its own: for a type whose revisions set spec.version the number
+// is its major version, otherwise it is the DefinitionRevision number. Definitions of different
+// types share names, so a number that matches in more than one type is an error.
+func GetCapabilityFromRevisionNumber(ctx context.Context, c common.Args, ns, defName string, rev int64) (*types.Capability, error) {
+	return getCapabilityFromRevisionFlag(ctx, c, ns, defName, rev, "")
+}
+
+func getCapabilityFromRevisionFlag(ctx context.Context, c common.Args, ns, defName string, rev int64, version string) (*types.Capability, error) {
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
 	}
-
-	revs, err := definition.SearchDefinitionRevisions(ctx, k8sClient, ns, defName, "", 0)
+	best, err := findDefinitionRevision(ctx, k8sClient, ns, defName, rev, version)
 	if err != nil {
 		return nil, err
-	}
-	best, err := pickDefinitionRevision(revs, defName, version)
-	if err != nil {
-		return nil, err
-	}
-	// Same double-search as GetCapabilityFromDefinitionRevision: `ns` defaults to `default`.
-	if best == nil && ns == "default" {
-		revs, err = definition.SearchDefinitionRevisions(ctx, k8sClient, types.DefaultKubeVelaNS, defName, "", 0)
-		if err != nil {
-			return nil, err
-		}
-		if best, err = pickDefinitionRevision(revs, defName, version); err != nil {
-			return nil, err
-		}
-	}
-	if best == nil {
-		return nil, versionNotFoundError(defName, version, ns)
 	}
 	return capabilityFromDefinitionRevision(*best, k8sClient.RESTMapper())
 }
 
-// ListDefinitionVersions returns the distinct spec.version values of the DefinitionRevisions of
-// defName, highest first. It is empty for a definition that does not set spec.version. Like
-// GetCapabilityFromDefinitionRevision, it searches vela-system when ns is default and has none.
-func ListDefinitionVersions(ctx context.Context, c common.Args, ns, defName string) ([]string, error) {
-	k8sClient, err := c.GetClient()
-	if err != nil {
-		return nil, err
-	}
-	revs, err := listDefinitionRevisions(ctx, k8sClient, ns, defName, "")
-	if err != nil {
-		return nil, err
-	}
-	return definitionVersions(revs), nil
-}
-
 // VersionPageName is the docs site page of one version (or revision number) of a definition,
-// named like the DefinitionRevision object: <name>-v<version>.
+// named like the DefinitionRevision object: <name>-v<version>. The name becomes a file name
+// and a link, so only pass versions accepted by isSafePageVersion.
 func VersionPageName(defName, version string) string {
 	return defName + "-v" + strings.TrimPrefix(version, "v")
+}
+
+// safePageVersion matches the characters of a semantic version. spec.version is not
+// validated everywhere (the webhook is optional), so anything else, path separators
+// in particular, must not reach a page file name.
+var safePageVersion = regexp.MustCompile(`^[0-9A-Za-z.+_-]+$`)
+
+func isSafePageVersion(version string) bool {
+	return safePageVersion.MatchString(version)
 }
 
 // VersionDocs describes the per-version pages CreateVersionMarkdown wrote for one definition.
 type VersionDocs struct {
 	Name string
 	Type types.CapType
-	// Versions are the definition's spec.version values, highest first; each has a page named VersionPageName(Name, version).
+	// Versions are the definition's spec.version values, highest first; each has a page named
+	// VersionPageName(Name, version). Versions that are not safe as a page name are left out.
 	Versions []string
 	// Page is the page (without .md) the requested revision or version resolves to, empty if none was requested.
 	Page string
+	// PageType is the type directory of Page. It differs from Type when the requested revision
+	// resolves to a definition of another type with the same name.
+	PageType types.CapType
 }
 
 // CreateVersionMarkdown writes one page per spec.version of the definition defName of type capType
 // into baseRefPath/<type>/<name>-v<version>.md. When rev or version is set it also resolves the page
-// to open: a version (or, for a definition that sets spec.version, a bare number as its major
-// version) selects the highest matching version page; for a definition without spec.version, rev
-// selects that revision, whose page is written as <name>-v<rev>.md.
+// to open across all definition types named defName, as GetCapabilityFromDefinitionVersion and
+// GetCapabilityFromRevisionNumber do, and writes that page: <name>-v<version>.md for a revision
+// that sets spec.version, <name>-v<rev>.md otherwise.
 func (ref *MarkdownReference) CreateVersionMarkdown(ctx context.Context, c common.Args, ns, defName string, capType types.CapType, baseRefPath string, rev int64, version string) (*VersionDocs, error) {
 	docs := &VersionDocs{Name: defName, Type: capType}
 	defType, ok := capTypeToDefinitionType[capType]
@@ -676,7 +670,7 @@ func (ref *MarkdownReference) CreateVersionMarkdown(ctx context.Context, c commo
 	if err != nil {
 		return nil, err
 	}
-	write := func(r v1beta1.DefinitionRevision, page string) error {
+	write := func(r v1beta1.DefinitionRevision, pageType types.CapType, page string) error {
 		capability, err := capabilityFromDefinitionRevision(r, k8sClient.RESTMapper())
 		if err != nil {
 			return err
@@ -685,15 +679,19 @@ func (ref *MarkdownReference) CreateVersionMarkdown(ctx context.Context, c commo
 		if err != nil {
 			return err
 		}
-		dir := filepath.Join(baseRefPath, string(capType))
+		dir := filepath.Join(baseRefPath, string(pageType))
 		if err := os.MkdirAll(dir, 0750); err != nil {
 			return err
 		}
 		return os.WriteFile(filepath.Join(dir, page+".md"), []byte(doc), 0600)
 	}
 
-	docs.Versions = definitionVersions(revs)
-	for _, v := range docs.Versions {
+	for _, v := range definitionVersions(revs) {
+		if !isSafePageVersion(v) {
+			klog.Warningf("skipping the docs page of version %q of %s: not a valid page name", v, defName)
+			continue
+		}
+		docs.Versions = append(docs.Versions, v)
 		// The highest revision carrying exactly this spec.version.
 		var latest *v1beta1.DefinitionRevision
 		for i := range revs {
@@ -701,35 +699,33 @@ func (ref *MarkdownReference) CreateVersionMarkdown(ctx context.Context, c commo
 				latest = &revs[i]
 			}
 		}
-		if err := write(*latest, VersionPageName(defName, v)); err != nil {
+		if err := write(*latest, capType, VersionPageName(defName, v)); err != nil {
 			return nil, err
 		}
 	}
 
-	switch {
-	case rev == 0 && version == "":
+	if rev == 0 && version == "" {
 		return docs, nil
-	case version != "" || len(docs.Versions) > 0:
-		if version == "" {
-			version = strconv.FormatInt(rev, 10)
-		}
-		best, err := pickDefinitionRevision(revs, defName, version)
-		if err != nil {
-			return nil, err
-		}
-		if best == nil {
-			return nil, versionNotFoundError(defName, version, ns)
-		}
-		docs.Page = VersionPageName(defName, definitionRevisionVersion(*best))
-	default:
-		idx := slices.IndexFunc(revs, func(r v1beta1.DefinitionRevision) bool { return r.Spec.Revision == rev })
-		if idx < 0 {
-			return nil, fmt.Errorf("no %s with revision %d found in namespace %s or %s", defName, rev, ns, types.DefaultKubeVelaNS)
-		}
-		docs.Page = VersionPageName(defName, strconv.FormatInt(rev, 10))
-		if err := write(revs[idx], docs.Page); err != nil {
-			return nil, err
-		}
+	}
+	best, err := findDefinitionRevision(ctx, k8sClient, ns, defName, rev, version)
+	if err != nil {
+		return nil, err
+	}
+	pageType, ok := capTypeOf(best.Spec.DefinitionType)
+	if !ok {
+		return nil, fmt.Errorf("%s %s has no docs page", best.Spec.DefinitionType, defName)
+	}
+	pageVersion := definitionRevisionVersion(*best)
+	if pageVersion == "" {
+		pageVersion = strconv.FormatInt(best.Spec.Revision, 10)
+	}
+	if !isSafePageVersion(pageVersion) {
+		return nil, fmt.Errorf("version %q of %s is not a valid docs page name", pageVersion, defName)
+	}
+	docs.Page = VersionPageName(defName, pageVersion)
+	docs.PageType = pageType
+	if err := write(*best, pageType, docs.Page); err != nil {
+		return nil, err
 	}
 	return docs, nil
 }
@@ -739,6 +735,15 @@ var capTypeToDefinitionType = map[types.CapType]commontypes.DefinitionType{
 	types.TypeTrait:               commontypes.TraitType,
 	types.TypePolicy:              commontypes.PolicyType,
 	types.TypeWorkflowStep:        commontypes.WorkflowStepType,
+}
+
+func capTypeOf(defType commontypes.DefinitionType) (types.CapType, bool) {
+	for capType, t := range capTypeToDefinitionType {
+		if t == defType {
+			return capType, true
+		}
+	}
+	return "", false
 }
 
 func versionNotFoundError(defName, version, ns string) error {
@@ -758,6 +763,100 @@ func listDefinitionRevisions(ctx context.Context, k8sClient client.Client, ns, d
 	return revs, nil
 }
 
+// findDefinitionRevision returns the DefinitionRevision of defName, of any definition type, that
+// --revision selects (see resolveDefinitionRevision). Like GetCapabilityFromDefinitionRevision, it
+// searches vela-system when ns is default and nothing matches there.
+func findDefinitionRevision(ctx context.Context, k8sClient client.Client, ns, defName string, rev int64, version string) (*v1beta1.DefinitionRevision, error) {
+	namespaces := []string{ns}
+	if ns == "default" {
+		namespaces = append(namespaces, types.DefaultKubeVelaNS)
+	}
+	var versioned, unversioned bool
+	for _, searchNS := range namespaces {
+		revs, err := definition.SearchDefinitionRevisions(ctx, k8sClient, searchNS, defName, "", 0)
+		if err != nil {
+			return nil, err
+		}
+		best, err := resolveDefinitionRevision(revs, defName, rev, version)
+		if err != nil || best != nil {
+			return best, err
+		}
+		for _, group := range groupByDefinitionType(revs) {
+			if len(definitionVersions(group)) > 0 {
+				versioned = true
+			} else {
+				unversioned = true
+			}
+		}
+	}
+	switch {
+	case version != "":
+		return nil, versionNotFoundError(defName, version, ns)
+	case versioned && unversioned:
+		return nil, fmt.Errorf("no %s with revision %d or version %d found in namespace %s or %s", defName, rev, rev, ns, types.DefaultKubeVelaNS)
+	case versioned:
+		return nil, versionNotFoundError(defName, strconv.FormatInt(rev, 10), ns)
+	default:
+		return nil, fmt.Errorf("no %s with revision %d found in namespace %s or %s", defName, rev, ns, types.DefaultKubeVelaNS)
+	}
+}
+
+// resolveDefinitionRevision returns the revision in revs that --revision selects, or nil without
+// an error when none matches. Each definition type in revs is resolved on its own: a version
+// matches spec.version; a bare rev is the major version of a type whose revisions set spec.version
+// and the revision number of a type that does not. Definition names are shared across types, so
+// a match in more than one type is an error instead of a guess.
+func resolveDefinitionRevision(revs []v1beta1.DefinitionRevision, defName string, rev int64, version string) (*v1beta1.DefinitionRevision, error) {
+	var matches []v1beta1.DefinitionRevision
+	for _, group := range groupByDefinitionType(revs) {
+		want := version
+		if want == "" && len(definitionVersions(group)) > 0 {
+			want = strconv.FormatInt(rev, 10)
+		}
+		var m *v1beta1.DefinitionRevision
+		if want != "" {
+			m = pickVersionedRevision(group, want)
+		} else if i := slices.IndexFunc(group, func(r v1beta1.DefinitionRevision) bool { return r.Spec.Revision == rev }); i >= 0 {
+			m = &group[i]
+		}
+		if m != nil {
+			matches = append(matches, *m)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, nil
+	case 1:
+		return &matches[0], nil
+	}
+	kinds := make([]string, 0, len(matches))
+	for _, m := range matches {
+		kinds = append(kinds, string(m.Spec.DefinitionType))
+	}
+	sort.Strings(kinds)
+	requested := "version " + version
+	if version == "" {
+		requested = "revision " + strconv.FormatInt(rev, 10)
+	}
+	return nil, fmt.Errorf("%s of %s matches more than one definition type (%s)", requested, defName, strings.Join(kinds, ", "))
+}
+
+// groupByDefinitionType splits revs by definition type, in order of first appearance.
+func groupByDefinitionType(revs []v1beta1.DefinitionRevision) [][]v1beta1.DefinitionRevision {
+	var groups [][]v1beta1.DefinitionRevision
+	index := map[commontypes.DefinitionType]int{}
+	for _, r := range revs {
+		i, ok := index[r.Spec.DefinitionType]
+		if !ok {
+			i = len(groups)
+			index[r.Spec.DefinitionType] = i
+			groups = append(groups, nil)
+		}
+		groups[i] = append(groups[i], r)
+	}
+	return groups
+}
+
 // definitionVersions returns the distinct non-empty spec.version values of revs, highest first.
 func definitionVersions(revs []v1beta1.DefinitionRevision) []string {
 	var versions []string
@@ -770,40 +869,26 @@ func definitionVersions(revs []v1beta1.DefinitionRevision) []string {
 	return versions
 }
 
-// pickDefinitionRevision returns the revision in revs whose spec.version matches version: the
-// highest matching spec.version, and among equal versions the highest revision number. It returns
-// nil without an error when nothing matches.
-func pickDefinitionRevision(revs []v1beta1.DefinitionRevision, defName, version string) (*v1beta1.DefinitionRevision, error) {
-	var matches []v1beta1.DefinitionRevision
-	for _, rev := range revs {
-		if definitionVersionMatches(definitionRevisionVersion(rev), version) {
-			matches = append(matches, rev)
+// pickVersionedRevision returns the revision in revs (all of one definition type) whose
+// spec.version matches version: the highest matching spec.version, and among equal versions
+// the highest revision number. It returns nil when nothing matches.
+func pickVersionedRevision(revs []v1beta1.DefinitionRevision, version string) *v1beta1.DefinitionRevision {
+	var best *v1beta1.DefinitionRevision
+	for i := range revs {
+		m := &revs[i]
+		if !definitionVersionMatches(definitionRevisionVersion(*m), version) {
+			continue
 		}
-	}
-	if len(matches) == 0 {
-		return nil, nil
-	}
-
-	// Definition names are shared across kinds, so refuse to guess between them.
-	var kinds []string
-	for _, m := range matches {
-		if k := string(m.Spec.DefinitionType); !slices.Contains(kinds, k) {
-			kinds = append(kinds, k)
+		if best == nil {
+			best = m
+			continue
 		}
-	}
-	if len(kinds) > 1 {
-		sort.Strings(kinds)
-		return nil, fmt.Errorf("version %s of %s matches more than one definition type (%s)", version, defName, strings.Join(kinds, ", "))
-	}
-
-	best := matches[0]
-	for _, m := range matches[1:] {
-		cmp := compareDefinitionVersions(definitionRevisionVersion(m), definitionRevisionVersion(best))
+		cmp := compareDefinitionVersions(definitionRevisionVersion(*m), definitionRevisionVersion(*best))
 		if cmp > 0 || (cmp == 0 && m.Spec.Revision > best.Spec.Revision) {
 			best = m
 		}
 	}
-	return &best, nil
+	return best
 }
 
 // definitionRevisionVersion returns spec.version of the definition embedded in rev.

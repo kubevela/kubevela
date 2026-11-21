@@ -634,12 +634,12 @@ func TestDefinitionVersionMatching(t *testing.T) {
 	})
 
 	t.Run("version list is highest first and empty without spec.version", func(t *testing.T) {
-		versions, err := ListDefinitionVersions(ctx, c, "default", "vtrait")
+		revs, err := listDefinitionRevisions(ctx, cli, "default", "vtrait", "")
 		require.NoError(t, err)
-		assert.Equal(t, []string{"3.3.0", "3.1.2", "3.1.0"}, versions)
-		versions, err = ListDefinitionVersions(ctx, c, "default", "plain")
+		assert.Equal(t, []string{"3.3.0", "3.1.2", "3.1.0"}, definitionVersions(revs))
+		revs, err = listDefinitionRevisions(ctx, cli, "default", "plain", "")
 		require.NoError(t, err)
-		assert.Empty(t, versions)
+		assert.Empty(t, definitionVersions(revs))
 	})
 
 	show := func(name string, rev int64) (*types.Capability, error) {
@@ -658,7 +658,7 @@ func TestDefinitionVersionMatching(t *testing.T) {
 
 		_, err = show("vtrait", 4)
 		require.Error(t, err)
-		assert.Equal(t, "failed to get version 4 of capability vtrait: no vtrait with version 4 found in namespace default or vela-system", err.Error())
+		assert.Equal(t, "failed to get revision 4 of capability vtrait: no vtrait with version 4 found in namespace default or vela-system", err.Error())
 	})
 
 	t.Run("bare number on an unversioned definition is the revision number", func(t *testing.T) {
@@ -725,4 +725,163 @@ func TestDefinitionVersionMatching(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.err, tc)
 		}
 	})
+}
+
+func newPolicyRevision(ns, defName, version, param string, revision int64) *corev1beta1.DefinitionRevision {
+	name := fmt.Sprintf("%s-v%s", defName, version)
+	if version == "" {
+		name = fmt.Sprintf("%s-v%d", defName, revision)
+	}
+	return &corev1beta1.DefinitionRevision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+			Labels:    map[string]string{oam.LabelPolicyDefinitionName: defName},
+		},
+		Spec: corev1beta1.DefinitionRevisionSpec{
+			Revision:       revision,
+			DefinitionType: commontypes.PolicyType,
+			PolicyDefinition: corev1beta1.PolicyDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: defName, Namespace: ns},
+				Spec: corev1beta1.PolicyDefinitionSpec{
+					Version: version,
+					Schematic: &commontypes.Schematic{CUE: &commontypes.CUE{
+						Template: fmt.Sprintf("parameter: {\n\t%s: string\n}\n", param),
+					}},
+				},
+			},
+		},
+	}
+}
+
+// A versioned trait and an unversioned policy share the name "mixed". Their DefinitionRevision
+// names do not collide (mixed-v1.0.0 vs mixed-v1), so both exist in one namespace.
+func TestRevisionResolutionAcrossDefinitionTypes(t *testing.T) {
+	ctx := context.Background()
+	// See TestGetCapabilityFromDefinitionVersion: parameter extraction needs a kube config.
+	t.Cleanup(func() { singleton.KubeConfig.Set(nil) })
+	singleton.KubeConfig.Set(&rest.Config{Host: "http://127.0.0.1:1"})
+	// Same object name as the trait revision; renamed as in TestGetCapabilityFromDefinitionVersion.
+	sharedPolicy := newPolicyRevision("default", "shared", "1.0.0", "policyParam", 1)
+	sharedPolicy.Name = "shared-policy-v1.0.0"
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(
+		newTraitRevision("default", "mixed", "1.0.0", "trait100", 1),
+		newTraitRevision("default", "mixed", "3.0.0", "trait300", 2),
+		newPolicyRevision("default", "mixed", "", "policyRev1", 1),
+		newPolicyRevision("default", "mixed", "", "policyRev2", 2),
+		newTraitRevision("default", "shared", "1.0.0", "traitParam", 1),
+		sharedPolicy,
+	).Build()
+	c := common.Args{}
+	c.SetClient(cli)
+
+	t.Run("bare number is resolved per definition type", func(t *testing.T) {
+		show := func(rev int64) (*types.Capability, error) {
+			ref := &ParseReference{DefinitionName: "mixed", Remote: &FromCluster{Namespace: "default", Rev: rev}}
+			caps, err := ref.getCapabilities(ctx, c)
+			if err != nil {
+				return nil, err
+			}
+			return &caps[0], nil
+		}
+		// Only the trait has major version 3.
+		capability, err := show(3)
+		require.NoError(t, err)
+		assert.Equal(t, types.TypeTrait, capability.Type)
+		assert.Contains(t, capability.CueTemplate, "trait300")
+
+		// Only the policy has revision 2; the trait's versions must not turn it into "major version 2".
+		capability, err = show(2)
+		require.NoError(t, err)
+		assert.Equal(t, types.TypePolicy, capability.Type)
+		assert.Contains(t, capability.CueTemplate, "policyRev2")
+
+		// Trait version 1.0.0 and policy revision 1 both match.
+		_, err = show(1)
+		require.Error(t, err)
+		assert.Equal(t, "failed to get revision 1 of capability mixed: revision 1 of mixed matches more than one definition type (Policy, Trait)", err.Error())
+
+		_, err = show(5)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no mixed with revision 5 or version 5 found")
+	})
+
+	t.Run("web page is resolved across definition types", func(t *testing.T) {
+		ref := &MarkdownReference{ParseReference: ParseReference{Client: cli, I18N: &En}}
+		dir := t.TempDir()
+
+		// The site opens mixed as a trait, but revision 2 only exists for the policy.
+		docs, err := ref.CreateVersionMarkdown(ctx, c, "default", "mixed", types.TypeTrait, dir, 2, "")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"3.0.0", "1.0.0"}, docs.Versions)
+		assert.Equal(t, "mixed-v2", docs.Page)
+		assert.Equal(t, types.TypePolicy, docs.PageType)
+		data, err := os.ReadFile(filepath.Join(dir, string(types.TypePolicy), "mixed-v2.md"))
+		require.NoError(t, err)
+		assert.Contains(t, string(data), "policyRev2")
+
+		docs, err = ref.CreateVersionMarkdown(ctx, c, "default", "mixed", types.TypeTrait, dir, 3, "")
+		require.NoError(t, err)
+		assert.Equal(t, "mixed-v3.0.0", docs.Page)
+		assert.Equal(t, types.TypeTrait, docs.PageType)
+
+		for _, tc := range []struct {
+			name    string
+			rev     int64
+			version string
+			err     string
+		}{
+			{name: "mixed", rev: 1, err: "revision 1 of mixed matches more than one definition type (Policy, Trait)"},
+			{name: "shared", version: "1.0.0", err: "version 1.0.0 of shared matches more than one definition type (Policy, Trait)"},
+			{name: "shared", rev: 1, err: "revision 1 of shared matches more than one definition type (Policy, Trait)"},
+		} {
+			_, err := ref.CreateVersionMarkdown(ctx, c, "default", tc.name, types.TypeTrait, dir, tc.rev, tc.version)
+			require.Error(t, err, tc)
+			assert.Equal(t, tc.err, err.Error(), tc)
+		}
+	})
+}
+
+// spec.version reaches page file names and sidebar links, so a malformed one must not
+// write outside the docs directory.
+func TestVersionPagesRejectUnsafeVersions(t *testing.T) {
+	ctx := context.Background()
+	// See TestGetCapabilityFromDefinitionVersion: parameter extraction needs a kube config.
+	t.Cleanup(func() { singleton.KubeConfig.Set(nil) })
+	singleton.KubeConfig.Set(&rest.Config{Host: "http://127.0.0.1:1"})
+	const evilVersion = "../../../../pwn"
+	evil := newTraitRevision("default", "evil", evilVersion, "evilParam", 2)
+	evil.Name = "evil-v2"
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(
+		newTraitRevision("default", "evil", "1.0.0", "goodParam", 1),
+		evil,
+	).Build()
+	c := common.Args{}
+	c.SetClient(cli)
+	ref := &MarkdownReference{ParseReference: ParseReference{Client: cli, I18N: &En}}
+
+	base := t.TempDir()
+	dir := filepath.Join(base, "docs")
+	// Unchecked, dir/trait/evil-v../../../../pwn.md cleans to base/pwn.md.
+	escaped := filepath.Join(base, "pwn.md")
+
+	docs, err := ref.CreateVersionMarkdown(ctx, c, "default", "evil", types.TypeTrait, dir, 0, "")
+	require.NoError(t, err)
+	// The unsafe version gets no page, so the sidebar built from Versions links no such page.
+	assert.Equal(t, []string{"1.0.0"}, docs.Versions)
+	_, err = os.Stat(filepath.Join(dir, string(types.TypeTrait), "evil-v1.0.0.md"))
+	require.NoError(t, err)
+	_, err = os.Stat(escaped)
+	assert.True(t, os.IsNotExist(err), "page written outside the docs directory")
+
+	// Selecting the unsafe version directly is refused too.
+	_, err = ref.CreateVersionMarkdown(ctx, c, "default", "evil", types.TypeTrait, dir, 0, evilVersion)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "is not a valid docs page name")
+	_, err = os.Stat(escaped)
+	assert.True(t, os.IsNotExist(err), "page written outside the docs directory")
+
+	for v, safe := range map[string]bool{"1.2.3": true, "1.2.3-beta.1+build.5": true, "12": true, "../x": false, "a/b": false, `a\b`: false, "": false} {
+		assert.Equal(t, safe, isSafePageVersion(v), v)
+	}
 }
