@@ -236,9 +236,15 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 			if e.Type != corev1.EventTypeWarning || !strings.HasPrefix(e.Reason, "Cannot") || !eventMatchesResource(e, *r) {
 				continue
 			}
-			// Events are newest first. A newer warning no rule recognises
-			// does not hide an older one that classifies; the older event's
-			// own time still dates the cause.
+			// An event last seen before Synced left True belongs to an
+			// earlier failure that has since been resolved, so it says
+			// nothing about this one. Events are newest first: stop here.
+			if beforeTransition(e.Last, synced.LastTransition) {
+				break
+			}
+			// A newer warning no rule recognises does not hide an older one
+			// that classifies; the older event's own time still dates the
+			// cause.
 			rule, code := classifyText(e.Message)
 			if rule == nil {
 				continue
@@ -673,4 +679,20 @@ func groupOf(apiVersion string) string {
 		return apiVersion[:i]
 	}
 	return ""
+}
+
+// eventConditionSkew is how far an event's time may precede the condition
+// transition it belongs to. The controller writes the event and the condition
+// in the same reconcile, but not at the same instant, and both are stored to
+// the second.
+const eventConditionSkew = 30 * time.Second
+
+// beforeTransition reports whether an event last seen at last predates a
+// condition's transition by more than eventConditionSkew. Without both times
+// nothing can be said, and the event is kept.
+func beforeTransition(last, transition *time.Time) bool {
+	if last == nil || last.IsZero() || transition == nil || transition.IsZero() {
+		return false
+	}
+	return last.Before(transition.Add(-eventConditionSkew))
 }

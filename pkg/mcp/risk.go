@@ -162,8 +162,8 @@ func classifyAdded(fire func(rule, class, evidence string), id string, rc Resour
 		at := fmt.Sprintf("%s %s", id, f.Path)
 		switch {
 		case payloadLeaf(rc.Kind, f.Path):
-			// user data under a Secret or ConfigMap payload; the kind rules
-			// above already judged the object
+			// user data under a Secret or ConfigMap payload: a key there is
+			// not a field of the object, so the path rules do not judge it
 		case securityPath.MatchString(f.Path):
 			fire("security-surface", RiskHigh, at+" is set on a new object")
 		case exposesService(rc.Kind, f):
