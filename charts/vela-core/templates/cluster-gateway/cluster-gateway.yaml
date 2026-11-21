@@ -15,7 +15,7 @@ spec:
     metadata:
       annotations:
         prometheus.io/path: /metrics
-        prometheus.io/port: "9443"
+        prometheus.io/port: {{ .Values.multicluster.clusterGateway.port | quote }}
         prometheus.io/scrape: "true"
         prometheus.io/scheme: "https"
       labels:

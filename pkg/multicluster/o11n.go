@@ -55,6 +55,29 @@ type ClusterUsageMetrics struct {
 	MemoryUsage resource.Quantity
 }
 
+const (
+	// labelNodeRoleMaster is the legacy control plane role label. It was
+	// deprecated in Kubernetes 1.20 and is no longer applied by kubeadm since
+	// Kubernetes 1.24.
+	labelNodeRoleMaster = "node-role.kubernetes.io/master"
+	// labelNodeRoleControlPlane is the control plane role label applied by
+	// kubeadm since Kubernetes 1.20. Clusters in the 1.20-1.23 range carry both
+	// this label and labelNodeRoleMaster on the same node.
+	labelNodeRoleControlPlane = "node-role.kubernetes.io/control-plane"
+)
+
+// isControlPlaneNode reports whether the node carries one of the control plane
+// role labels. Both labels are accepted because kubeadm applied
+// node-role.kubernetes.io/master until Kubernetes 1.23 (deprecated in 1.20) and
+// applies node-role.kubernetes.io/control-plane since 1.20.
+func isControlPlaneNode(node corev1.Node) bool {
+	if _, ok := node.Labels[labelNodeRoleControlPlane]; ok {
+		return true
+	}
+	_, ok := node.Labels[labelNodeRoleMaster]
+	return ok
+}
+
 // GetClusterInfo retrieves current cluster info from cluster
 func GetClusterInfo(_ctx context.Context, k8sClient client.Client, clusterName string) (*ClusterInfo, error) {
 	ctx := ContextWithClusterName(_ctx, clusterName)
@@ -65,7 +88,12 @@ func GetClusterInfo(_ctx context.Context, k8sClient client.Client, clusterName s
 	var workerNumber, masterNumber int
 	var memoryCapacity, cpuCapacity, podCapacity, memoryAllocatable, cpuAllocatable, podAllocatable resource.Quantity
 	for _, node := range nodes.Items {
-		if _, ok := node.Labels["node-role.kubernetes.io/master"]; ok {
+		// A control plane node may carry either role label: kubeadm applied
+		// node-role.kubernetes.io/master before Kubernetes 1.24 and
+		// node-role.kubernetes.io/control-plane since 1.20, so nodes on 1.20-1.23
+		// carry both. Either label alone marks the node as control plane, and the
+		// node is counted exactly once.
+		if isControlPlaneNode(node) {
 			masterNumber++
 		} else {
 			workerNumber++
