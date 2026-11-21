@@ -121,11 +121,12 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := context.Background()
 			var capabilityName string
-			if len(args) > 0 {
+			switch {
+			case len(args) > 0:
 				capabilityName = args[0]
-			} else if revision != "" {
+			case revision != "":
 				return errors.New("--revision needs a definition name, e.g. vela show webservice --web --revision 1.2.3")
-			} else if !webSite {
+			case !webSite:
 				cmd.Println("generating all capability docs into folder '~/.vela/reference/docs/', use '--web' to start a server for browser.")
 				generateDocOnly = true
 			}

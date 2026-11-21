@@ -285,3 +285,15 @@ func TestShowRevisionNeedsDefinitionName(t *testing.T) {
 		})
 	}
 }
+
+func TestShowWithDefinitionNameParsesRevision(t *testing.T) {
+	var out bytes.Buffer
+	cmd := NewCapabilityShowCommand(common.Args{}, "", cmdutil.IOStreams{In: os.Stdin, Out: &out, ErrOut: &out})
+	cmd.SetArgs([]string{"webservice", "-n", "default", "--revision", "abc"})
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	err := cmd.Execute()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid revision "abc"`)
+	assert.NotContains(t, err.Error(), "needs a definition name")
+}
