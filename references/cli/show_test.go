@@ -81,6 +81,41 @@ func TestGenerateSideBar(t *testing.T) {
 				"  - [component1](componentDefinition/component1.md)\n- Traits\n",
 			},
 		},
+		"CrossTypeRevisionPage": {
+			reason: "the page --revision resolved to in another type is listed under that type's entry",
+			capabilities: []types.Capability{
+				{Name: traitName, Type: types.TypeTrait},
+				{Name: traitName, Type: types.TypePolicy},
+			},
+			versions: &docgen.VersionDocs{Name: traitName, Type: types.TypeTrait, Versions: []string{"3.1.0"},
+				Page: "trait1-v2.0.0", PageType: types.TypePolicy},
+			wantEntries: []string{
+				"  - [trait1](trait/trait1.md)\n    - [3.1.0](trait/trait1-v3.1.0.md)\n- Workflow Steps\n",
+				"  - [trait1](policy/trait1.md)\n    - [2.0.0](policy/trait1-v2.0.0.md)\n",
+			},
+		},
+		"RevisionNumberPage": {
+			reason: "a revision-number page without spec.version is listed once, after the version pages",
+			capabilities: []types.Capability{
+				{Name: traitName, Type: types.TypeTrait},
+			},
+			versions: &docgen.VersionDocs{Name: traitName, Type: types.TypeTrait, Versions: []string{"3.1.0"},
+				Page: "trait1-v2", PageType: types.TypeTrait},
+			wantEntries: []string{
+				"  - [trait1](trait/trait1.md)\n    - [3.1.0](trait/trait1-v3.1.0.md)\n    - [2](trait/trait1-v2.md)\n- Workflow Steps\n",
+			},
+		},
+		"VersionPageNotDuplicated": {
+			reason: "a resolved page that is already a version page is not listed twice",
+			capabilities: []types.Capability{
+				{Name: traitName, Type: types.TypeTrait},
+			},
+			versions: &docgen.VersionDocs{Name: traitName, Type: types.TypeTrait, Versions: []string{"3.1.2", "3.1.0"},
+				Page: "trait1-v3.1.0", PageType: types.TypeTrait},
+			wantEntries: []string{
+				"  - [trait1](trait/trait1.md)\n    - [3.1.2](trait/trait1-v3.1.2.md)\n    - [3.1.0](trait/trait1-v3.1.0.md)\n- Workflow Steps\n",
+			},
+		},
 	}
 
 	for name, tc := range cases {

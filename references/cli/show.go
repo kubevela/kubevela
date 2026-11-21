@@ -359,11 +359,24 @@ func writeSideBarEntry(f *os.File, name string, capType types.CapType, versionDo
 	if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", name, capType, name); err != nil {
 		return err
 	}
-	if versionDocs == nil || versionDocs.Name != name || versionDocs.Type != capType {
+	if versionDocs == nil || versionDocs.Name != name {
 		return nil
 	}
-	for _, v := range versionDocs.Versions {
-		if _, err := fmt.Fprintf(f, "    - [%s](%s/%s.md)\n", v, capType, docgen.VersionPageName(name, v)); err != nil {
+	pageListed := false
+	if versionDocs.Type == capType {
+		for _, v := range versionDocs.Versions {
+			page := docgen.VersionPageName(name, v)
+			if _, err := fmt.Fprintf(f, "    - [%s](%s/%s.md)\n", v, capType, page); err != nil {
+				return err
+			}
+			pageListed = pageListed || page == versionDocs.Page
+		}
+	}
+	// The page --revision resolved to can be of another type with the same name, or a
+	// revision number without spec.version; list it under its own entry so it is reachable.
+	if versionDocs.Page != "" && versionDocs.PageType == capType && (versionDocs.Type != capType || !pageListed) {
+		label := strings.TrimPrefix(versionDocs.Page, name+"-v")
+		if _, err := fmt.Fprintf(f, "    - [%s](%s/%s.md)\n", label, capType, versionDocs.Page); err != nil {
 			return err
 		}
 	}
