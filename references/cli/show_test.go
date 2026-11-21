@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,6 +28,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 const BaseDir = "testdata"
@@ -47,6 +51,8 @@ func TestGenerateSideBar(t *testing.T) {
 	cases := map[string]struct {
 		reason       string
 		capabilities []types.Capability
+		versions     *docgen.VersionDocs
+		wantEntries  []string
 		want         error
 	}{
 		"ComponentTypeAndTraitCapability": {
@@ -63,13 +69,25 @@ func TestGenerateSideBar(t *testing.T) {
 			},
 			want: nil,
 		},
+		"VersionPagesOfOneDefinition": {
+			reason: "version pages are listed under their definition only",
+			capabilities: []types.Capability{
+				{Name: workloadName, Type: types.TypeComponentDefinition},
+				{Name: traitName, Type: types.TypeTrait},
+			},
+			versions: &docgen.VersionDocs{Name: traitName, Type: types.TypeTrait, Versions: []string{"3.1.2", "3.1.0"}},
+			wantEntries: []string{
+				"  - [trait1](trait/trait1.md)\n    - [3.1.2](trait/trait1-v3.1.2.md)\n    - [3.1.0](trait/trait1-v3.1.0.md)\n",
+				"  - [component1](componentDefinition/component1.md)\n- Traits\n",
+			},
+		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			// Own temp dir so the test does not depend on TestCreateTestDir running first.
 			dir := t.TempDir()
-			got := generateSideBar(tc.capabilities, dir)
+			got := generateSideBar(tc.capabilities, dir, tc.versions)
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngenerateSideBar(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
@@ -77,6 +95,9 @@ func TestGenerateSideBar(t *testing.T) {
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				assert.Contains(t, string(data), c.Name)
+			}
+			for _, e := range tc.wantEntries {
+				assert.Contains(t, string(data), e)
 			}
 		})
 	}
@@ -226,6 +247,11 @@ func TestParseShowRevision(t *testing.T) {
 		"wildcard not exact": {in: "1.x", wantErr: true},
 		"double v semver":    {in: "vv1.2.3", wantErr: true},
 		"double v revision":  {in: "vv2", wantErr: true},
+		"partial major":      {in: "v3", rev: 3},
+		"partial minor":      {in: "3.1", version: "3.1"},
+		"v partial minor":    {in: "v3.1", version: "3.1"},
+		"partial prerelease": {in: "3.1-beta", wantErr: true},
+		"partial build":      {in: "3.1-beta.1", wantErr: true},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -239,6 +265,23 @@ func TestParseShowRevision(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.rev, rev)
 			assert.Equal(t, tc.version, version)
+		})
+	}
+}
+
+func TestShowRevisionNeedsDefinitionName(t *testing.T) {
+	for name, args := range map[string][]string{
+		"web":       {"--web", "--revision", "3.1.2"},
+		"docs only": {"--revision", "3"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var out bytes.Buffer
+			cmd := NewCapabilityShowCommand(common.Args{}, "", cmdutil.IOStreams{In: os.Stdin, Out: &out, ErrOut: &out})
+			cmd.SetArgs(args)
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+			err := cmd.Execute()
+			assert.EqualError(t, err, "--revision needs a definition name, e.g. vela show webservice --web --revision 1.2.3")
 		})
 	}
 }

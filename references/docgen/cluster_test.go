@@ -587,3 +587,142 @@ func TestGetCapabilityFromDefinitionVersion(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, capability.CueTemplate, "newParam")
 }
+
+func TestDefinitionVersionMatching(t *testing.T) {
+	ctx := context.Background()
+	// See TestGetCapabilityFromDefinitionVersion: parameter extraction needs a kube config.
+	t.Cleanup(func() { singleton.KubeConfig.Set(nil) })
+	singleton.KubeConfig.Set(&rest.Config{Host: "http://127.0.0.1:1"})
+	// Unversioned revisions are named <def>-v<revision>.
+	plainRev1 := newTraitRevision("default", "plain", "", "plainRev1", 1)
+	plainRev1.Name = "plain-v1"
+	plainRev2 := newTraitRevision("default", "plain", "", "plainRev2", 2)
+	plainRev2.Name = "plain-v2"
+	// 3.1.0 has a higher revision number than 3.1.2, so the highest version must beat it.
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(
+		newTraitRevision("default", "vtrait", "3.3.0", "p330", 1),
+		newTraitRevision("default", "vtrait", "3.1.2", "p312", 2),
+		newTraitRevision("default", "vtrait", "3.1.0", "p310", 3),
+		plainRev1,
+		plainRev2,
+	).Build()
+	c := common.Args{}
+	c.SetClient(cli)
+
+	t.Run("partial version matches the highest version with those leading numbers", func(t *testing.T) {
+		for want, param := range map[string]string{"3": "p330", "v3": "p330", "3.1": "p312", "v3.1": "p312", "3.1.0": "p310", "3.3": "p330"} {
+			capability, err := GetCapabilityFromDefinitionVersion(ctx, c, "default", "vtrait", want)
+			require.NoError(t, err, want)
+			assert.Contains(t, capability.CueTemplate, param, want)
+		}
+		for _, want := range []string{"3.0", "3.2", "4", "3.1.1"} {
+			_, err := GetCapabilityFromDefinitionVersion(ctx, c, "default", "vtrait", want)
+			require.Error(t, err, want)
+			assert.Contains(t, err.Error(), "no vtrait with version "+want+" found", want)
+		}
+	})
+
+	t.Run("matcher", func(t *testing.T) {
+		assert.True(t, definitionVersionMatches("3.1.0", "3.1"))
+		assert.True(t, definitionVersionMatches("3.1.2", "3.1"))
+		assert.False(t, definitionVersionMatches("3.2.0", "3.1"))
+		assert.True(t, definitionVersionMatches("v3.2.0", "3"))
+		assert.False(t, definitionVersionMatches("30.0.0", "3"))
+		assert.True(t, definitionVersionMatches("1.2.3", "v1.2.3"))
+		assert.False(t, definitionVersionMatches("1.2.30", "1.2.3"))
+		assert.False(t, definitionVersionMatches("", "3"))
+	})
+
+	t.Run("version list is highest first and empty without spec.version", func(t *testing.T) {
+		versions, err := ListDefinitionVersions(ctx, c, "default", "vtrait")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"3.3.0", "3.1.2", "3.1.0"}, versions)
+		versions, err = ListDefinitionVersions(ctx, c, "default", "plain")
+		require.NoError(t, err)
+		assert.Empty(t, versions)
+	})
+
+	show := func(name string, rev int64) (*types.Capability, error) {
+		ref := &ParseReference{DefinitionName: name, Remote: &FromCluster{Namespace: "default", Rev: rev}}
+		caps, err := ref.getCapabilities(ctx, c)
+		if err != nil {
+			return nil, err
+		}
+		return &caps[0], nil
+	}
+
+	t.Run("bare number on a versioned definition is its major version", func(t *testing.T) {
+		capability, err := show("vtrait", 3)
+		require.NoError(t, err)
+		assert.Contains(t, capability.CueTemplate, "p330")
+
+		_, err = show("vtrait", 4)
+		require.Error(t, err)
+		assert.Equal(t, "failed to get version 4 of capability vtrait: no vtrait with version 4 found in namespace default or vela-system", err.Error())
+	})
+
+	t.Run("bare number on an unversioned definition is the revision number", func(t *testing.T) {
+		capability, err := show("plain", 2)
+		require.NoError(t, err)
+		assert.Contains(t, capability.CueTemplate, "plainRev2")
+
+		_, err = show("plain", 9)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get revision 9 of capability plain")
+	})
+
+	t.Run("web version pages and the page --revision opens", func(t *testing.T) {
+		ref := &MarkdownReference{ParseReference: ParseReference{Client: cli, I18N: &En}}
+		dir := t.TempDir()
+		read := func(page string) string {
+			data, err := os.ReadFile(filepath.Join(dir, string(types.TypeTrait), page+".md"))
+			require.NoError(t, err, page)
+			return string(data)
+		}
+
+		docs, err := ref.CreateVersionMarkdown(ctx, c, "default", "vtrait", types.TypeTrait, dir, 0, "")
+		require.NoError(t, err)
+		assert.Equal(t, &VersionDocs{Name: "vtrait", Type: types.TypeTrait, Versions: []string{"3.3.0", "3.1.2", "3.1.0"}}, docs)
+		assert.Contains(t, read("vtrait-v3.3.0"), "p330")
+		assert.Contains(t, read("vtrait-v3.1.2"), "p312")
+		assert.Contains(t, read("vtrait-v3.1.0"), "p310")
+
+		for _, tc := range []struct {
+			rev     int64
+			version string
+			page    string
+		}{
+			{version: "3.1.2", page: "vtrait-v3.1.2"},
+			{version: "3.1", page: "vtrait-v3.1.2"},
+			{rev: 3, page: "vtrait-v3.3.0"},
+		} {
+			docs, err := ref.CreateVersionMarkdown(ctx, c, "default", "vtrait", types.TypeTrait, dir, tc.rev, tc.version)
+			require.NoError(t, err, tc)
+			assert.Equal(t, tc.page, docs.Page, tc)
+		}
+
+		// An unversioned definition gets no version pages; a revision number opens that revision's page.
+		docs, err = ref.CreateVersionMarkdown(ctx, c, "default", "plain", types.TypeTrait, dir, 2, "")
+		require.NoError(t, err)
+		assert.Empty(t, docs.Versions)
+		assert.Equal(t, "plain-v2", docs.Page)
+		assert.Contains(t, read("plain-v2"), "plainRev2")
+		assert.NotContains(t, read("plain-v2"), "plainRev1")
+
+		for _, tc := range []struct {
+			name    string
+			rev     int64
+			version string
+			err     string
+		}{
+			{name: "vtrait", version: "3.2", err: "no vtrait with version 3.2 found"},
+			{name: "vtrait", rev: 4, err: "no vtrait with version 4 found"},
+			{name: "plain", rev: 9, err: "no plain with revision 9 found"},
+			{name: "plain", version: "1.0.0", err: "no plain with version 1.0.0 found"},
+		} {
+			_, err := ref.CreateVersionMarkdown(ctx, c, "default", tc.name, types.TypeTrait, dir, tc.rev, tc.version)
+			require.Error(t, err, tc)
+			assert.Contains(t, err.Error(), tc.err, tc)
+		}
+	})
+}
