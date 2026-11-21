@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,6 +28,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/docgen"
 )
 
 const BaseDir = "testdata"
@@ -47,6 +51,8 @@ func TestGenerateSideBar(t *testing.T) {
 	cases := map[string]struct {
 		reason       string
 		capabilities []types.Capability
+		versions     *docgen.VersionDocs
+		wantEntries  []string
 		want         error
 	}{
 		"ComponentTypeAndTraitCapability": {
@@ -63,18 +69,70 @@ func TestGenerateSideBar(t *testing.T) {
 			},
 			want: nil,
 		},
+		"VersionPagesOfOneDefinition": {
+			reason: "version pages are listed under their definition only",
+			capabilities: []types.Capability{
+				{Name: workloadName, Type: types.TypeComponentDefinition},
+				{Name: traitName, Type: types.TypeTrait},
+			},
+			versions: &docgen.VersionDocs{Name: traitName, Type: types.TypeTrait, Versions: []string{"3.1.2", "3.1.0"}},
+			wantEntries: []string{
+				"  - [trait1](trait/trait1.md)\n    - [3.1.2](trait/trait1-v3.1.2.md)\n    - [3.1.0](trait/trait1-v3.1.0.md)\n",
+				"  - [component1](componentDefinition/component1.md)\n- Traits\n",
+			},
+		},
+		"CrossTypeRevisionPage": {
+			reason: "the page --revision resolved to in another type is listed under that type's entry",
+			capabilities: []types.Capability{
+				{Name: traitName, Type: types.TypeTrait},
+				{Name: traitName, Type: types.TypePolicy},
+			},
+			versions: &docgen.VersionDocs{Name: traitName, Type: types.TypeTrait, Versions: []string{"3.1.0"},
+				Page: "trait1-v2.0.0", PageType: types.TypePolicy},
+			wantEntries: []string{
+				"  - [trait1](trait/trait1.md)\n    - [3.1.0](trait/trait1-v3.1.0.md)\n- Workflow Steps\n",
+				"  - [trait1](policy/trait1.md)\n    - [2.0.0](policy/trait1-v2.0.0.md)\n",
+			},
+		},
+		"RevisionNumberPage": {
+			reason: "a revision-number page without spec.version is listed once, after the version pages",
+			capabilities: []types.Capability{
+				{Name: traitName, Type: types.TypeTrait},
+			},
+			versions: &docgen.VersionDocs{Name: traitName, Type: types.TypeTrait, Versions: []string{"3.1.0"},
+				Page: "trait1-v2", PageType: types.TypeTrait},
+			wantEntries: []string{
+				"  - [trait1](trait/trait1.md)\n    - [3.1.0](trait/trait1-v3.1.0.md)\n    - [2](trait/trait1-v2.md)\n- Workflow Steps\n",
+			},
+		},
+		"VersionPageNotDuplicated": {
+			reason: "a resolved page that is already a version page is not listed twice",
+			capabilities: []types.Capability{
+				{Name: traitName, Type: types.TypeTrait},
+			},
+			versions: &docgen.VersionDocs{Name: traitName, Type: types.TypeTrait, Versions: []string{"3.1.2", "3.1.0"},
+				Page: "trait1-v3.1.0", PageType: types.TypeTrait},
+			wantEntries: []string{
+				"  - [trait1](trait/trait1.md)\n    - [3.1.2](trait/trait1-v3.1.2.md)\n    - [3.1.0](trait/trait1-v3.1.0.md)\n- Workflow Steps\n",
+			},
+		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := generateSideBar(tc.capabilities, TestDir)
+			// Own temp dir so the test does not depend on TestCreateTestDir running first.
+			dir := t.TempDir()
+			got := generateSideBar(tc.capabilities, dir, tc.versions)
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngenerateSideBar(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
-			data, err := os.ReadFile(filepath.Clean(filepath.Join(TestDir, SideBar)))
+			data, err := os.ReadFile(filepath.Clean(filepath.Join(dir, SideBar)))
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				assert.Contains(t, string(data), c.Name)
+			}
+			for _, e := range tc.wantEntries {
+				assert.Contains(t, string(data), e)
 			}
 		})
 	}
@@ -124,11 +182,13 @@ func TestGenerateREADME(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := generateREADME(tc.capabilities, TestDir)
+			// Own temp dir so the test does not depend on TestCreateTestDir running first.
+			dir := t.TempDir()
+			got := generateREADME(tc.capabilities, dir)
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngenerateREADME(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
-			data, err := os.ReadFile(filepath.Clean(filepath.Join(TestDir, README)))
+			data, err := os.ReadFile(filepath.Clean(filepath.Join(dir, README)))
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				switch c.Type {
@@ -202,4 +262,73 @@ func TestDeleteTestDir(t *testing.T) {
 		err := os.RemoveAll(BaseDir)
 		assert.NoError(t, err)
 	}
+}
+
+func TestParseShowRevision(t *testing.T) {
+	cases := map[string]struct {
+		in      string
+		rev     int64
+		version string
+		wantErr bool
+	}{
+		"empty":              {in: ""},
+		"revision number":    {in: "2", rev: 2},
+		"v revision number":  {in: "v2", rev: 2},
+		"semver":             {in: "1.2.3", version: "1.2.3"},
+		"v semver":           {in: "v1.2.3", version: "1.2.3"},
+		"semver prerelease":  {in: "1.2.3-beta.1", version: "1.2.3-beta.1"},
+		"not a version":      {in: "abc", wantErr: true},
+		"bare v":             {in: "v", wantErr: true},
+		"wildcard not exact": {in: "1.x", wantErr: true},
+		"double v semver":    {in: "vv1.2.3", wantErr: true},
+		"double v revision":  {in: "vv2", wantErr: true},
+		"partial major":      {in: "v3", rev: 3},
+		"partial minor":      {in: "3.1", version: "3.1"},
+		"v partial minor":    {in: "v3.1", version: "3.1"},
+		"partial prerelease": {in: "3.1-beta", wantErr: true},
+		"partial build":      {in: "3.1-beta.1", wantErr: true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			rev, version, err := parseShowRevision(tc.in)
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "revision number (2, v2)")
+				assert.Contains(t, err.Error(), "semantic version (1.2.3, v1.2.3)")
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.rev, rev)
+			assert.Equal(t, tc.version, version)
+		})
+	}
+}
+
+func TestShowRevisionNeedsDefinitionName(t *testing.T) {
+	for name, args := range map[string][]string{
+		"web":       {"--web", "--revision", "3.1.2"},
+		"docs only": {"--revision", "3"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var out bytes.Buffer
+			cmd := NewCapabilityShowCommand(common.Args{}, "", cmdutil.IOStreams{In: os.Stdin, Out: &out, ErrOut: &out})
+			cmd.SetArgs(args)
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+			err := cmd.Execute()
+			assert.EqualError(t, err, "--revision needs a definition name, e.g. vela show webservice --web --revision 1.2.3")
+		})
+	}
+}
+
+func TestShowWithDefinitionNameParsesRevision(t *testing.T) {
+	var out bytes.Buffer
+	cmd := NewCapabilityShowCommand(common.Args{}, "", cmdutil.IOStreams{In: os.Stdin, Out: &out, ErrOut: &out})
+	cmd.SetArgs([]string{"webservice", "-n", "default", "--revision", "abc"})
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+	err := cmd.Execute()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid revision "abc"`)
+	assert.NotContains(t, err.Error(), "needs a definition name")
 }

@@ -93,13 +93,21 @@ func (ref *ParseReference) getCapabilities(ctx context.Context, c common.Args) (
 			}
 		} else {
 			var rcap *types.Capability
-			if ref.Remote.Rev == 0 {
+			switch {
+			case ref.Remote.Version != "":
+				rcap, err = GetCapabilityFromDefinitionVersion(ctx, c, ref.Remote.Namespace, ref.DefinitionName, ref.Remote.Version)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get version %s of capability %s: %w", ref.Remote.Version, ref.DefinitionName, err)
+				}
+			case ref.Remote.Rev == 0:
 				rcap, err = GetCapabilityByName(ctx, c, ref.DefinitionName, ref.Remote.Namespace)
 				if err != nil {
 					return nil, fmt.Errorf("failed to get capability %s: %w", ref.DefinitionName, err)
 				}
-			} else {
-				rcap, err = GetCapabilityFromDefinitionRevision(ctx, c, ref.Remote.Namespace, ref.DefinitionName, ref.Remote.Rev)
+			default:
+				// A bare number is the major version of a definition type that sets spec.version and
+				// the revision number of one that does not, decided per type of this name.
+				rcap, err = GetCapabilityFromRevisionNumber(ctx, c, ref.Remote.Namespace, ref.DefinitionName, ref.Remote.Rev)
 				if err != nil {
 					return nil, fmt.Errorf("failed to get revision %v of capability %s: %w", ref.Remote.Rev, ref.DefinitionName, err)
 				}

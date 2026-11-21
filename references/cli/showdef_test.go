@@ -41,7 +41,7 @@ var _ = Describe("Test show definition cli", func() {
 			c.SetConfig(cfg)
 			c.SetClient(k8sClient)
 
-			Expect(ShowReferenceMarkdown(ctx, c, ioStreams, "../../vela-templates/definitions/internal/workflowstep/notification.cue", "", "", "", "", 0)).Should(BeNil())
+			Expect(ShowReferenceMarkdown(ctx, c, ioStreams, "../../vela-templates/definitions/internal/workflowstep/notification.cue", "", "", "", "", 0, "")).Should(BeNil())
 
 		})
 	})
