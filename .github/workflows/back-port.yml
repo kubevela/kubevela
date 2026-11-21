@@ -29,8 +29,9 @@ jobs:
           # branch keeps a new release branch, pushed at an already-merged commit, from
           # backporting that PR again.
           for attempt in 1 2 3; do
-            pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
-              --jq "[.[] | select(.merge_commit_sha == \"$SHA\" and .base.ref == \"$BRANCH\")][0] // empty")
+            pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" |
+              jq -c --arg sha "$SHA" --arg branch "$BRANCH" \
+                '[.[] | select(.merge_commit_sha == $sha and .base.ref == $branch)][0] // empty')
             [[ -n "$pr" ]] && break
             if (( attempt < 3 )); then sleep $((attempt * 5)); fi
           done
