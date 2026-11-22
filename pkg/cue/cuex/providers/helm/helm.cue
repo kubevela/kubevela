@@ -111,6 +111,13 @@ package helm
 			
 			// +usage=Post-rendering configuration
 			postRender?: {
+				// +usage=CUE template evaluated once per rendered resource, with
+				// that resource bound to context.resource; its `patch` field is
+				// merged back into the resource. Producing no `patch` leaves the
+				// resource untouched.
+				cue?: {
+					template: string
+				}
 				// +usage=Kustomize patches
 				kustomize?: {
 					patches?: [...]

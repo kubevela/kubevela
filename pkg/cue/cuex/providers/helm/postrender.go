@@ -28,7 +28,9 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/cuecontext"
+	cueparser "cuelang.org/go/cue/parser"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
@@ -232,11 +234,72 @@ func effectivePostRender(postRender *PostRenderParams) *PostRenderParams {
 	if postRender == nil || postRender.CUE == nil || strings.TrimSpace(postRender.CUE.Template) == "" {
 		return nil
 	}
+	if !templateCanPatch(postRender.CUE.Template) {
+		// Non-blank is not the same as doing something. A template that is all
+		// comments, or that declares anything other than patch, leaves every
+		// resource untouched in patchResource, so fingerprinting it would force
+		// an upgrade that renders byte-identical manifests.
+		return nil
+	}
 	// Only the CUE flavor is wired into newPostRenderer. Kustomize and Exec are
 	// declared in the params but reach no renderer, so including them here would
 	// fingerprint settings that cannot affect the output. Extend this alongside
 	// newPostRenderer when another flavor is implemented.
 	return &PostRenderParams{CUE: postRender.CUE}
+}
+
+// templateCanPatch reports whether a post-render template could ever produce a
+// patch, which is the only thing that makes it do any work: patchResource
+// returns the resource untouched when the template has no patch field.
+//
+// Decided on the syntax, not on an evaluation, because whether a patch is
+// actually produced depends on the resource. A patch guarded by
+// `if context.resource.kind == "Deployment"` counts as active even for a chart
+// that renders no Deployment: the alternative is calling it a no-op and then
+// silently skipping the upgrade for a chart that does render one.
+//
+// A template that does not parse counts as active. The renderer will reject it
+// at run time, and the upgrade has to go ahead for that error to surface rather
+// than being deduped away.
+func templateCanPatch(template string) bool {
+	f, err := cueparser.ParseFile("-", template, cueparser.ParseComments)
+	if err != nil || f == nil {
+		return true
+	}
+	return declaresPatch(f.Decls)
+}
+
+// declaresPatch looks for a patch field among declarations that sit at the
+// template's top level, descending into `if`/`for` bodies and embeddings since
+// a field inside one is still a top-level field once evaluated.
+func declaresPatch(decls []ast.Decl) bool {
+	for _, decl := range decls {
+		switch d := decl.(type) {
+		case *ast.Field:
+			if patchLabel(d.Label) {
+				return true
+			}
+		case *ast.Comprehension:
+			if st, ok := d.Value.(*ast.StructLit); ok && declaresPatch(st.Elts) {
+				return true
+			}
+		case *ast.EmbedDecl:
+			if st, ok := d.Expr.(*ast.StructLit); ok && declaresPatch(st.Elts) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func patchLabel(label ast.Label) bool {
+	switch v := label.(type) {
+	case *ast.Ident:
+		return v.Name == cuePatchFieldName
+	case *ast.BasicLit:
+		return strings.Trim(v.Value, `"`) == cuePatchFieldName
+	}
+	return false
 }
 
 // postRenderFingerprint digests the post-render configuration so a change to it

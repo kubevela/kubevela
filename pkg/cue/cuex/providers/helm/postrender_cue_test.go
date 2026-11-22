@@ -378,6 +378,50 @@ var _ = Describe("postRenderFingerprint", func() {
 		}
 	})
 
+	It("should be empty for a template that can never patch", func() {
+		// Non-blank is not the same as doing something. patchResource returns
+		// the resource untouched when the template has no patch field, so
+		// fingerprinting one of these would force an upgrade that renders
+		// byte-identical manifests. This is what "agree with what the renderer
+		// actually emits" means in practice.
+		for _, tmpl := range []string{
+			"// just a comment, nothing to apply\n",
+			"// +nothing\n// still nothing\n",
+			`notPatch: metadata: labels: a: "1"`,
+			`_hidden: {patch: metadata: labels: a: "1"}`,
+		} {
+			Expect(postRenderFingerprint(&PostRenderParams{CUE: &CUEParams{Template: tmpl}})).
+				To(BeEmpty(), "template %q cannot patch and should not be fingerprinted", tmpl)
+			Expect(templateCanPatch(tmpl)).To(BeFalse(), "template %q", tmpl)
+		}
+	})
+
+	It("should fingerprint a template that could patch, however it is written", func() {
+		// A guarded patch counts even for a chart that renders nothing it
+		// matches: calling it a no-op would skip the upgrade for a chart that
+		// does. Same for a patch inside a for body or an embedded struct.
+		for _, tmpl := range []string{
+			`patch: metadata: labels: a: "1"`,
+			`"patch": metadata: labels: a: "1"`,
+			"if context.resource.kind == \"Deployment\" {\n\tpatch: spec: replicas: 3\n}",
+			"for k, v in {a: \"1\"} {\n\tpatch: metadata: labels: \"\\(k)\": v\n}",
+			"{\n\tpatch: metadata: labels: a: \"1\"\n}",
+		} {
+			Expect(postRenderFingerprint(&PostRenderParams{CUE: &CUEParams{Template: tmpl}})).
+				NotTo(BeEmpty(), "template %q could patch and should be fingerprinted", tmpl)
+			Expect(templateCanPatch(tmpl)).To(BeTrue(), "template %q", tmpl)
+		}
+	})
+
+	It("should treat an unparseable template as active", func() {
+		// The renderer rejects it at run time; the upgrade has to go ahead for
+		// that error to surface rather than being deduped away.
+		Expect(templateCanPatch(`this is not cue {{{`)).To(BeTrue())
+		Expect(postRenderFingerprint(&PostRenderParams{
+			CUE: &CUEParams{Template: `this is not cue {{{`},
+		})).NotTo(BeEmpty())
+	})
+
 	It("should agree with newPostRenderer about what is active", func() {
 		// The renderer and the change detection must never disagree: a config
 		// that yields a bare vela renderer must fingerprint empty, and one that
@@ -387,7 +431,10 @@ var _ = Describe("postRenderFingerprint", func() {
 			{},
 			{CUE: &CUEParams{Template: "  "}},
 			{Kustomize: &KustomizeParams{Patches: []interface{}{"x"}}},
+			{CUE: &CUEParams{Template: "// only a comment\n"}},
+			{CUE: &CUEParams{Template: `notPatch: metadata: labels: a: "1"`}},
 			{CUE: &CUEParams{Template: `patch: metadata: labels: a: "1"`}},
+			{CUE: &CUEParams{Template: "if context.resource.kind == \"Deployment\" {\n\tpatch: spec: replicas: 3\n}"}},
 		}
 		for _, c := range cases {
 			renderer := newPostRenderer(context.Background(), c, &ContextParams{AppName: "app"}, "rel", "ns")
