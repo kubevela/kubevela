@@ -31,7 +31,7 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/repo"
 	"k8s.io/klog/v2"
-	registryauth "oras.land/oras-go/pkg/registry/remote/auth"
+	registryauth "oras.land/oras-go/v2/registry/remote/auth"
 
 	"github.com/oam-dev/kubevela/pkg/registry/component"
 )

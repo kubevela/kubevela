@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"oras.land/oras-go/pkg/registry/remote/auth"
+	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
 // The manifest digest is OCI's ETag. A registry answers HEAD
