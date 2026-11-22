@@ -34,6 +34,7 @@ const chartCUEExperiment = "evalv3=0,keepvalidators=0"
 // a name that matches no test fails the re-run.
 var policyContextTests = []string{
 	"TestPolicyContextAtAdmission",
+	"TestPolicyContextAliasReads",
 	"TestPolicyContextLookups",
 	"TestPolicyContextViewUnknownExplicitPolicy",
 }

@@ -89,14 +89,29 @@ func referenceLabels(n ast.Node) (chain []string, at []token.Pos, ok bool) {
 	return chain, at, ok
 }
 
+// maxAliasDepth stops following aliases that refer to each other.
+const maxAliasDepth = 8
+
 // labelsUpToIndex is referenceLabels, also reporting whether the chain ended at
 // an index that is not a string literal.
 func labelsUpToIndex(n ast.Node) (chain []string, at []token.Pos, ended, ok bool) {
+	return labelsFrom(n, 0)
+}
+
+func labelsFrom(n ast.Node, depth int) (chain []string, at []token.Pos, ended, ok bool) {
 	switch x := n.(type) {
 	case *ast.Ident:
+		if aliased, isAlias := aliasOfContextCustom(x, depth); isAlias {
+			// The alias's labels are all read where it is used.
+			at = make([]token.Pos, 0, len(aliased))
+			for range aliased {
+				at = append(at, x.Pos())
+			}
+			return aliased, at, false, true
+		}
 		return []string{x.Name}, []token.Pos{x.Pos()}, false, true
 	case *ast.SelectorExpr:
-		chain, at, ended, ok = labelsUpToIndex(x.X)
+		chain, at, ended, ok = labelsFrom(x.X, depth)
 		if !ok || ended {
 			return chain, at, ended, ok
 		}
@@ -106,7 +121,7 @@ func labelsUpToIndex(n ast.Node) (chain []string, at []token.Pos, ended, ok bool
 		}
 		return append(chain, name), append(at, x.Sel.Pos()), false, true
 	case *ast.IndexExpr:
-		chain, at, ended, ok = labelsUpToIndex(x.X)
+		chain, at, ended, ok = labelsFrom(x.X, depth)
 		if !ok || ended {
 			return chain, at, ended, ok
 		}
@@ -121,6 +136,29 @@ func labelsUpToIndex(n ast.Node) (chain []string, at []token.Pos, ended, ok bool
 		return append(chain, name), append(at, lit.Pos()), false, true
 	}
 	return nil, nil, false, false
+}
+
+// aliasOfContextCustom returns the context.custom chain that the field or let
+// named by id stands for, as in `_info: context.custom.info`. The parser has
+// resolved id, so a field that shadows the name is not followed.
+func aliasOfContextCustom(id *ast.Ident, depth int) ([]string, bool) {
+	if depth >= maxAliasDepth {
+		return nil, false
+	}
+	var value ast.Node
+	switch d := id.Node.(type) {
+	case *ast.LetClause:
+		value = d.Expr
+	case ast.Expr:
+		value = d
+	default:
+		return nil, false
+	}
+	chain, _, ended, ok := labelsFrom(value, depth+1)
+	if !ok || ended || len(chain) < 2 || chain[0] != "context" || chain[1] != "custom" {
+		return nil, false
+	}
+	return chain, true
 }
 
 // walkDynamicIndexes walks, with visit, each index of a selector or index
