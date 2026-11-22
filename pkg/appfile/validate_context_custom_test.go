@@ -83,6 +83,12 @@ _org: _custom.org
 x: _org.team`},
 			want: [][]string{{"org"}, {"org", "team"}},
 		},
+		"a read through an alias of context keeps its full path": {
+			templates: []string{`_ctx: context
+x: _ctx.custom.org.team
+y: _ctx.name`},
+			want: [][]string{{"org", "team"}},
+		},
 		"a field that shadows an alias is not followed": {
 			templates: []string{`_org: context.custom.org
 x: {_org: team: "a", t: _org.team}`},

@@ -223,6 +223,17 @@ func TestValidateAgainstPolicyContext(t *testing.T) {
 			view:      view(identity),
 			wantErr:   []string{"context.custom.org.zone", `optional in policy "identity"`},
 		},
+		"a nested optional key read through an alias of context": {
+			component: "parameter: {}\n_ctx: context\n" + configMapOutput(", labels: zone: _ctx.custom.org.zone"),
+			view:      view(identity),
+			wantErr:   []string{"context.custom.org.zone", `optional in policy "identity"`},
+		},
+		"a trait reading an optional key through an alias": {
+			component: "parameter: {}\n" + configMapOutput(""),
+			traits:    []string{"_org: context.custom.org\nparameter: {}\npatch: metadata: labels: zone: _org.zone"},
+			view:      view(identity),
+			wantErr:   []string{`trait "mesh"`, "context.custom.org.zone", `optional in policy "identity"`},
+		},
 		"a nested optional key read through an alias of an alias": {
 			component: "parameter: {}\n_custom: context.custom\n_org: _custom.org\n" + configMapOutput(", labels: zone: _org.zone"),
 			view:      view(identity),
