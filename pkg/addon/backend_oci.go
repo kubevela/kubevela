@@ -282,9 +282,9 @@ func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, p
 // ociFatalErrorMarkers are the substrings that identify a failure this
 // backend must not present as "this registry cannot serve the addon".
 //
-// The first group is the registry refusing the caller: oras-go v1 renders the
-// distribution spec's UNAUTHORIZED and DENIED codes into the message, and
-// docker credential lookup and token exchange failures surface as their own
+// The first group is the registry refusing the caller: oras-go renders the
+// distribution spec's UNAUTHORIZED and DENIED codes into the message in lower
+// case, and credential lookup and token exchange failures surface as their own
 // text. The second is an artifact that was fetched but is not a usable chart.
 // Both mean the operator has something to fix here, and neither gets better by
 // trying the next registry.
@@ -293,19 +293,25 @@ var ociFatalErrorMarkers = []string{
 	"denied",
 	"authentication required",
 	"forbidden",
-	"failed to login to OCI registry",
+	// lower case, like the message it is compared with
+	"failed to login to oci registry",
 	"has no chart layer",
 }
 
 // isOCIFatalError reports whether err names a cause that another registry
 // cannot substitute for.
 //
-// The test is on the message because oras-go v1.2.5 keeps its error types in
-// the unexported pkg/registry/remote/internal/errutil and builds these with
-// fmt.Errorf, so there is nothing to match with errors.As. A miss is not
+// A 401 or 403 from the registry is read from its response when the error
+// still carries it. The message is the fallback, for an error that reached
+// here as text and for the failures that never were a registry response, such
+// as a login that failed or an artifact with no chart layer. A miss is not
 // silent: the error text still reaches the log line that records the skipped
 // registry.
 func isOCIFatalError(err error) bool {
+	if resp, ok := component.OCIErrorResponse(err); ok &&
+		(resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden) {
+		return true
+	}
 	msg := strings.ToLower(err.Error())
 	for _, marker := range ociFatalErrorMarkers {
 		if strings.Contains(msg, marker) {
