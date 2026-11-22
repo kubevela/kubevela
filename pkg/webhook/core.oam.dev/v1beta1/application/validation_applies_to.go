@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -35,7 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -157,9 +155,6 @@ func (h *ValidatingHandler) resolveAppliesToTarget(ctx context.Context, app *v1b
 		return nil, err
 	}
 	if cd.Spec.Extends != "" {
-		if !inheritanceEnabled() {
-			return nil, nil
-		}
 		if cd, err = appfile.InheritedComponentDefinition(ctx, h.Client, cd, app.GetAnnotations()); err != nil {
 			return nil, chainFailure(compType, err)
 		}
@@ -180,9 +175,6 @@ func (h *ValidatingHandler) resolveAppliesToTrait(ctx context.Context, app *v1be
 		return nil, err
 	}
 	if td.Spec.Extends != "" {
-		if !inheritanceEnabled() {
-			return nil, nil
-		}
 		if td, err = appfile.InheritedTraitDefinition(ctx, h.Client, td, app.GetAnnotations()); err != nil {
 			return nil, chainFailure(traitType, err)
 		}
@@ -191,9 +183,9 @@ func (h *ValidatingHandler) resolveAppliesToTrait(ctx context.Context, app *v1be
 }
 
 // chainFailure returns err only when the API server failed to answer. Other
-// extends errors (missing or cross-namespace parent, cycle) are definition
-// problems that rendering reports, so the check skips them instead of failing
-// every write.
+// extends errors (inheritance turned off, missing or cross-namespace parent,
+// cycle) are definition problems that rendering reports, so the check skips
+// them instead of failing every write.
 func chainFailure(typ string, err error) error {
 	var status apierrors.APIStatus
 	if (errors.As(err, &status) && !apierrors.IsNotFound(err)) ||
@@ -221,12 +213,6 @@ func (h *ValidatingHandler) readDefinition(ctx context.Context, app *v1beta1.App
 		return false, nil
 	}
 	return err == nil, err
-}
-
-// inheritanceEnabled reports whether spec.extends is on. When it's off,
-// rendering refuses extending definitions, so they aren't checked here.
-func inheritanceEnabled() bool {
-	return utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableDefinitionInheritance)
 }
 
 // workloadOf returns cd's workload as <plural>.<group>, or "" if it has none.

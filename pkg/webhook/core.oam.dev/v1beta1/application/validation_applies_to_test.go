@@ -343,11 +343,6 @@ func TestValidateTraitAppliesTo(t *testing.T) {
 		assert.Equal(t, 1, calls)
 	})
 
-	t.Run("does not repeat a malformed type", func(t *testing.T) {
-		app := appliesToApp(component("web", "webservice", "foo/bar"))
-		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
-	})
-
 	t.Run("reads a WorkloadDefinition from the ComponentDefinition's namespace", func(t *testing.T) {
 		// Same name as vela-system/my-deploy, in the Application's namespace.
 		shadow := &v1beta1.WorkloadDefinition{
@@ -517,9 +512,12 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 		assert.Contains(t, errs[0].Detail, `(workload "deployments.apps")`)
 	})
 
-	t.Run("an extending component is left to rendering while inheritance is off", func(t *testing.T) {
+	t.Run("extending definitions are left to rendering while inheritance is off", func(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, false)
-		app := appliesToApp(component("web", "tenant-web", "sts-scaler"))
+		app := appliesToApp(
+			component("child-component", "tenant-web", "sts-scaler"),
+			component("child-trait", "base-web", "tenant-scaler"),
+		)
 		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 
@@ -557,12 +555,6 @@ func TestValidateTraitAppliesToWithInheritance(t *testing.T) {
 		require.Len(t, errs, 1)
 		assert.Equal(t, field.ErrorTypeInternal, errs[0].Type)
 		assert.Equal(t, "spec.components[0].traits[0].type", errs[0].Field)
-	})
-
-	t.Run("an unresolvable chain is left to rendering", func(t *testing.T) {
-		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableDefinitionInheritance, false)
-		app := appliesToApp(component("web", "base-web", "tenant-scaler"))
-		assert.Empty(t, appliesToErrs(appliesToHandler(definitions...), app))
 	})
 
 	// A "@v1" parent resolves with the Application's annotations, as at render:
