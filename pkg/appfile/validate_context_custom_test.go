@@ -176,6 +176,18 @@ parameter: team: *strings.ToLower(context.custom.team) | string`,
 #P: {next?: #P, team: *context.custom.team | string}`,
 			want: map[string]bool{"team": true},
 		},
+		"a default from context through an alias": {
+			template: "_team: context.custom.team\nparameter: team: *_team | string",
+			want:     map[string]bool{"team": true},
+		},
+		"a default from context through a let": {
+			template: "let t = context.custom.team\nparameter: team: *t | string",
+			want:     map[string]bool{"team": true},
+		},
+		"a default from a field of an alias": {
+			template: "_org: context.custom.org\nparameter: team: *_org.team | string",
+			want:     map[string]bool{"team": true},
+		},
 		"context outside the default does not count": {
 			template: `parameter: team: *"x" | context.custom.team`,
 		},

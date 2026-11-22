@@ -293,9 +293,15 @@ func TestPolicyContextAliasReads(t *testing.T) {
 	const optional = `context.custom.info.zone is optional in policy "team-info"`
 	cases := map[string]struct {
 		template string
+		// properties default to {"name":"x"}.
+		properties string
 		// wantErr is a fragment of the error, or empty when admitted.
 		wantErr string
 	}{
+		"a parameter left out whose default comes through an alias": {
+			template:   "_info: context.custom.info\nparameter: name: *_info.name | string\n" + output,
+			properties: `{}`,
+		},
 		"a direct read in the output": {
 			template: "parameter: name: string\noutput: {apiVersion: \"v1\", kind: \"ConfigMap\", metadata: name: parameter.name, data: zone: context.custom.info.zone}\n",
 			wantErr:  optional,
@@ -325,8 +331,12 @@ func TestPolicyContextAliasReads(t *testing.T) {
 					Schematic: &common.Schematic{CUE: &common.CUE{Template: tc.template}},
 				},
 			}
+			properties := tc.properties
+			if properties == "" {
+				properties = `{"name":"x"}`
+			}
 			app := ctxApp("reads-info", nil)
-			app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{"name":"x"}`)}
+			app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(properties)}
 
 			got := componentErrors(ctxHandler(teamInfo, def), app)
 			if tc.wantErr == "" {
