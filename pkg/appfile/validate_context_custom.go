@@ -98,6 +98,7 @@ func labelsUpToIndex(n ast.Node) (chain []string, at []token.Pos, ended, ok bool
 	return labelsFrom(n, 0)
 }
 
+// labelsFrom is labelsUpToIndex, following aliases up to maxAliasDepth deep.
 func labelsFrom(n ast.Node, depth int) (chain []string, at []token.Pos, ended, ok bool) {
 	switch x := n.(type) {
 	case *ast.Ident:
