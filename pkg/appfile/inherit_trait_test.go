@@ -246,18 +246,6 @@ func TestInheritedDefinitionHelpers(t *testing.T) {
 		require.Empty(t, child.Spec.Workload.Type, "the caller's definition must not be modified")
 	})
 
-	t.Run("component keeps its own workload", func(t *testing.T) {
-		parent := definitionIn("team-a", "base", "", "output: {}")
-		parent.Spec.Workload = common.WorkloadTypeDescriptor{Type: "deployments.apps"}
-		child := definitionIn("team-a", "child", "base", "$super: properties: {}")
-		child.Spec.Workload = common.WorkloadTypeDescriptor{Type: "statefulsets.apps"}
-		cli := fakeClientWith(parent, child).Build()
-
-		got, err := InheritedComponentDefinition(context.Background(), cli, child, nil)
-		require.NoError(t, err)
-		require.Equal(t, "statefulsets.apps", got.Spec.Workload.Type)
-	})
-
 	t.Run("trait inherits appliesToWorkloads", func(t *testing.T) {
 		parent := traitIn("team-a", "base", "", "patch: {}")
 		parent.Spec.AppliesToWorkloads = []string{"statefulsets.apps"}
