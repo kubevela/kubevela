@@ -253,10 +253,9 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 	controllerNamespace := resolveControllerNamespace(coreOptions.Server.LeaderElectionNamespace)
 	httpguard.SetEnhancer(controllerHTTPPolicy)
 	// Use APIReader: GetClient() is cache-backed and is not ready before mgr.Start.
-	if err := httpguard.LoadConfigMaps(ctx, manager.GetAPIReader(), coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
-		klog.ErrorS(err, "Failed to initialize workflow HTTP deny ConfigMaps",
-			"template", coreOptions.Workflow.HTTPDenyConfigTemplateName, "namespace", controllerNamespace)
-		return fmt.Errorf("failed to initialize workflow HTTP deny ConfigMaps: %w", err)
+	if err := loadHTTPDenyConfigMaps(ctx, manager.GetAPIReader(), coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
+		klog.ErrorS(err, "Failed to load the built-in workflow HTTP deny list")
+		return fmt.Errorf("failed to load the built-in workflow HTTP deny list: %w", err)
 	}
 	if err := httpguard.SetupWatcher(manager, coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
 		klog.ErrorS(err, "Failed to watch workflow HTTP deny ConfigMaps",
