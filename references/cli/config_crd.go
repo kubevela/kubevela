@@ -44,6 +44,9 @@ func kindServed(f velacmd.Factory, gvk schema.GroupVersionKind) bool {
 var (
 	errConfigTemplateCRDMissing = errors.New("the ConfigTemplate CRD is not installed; upgrade vela-core before applying config templates")
 	errConfigCRDMissing         = errors.New("the Config CRD is not installed; upgrade vela-core before creating configs")
+	// errConfigCreateCRDMissing also reaches standalone vela-workflow installs, which never serve the Config CRD.
+	errConfigCreateCRDMissing = errors.New("the Config CRD is not installed; upgrade vela-core before creating configs, " +
+		"or, on a standalone vela-workflow install, which has no Config CRD, create the ConfigMap or Secret with kubectl instead")
 )
 
 // legacyTemplateExists reports whether a legacy template ConfigMap with the given

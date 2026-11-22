@@ -226,7 +226,7 @@ var _ = Describe("Test the commands of the config", func() {
 		seedLegacyTemplate(templateOnly, "default", "partial-legacy")
 		create := ConfigCommandGroup(cmd.NewTestFactory(cfg, templateOnly), "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
 		create.SetArgs([]string{"create", "x", "--template=default/partial-legacy", "--namespace=default", "-f", "./test-data/config/registry.yaml"})
-		Expect(create.Execute()).Should(MatchError(errConfigCRDMissing))
+		Expect(create.Execute()).Should(MatchError(errConfigCreateCRDMissing))
 
 		// only Config served: apply must not pretend the ConfigTemplate CRD is there
 		configOnly := fakeClientServing(configv1alpha1.ConfigGroupVersionKind)
@@ -325,7 +325,7 @@ var _ = Describe("Test the commands of the config", func() {
 
 		create := ConfigCommandGroup(cmd.NewTestFactory(cfg, templateOnly), "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
 		create.SetArgs([]string{"create", "nc-nocrd", "--template=default/nacos-legacy", "--namespace=default", "dataId=nc-nocrd", "content.mysqlHost=db", "content.mysqlPort=3306"})
-		Expect(create.Execute()).Should(MatchError(errConfigCRDMissing))
+		Expect(create.Execute()).Should(MatchError(errConfigCreateCRDMissing))
 		var secret v1.Secret
 		Expect(apierrors.IsNotFound(templateOnly.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "nc-nocrd"}, &secret))).Should(BeTrue())
 	})
@@ -727,7 +727,10 @@ var _ = Describe("Test the commands of the config", func() {
 
 		cmd := ConfigCommandGroup(cmd.NewTestFactory(cfg, noCRDClient), "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
 		cmd.SetArgs([]string{"create", "x", "--template=default/legacy-no-crd", "--namespace=default", "-f", "./test-data/config/registry.yaml"})
-		Expect(cmd.Execute()).Should(MatchError(errConfigCRDMissing))
+		err := cmd.Execute()
+		Expect(err).Should(MatchError(errConfigCreateCRDMissing))
+		// the message also serves a standalone vela-workflow install, which has no Config CRD to upgrade to
+		Expect(err.Error()).Should(And(ContainSubstring("vela-workflow"), ContainSubstring("kubectl")))
 		// and nothing was written as a legacy Secret instead
 		var secret v1.Secret
 		Expect(apierrors.IsNotFound(noCRDClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "x"}, &secret))).Should(BeTrue())
