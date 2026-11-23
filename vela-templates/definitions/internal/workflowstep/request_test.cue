@@ -32,7 +32,7 @@ _ok: mocks: "vela/http": "#HTTPDo": $returns: {statusCode: 200, body: "{\"versio
 			} @exact()
 		}}]
 	}
-} @pending(the vela/http provider still allows only GET POST PUT and DELETE so PATCH fails when the step unifies with it; remove this once workflow issue 295 is in the workflow module)
+}
 
 "sends the body as JSON with the given method and header": test.#WorkflowStepExec & _ok & {
 	definition: "request"

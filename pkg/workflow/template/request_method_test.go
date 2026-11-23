@@ -33,9 +33,8 @@ import (
 // standardMethods is the method set RFC 9110 names, plus PATCH (RFC 5789).
 var standardMethods = []string{"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"}
 
-// The request step's parameter schema accepts every standard method and rejects
-// anything else. Sending one still has to unify with vela/http, which is the
-// provider's own schema.
+// The request step's parameter schema and the vela/http provider both accept
+// every standard method. Anything else is rejected by the step schema.
 func TestRequestStepParameterMethods(t *testing.T) {
 	prev := cuex.EnableExternalPackageForDefaultCompiler
 	cuex.EnableExternalPackageForDefaultCompiler = false
@@ -51,18 +50,24 @@ func TestRequestStepParameterMethods(t *testing.T) {
 
 	for _, method := range standardMethods {
 		t.Run(method, func(t *testing.T) {
-			got, err := requestParameterMethod(t, compiler, tmpl, method)
+			v := compileRequest(t, compiler, tmpl, method)
+			require.NoError(t, v.Err())
+			got, err := v.LookupPath(cue.ParsePath("parameter.method")).String()
 			require.NoError(t, err)
 			require.Equal(t, method, got)
+			sent, err := v.LookupPath(cue.ParsePath("req.$params.method")).String()
+			require.NoError(t, err)
+			require.Equal(t, method, sent)
 		})
 	}
 	t.Run("unknown", func(t *testing.T) {
-		_, err := requestParameterMethod(t, compiler, tmpl, "FOO")
+		v := compileRequest(t, compiler, tmpl, "FOO")
+		_, err := v.LookupPath(cue.ParsePath("parameter.method")).String()
 		require.Error(t, err)
 	})
 }
 
-func requestParameterMethod(t *testing.T, compiler *cuex.Compiler, tmpl, method string) (string, error) {
+func compileRequest(t *testing.T, compiler *cuex.Compiler, tmpl, method string) cue.Value {
 	t.Helper()
 	v, err := compiler.CompileStringWithOptions(context.Background(), tmpl+"\n"+fmt.Sprintf(`
 parameter: {
@@ -71,5 +76,5 @@ parameter: {
 }
 `, method), cuex.DisableResolveProviderFunctions{})
 	require.NoError(t, err)
-	return v.LookupPath(cue.ParsePath("parameter.method")).String()
+	return v
 }
