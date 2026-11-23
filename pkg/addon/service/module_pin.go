@@ -120,28 +120,42 @@ func pinModuleComponentsToHub(app map[string]interface{}, moduleNames []string) 
 
 // workflowMode is an explicit workflow mode. Without one, the controller runs
 // steps written in spec one by one and generated steps as a DAG, with sub-steps
-// as a DAG in both cases. Every workflow the renderer writes names its mode, so
-// a mode left over from an earlier render can never change how it runs (see
-// writeDefaultWorkflow).
+// as a DAG in both cases. See writeExplicitWorkflow.
 func workflowMode(steps wfTypesv1alpha1.WorkflowMode) map[string]interface{} {
 	return map[string]interface{}{"steps": string(steps), "subSteps": string(workflowv1alpha1.WorkflowModeDAG)}
 }
 
-// writeDefaultWorkflow writes out the workflow the controller would generate
-// for an addon with module components and no workflow of its own: the same
-// steps from the same generators, run as a DAG.
+// writeExplicitWorkflow makes the addon Application's workflow explicit, so
+// nothing from an earlier render can stay in it.
 //
 // The addon Application is patched with no last-applied configuration (see
 // suppressLastAppliedConfig), so the patch can add and change fields but never
-// delete one. Without this, the workflow pinModuleComponentsToHub wrote for a
-// placement would outlive the placement, and its steps would name policies
-// that are gone. A workflow with steps is replaced as a whole instead.
-func writeDefaultWorkflow(app map[string]interface{}, moduleNames []string) error {
+// delete one. A workflow left out of a render would outlive it: the one
+// pinModuleComponentsToHub writes for a placement, after the placement is
+// removed, or default steps for a module the next addon version drops. Their
+// steps would name policies or components that are gone. A workflow with
+// steps is replaced as a whole instead, so:
+//
+//   - With no workflow, it writes the one the controller would generate: the
+//     same steps from the same generators, run as a DAG.
+//   - Steps with no mode get the mode the controller uses for steps written in
+//     spec, so a mode from an earlier render cannot change how they run.
+//
+// A workflow that names a Workflow by ref takes its mode from that Workflow
+// when it sets none, so it is left as it is. Every value written here
+// survives a round trip through the typed Application unchanged; anything
+// that does not (an empty step list, for one) would flip on every pass.
+func writeExplicitWorkflow(app map[string]interface{}) error {
 	spec, _ := app["spec"].(map[string]interface{})
-	if spec == nil || len(moduleNames) == 0 {
+	if spec == nil {
 		return nil
 	}
-	if _, hasWorkflow := spec["workflow"]; hasWorkflow {
+	if wf, hasWorkflow := spec["workflow"].(map[string]interface{}); hasWorkflow {
+		steps, _ := wf["steps"].([]interface{})
+		ref, _ := wf["ref"].(string)
+		if _, hasMode := wf["mode"]; !hasMode && ref == "" && len(steps) > 0 {
+			wf["mode"] = workflowMode(workflowv1alpha1.WorkflowModeStep)
+		}
 		return nil
 	}
 	typed := &v1beta1.Application{}

@@ -466,9 +466,8 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 
 	appendAuxComponents(appMap, groups)
 	ensureAddonComponentStateKeepPolicy(appMap)
-	moduleNames := append(componentNames(moduleComps), componentNames(inlineModuleComps)...)
-	pinModuleComponentsToHub(appMap, moduleNames)
-	if err := writeDefaultWorkflow(appMap, moduleNames); err != nil {
+	pinModuleComponentsToHub(appMap, append(componentNames(moduleComps), componentNames(inlineModuleComps)...))
+	if err := writeExplicitWorkflow(appMap); err != nil {
 		return nil, fmt.Errorf("render addon %q: %w", req.Name, err)
 	}
 	sanitizeManifest(appMap)

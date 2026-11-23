@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 
+	wfv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
@@ -58,11 +60,15 @@ func placedInlineModule() *module.Module {
 // renderInlineAddon renders an addon that bundles edge-kit inline, as a
 // type: addon component with the given placement would ask for it.
 func renderInlineAddon(place *v1alpha1.Placement) map[string]interface{} {
-	pkg := pkgaddon.InstallPackage{
-		Meta:          pkgaddon.Meta{Name: "inline-addon", Version: "1.0.0"},
+	return renderAddon(pkgaddon.InstallPackage{
 		AppTemplate:   &v1beta1.Application{},
 		InlineModules: []*module.Module{placedInlineModule()},
-	}
+	}, place)
+}
+
+// renderAddon renders pkg as version 1.0.0 of the addon inline-addon.
+func renderAddon(pkg pkgaddon.InstallPackage, place *v1alpha1.Placement) map[string]interface{} {
+	pkg.Meta = pkgaddon.Meta{Name: "inline-addon", Version: "1.0.0"}
 	r := &rendererImpl{
 		cli: fake.NewClientBuilder().Build(),
 		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
@@ -176,6 +182,50 @@ var _ = Describe("inline module placement", func() {
 			components = append(components, c.Name)
 		}
 		Expect(names).To(ConsistOf(components), "one apply-component step per component")
+	})
+
+	It("leaves no stale workflow when a new addon version drops its modules", func() {
+		ctx := context.Background()
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+		applicator := apply.NewAPIApplicator(cli)
+		applyApp := func(rendered map[string]interface{}) {
+			obj := &unstructured.Unstructured{Object: rendered}
+			obj.SetName("addon-inline-addon")
+			Expect(applicator.Apply(ctx, obj)).To(Succeed())
+		}
+
+		for _, place := range []*v1alpha1.Placement{nil, {Clusters: []string{"spoke-1"}}} {
+			applyApp(renderInlineAddon(place))
+			applyApp(renderAddon(pkgaddon.InstallPackage{AppTemplate: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{
+					{Name: "marker", Type: "k8s-objects", Properties: rawJSON(map[string]interface{}{"objects": []interface{}{}})},
+				}},
+			}}, nil))
+			app := &v1beta1.Application{}
+			Expect(cli.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: "addon-inline-addon"}, app)).To(Succeed())
+			Expect(app.Spec.Workflow).NotTo(BeNil())
+			names := []string{}
+			for _, s := range app.Spec.Workflow.Steps {
+				names = append(names, s.Name)
+			}
+			Expect(names).To(ConsistOf("marker"), "placement %v: no step names the dropped module", place)
+			Expect(cli.Delete(ctx, app)).To(Succeed())
+		}
+	})
+
+	It("gives an addon's own workflow the default mode explicitly", func() {
+		rendered := renderAddon(pkgaddon.InstallPackage{AppTemplate: &v1beta1.Application{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common2.ApplicationComponent{{Name: "marker", Type: "k8s-objects", Properties: rawJSON(map[string]interface{}{"objects": []interface{}{}})}},
+				Workflow: &v1beta1.Workflow{Steps: []wfv1alpha1.WorkflowStep{{
+					WorkflowStepBase: wfv1alpha1.WorkflowStepBase{Name: "apply", Type: "apply-component", Properties: rawJSON(map[string]interface{}{"component": "marker"})},
+				}}},
+			},
+		}}, nil)
+		wf := rendered["spec"].(map[string]interface{})["workflow"].(map[string]interface{})
+		Expect(wf["mode"]).To(Equal(map[string]interface{}{"steps": "StepByStep", "subSteps": "DAG"}),
+			"the mode the controller uses for steps written in spec, so an earlier render's mode cannot linger")
+		Expect(wf["steps"]).To(HaveLen(1))
 	})
 
 	// Anything that updates the addon Application through the typed struct (the
