@@ -244,7 +244,8 @@ func registerTools(s *Server, d *deps) {
 			"explain_application alone, when a managed resource looks fine but the application is not. A " +
 			"family-owned resource that is not ready carries a cause when its family's condition, or for " +
 			"Crossplane a matching Cannot warning event, holds error text: classified by the external system's " +
-			"own error code, a transport or lower-camel phrase, or a googleapi status into throttled, " +
+			"own error code, a transport or lower-camel phrase, a googleapi status, or the family's own condition " +
+			"type (ACK.ReferencesResolved for an unresolved ACK reference) into throttled, " +
 			"quota-exhausted, auth, invalid, dependency-missing, conflict or unreachable, with a single owner " +
 			"(application-spec, external or platform; controller is reserved) and the owning controller as a " +
 			"handle when this server can identify it; text no rule recognises, including an explicit code no " +

@@ -574,6 +574,10 @@ spec:
 				refused(`{"clusterLabelSelector":{"region":"eu"}}`, "topology policy where selects clusters")
 			})
 
+			It("refuses the deprecated clusterSelector as a placement it cannot determine, not as a fan-out", func() {
+				refused(`{"clusterSelector":{"region":"eu"}}`, "topology policy where uses the deprecated clusterSelector, whose effect depends on vela-core's DeprecatedPolicySpec feature gate, so where it places resources cannot be determined")
+			})
+
 			It("refuses a deploy step whose policy is not declared in the Application", func() {
 				shared := &v1alpha1.Policy{
 					ObjectMeta: metav1.ObjectMeta{Name: "shared-placement", Namespace: "team-a"},
