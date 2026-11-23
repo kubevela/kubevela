@@ -283,6 +283,71 @@ func (c *listFailingClient) List(context.Context, client.ObjectList, ...client.L
 	return apierrors.NewServiceUnavailable("apiserver is having a moment")
 }
 
+// A read through an alias is judged as the read it stands for.
+func TestPolicyContextAliasReads(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EnableCueValidation, true)
+	policyGates(t, true, true)
+	teamInfo := appPolicyDef(oam.SystemDefinitionNamespace, "team-info",
+		"schema: ctx: close({info: close({name: string, zone?: string})})\nparameter: {}\noutput: ctx: info: name: \"team-a\"", true, 10)
+	const output = "output: {apiVersion: \"v1\", kind: \"ConfigMap\", metadata: name: parameter.name}\n"
+	const optional = `context.custom.info.zone is optional in policy "team-info"`
+	cases := map[string]struct {
+		template string
+		// properties default to {"name":"x"}.
+		properties string
+		// wantErr is a fragment of the error, or empty when admitted.
+		wantErr string
+	}{
+		"a parameter left out whose default comes through an alias": {
+			template:   "_info: context.custom.info\nparameter: name: *_info.name | string\n" + output,
+			properties: `{}`,
+		},
+		"a direct read in the output": {
+			template: "parameter: name: string\noutput: {apiVersion: \"v1\", kind: \"ConfigMap\", metadata: name: parameter.name, data: zone: context.custom.info.zone}\n",
+			wantErr:  optional,
+		},
+		"a read through an alias in the output": {
+			template: "_info: context.custom.info\nparameter: name: string\noutput: {apiVersion: \"v1\", kind: \"ConfigMap\", metadata: name: parameter.name, data: zone: _info.zone}\n",
+			wantErr:  optional,
+		},
+		"a direct read in a parameter condition": {
+			template: "parameter: {\n\tname: string\n\tif context.custom.info.zone != \"eu\" {replicas?: int}\n}\n" + output,
+			wantErr:  optional,
+		},
+		"a read through an alias in a parameter condition": {
+			template: "_info: context.custom.info\nparameter: {\n\tname: string\n\tif _info.zone != \"eu\" {replicas?: int}\n}\n" + output,
+			wantErr:  optional,
+		},
+		"a guarded read through an alias": {
+			template: "_info: context.custom.info\nparameter: name: string\noutput: {apiVersion: \"v1\", kind: \"ConfigMap\", metadata: name: parameter.name, data: {if _info.zone != _|_ {zone: _info.zone}, name: _info.name}}\n",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			def := &v1beta1.ComponentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "reads-info", Namespace: oam.SystemDefinitionNamespace},
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Workload:  common.WorkloadTypeDescriptor{Definition: common.WorkloadGVK{APIVersion: "v1", Kind: "ConfigMap"}},
+					Schematic: &common.Schematic{CUE: &common.CUE{Template: tc.template}},
+				},
+			}
+			properties := tc.properties
+			if properties == "" {
+				properties = `{"name":"x"}`
+			}
+			app := ctxApp("reads-info", nil)
+			app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(properties)}
+
+			got := componentErrors(ctxHandler(teamInfo, def), app)
+			if tc.wantErr == "" {
+				require.Empty(t, got)
+				return
+			}
+			require.Contains(t, got, tc.wantErr)
+		})
+	}
+}
+
 // The policies are looked up only for an Application that reads their
 // context, and a failed lookup does not refuse it: the render still does.
 func TestPolicyContextLookups(t *testing.T) {
