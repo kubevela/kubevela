@@ -288,6 +288,17 @@ parameter: {}
 			"a conditional field with a static name is still read statically")
 	})
 
+	It("reads a struct literal embedded at the top level statically, and still flags a computed label inside it", func() {
+		literal := inspectTemplate("{ patch: spec: replicas: 2 }\nparameter: {}\n")
+		Expect(literal.Err).To(BeEmpty())
+		Expect(literal.Dynamic).To(BeFalse(), "every field of a literal embed is enumerable")
+		Expect(literal.Produces).To(ContainElement(HaveField("Path", "patch")))
+
+		computed := inspectTemplate("{ \"\\(parameter.name)\": {kind: \"ConfigMap\"} }\nparameter: name: string\n")
+		Expect(computed.Err).To(BeEmpty())
+		Expect(computed.Dynamic).To(BeTrue())
+	})
+
 	It("detects $super as a reference, not as text in a comment or a string", func() {
 		Expect(refersToParent("parameter: $super.parameter & {port: int}\n")).To(BeTrue())
 		Expect(refersToParent("// mentions $super in a comment\nparameter: name: string\n")).To(BeFalse())

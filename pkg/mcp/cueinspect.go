@@ -76,8 +76,11 @@ func inspectTemplate(template string) templateFacts {
 		switch x := n.(type) {
 		case *ast.EmbedDecl:
 			// An embed outside any field, at the top level or in the body of
-			// a top-level if or for, adds top-level fields such as patch.
-			if len(path) == 0 {
+			// a top-level if or for, adds top-level fields such as patch. A
+			// struct literal written there is walked like any other field, so
+			// its fields are known; only a reference or an expression hides
+			// what it adds.
+			if _, literal := x.Expr.(*ast.StructLit); len(path) == 0 && !literal {
 				facts.Dynamic = true
 			}
 		case *ast.Field:

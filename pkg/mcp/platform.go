@@ -119,18 +119,26 @@ type GetPlatformInfoOutput struct {
 
 // getPlatformInfo never fails on a partial lookup: whatever could be read is
 // returned and the lookup error is repeated in the envelope's warnings.
-func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in GetPlatformInfoInput) (*sdk.CallToolResult, GetPlatformInfoOutput, error) {
+func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in GetPlatformInfoInput) (_ *sdk.CallToolResult, out GetPlatformInfoOutput, _ error) {
 	info, readAt, hit, err := d.cachedPlatform(ctx)
-	out := GetPlatformInfoOutput{platformInfo: info, Addons: []AddonSummary{}, ServedData: servedDataBuiltin, Meta: metaFrom(info, err)}
+	out = GetPlatformInfoOutput{platformInfo: info, Addons: []AddonSummary{}, ServedData: servedDataBuiltin, Meta: metaFrom(info, err)}
 	// The platform fields are dated when they were read, the same way
 	// whether this call read them or the cache served them. On a cache hit
 	// the rest of the response is still read live, so the source is mixed.
 	out.Meta.ObservedAt = readAt.UTC()
+	// live names the fields this call went to the cluster for. It is filled
+	// as each read is made, so a read that a validation error or a missing
+	// client skipped is not claimed, and the warning is written on the way
+	// out, whichever return is taken.
+	var live []string
 	if hit {
 		out.Meta.Source = SourceMixed
-		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("velaCLI, velaCore, gitRevision, kubernetes, featureGates, controller, clusterGateway and warnings come from a cached platform read at %s; addons, cloudProvisioners, provisioner and practice were read live by this call", readAt.UTC().Format(time.RFC3339)))
+		defer func() {
+			out.Meta.Warnings = append(out.Meta.Warnings, cacheWarning(readAt, live))
+		}()
 	}
 	if cli := d.f.Client(); cli != nil {
+		live = append(live, "addons")
 		addons, more, err := enabledAddons(ctx, cli, d.opts.SystemNamespace)
 		switch {
 		case err != nil:
@@ -156,6 +164,10 @@ func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in G
 		return nil, out, fmt.Errorf("service %q is not a service name %s uses; use the lower-case name from its API groups, such as %s", in.Service, in.Provider, serviceExamples(in.Provider))
 	}
 	if cli := d.f.Client(); cli != nil {
+		live = append(live, "cloudProvisioners")
+		if in.Service != "" {
+			live = append(live, "provisioner")
+		}
 		d.addProvisioners(ctx, cli, in, &out)
 	}
 	if in.Namespace != "" {
@@ -163,11 +175,25 @@ func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in G
 		if err != nil {
 			return nil, out, err
 		}
+		live = append(live, "practice")
 		out.Practice = practice
 		out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
 		out.Meta.Truncated = out.Meta.Truncated || practice.Truncated
 	}
 	return nil, out, nil
+}
+
+// cacheWarning says which fields of a response came from the cached platform
+// read and which this call read live.
+func cacheWarning(readAt time.Time, live []string) string {
+	msg := fmt.Sprintf("velaCLI, velaCore, gitRevision, kubernetes, featureGates, controller, clusterGateway and warnings come from a cached platform read at %s", readAt.UTC().Format(time.RFC3339))
+	switch len(live) {
+	case 0:
+		return msg + "; this call read nothing else"
+	case 1:
+		return msg + "; " + live[0] + " was read live by this call"
+	}
+	return msg + "; " + strings.Join(live, ", ") + " were read live by this call"
 }
 
 // readPlatform gathers versions and gates. Each part degrades independently:

@@ -345,8 +345,11 @@ func (d *deps) render(ctx context.Context, app *v1beta1.Application, defs []*uns
 		if p == nil {
 			continue
 		}
-		r.policies = append(r.policies, RenderedPolicy{APIVersion: p.GetAPIVersion(), Kind: p.GetKind(), Name: p.GetName(), Object: redactObject(p.DeepCopy().Object)})
+		// keep first: it clears the namespace the renderer stamps on a
+		// cluster-scoped object, so the policy summary shows the object as
+		// the server check sees it.
 		r.policyResources = append(r.policyResources, r.keep(p.GetName(), "policy", app.Namespace, p))
+		r.policies = append(r.policies, RenderedPolicy{APIVersion: p.GetAPIVersion(), Kind: p.GetKind(), Name: p.GetName(), Object: redactObject(p.DeepCopy().Object)})
 	}
 	if len(r.duplicates) > 0 {
 		// The controller would apply one over the other; a diff or a server
