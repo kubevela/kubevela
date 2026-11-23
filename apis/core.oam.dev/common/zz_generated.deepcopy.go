@@ -695,6 +695,11 @@ func (in *WorkflowStatus) DeepCopyInto(out *WorkflowStatus) {
 		*out = new(v1.ObjectReference)
 		**out = **in
 	}
+	if in.Ref != nil {
+		in, out := &in.Ref, &out.Ref
+		*out = new(v1.ObjectReference)
+		**out = **in
+	}
 	if in.Steps != nil {
 		in, out := &in.Steps, &out.Steps
 		*out = make([]v1alpha1.WorkflowStepStatus, len(*in))

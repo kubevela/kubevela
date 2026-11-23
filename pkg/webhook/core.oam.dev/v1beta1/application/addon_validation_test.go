@@ -115,7 +115,8 @@ func TestValidateAddonComponentsAggregatesErrorsForCreateAndUpdate(t *testing.T)
 	scheme := runtime.NewScheme()
 	_ = v1beta1.AddToScheme(scheme)
 	handler := &ValidatingHandler{
-		Client:         fake.NewClientBuilder().WithScheme(scheme).Build(),
+		// Allows every access review, so the author may install addons and the checks run on.
+		Client:         &askingClient{Client: fake.NewClientBuilder().WithScheme(scheme).Build()},
 		addonValidator: validator,
 	}
 	app := addonApplication()
@@ -127,7 +128,10 @@ func TestValidateAddonComponentsAggregatesErrorsForCreateAndUpdate(t *testing.T)
 	assert.Contains(t, createErrs, addonErr)
 	assert.Equal(t, 1, validator.calls)
 
-	updateErrs, _ := handler.ValidateUpdate(context.Background(), app, app.DeepCopy(), req)
+	// The stored Application has no components, so the update is what introduces the addon.
+	stored := app.DeepCopy()
+	stored.Spec.Components = nil
+	updateErrs, _ := handler.ValidateUpdate(context.Background(), app, stored, req)
 	assert.Contains(t, updateErrs, addonErr)
 	assert.Equal(t, 2, validator.calls)
 }

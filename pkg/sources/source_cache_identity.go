@@ -49,6 +49,9 @@ type identityInputs struct {
 	// "" for one that is present and empty. A template may branch on the
 	// difference, so the identity has to draw it too.
 	Context map[string]interface{} `json:"context,omitempty"`
+	// User is the user the Application runs as under authentication, so a value one user may
+	// read is not served to another in the same namespace. Empty without authentication.
+	User string `json:"user,omitempty"`
 }
 
 // cacheIdentity assembles the name of the backing Config object.

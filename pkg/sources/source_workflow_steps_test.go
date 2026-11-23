@@ -52,23 +52,56 @@ type stepSources struct {
 	replicas int
 	revision string
 	recorded map[string]map[string]SourceResolutionStatus
+	// sensitive are the fields of cfg marked +sensitive, and vault is where their pins go.
+	sensitive []string
+	vault     SensitivePins
+	// template replaces the demo template when set.
+	template string
+}
+
+// memoryVault keeps sensitive pins for one run in memory.
+type memoryVault struct {
+	run    string
+	fields map[string]interface{}
+}
+
+func (m *memoryVault) Ref(key string) string { return "secret:vault/" + key }
+
+func (m *memoryVault) Load(_ context.Context, run string) (map[string]interface{}, error) {
+	if m.run != run {
+		return nil, nil
+	}
+	return m.fields, nil
+}
+
+func (m *memoryVault) Save(_ context.Context, run string, fields map[string]interface{}) error {
+	m.run, m.fields = run, fields
+	return nil
 }
 
 func (s *stepSources) options() wftypes.ExpressionOptions {
 	return StepExpressions(func(step, stepType string) wfprocess.Context {
 		return velaprocess.NewContext(velaprocess.ContextData{
 			AppName: "checkout", Namespace: "team-a", StepName: step, AppRevisionName: s.revision,
-			Sources:     map[string]map[string]interface{}{"cfg": {}},
-			SourceTypes: map[string]string{"cfg": "demo"},
-			SourceTemplates: map[string]string{"demo": fmt.Sprintf(`
-schema: {region: string, replicas: int}
-$internal: {key: "demo", keyInputs: []}
-output: {region: %q, replicas: %d}
-`, s.region, s.replicas)},
+			SourceSensitivePaths: map[string][]string{"demo": s.sensitive},
+			Sources:              map[string]map[string]interface{}{"cfg": {}},
+			SourceTypes:          map[string]string{"cfg": "demo"},
+			SourceTemplates:      map[string]string{"demo": s.demoTemplate()},
 		})
 	}, func(step, stepType string, statuses map[string]SourceResolutionStatus) {
 		s.recorded[step+"/"+stepType] = statuses
-	})
+	}, s.vault)
+}
+
+func (s *stepSources) demoTemplate() string {
+	if s.template != "" {
+		return s.template
+	}
+	return fmt.Sprintf(`
+schema: {region: string, replicas: int}
+$internal: {key: "demo", keyInputs: []}
+output: {region: %q, replicas: %d}
+`, s.region, s.replicas)
 }
 
 func (s *stepSources) eval(t *testing.T, run string, wfCtx *runContext, step, props string) (string, error) {
@@ -133,7 +166,7 @@ func TestANewRevisionReadsItsSourcesAfresh(t *testing.T) {
 // reads it, as it did to the first.
 func TestAPinKeepsWhyItsValueWasServed(t *testing.T) {
 	s := &stepSources{region: "us-east", replicas: 3, recorded: map[string]map[string]SourceResolutionStatus{}}
-	wfCtx := &runContext{data: map[string]string{pinnedSourcesKey: `{"run":"run-1","values":{"cfg":{"region":"eu-west","replicas":3}},` +
+	wfCtx := &runContext{data: map[string]string{PinnedSourcesKey: `{"run":"run-1","values":{"cfg":{"region":"eu-west","replicas":3}},` +
 		`"from":{"cfg":{"config":"demo-abc","message":"serving the stored value: refresh failed: timeout"}}}`}}
 	out, err := s.eval(t, "run-1", wfCtx, "second", `{"m":"$(source.cfg.region)"}`)
 	require.NoError(t, err)
@@ -162,4 +195,106 @@ func TestAFailedReadKeepsTheSourcesThatResolved(t *testing.T) {
 	out, err := s.eval(t, "run-1", wfCtx, "second", `{"m":"$(source.cfg.region)"}`)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"m":"eu-west"}`, out)
+}
+
+// A source's sensitive fields are pinned for the run outside the workflow context, which is a
+// ConfigMap: the context holds a pointer to where each went, and every step still reads the
+// real value, with its type.
+func TestSensitiveFieldsArePinnedOutsideTheContext(t *testing.T) {
+	vault := &memoryVault{}
+	s := &stepSources{region: "eu-west", replicas: 3, sensitive: []string{"region", "replicas"}, vault: vault,
+		recorded: map[string]map[string]SourceResolutionStatus{}}
+	wfCtx := &runContext{data: map[string]string{}}
+	props := `{"m":"$(source.cfg.region)","n":"$(source.cfg.replicas * 2)"}`
+	out, err := s.eval(t, "run-1", wfCtx, "first", props)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"m":"eu-west","n":6}`, out)
+	pinned := wfCtx.data[PinnedSourcesKey]
+	require.NotContains(t, pinned, "eu-west", "the context holds no sensitive value")
+	require.Contains(t, pinned, `"region":"secret:vault/cfg.region"`, "but says where it is")
+	require.Contains(t, pinned, `"replicas":"secret:vault/cfg.replicas"`)
+	require.Equal(t, map[string]interface{}{"cfg.region": "eu-west", "cfg.replicas": int64(3)}, normalise(vault.fields))
+
+	s.region, s.replicas = "us-east", 5
+	out, err = s.eval(t, "run-1", wfCtx, "second", props)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"m":"eu-west","n":6}`, out, "a later step reads the pinned values, typed, not the pointers")
+
+	vault.fields = nil
+	out, err = s.eval(t, "run-1", wfCtx, "third", props)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"m":"us-east","n":10}`, out, "a pin the vault no longer has is resolved again")
+}
+
+// Only the fields marked sensitive leave the context, and a value that only looks like a
+// pointer is read as itself.
+func TestOnlyMarkedFieldsAreSealed(t *testing.T) {
+	vault := &memoryVault{}
+	s := &stepSources{region: "secret:vault/cfg.replicas", replicas: 3, sensitive: []string{"replicas"}, vault: vault,
+		recorded: map[string]map[string]SourceResolutionStatus{}}
+	wfCtx := &runContext{data: map[string]string{}}
+	props := `{"m":"$(source.cfg.region)","n":"$(source.cfg.replicas)"}`
+	_, err := s.eval(t, "run-1", wfCtx, "first", props)
+	require.NoError(t, err)
+	require.NotContains(t, vault.fields, "cfg.region")
+
+	s.replicas = 9
+	out, err := s.eval(t, "run-1", wfCtx, "second", props)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"m":"secret:vault/cfg.replicas","n":3}`, out)
+}
+
+// A mark on a field inside a list seals that field of every element, each under its own index.
+func TestASensitiveFieldInAListIsSealedPerElement(t *testing.T) {
+	vault := &memoryVault{}
+	tmpl := func(a, b string) string {
+		return fmt.Sprintf(`
+schema: {members: [...{name: string, token: string}]}
+$internal: {key: "demo", keyInputs: []}
+output: {members: [{name: "a", token: %q}, {name: "b", token: %q}]}
+`, a, b)
+	}
+	s := &stepSources{template: tmpl("t1", "t2"), sensitive: []string{"members.token"}, vault: vault,
+		recorded: map[string]map[string]SourceResolutionStatus{}}
+	wfCtx := &runContext{data: map[string]string{}}
+	props := `{"m":"$(source.cfg.members[1].token)","n":"$(source.cfg.members[0].name)"}`
+	_, err := s.eval(t, "run-1", wfCtx, "first", props)
+	require.NoError(t, err)
+	require.Equal(t, map[string]interface{}{"cfg.members.0.token": "t1", "cfg.members.1.token": "t2"}, vault.fields)
+	require.Contains(t, wfCtx.data[PinnedSourcesKey], `"name":"a"`)
+
+	s.template = tmpl("x1", "x2")
+	out, err := s.eval(t, "run-1", wfCtx, "second", props)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"m":"t2","n":"a"}`, out)
+}
+
+// normalise gives whole numbers one type, as JSON and CUE hand them back differently.
+func normalise(fields map[string]interface{}) map[string]interface{} {
+	out := map[string]interface{}{}
+	for k, v := range fields {
+		switch n := v.(type) {
+		case int:
+			v = int64(n)
+		case float64:
+			v = int64(n)
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// With nowhere to keep them, sensitive sources are not pinned: each step resolves them.
+func TestASensitiveSourceWithNoVaultIsNotPinned(t *testing.T) {
+	s := &stepSources{region: "eu-west", replicas: 3, sensitive: []string{"region"}, recorded: map[string]map[string]SourceResolutionStatus{}}
+	wfCtx := &runContext{data: map[string]string{}}
+	props := `{"m":"$(source.cfg.region)"}`
+	_, err := s.eval(t, "run-1", wfCtx, "first", props)
+	require.NoError(t, err)
+	require.NotContains(t, wfCtx.data[PinnedSourcesKey], "eu-west")
+
+	s.region = "us-east"
+	out, err := s.eval(t, "run-1", wfCtx, "second", props)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"m":"us-east"}`, out)
 }

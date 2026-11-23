@@ -388,6 +388,22 @@ spec:
             - "--max-workflow-failed-backoff-time={{ .Values.workflow.backoff.maxTime.failedState }}"
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
             - "--max-for-each-items={{ .Values.workflow.step.forEachMaxItems }}"
+            {{- $maxTimeout := toString .Values.workflow.http.maxTimeout }}
+            {{- if or (not (regexMatch "^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$" $maxTimeout)) (regexMatch "^([0.]+(ns|us|µs|ms|s|m|h))+$" $maxTimeout) }}
+            {{- fail (printf "workflow.http.maxTimeout must be a positive Go duration with a unit, such as 60s or 1m30s; got %q" $maxTimeout) }}
+            {{- end }}
+            {{- $maxBytes := .Values.workflow.http.maxResponseBytes }}
+            {{- $wholeBytes := false }}
+            {{- if kindIs "float64" $maxBytes }}
+            {{- $wholeBytes = eq $maxBytes (floor $maxBytes) }}
+            {{- else }}
+            {{- $wholeBytes = regexMatch "^[0-9]+$" (toString $maxBytes) }}
+            {{- end }}
+            {{- if or (not $wholeBytes) (le (int64 $maxBytes) 0) }}
+            {{- fail (printf "workflow.http.maxResponseBytes must be a positive whole number of bytes, such as 1048576; got %v" $maxBytes) }}
+            {{- end }}
+            - "--max-workflow-http-timeout={{ .Values.workflow.http.maxTimeout }}"
+            - "--max-workflow-http-response-bytes={{ .Values.workflow.http.maxResponseBytes | int64 }}"
             - "--workflow-http-deny-config-template-name={{ .Values.workflow.httpDeny.configTemplateName | default "" }}"
             - "--enable-external-package-for-default-compiler={{ .Values.workflow.enableExternalPackageForDefaultCompiler }}"
             - "--enable-external-package-watch-for-default-compiler={{ .Values.workflow.enableExternalPackageWatchForDefaultCompiler }}"

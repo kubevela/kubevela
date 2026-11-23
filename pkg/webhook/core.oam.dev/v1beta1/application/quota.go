@@ -74,21 +74,31 @@ func countUsage(ctx context.Context, c client.Reader, indexed bool, namespace, k
 }
 
 // usageInApp counts a definition's occurrences in one Application, so two
-// components of the same type, or one trait on two components, count twice.
+// components of the same type, or one trait on two components, count twice. A type
+// an override policy sets is one more occurrence: which environments it applies to
+// is not known here, so the inline type it may replace still counts too.
 func usageInApp(app *v1beta1.Application, kind, name string) int {
 	n := 0
-	for _, comp := range app.Spec.Components {
-		if kind == velacache.UsageComponent {
-			if velacache.BaseTypeName(comp.Type) == name {
+	count := func(types ...string) {
+		for _, t := range types {
+			if velacache.BaseTypeName(t) == name {
 				n++
 			}
+		}
+	}
+	for _, comp := range app.Spec.Components {
+		if kind == velacache.UsageComponent {
+			count(comp.Type)
 			continue
 		}
 		for _, tr := range comp.Traits {
-			if velacache.BaseTypeName(tr.Type) == name {
-				n++
-			}
+			count(tr.Type)
 		}
+	}
+	if kind == velacache.UsageComponent {
+		count(velacache.OverrideComponentTypes(app)...)
+	} else {
+		count(velacache.OverrideTraitTypes(app)...)
 	}
 	return n
 }

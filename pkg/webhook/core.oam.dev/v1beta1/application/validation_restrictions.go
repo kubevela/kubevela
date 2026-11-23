@@ -18,10 +18,14 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
+	wfv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -29,7 +33,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -47,6 +54,18 @@ import (
 //
 // Costs a Get per definition type, and a namespace List per type a quota governs.
 func (h *ValidatingHandler) ValidateDefinitionRestrictions(ctx context.Context, app, oldApp *v1beta1.Application) (field.ErrorList, []string) {
+	return h.checkDefinitionRestrictions(ctx, app, oldApp, true)
+}
+
+// RestrictionViolations lists the definitions app uses, however it reaches them, that are
+// restricted to other namespaces. The controller reports them on an Application admission let
+// through; quotas, a budget for new uses, are left out.
+func RestrictionViolations(ctx context.Context, cli client.Client, app *v1beta1.Application) field.ErrorList {
+	errs, _ := (&ValidatingHandler{Client: cli}).checkDefinitionRestrictions(ctx, app, nil, false)
+	return errs
+}
+
+func (h *ValidatingHandler) checkDefinitionRestrictions(ctx context.Context, app, oldApp *v1beta1.Application, quotas bool) (field.ErrorList, []string) {
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.RestrictDefinitionNamespaces) {
 		return nil, nil
 	}
@@ -57,11 +76,12 @@ func (h *ValidatingHandler) ValidateDefinitionRestrictions(ctx context.Context, 
 		defCtx: oamutil.SetNamespaceInCtx(ctx, app.Namespace),
 		app:    app,
 		oldApp: oldApp,
+		quotas: quotas,
 	}
 	usage := collectDefinitionUsage(app)
 
-	c.checkComponents(usage.componentTypes)
-	c.checkTraits(usage.traitTypes)
+	components := c.checkComponents(usage.componentTypes)
+	traits := c.checkTraits(usage.traitTypes)
 	for defType, indices := range usage.policyTypes {
 		c.checkDefinition(defType, func() client.Object { return &v1beta1.PolicyDefinition{} },
 			policyTypePaths(indices))
@@ -78,8 +98,189 @@ func (h *ValidatingHandler) ValidateDefinitionRestrictions(ctx context.Context, 
 		c.checkDefinition(defType, func() client.Object { return &v1beta1.SourceDefinition{} },
 			sourceTypePaths(indices))
 	}
+	r := indirectReach(ctx, h.Client, app)
+	for _, u := range r.unreadable {
+		c.unevaluable([]*field.Path{u.path}, u.err)
+	}
+	for _, use := range r.uses {
+		def := c.checkDefinition(use.defType, use.newDef, []*field.Path{use.path})
+		switch use.usage {
+		case velacache.UsageComponent:
+			components.add(def, baseDefinitionName(use.defType), []*field.Path{use.path})
+		case velacache.UsageTrait:
+			traits.add(def, baseDefinitionName(use.defType), []*field.Path{use.path})
+		}
+	}
+	if c.quotas {
+		components.each(func(def client.Object, name string, paths []*field.Path) {
+			c.checkQuota(def, velacache.UsageComponent, name, paths)
+		})
+		traits.each(func(def client.Object, name string, paths []*field.Path) {
+			c.checkQuota(def, velacache.UsageTrait, name, paths)
+		})
+	}
 
 	return c.errs, c.warnings
+}
+
+// indirectUse is a definition an Application reaches other than by naming it inline.
+type indirectUse struct {
+	defType string
+	newDef  func() client.Object
+	path    *field.Path
+	// usage is the quota a use counts against: velacache.UsageComponent or UsageTrait, or
+	// empty for a kind quotas do not cover.
+	usage string
+}
+
+// referencedObject is a Workflow or Policy object an Application reads through a reference.
+type referencedObject struct {
+	kind, resource, namespace, name string
+	path                            *field.Path
+}
+
+// unreadableReference is a reference whose object could not be read, so what it brings in is
+// unknown.
+type unreadableReference struct {
+	path *field.Path
+	err  error
+}
+
+// reach is what an Application uses beyond what it names inline.
+type reach struct {
+	uses       []indirectUse
+	objects    []referencedObject
+	unreadable []unreadableReference
+}
+
+// indirectReach lists the definitions the renderer will use that the spec does not name inline,
+// each at the field that brings it in: component types and traits an override policy sets, the
+// steps of the Workflow spec.workflow.ref names, and the Policy objects a deploy step loads by
+// name, with what those set if they are overrides. It reads the referenced objects as the
+// controller does, and lists them, so a caller can check the requester may read them too.
+func indirectReach(ctx context.Context, cli client.Client, app *v1beta1.Application) reach {
+	var r reach
+	inline := map[string]bool{}
+	for i, policy := range app.Spec.Policies {
+		inline[policy.Name] = true
+		if policy.Type == v1alpha1.OverridePolicyType {
+			r.addOverride(policy.Properties, field.NewPath("spec", "policies").Index(i).Child("properties", "components"))
+		}
+	}
+	if wf := app.Spec.Workflow; wf != nil {
+		steps := field.NewPath("spec", "workflow", "steps")
+		for i, s := range wf.Steps {
+			r.addDeployPolicies(ctx, cli, app.Namespace, inline, s, stepPolicyPath(steps.Index(i)))
+		}
+		if wf.Ref != "" {
+			ref := field.NewPath("spec", "workflow", "ref")
+			refWorkflow, err := step.GetRefWorkflow(ctx, cli, app.Namespace, wf.Ref)
+			switch {
+			case errors.IsNotFound(err):
+				// the render reports a Workflow that is not there
+			case err != nil:
+				r.unreadable = append(r.unreadable, unreadableReference{ref, fmt.Errorf("cannot read Workflow %q to check the definitions its steps use: %w", wf.Ref, err)})
+			default:
+				r.objects = append(r.objects, referencedObject{"Workflow", "workflows", refWorkflow.Namespace, refWorkflow.Name, ref})
+				for _, s := range refWorkflow.Steps {
+					for _, t := range append([]string{s.Type}, subStepTypes(s)...) {
+						if !step.IsBuiltinWorkflowStepType(t) {
+							r.uses = append(r.uses, indirectUse{t, newWorkflowStepDefinition, ref, ""})
+						}
+					}
+					r.addDeployPolicies(ctx, cli, app.Namespace, inline, s, func(int, int) *field.Path { return ref })
+				}
+			}
+		}
+	}
+	return r
+}
+
+// addOverride adds the component types and traits an override policy's properties set.
+func (r *reach) addOverride(properties *runtime.RawExtension, components *field.Path) {
+	if properties == nil {
+		return
+	}
+	spec := &v1alpha1.OverridePolicySpec{}
+	if err := json.Unmarshal(properties.Raw, spec); err != nil {
+		return // the policy's own validation reports it
+	}
+	for j, comp := range spec.Components {
+		if comp.Type != "" {
+			r.uses = append(r.uses, indirectUse{comp.Type, newComponentDefinition, components.Index(j).Child("type"), velacache.UsageComponent})
+		}
+		for k, tr := range comp.Traits {
+			r.uses = append(r.uses, indirectUse{tr.Type, newTraitDefinition, components.Index(j).Child("traits").Index(k).Child("type"), velacache.UsageTrait})
+		}
+	}
+}
+
+// addDeployPolicies adds the Policy objects a deploy step, or its sub-steps, loads by name: the
+// names not declared inline, read from the Application's namespace as the controller reads them.
+// pathOf gives the field the name at index j of sub-step sub (-1 for the step itself) is reported at.
+func (r *reach) addDeployPolicies(ctx context.Context, cli client.Client, namespace string, inline map[string]bool,
+	s wfv1alpha1.WorkflowStep, pathOf func(sub, j int) *field.Path) {
+	steps := append([]wfv1alpha1.WorkflowStepBase{s.WorkflowStepBase}, s.SubSteps...)
+	for k, st := range steps {
+		if st.Type != step.DeployWorkflowStep || st.Properties == nil {
+			continue
+		}
+		props := struct {
+			Policies []interface{} `json:"policies"`
+		}{}
+		if err := json.Unmarshal(st.Properties.Raw, &props); err != nil {
+			continue // the step's own validation reports it
+		}
+		for j, entry := range props.Policies {
+			name, ok := entry.(string)
+			if !ok || inline[name] || strings.Contains(name, "$(") {
+				continue // an expression is resolved at render
+			}
+			path := pathOf(k-1, j)
+			po := &v1alpha1.Policy{}
+			switch err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, po); {
+			case errors.IsNotFound(err):
+				continue // the render reports a Policy that is not there
+			case err != nil:
+				r.unreadable = append(r.unreadable, unreadableReference{path, fmt.Errorf("cannot read Policy %q to check the definition it uses: %w", name, err)})
+				continue
+			}
+			r.objects = append(r.objects, referencedObject{"Policy", "policies", namespace, name, path})
+			r.uses = append(r.uses, indirectUse{po.Type, newPolicyDefinition, path, ""})
+			if po.Type == v1alpha1.OverridePolicyType {
+				before := len(r.uses)
+				r.addOverride(po.Properties, path)
+				// An external override's fields are reported at the reference that loads it.
+				for k := before; k < len(r.uses); k++ {
+					r.uses[k].path = path
+				}
+			}
+		}
+	}
+}
+
+// stepPolicyPath reports a deploy policy at the step, or sub-step, that names it.
+func stepPolicyPath(step *field.Path) func(sub, j int) *field.Path {
+	return func(sub, j int) *field.Path {
+		at := step
+		if sub >= 0 {
+			at = at.Child("subSteps").Index(sub)
+		}
+		return at.Child("properties", "policies").Index(j)
+	}
+}
+
+func newComponentDefinition() client.Object    { return &v1beta1.ComponentDefinition{} }
+func newTraitDefinition() client.Object        { return &v1beta1.TraitDefinition{} }
+func newPolicyDefinition() client.Object       { return &v1beta1.PolicyDefinition{} }
+func newWorkflowStepDefinition() client.Object { return &v1beta1.WorkflowStepDefinition{} }
+
+func subStepTypes(s wfv1alpha1.WorkflowStep) []string {
+	var types []string
+	for _, sub := range s.SubSteps {
+		types = append(types, sub.Type)
+	}
+	return types
 }
 
 // restrictionCheck holds what one request's checks share: the namespace labels,
@@ -91,6 +292,8 @@ type restrictionCheck struct {
 	app    *v1beta1.Application
 	// oldApp is what this Application looked like before, or nil on create.
 	oldApp *v1beta1.Application
+	// quotas says whether quotas are checked as well as restrictions.
+	quotas bool
 
 	errs     field.ErrorList
 	warnings []string
@@ -101,31 +304,28 @@ type restrictionCheck struct {
 	nsLoaded      bool
 }
 
-// checkComponents enforces the restriction on each component type, then the quota.
-func (c *restrictionCheck) checkComponents(componentTypes map[string][]int) {
+// checkComponents enforces the restriction on each component type, and groups the uses
+// by definition for the quota.
+func (c *restrictionCheck) checkComponents(componentTypes map[string][]int) *usageGroup {
 	byName := newUsageGroup()
 	for defType, indices := range componentTypes {
 		used := componentTypePaths(indices)
 		def := c.checkDefinition(defType, func() client.Object { return &v1beta1.ComponentDefinition{} }, used)
 		byName.add(def, baseDefinitionName(defType), used)
 	}
-	byName.each(func(def client.Object, name string, paths []*field.Path) {
-		c.checkQuota(def, velacache.UsageComponent, name, paths)
-	})
+	return byName
 }
 
 // checkTraits does the same for traits, which carry their own budget: a component
 // type and a trait type may share a name without sharing a quota.
-func (c *restrictionCheck) checkTraits(traitTypes map[string][][2]int) {
+func (c *restrictionCheck) checkTraits(traitTypes map[string][][2]int) *usageGroup {
 	byName := newUsageGroup()
 	for defType, locations := range traitTypes {
 		used := traitTypePaths(locations)
 		def := c.checkDefinition(defType, func() client.Object { return &v1beta1.TraitDefinition{} }, used)
 		byName.add(def, baseDefinitionName(defType), used)
 	}
-	byName.each(func(def client.Object, name string, paths []*field.Path) {
-		c.checkQuota(def, velacache.UsageTrait, name, paths)
-	})
+	return byName
 }
 
 // usageGroup gathers the places one definition was used. webservice and
@@ -172,7 +372,16 @@ func (c *restrictionCheck) checkDefinition(defType string, newDef func() client.
 	// uncached read would cost an API call per type on every admission.
 	name := baseDefinitionName(defType)
 	def := newDef()
-	if err := oamutil.GetDefinition(c.defCtx, c.h.Client, def, name); err != nil {
+	err := oamutil.GetDefinition(c.defCtx, c.h.Client, def, name)
+	if errors.IsNotFound(err) {
+		// A module's definition is installed under a name derived from module, version and
+		// name, which the type may give in full or by its bare name.
+		if resolved, rerr := appfile.ResolveModuleType(c.defCtx, c.h.Client, name, capTypeOf(def)); rerr == nil && resolved != name {
+			def = newDef()
+			err = oamutil.GetDefinition(c.defCtx, c.h.Client, def, resolved)
+		}
+	}
+	if err != nil {
 		if errors.IsNotFound(err) {
 			// ValidateComponents reports a missing definition, and better.
 			return nil
@@ -412,4 +621,18 @@ func (h *ValidatingHandler) namespaceReader() client.Reader {
 		return h.APIReader
 	}
 	return h.Client
+}
+
+// capTypeOf is the capability type ResolveModuleType resolves a definition kind as.
+func capTypeOf(def client.Object) types.CapType {
+	switch def.(type) {
+	case *v1beta1.TraitDefinition:
+		return types.TypeTrait
+	case *v1beta1.PolicyDefinition:
+		return types.TypePolicy
+	case *v1beta1.WorkflowStepDefinition:
+		return types.TypeWorkflowStep
+	default:
+		return types.TypeComponentDefinition
+	}
 }

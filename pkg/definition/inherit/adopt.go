@@ -32,7 +32,7 @@ import (
 // Each option earns its place. Doc comments are kept, since a trait's
 // `+patchKey` and `+patchStrategy` live on them. Nothing asks for concreteness,
 // since a field derived from a defaulted parameter must arrive as a disjunction
-// for a child to override it.
+// for the override check to tell it from a field the parent left open.
 //
 // ResolveReferences is deprecated on the grounds that Syntax resolves dangling
 // references itself. It does not for a value whose `$super` was filled from

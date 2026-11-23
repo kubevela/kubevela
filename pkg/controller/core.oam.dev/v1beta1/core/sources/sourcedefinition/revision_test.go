@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	velacommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -224,7 +225,7 @@ schema: clusterName: string
 	boom := errors.New("etcd unavailable")
 	rec.Client = interceptor.NewClient(rec.Client.(client.WithWatch), interceptor.Funcs{
 		Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
-			if _, ok := obj.(*corev1.ConfigMap); ok {
+			if cm, ok := obj.(*corev1.ConfigMap); ok && cm.Name != core.DefinitionRevisionNumbersName {
 				return boom
 			}
 			return c.Create(ctx, obj, opts...)

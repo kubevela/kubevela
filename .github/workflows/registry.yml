@@ -29,7 +29,7 @@ jobs:
       vela_cli_dockerhub_image: ${{ steps.meta-vela-cli.outputs.dockerhub_image }}
     steps:
       - name: Checkout
-        uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.1
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v4.1.1
 
       - name: Install Crane
         uses: imjasonh/setup-crane@31b88efe9de28ae0ffa220711af4b60be9435f6e # v0.1
@@ -74,7 +74,7 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
         with:
-          driver-opts: image=moby/buildkit:master
+          driver-opts: image=moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe
 
       - name: Build & Push Vela Core for Dockerhub, GHCR
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
@@ -109,7 +109,7 @@ jobs:
 
       - name: Generate SBOM for Vela Core Image
         id: generate_vela_core_sbom
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ghcr.io/${{ github.repository_owner }}/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
           registry-username: ${{ github.actor }}
@@ -166,7 +166,7 @@ jobs:
 
       - name: Generate SBOM for Vela CLI Image
         id: generate_sbom
-        uses: anchore/sbom-action@v0.17.0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ghcr.io/${{ github.repository_owner }}/oamdev/vela-cli:${{ steps.get_version.outputs.VERSION }}
           registry-username: ${{ github.actor }}
@@ -191,7 +191,7 @@ jobs:
           docker.io/oamdev/vela-cli@${{ steps.meta-vela-cli.outputs.digest }}
 
       - name: Publish SBOMs as release artifacts
-        uses: anchore/sbom-action/publish-sbom@v0.17.0
+        uses: anchore/sbom-action/publish-sbom@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
 
   provenance-ghcr:
     name: Generate and Push Provenance to GCHR

@@ -58,8 +58,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
+// renderContext is the context a component renders under: the Appfile's own, which descends from
+// the request's, or the request's itself when the Appfile has none.
+func renderContext(ctx, appfileCtx context.Context) context.Context {
+	if appfileCtx != nil {
+		return appfileCtx
+	}
+	return ctx
+}
+
 // ValidateCUESchematicAppfile validates CUE schematic workloads in an Appfile
-func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
+func (p *Parser) ValidateCUESchematicAppfile(ctx context.Context, a *Appfile) error {
 	// A guard: a render reached from here without the type-only marker would
 	// write cache entries for an apply that may yet be refused.
 	restore := a.SourceCacheStore
@@ -67,6 +76,10 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 	defer func() { a.SourceCacheStore = restore }()
 
 	for _, wl := range a.ParsedComponents {
+		// The admission request is cancelled once the API server stops waiting for it.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// because helm & kube schematic has no CUE template
 		// it only validates CUE schematic workload
 		if wl.CapabilityCategory != types.CUECategory || wl.Type == v1alpha1.RefObjectsComponentType {
@@ -76,10 +89,7 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		ctxData := GenerateContextDataFromAppFile(a, wl.Name)
 		// Set dry-run mode so provider functions (e.g., helm.#Render) perform
 		// client-only rendering instead of real cluster installs during validation.
-		if ctxData.Ctx == nil {
-			ctxData.Ctx = context.Background()
-		}
-		ctxData.Ctx = helm.WithDryRun(ctxData.Ctx)
+		ctxData.Ctx = helm.WithDryRun(renderContext(ctx, ctxData.Ctx))
 		// Same reasoning for the addon and module providers, which would
 		// otherwise resolve every type: addon and type: module component from
 		// its remote registry while the apiserver holds the admission request
@@ -87,9 +97,8 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		//
 		// Not redundant with the caller that already marks the ctx it passes to
 		// GenerateAppFile: GenerateAppFileFromRevision takes no ctx and never
-		// sets Appfile.Context, so for a PublishVersion Application the marker
-		// would otherwise be lost and the fallback above would hand the
-		// providers a bare context.Background().
+		// sets Appfile.Context, so for a PublishVersion Application the render
+		// runs under this function's ctx, which need not carry the marker.
 		ctxData.Ctx = validation.WithValidationOnly(ctxData.Ctx)
 		// Covers every render this validation performs: the component's and
 		// each of its traits'.

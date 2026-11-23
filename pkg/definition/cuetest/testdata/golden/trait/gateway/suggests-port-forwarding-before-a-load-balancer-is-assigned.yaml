@@ -1,0 +1,5 @@
+details: {}
+healthy: true
+message: |
+  No loadBalancer found, visiting by using 'vela port-forward shop'
+traits: {}

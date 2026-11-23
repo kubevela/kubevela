@@ -22,7 +22,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/cue/nesting"
+
 	admissionv1 "k8s.io/api/admission/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -58,6 +61,13 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate ComponentDefinition Spec here
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	// CUE's parser recurses once per level of nesting, and a deep enough template overflows the
+	// stack, which no recover catches: refuse one before anything parses it.
+	if req.Object.Raw != nil {
+		if err := nesting.CheckJSONStrings(req.Object.Raw, nesting.MaxDepth); err != nil {
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+	}
 	startTime := time.Now()
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "ComponentDefinitionValidator")
@@ -84,6 +94,17 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if err := h.Decoder.Decode(req, obj); err != nil {
 			logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into ComponentDefinition object - malformed request")
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+		// A terminating definition whose spec did not change is only having its
+		// finalizers removed. Skipping validation here lets a child whose parent
+		// is already gone finish deleting; otherwise the missing parent would
+		// refuse the update and the child would hang. A spec edit on a
+		// terminating definition is still validated as usual.
+		if obj.DeletionTimestamp != nil {
+			old := &v1beta1.ComponentDefinition{}
+			if err := h.Decoder.DecodeRaw(req.OldObject, old); err == nil && apiequality.Semantic.DeepEqual(old.Spec, obj.Spec) {
+				return admission.Allowed("")
+			}
 		}
 
 		// Add definition-specific fields to logger
@@ -125,6 +146,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 					warnings = append(warnings, "CUE template uses legacy syntax that will be auto-upgraded at render time. Run `vela def compat definitions` to scan all definitions for legacy syntax.")
 					cueTemplate = upgraded
 				}
+			}
+
+			if err := webhookutils.ValidateFinalPlacement(obj.Name, cueTemplate, inherit.ComponentSurface); err != nil {
+				logger.WithStep("validate-final").WithError(err).Error(err, "ComponentDefinition marks +final where it cannot be enforced")
+				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
 
 			// A definition that extends another is judged against what it

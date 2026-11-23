@@ -19,6 +19,7 @@ package config
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -32,10 +33,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/request"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -46,6 +50,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -391,6 +396,95 @@ var _ = Describe("Test the config provider", func() {
 		Expect(Create(asAlice, Deps{Factory: dispatcher.factory(allowing), Client: allowing, Action: act}, propsOf("from-theirs", "wf-b/theirs"))).Should(Succeed())
 		Expect(act.Phase).Should(Equal("Wait"))
 		Expect(reviews).Should(HaveLen(1))
+	})
+
+	It("reaches configs outside the application's namespace only to read shared system configs, or as a user allowed to", func() {
+		// Under authentication a step acts for its Application's user, who is reviewed.
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultMutableFeatureGate, features.AuthenticateApplication, true)
+		ensureNamespace(ctx, "vela-system")
+		ensureNamespace(ctx, "wf-b")
+		sharedRead, err := factory.ParseTemplate(ctx, "shared-read", []byte(templateContent))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(factory.CreateOrUpdateConfigTemplate(ctx, "vela-system", sharedRead)).ToNot(HaveOccurred())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: config.TemplateConfigMapNamePrefix + "shared-read", Namespace: types.DefaultKubeVelaNS}}))).Should(Succeed())
+		})
+		writeLegacy := func(name, namespace string) {
+			item, err := factory.ParseConfig(ctx, config.NamespacedName{Name: "shared-read", Namespace: types.DefaultKubeVelaNS}, config.Metadata{
+				NamespacedName: config.NamespacedName{Name: name, Namespace: namespace},
+				Properties:     map[string]interface{}{"registry": name + ".example"},
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(factory.CreateOrUpdateConfig(ctx, item, namespace)).Should(Succeed())
+		}
+		writeLegacy("tenant-db", "wf-b")
+		writeLegacy("platform-registry", "vela-system")
+		gateOff := "the AuthenticateApplication feature gate is off"
+
+		By("another tenant's config: read, list and delete refused, nothing deleted")
+		_, err = Read(ctx, depsWith(factory, &mock.Action{}), config.NamespacedName{Namespace: "wf-b", Name: "tenant-db"})
+		Expect(err).Should(MatchError(ContainSubstring("config wf-b/tenant-db is outside the application's namespace default")))
+		Expect(err).Should(MatchError(ContainSubstring(gateOff)))
+		_, err = List(ctx, depsWith(factory, &mock.Action{}), ListVars{Namespace: "wf-b", Template: "shared-read"})
+		Expect(err).Should(MatchError(ContainSubstring("configs in namespace wf-b is outside the application's namespace default")))
+		Expect(Delete(ctx, depsWith(factory, &mock.Action{}), config.NamespacedName{Namespace: "wf-b", Name: "tenant-db"})).Should(MatchError(ContainSubstring(gateOff)))
+		Expect(factory.IsExist(ctx, "wf-b", "tenant-db")).Should(BeTrue(), "not deleted")
+
+		By("a config of a system template in vela-system: read and listed from anywhere, not deleted or written")
+		got, err := Read(ctx, depsWith(factory, &mock.Action{}), config.NamespacedName{Namespace: "vela-system", Name: "platform-registry"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(got).Should(HaveKeyWithValue("registry", "platform-registry.example"))
+		_, err = List(ctx, depsWith(factory, &mock.Action{}), ListVars{Namespace: "vela-system", Template: "shared-read"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(Delete(ctx, depsWith(factory, &mock.Action{}), config.NamespacedName{Namespace: "vela-system", Name: "platform-registry"})).Should(MatchError(ContainSubstring(gateOff)))
+		into := propsOf("planted", "vela-system/shared-read")
+		into.Namespace = "wf-b"
+		Expect(Create(ctx, depsWith(factory, &mock.Action{}), into)).Should(MatchError(ContainSubstring("config wf-b/planted is outside the application's namespace default")))
+
+		By("as a user: reviewed for that user, and refused when they may not")
+		var reviews []authorizationv1.ResourceAttributes
+		denying := reviewingClient(false, &reviews)
+		_, err = Read(asAlice, Deps{Factory: config.NewConfigFactory(denying), Client: denying, AppLabels: map[string]string{oam.LabelAppNamespace: "default"}}, config.NamespacedName{Namespace: "wf-b", Name: "tenant-db"})
+		Expect(err).Should(MatchError(ContainSubstring("alice may not")))
+		Expect(reviews).Should(ContainElement(authorizationv1.ResourceAttributes{Verb: "get", Group: "config.oam.dev", Version: "v1alpha1", Resource: "configs", Namespace: "wf-b", Name: "tenant-db"}))
+
+		By("a shared system config is read as the controller once allowed, not as the application's user")
+		watching, err := client.NewWithWatch(cfg, client.Options{Scheme: k8sClient.Scheme()})
+		Expect(err).ToNot(HaveOccurred())
+		refuseUsers := func(ctx context.Context) error {
+			if u, ok := request.UserFrom(ctx); ok && u != nil {
+				return apierrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "", fmt.Errorf("%s may not", u.GetName()))
+			}
+			return nil
+		}
+		asItself := interceptor.NewClient(watching, interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if err := refuseUsers(ctx); err != nil {
+					return err
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+			List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				if err := refuseUsers(ctx); err != nil {
+					return err
+				}
+				return c.List(ctx, list, opts...)
+			},
+		})
+		shared := Deps{Factory: config.NewConfigFactory(asItself), Client: asItself, AppLabels: map[string]string{oam.LabelAppNamespace: "default"}}
+		got, err = Read(asAlice, shared, config.NamespacedName{Namespace: "vela-system", Name: "platform-registry"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(got).Should(HaveKeyWithValue("registry", "platform-registry.example"))
+		_, err = List(asAlice, shared, ListVars{Namespace: "vela-system", Template: "shared-read"})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("a write elsewhere creates or overwrites, so it is reviewed for both")
+		reviews = nil
+		allowing := reviewingClient(true, &reviews)
+		Expect(Create(asAlice, Deps{Factory: config.NewConfigFactory(allowing), Client: allowing, Action: &mock.Action{}, AppLabels: map[string]string{oam.LabelAppNamespace: "default"}}, into)).To(Succeed())
+		for _, verb := range []string{"create", "update"} {
+			Expect(reviews).Should(ContainElement(authorizationv1.ResourceAttributes{Verb: verb, Group: "config.oam.dev", Version: "v1alpha1", Resource: "configs", Namespace: "wf-b", Name: "planted"}), verb)
+		}
 	})
 
 	It("create uses a system template in vela-system from any namespace with no review, and refuses a template elsewhere that is not usable yet", func() {

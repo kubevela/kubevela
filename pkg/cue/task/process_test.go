@@ -17,12 +17,14 @@ limitations under the License.
 package task
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
@@ -103,7 +105,7 @@ processing: {}
 			taskTemplate := cuecontext.New().CompileString(tc.template)
 			taskTemplate = taskTemplate.FillPath(value.FieldPath(process.ParameterFieldName), tc.parameter)
 
-			inst, err := Process(taskTemplate)
+			inst, err := Process(context.Background(), taskTemplate)
 
 			if tc.wantErr != "" {
 				assert.ErrorContains(t, err, tc.wantErr)
@@ -138,4 +140,25 @@ func NewMock() *httptest.Server {
 	ts.Listener = l
 	ts.Start()
 	return ts
+}
+
+// A render that is cancelled stops its processing request rather than waiting out the timeout.
+func TestProcessStopsWithItsContext(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	v := cuecontext.New().CompileString(fmt.Sprintf(`processing: http: {method: "GET", url: %q, request: timeout: "30s"}`, srv.URL))
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	_, err := Process(ctx, v)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), 5*time.Second)
 }

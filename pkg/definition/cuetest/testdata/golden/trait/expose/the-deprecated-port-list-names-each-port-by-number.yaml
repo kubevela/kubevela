@@ -1,0 +1,48 @@
+calls: {}
+output:
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: shop-v1
+      app.oam.dev/component: web
+      app.oam.dev/name: shop
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cuetest-workload
+    name: web
+    namespace: default
+  spec:
+    template:
+      spec:
+        containers:
+        - image: shop:1.0
+          name: web
+outputs:
+  service:
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations: {}
+      labels:
+        app.oam.dev/appRevision: shop-v1
+        app.oam.dev/component: web
+        app.oam.dev/name: shop
+        app.oam.dev/namespace: default
+        app.oam.dev/resourceType: TRAIT
+        trait.oam.dev/resource: service
+        trait.oam.dev/type: expose
+      name: web
+      namespace: default
+    spec:
+      ports:
+      - name: port-80
+        port: 80
+        targetPort: 80
+      - name: port-443
+        port: 443
+        targetPort: 443
+      selector:
+        app.oam.dev/component: web
+      type: ClusterIP

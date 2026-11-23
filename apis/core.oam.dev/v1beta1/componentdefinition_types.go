@@ -44,8 +44,13 @@ type ComponentDefinitionSpec struct {
 
 	// Extends names a ComponentDefinition this one builds on. The parent renders
 	// with the parameters this definition's template passes it in its `$super`
-	// block, and its output, outputs and parameter schema are inherited unless
-	// the template says otherwise with `$inherit`.
+	// block; this definition declares parameters of its own and does not
+	// inherit the parent's. It adds to what the parent renders and never
+	// changes it: its output and outputs merge onto the parent's, a field the
+	// parent set is changed only through `$super`, and its workload is the
+	// parent's. One of the parent's outputs may be left out with
+	// `$inherit: {outputs: {<name>: false}}` unless the parent marks it
+	// `+required`, and a field the parent marks `+final` takes no additions.
 	//
 	// A DefinitionRevision may be named to pin the parent, as in
 	// "webservice@v3"; an unqualified name tracks whatever is current. The

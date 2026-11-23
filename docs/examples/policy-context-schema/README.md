@@ -288,5 +288,6 @@ Two things are not shown verbatim:
 
 - **Definitions that extend another:** the view of the context is given without types that need an import, and reads in the parent's template are not checked for guards.
 - **Dynamic reads:** `context.custom[k]` with a computed `k` is not checked.
+- **Aliases that are not a plain reference:** a read through a field or `let` bound to `context` or part of `context.custom` (`_info: context.custom.info`, then `_info.zone`) is checked like a direct read, through at most eight alias hops. An alias with a default (`_info: *context.custom.info | {}`), one nested in a struct (`_cfg: {info: context.custom.info}`) and a `for` loop variable over `context.custom` are not followed, so guard the reads made through them.
 - **Disjunction schemas:** a schema that is a disjunction (`close({...}) | close({...})`) is not read at admission. That policy counts as unknown.
 - **Spec-rewriting policies:** a plain required parameter that a policy fills by rewriting the Application's spec is still not visible to admission.

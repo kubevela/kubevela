@@ -17,6 +17,7 @@ limitations under the License.
 package appfile
 
 import (
+	"context"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -110,7 +111,7 @@ func validateWithView(t *testing.T, tc ctxCase) error {
 	for _, tr := range comp.Traits {
 		templates = append(templates, tr.Template)
 	}
-	err := (&Parser{}).ValidateCUESchematicAppfile(af)
+	err := (&Parser{}).ValidateCUESchematicAppfile(context.Background(), af)
 	// The view is admission's alone: nothing it validated keeps it.
 	require.Equal(t, templates[0], comp.FullTemplate.TemplateStr)
 	for i, tr := range comp.Traits {
@@ -205,6 +206,45 @@ func TestValidateAgainstPolicyContext(t *testing.T) {
 		},
 		"an optional parameter read beside a guarded key of the same name": {
 			component: "parameter: zone?: string\n" + configMapOutput(", labels: {z: parameter.zone, if context.custom.org.zone != _|_ {oz: context.custom.org.zone}}"),
+			view:      view(identity),
+		},
+		"a nested optional key read through an alias": {
+			component: "parameter: {}\n_org: context.custom.org\n" + configMapOutput(", labels: zone: _org.zone"),
+			view:      view(identity),
+			wantErr:   []string{"context.custom.org.zone", `optional in policy "identity"`},
+		},
+		"a nested optional key read through a let": {
+			component: "parameter: {}\nlet org = context.custom.org\n" + configMapOutput(", labels: zone: org.zone"),
+			view:      view(identity),
+			wantErr:   []string{"context.custom.org.zone", `optional in policy "identity"`},
+		},
+		"a nested optional key read through an alias of context.custom": {
+			component: "parameter: {}\n_custom: context.custom\n" + configMapOutput(", labels: zone: _custom.org.zone"),
+			view:      view(identity),
+			wantErr:   []string{"context.custom.org.zone", `optional in policy "identity"`},
+		},
+		"a nested optional key read through an alias of context": {
+			component: "parameter: {}\n_ctx: context\n" + configMapOutput(", labels: zone: _ctx.custom.org.zone"),
+			view:      view(identity),
+			wantErr:   []string{"context.custom.org.zone", `optional in policy "identity"`},
+		},
+		"a trait reading an optional key through an alias": {
+			component: "parameter: {}\n" + configMapOutput(""),
+			traits:    []string{"_org: context.custom.org\nparameter: {}\npatch: metadata: labels: zone: _org.zone"},
+			view:      view(identity),
+			wantErr:   []string{`trait "mesh"`, "context.custom.org.zone", `optional in policy "identity"`},
+		},
+		"a nested optional key read through an alias of an alias": {
+			component: "parameter: {}\n_custom: context.custom\n_org: _custom.org\n" + configMapOutput(", labels: zone: _org.zone"),
+			view:      view(identity),
+			wantErr:   []string{"context.custom.org.zone", `optional in policy "identity"`},
+		},
+		"a nested optional key read through an alias with a guard": {
+			component: "parameter: {}\n_org: context.custom.org\n" + configMapOutput(", labels: {unit: _org.unit, if _org.zone != _|_ {zone: _org.zone}}"),
+			view:      view(identity),
+		},
+		"a field that shadows an alias is not a read of context.custom": {
+			component: "parameter: {}\n_org: context.custom.org\n" + configMapOutput(", labels: {_org: zone: \"eu\", zone: _org.zone}"),
 			view:      view(identity),
 		},
 		"a read through an optional key": {

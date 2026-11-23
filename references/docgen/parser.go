@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -198,6 +199,95 @@ func getConcreteOrValueType(val cue.Value) string {
 	return strings.Join(printTypes, " or ")
 }
 
+// listBehindSizeValidator returns the list operand of a value such as
+// `list.MinItems(1) & [...T]`. CUE evaluates an open list against a minimum
+// size as if it were empty, so the conjunction is bottom until the list is
+// concrete and its kind and element type are only reachable through the list
+// operand. The second result is false for anything else, including a
+// conjunction that no list can satisfy.
+func listBehindSizeValidator(val cue.Value) (cue.Value, bool) {
+	if val.IncompleteKind() != cue.BottomKind {
+		return val, false
+	}
+	var (
+		list     cue.Value
+		found    bool
+		bounded  bool
+		minItems int64
+		maxItems int64 = math.MaxInt64
+	)
+	var walk func(v cue.Value) bool
+	walk = func(v cue.Value) bool {
+		op, operands := v.Expr()
+		switch op {
+		case cue.AndOp:
+			for _, operand := range operands {
+				if !walk(operand) {
+					return false
+				}
+			}
+			return true
+		case cue.CallOp:
+			if len(operands) != 2 {
+				return false
+			}
+			n, err := operands[1].Int64()
+			if err != nil {
+				return false
+			}
+			switch listSizeFunc(operands[0]) {
+			case "MinItems":
+				minItems = max(minItems, n)
+			case "MaxItems":
+				maxItems = min(maxItems, n)
+			default:
+				return false
+			}
+			bounded = true
+			return true
+		default:
+			// only an open list has a length that is not known yet
+			if v.IncompleteKind() != cue.ListKind || v.Len().IsConcrete() {
+				return false
+			}
+			if found {
+				v = list.Unify(v)
+			}
+			list, found = v, true
+			return true
+		}
+	}
+	if !walk(val) || !found || !bounded || minItems > maxItems || list.IncompleteKind() != cue.ListKind {
+		return val, false
+	}
+	// two open lists whose element types conflict unify to a list of bottom
+	if elem := list.LookupPath(cue.MakePath(cue.AnyIndex)); elem.Exists() && elem.IncompleteKind() == cue.BottomKind {
+		return val, false
+	}
+	return list, true
+}
+
+// listSizeFunc returns "MinItems" or "MaxItems" when fn is that function of
+// CUE's list package, whatever name the package was imported under, and ""
+// for anything else. The package value has no name of its own, so it is
+// recognised by the functions it holds.
+func listSizeFunc(fn cue.Value) string {
+	op, args := fn.Expr()
+	if op != cue.SelectorOp || len(args) != 2 {
+		return ""
+	}
+	name, err := args[1].String()
+	if err != nil || (name != "MinItems" && name != "MaxItems") {
+		return ""
+	}
+	for _, other := range []string{"MinItems", "MaxItems", "UniqueItems"} {
+		if !args[0].LookupPath(cue.ParsePath(other)).Exists() {
+			return ""
+		}
+	}
+	return name
+}
+
 func getSuffix(capName string, containSuffix bool) (string, string) {
 	var suffixTitle = " (" + capName + ")"
 	var suffixRef = "-" + strings.ToLower(capName)
@@ -255,6 +345,9 @@ func (ref *ParseReference) parseParameters(capName string, paraValue cue.Value, 
 			}
 			param.Required = !fi.IsOptional && (param.Default == nil)
 			param.Short, param.Usage, param.Alias, param.Ignore, param.Immutable = velacue.RetrieveComments(val)
+			if list, ok := listBehindSizeValidator(val); ok {
+				val = list
+			}
 			param.Type = val.IncompleteKind()
 			switch val.IncompleteKind() {
 			case cue.StructKind:
@@ -463,7 +556,7 @@ func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.C
 			}
 			gitCredentialsSecretReference := compDef.Spec.Schematic.Terraform.GitCredentialsSecretReference
 			if gitCredentialsSecretReference != nil {
-				publicKey, err = utils.GetGitSSHPublicKey(ctx, ref.Client, gitCredentialsSecretReference)
+				publicKey, err = utils.GetGitSSHPublicKey(ctx, ref.Client, gitCredentialsSecretReference, compDef.Namespace)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to  get publickey git credentials secret: %w", err)
 				}

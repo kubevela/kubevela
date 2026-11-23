@@ -89,9 +89,11 @@ type ComponentExplanation struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	Description string `json:"description,omitempty"`
-	// DefinitionFound is false when the type is not published on the
-	// cluster, which the controller reports as a failed render.
-	DefinitionFound bool              `json:"definitionFound" jsonschema:"False when the component type is not published on this cluster."`
+	// DefinitionFound is true when the ComponentDefinition was read. It is
+	// false both when the type is not published, which a finding reports,
+	// and when the read failed, which an unknowns entry reports; the two
+	// are told apart there, not here.
+	DefinitionFound bool              `json:"definitionFound" jsonschema:"True when the component's definition was read. False when the type is not published on this cluster (a finding says so) or when the definition could not be read (an unknowns entry names the error)."`
 	Traits          []string          `json:"traits,omitempty"`
 	DependsOn       []string          `json:"dependsOn,omitempty"`
 	Inputs          []DataFlow        `json:"inputs,omitempty"`

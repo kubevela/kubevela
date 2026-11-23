@@ -46,7 +46,7 @@ func readWorkflowStepCue(t *testing.T, name string) string {
 
 func assertTimeoutPlumbing(t *testing.T, content, step string) {
 	t.Helper()
-	assert.Contains(t, content, `timeout?: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"`,
+	assert.Contains(t, content, `timeout?: string & =~"^(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+$"`,
 		"%s should expose optional timeout parameter with Go ParseDuration-compatible validation", step)
 	assert.Contains(t, content, "Invalid values fail when the step runs",
 		"%s should document runtime failure for invalid timeout values", step)
@@ -73,10 +73,13 @@ func TestRequestStepExposesHTTPTimeout(t *testing.T) {
 		"request should forward timeout in a single HTTPDo request block")
 }
 
+// webhook sets the timeout in each request, as request does.
 func TestWebhookStepExposesHTTPTimeout(t *testing.T) {
 	content := readWorkflowStepCue(t, "webhook.cue")
 	assertTimeoutPlumbing(t, content, "webhook")
-	assertSharedHTTPRequestOpts(t, content, "webhook", 2)
+	assert.NotContains(t, content, "httpRequestOpts", "webhook should set the timeout inline")
+	assert.Equal(t, 2, strings.Count(content, "timeout: parameter.timeout"),
+		"webhook should forward timeout in each of its HTTPDo request blocks")
 }
 
 func TestNotificationStepExposesHTTPTimeout(t *testing.T) {

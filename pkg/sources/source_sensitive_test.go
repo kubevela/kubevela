@@ -170,3 +170,31 @@ schema: {
 `
 	require.Equal(t, []string{"members.token"}, ExtractSensitiveOutputPaths(template))
 }
+
+// A mark inside a comprehension is as much the definition's as one written plainly: the
+// fields a list comprehension makes for each element, and those a guarded block adds.
+func TestExtractSensitiveOutputPathsReadsComprehensions(t *testing.T) {
+	got := ExtractSensitiveOutputPaths(`
+output: {
+	members: [ for m in parameter.members {
+		name: m.name
+		// +sensitive
+		key: m.key
+	}]
+	if parameter.tls != _|_ {
+		tls: {
+			// +sensitive
+			cert: parameter.tls
+		}
+	}
+	nested: [ for g in parameter.groups if g.on for u in g.users {
+		// +sensitive
+		pass: u.pass
+	}]
+	if parameter.token != _|_ {
+		// +sensitive
+		token: parameter.token
+	}
+}`)
+	require.ElementsMatch(t, []string{"members.key", "tls.cert", "nested.pass", "token"}, got)
+}

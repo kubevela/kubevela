@@ -191,6 +191,10 @@ var _ = Describe("cloud provisioners in get_platform_info", func() {
 		out := platform(map[string]any{"service": "dynamodb"})
 		Expect(out.Provisioner).NotTo(BeNil())
 		Expect(out.Provisioner.EndpointOverride).To(Equal("http://admin:" + redactedValue + "@localstack:4566/?token=" + redactedValue))
+		Expect(out.Meta.Warnings).To(ContainElement(SatisfyAll(
+			ContainSubstring("endpoint provenance:"),
+			ContainSubstring("AWS_ENDPOINT_URL=http://admin:"+redactedValue+"@localstack:4566/?token="+redactedValue))),
+			"the evidence keeps the redacted endpoint, not only drops the credentials")
 		Expect(toJSON(out)).NotTo(ContainSubstring("s3cr3t"))
 		Expect(toJSON(out)).NotTo(ContainSubstring("t0k3n"))
 	})

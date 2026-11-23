@@ -31,6 +31,7 @@ import (
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
+	"k8s.io/apiserver/pkg/authentication/user"
 
 	di "github.com/oam-dev/kubevela/pkg/registry"
 )
@@ -90,6 +91,40 @@ type ReadResult struct {
 	Template   TemplateRef            `json:"template"`
 	Output     ObjectRef              `json:"output"`
 	Outputs    map[string]ObjectRef   `json:"outputs"`
+}
+
+type consumerNamespaceKey struct{}
+
+// WithConsumerNamespace records the namespace of the Application a read is for. Only trusted Go
+// callers set it (the Application controller and webhook, and the source resolver), never a
+// definition, so a definition cannot widen what a read may reach.
+func WithConsumerNamespace(ctx context.Context, namespace string) context.Context {
+	return context.WithValue(ctx, consumerNamespaceKey{}, namespace)
+}
+
+// ConsumerNamespaceFrom returns the namespace WithConsumerNamespace recorded, if any. An empty
+// one is still recorded, and keeps the read to no namespace.
+func ConsumerNamespaceFrom(ctx context.Context) (string, bool) {
+	ns, ok := ctx.Value(consumerNamespaceKey{}).(string)
+	return ns, ok
+}
+
+type consumerUserKey struct{}
+
+// WithConsumerUser records the user the Application a read is for runs as, under authentication.
+// Like WithConsumerNamespace only trusted Go callers set it. A read the access rules send to a
+// review asks about this user; the read itself stays the controller's.
+func WithConsumerUser(ctx context.Context, u user.Info) context.Context {
+	if u == nil || u.GetName() == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, consumerUserKey{}, u)
+}
+
+// ConsumerUserFrom returns the user WithConsumerUser recorded, if any.
+func ConsumerUserFrom(ctx context.Context) (user.Info, bool) {
+	u, ok := ctx.Value(consumerUserKey{}).(user.Info)
+	return u, ok
 }
 
 // ReadParams is the params for a Config read.

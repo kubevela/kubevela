@@ -215,7 +215,14 @@ var _ = Describe("correlation handles", func() {
 			var out GetLogsOutput
 			res := h.call("get_logs", map[string]any{"name": "web", "namespace": "team-a"}, &out)
 			Expect(res.IsError).To(BeFalse(), toJSON(res))
-			Expect(out.Handles.Pods).To(HaveLen(maxLogPods))
+			Expect(out.Pods).To(HaveLen(maxLogPods))
+			// The handles name exactly the pods whose logs were read, not the
+			// first five of the Application's pods.
+			read := make([]PodHandle, 0, len(out.Pods))
+			for _, p := range out.Pods {
+				read = append(read, PodHandle{Cluster: p.Cluster, Namespace: p.Namespace, Name: p.Pod, Component: p.Component})
+			}
+			Expect(out.Handles.Pods).To(ConsistOf(read))
 			Expect(out.Meta.Warnings).To(ContainElement(ContainSubstring("only the first 5 were read")))
 			Expect(out.Meta.Warnings).NotTo(ContainElement(ContainSubstring("handles list the first")))
 		})

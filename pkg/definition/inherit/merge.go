@@ -25,19 +25,21 @@ import (
 // mergeSurfaces merges the parent's surface fields onto the child's.
 //
 // Unification rather than replacement, so new `outputs` keys join the parent's
-// and `output` is overlaid field by field. A parent value from a defaulted
-// parameter is still a disjunction here, so a child setting it wins; only a
-// concrete one conflicts.
+// and `output` is overlaid field by field. An output the child leaves out with
+// `$inherit` is removed from the parent's first, so the child's own entry of
+// that name stands alone. A child changing a field the parent set has been
+// refused before this, by checkOverride.
 func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d directives, parentLevel Level, at string) (cue.Value, error) {
 	out := child
 	for _, field := range s.Fields {
-		if !d.inherits(field) {
-			continue
-		}
 		path := cue.ParsePath(field)
 		fromParent, ok := parent[field]
 		if !ok {
 			continue
+		}
+		fromParent, err := withoutDropped(fromParent, field, d)
+		if err != nil {
+			return cue.Value{}, fmt.Errorf("%s %s: leaving out %s's %s: %w", s.Kind, at, parentLevel.Name, field, err)
 		}
 		fromChild := child.LookupPath(path)
 		if !fromChild.Exists() {
@@ -54,9 +56,9 @@ func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d di
 			return cue.Value{}, fmt.Errorf(
 				"%s %s: merging its %s onto %s's: %w\n"+
 					"  a conflict here means %s sets that field to a concrete value. "+
-					"Pass a different parameter to %s, or take the field over with `%s: {%s: false}`",
+					"Pass a different parameter to %s through `%s: properties`",
 				s.Kind, at, field, parentLevel.Name, err,
-				parentLevel.Name, parentLevel.Name, InheritField, field)
+				parentLevel.Name, parentLevel.Name, SuperField)
 		}
 		out = out.FillPath(path, merged)
 		if err := out.Err(); err != nil {
@@ -65,4 +67,24 @@ func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d di
 		}
 	}
 	return out, nil
+}
+
+// withoutDropped is a parent's field with the entries the child leaves out
+// removed, so the child's own entry of that name, if any, stands alone.
+func withoutDropped(v cue.Value, field string, d directives) (cue.Value, error) {
+	if len(d.drops[field]) == 0 {
+		return v, nil
+	}
+	iter, err := v.Fields(cue.Optional(true), cue.Definitions(true))
+	if err != nil {
+		return cue.Value{}, err
+	}
+	out := v.Context().CompileString("{}")
+	for iter.Next() {
+		if sel := iter.Selector(); sel.IsString() && d.dropped(field, sel.Unquoted()) {
+			continue
+		}
+		out = out.FillPath(cue.MakePath(iter.Selector()), iter.Value())
+	}
+	return out, out.Err()
 }

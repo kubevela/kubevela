@@ -20,8 +20,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -89,6 +91,12 @@ func TestDefinitionUsageOf(t *testing.T) {
 		"a name shared by both kinds stays apart": {appWith(comp("gateway", "gateway")),
 			[]string{"component/gateway", "trait/gateway"}},
 		"nothing indexes under none": {appWith(), []string{}},
+		"an override policy's types and traits count as uses": {func() *v1beta1.Application {
+			app := appWith(comp("webservice"))
+			app.Spec.Policies = []v1beta1.AppPolicy{{Name: "o", Type: v1alpha1.OverridePolicyType, Properties: &runtime.RawExtension{
+				Raw: []byte(`{"components":[{"name":"web","type":"worker","traits":[{"type":"gateway@v1"}]}]}`)}}}
+			return app
+		}(), []string{"component/webservice", "component/worker", "trait/gateway"}},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {

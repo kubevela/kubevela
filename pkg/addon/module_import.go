@@ -29,6 +29,7 @@ import (
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/nesting"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/placement"
@@ -100,6 +101,9 @@ type rawModuleSource struct {
 // _imports.cue is evaluated as literal CUE data only -- no
 // context.*/parameter.* expressions.
 func parseModuleImports(data string) ([]ModuleImport, error) {
+	if err := nesting.Check(data, nesting.MaxDepth); err != nil {
+		return nil, fmt.Errorf("_imports.cue: %w", err)
+	}
 	val := cuecontext.New().CompileString(data)
 	if err := val.Err(); err != nil {
 		return nil, fmt.Errorf("compile modules/_imports.cue: %w", err)
