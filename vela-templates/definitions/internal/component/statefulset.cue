@@ -249,6 +249,10 @@ template: {
 							env: parameter.env
 						}
 
+						if parameter["envFrom"] != _|_ {
+							envFrom: parameter.envFrom
+						}
+
 						if context["config"] != _|_ {
 							env: context.config
 						}
@@ -459,6 +463,26 @@ template: {
 					// +usage=The key of the config map to select from. Must be a valid secret key
 					key: string
 				}
+			}
+		}]
+
+		// +usage=Define sources to populate environment variables in bulk from ConfigMaps or Secrets
+		envFrom?: [...{
+			// +usage=An optional prefix to prepend to each key name. Must be a C_IDENTIFIER
+			prefix?: string
+			// +usage=The ConfigMap to select from
+			configMapRef?: {
+				// +usage=The name of the ConfigMap
+				name: string
+				// +usage=Whether the ConfigMap must exist
+				optional?: bool
+			}
+			// +usage=The Secret to select from
+			secretRef?: {
+				// +usage=The name of the Secret
+				name: string
+				// +usage=Whether the Secret must exist
+				optional?: bool
 			}
 		}]
 

@@ -331,3 +331,17 @@ _sts: {
 		{name: "MODE", valueFrom: configMapKeyRef: {name: "db-conf", key: "mode"}},
 	]}]
 }
+
+"envFrom imports a whole Secret and ConfigMap": test.#ComponentRender & _sts & {
+	parameter: {
+		image: "pg:1.0"
+		envFrom: [
+			{secretRef: {name: "shop-db"}},
+			{prefix: "CONF_", configMapRef: {name: "shop-conf", optional: true}},
+		]
+	}
+	expect: output: spec: template: spec: containers: [{envFrom: [
+		{secretRef: {name: "shop-db"}},
+		{prefix: "CONF_", configMapRef: {name: "shop-conf", optional: true}},
+	]}]
+}
