@@ -194,7 +194,7 @@ jobs:
         with:
           submodules: true
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
       - name: Build Test for vela core
@@ -214,7 +214,7 @@ jobs:
         with:
           submodules: true
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435
       - name: Build Test for CLI 
