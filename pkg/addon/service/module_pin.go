@@ -17,11 +17,18 @@ limitations under the License.
 package service
 
 import (
+	"encoding/json"
+	"fmt"
 	"slices"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/workflow/step"
 )
 
 // Base names of the policies and the step pinModuleComponentsToHub adds. A
@@ -108,7 +115,60 @@ func pinModuleComponentsToHub(app map[string]interface{}, moduleNames []string) 
 	}
 	modulePolicies := append(append(stringsToList(overrides), modulesTopology), modulesOverride)
 	steps = append(steps, deployStepMap(claimName(addonModulesStep, stepNames), modulePolicies))
-	spec["workflow"] = map[string]interface{}{"steps": steps}
+	spec["workflow"] = map[string]interface{}{"mode": workflowMode(workflowv1alpha1.WorkflowModeStep), "steps": steps}
+}
+
+// workflowMode is an explicit workflow mode. Without one, the controller runs
+// steps written in spec one by one and generated steps as a DAG, with sub-steps
+// as a DAG in both cases. Every workflow the renderer writes names its mode, so
+// a mode left over from an earlier render can never change how it runs (see
+// writeDefaultWorkflow).
+func workflowMode(steps wfTypesv1alpha1.WorkflowMode) map[string]interface{} {
+	return map[string]interface{}{"steps": string(steps), "subSteps": string(workflowv1alpha1.WorkflowModeDAG)}
+}
+
+// writeDefaultWorkflow writes out the workflow the controller would generate
+// for an addon with module components and no workflow of its own: the same
+// steps from the same generators, run as a DAG.
+//
+// The addon Application is patched with no last-applied configuration (see
+// suppressLastAppliedConfig), so the patch can add and change fields but never
+// delete one. Without this, the workflow pinModuleComponentsToHub wrote for a
+// placement would outlive the placement, and its steps would name policies
+// that are gone. A workflow with steps is replaced as a whole instead.
+func writeDefaultWorkflow(app map[string]interface{}, moduleNames []string) error {
+	spec, _ := app["spec"].(map[string]interface{})
+	if spec == nil || len(moduleNames) == 0 {
+		return nil
+	}
+	if _, hasWorkflow := spec["workflow"]; hasWorkflow {
+		return nil
+	}
+	typed := &v1beta1.Application{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(app, typed); err != nil {
+		return fmt.Errorf("read the addon Application: %w", err)
+	}
+	steps, err := step.NewChainWorkflowStepGenerator(
+		&step.DeployWorkflowStepGenerator{},
+		&step.Deploy2EnvWorkflowStepGenerator{},
+		&step.ApplyComponentWorkflowStepGenerator{},
+	).Generate(typed, nil)
+	if err != nil {
+		return fmt.Errorf("generate the default workflow: %w", err)
+	}
+	if len(steps) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(steps)
+	if err != nil {
+		return fmt.Errorf("encode the default workflow: %w", err)
+	}
+	var list []interface{}
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return fmt.Errorf("encode the default workflow: %w", err)
+	}
+	spec["workflow"] = map[string]interface{}{"mode": workflowMode(workflowv1alpha1.WorkflowModeDAG), "steps": list}
+	return nil
 }
 
 // claimName returns a name from base that used does not hold yet, and marks it
