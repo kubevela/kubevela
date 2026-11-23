@@ -85,11 +85,22 @@ func referenceChain(n ast.Node) (chain []string, ok bool) {
 // chainUpToIndex is referenceChain, also reporting whether the chain ended at
 // an index that is not a string literal.
 func chainUpToIndex(n ast.Node) (chain []string, ended, ok bool) {
+	return chainFrom(n, 0)
+}
+
+// maxAliasDepth stops following aliases that refer to each other.
+const maxAliasDepth = 8
+
+// chainFrom is chainUpToIndex, following aliases up to maxAliasDepth deep.
+func chainFrom(n ast.Node, depth int) (chain []string, ended, ok bool) {
 	switch x := n.(type) {
 	case *ast.Ident:
+		if aliased, isAlias := aliasOfContextCustom(x, depth); isAlias {
+			return aliased, false, true
+		}
 		return []string{x.Name}, false, true
 	case *ast.SelectorExpr:
-		chain, ended, ok = chainUpToIndex(x.X)
+		chain, ended, ok = chainFrom(x.X, depth)
 		if !ok || ended {
 			return chain, ended, ok
 		}
@@ -99,7 +110,7 @@ func chainUpToIndex(n ast.Node) (chain []string, ended, ok bool) {
 		}
 		return append(chain, name), false, true
 	case *ast.IndexExpr:
-		chain, ended, ok = chainUpToIndex(x.X)
+		chain, ended, ok = chainFrom(x.X, depth)
 		if !ok || ended {
 			return chain, ended, ok
 		}
@@ -114,6 +125,30 @@ func chainUpToIndex(n ast.Node) (chain []string, ended, ok bool) {
 		return append(chain, name), false, true
 	}
 	return nil, false, false
+}
+
+// aliasOfContextCustom returns the chain that the field or let named by id
+// stands for when it is context, or part of context.custom, as in
+// `_info: context.custom.info` or `_ctx: context`. The parser has resolved id,
+// so a field that shadows the name is not followed.
+func aliasOfContextCustom(id *ast.Ident, depth int) ([]string, bool) {
+	if depth >= maxAliasDepth {
+		return nil, false
+	}
+	var value ast.Node
+	switch d := id.Node.(type) {
+	case *ast.LetClause:
+		value = d.Expr
+	case ast.Expr:
+		value = d
+	default:
+		return nil, false
+	}
+	chain, ended, ok := chainFrom(value, depth+1)
+	if !ok || ended || chain[0] != "context" || (len(chain) > 1 && chain[1] != "custom") {
+		return nil, false
+	}
+	return chain, true
 }
 
 // walkDynamicIndexes walks, with visit, each index of a selector or index

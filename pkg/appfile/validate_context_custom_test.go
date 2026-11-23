@@ -66,6 +66,38 @@ x: context.custom.org[k].team`},
 			templates: []string{`x: context.custom.items[context.custom.key]`},
 			want:      [][]string{{"items"}, {"key"}},
 		},
+		"a read through an alias keeps its full path": {
+			templates: []string{`_org: context.custom.org
+x: _org.team`},
+			want: [][]string{{"org"}, {"org", "team"}},
+		},
+		"a read through a let keeps its full path": {
+			templates: []string{`let org = context.custom.org
+x: org.team`},
+			want: [][]string{{"org"}, {"org", "team"}},
+		},
+		"a read through an alias of an alias keeps its full path": {
+			templates: []string{`_custom: context.custom
+_org: _custom.org
+x: _org.team`},
+			want: [][]string{{"org"}, {"org", "team"}},
+		},
+		"a read through an alias of context keeps its full path": {
+			templates: []string{`_ctx: context
+x: _ctx.custom.org.team
+y: _ctx.name`},
+			want: [][]string{{"org", "team"}},
+		},
+		"a field that shadows an alias is not followed": {
+			templates: []string{`_org: context.custom.org
+x: {_org: team: "a", t: _org.team}`},
+			want: [][]string{{"org"}},
+		},
+		"aliases that refer to each other are not followed": {
+			templates: []string{`_a: _b
+_b: _a
+x: _a.team`},
+		},
 		"custom alone has no key": {
 			templates: []string{`if context.custom != _|_ {x: 1}`},
 		},
@@ -148,6 +180,18 @@ parameter: team: *strings.ToLower(context.custom.team) | string`,
 			template: `parameter: #P
 #P: {next?: #P, team: *context.custom.team | string}`,
 			want: map[string]bool{"team": true},
+		},
+		"a default from context through an alias": {
+			template: "_team: context.custom.team\nparameter: team: *_team | string",
+			want:     map[string]bool{"team": true},
+		},
+		"a default from context through a let": {
+			template: "let t = context.custom.team\nparameter: team: *t | string",
+			want:     map[string]bool{"team": true},
+		},
+		"a default from a field of an alias": {
+			template: "_org: context.custom.org\nparameter: team: *_org.team | string",
+			want:     map[string]bool{"team": true},
 		},
 		"context outside the default does not count": {
 			template: `parameter: team: *"x" | context.custom.team`,
