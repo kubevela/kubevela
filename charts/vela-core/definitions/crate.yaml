@@ -59,19 +59,19 @@ spec:
         output: _render.$returns.application
 
         parameter: {
-        	// Crate name; defaults to the component name.
+        	// +usage=Crate name. It must match `crate` in the `_crate.cue` of the package. Defaults to the component name.
         	crate: *context.name | string
-        	// Registry name; empty means the configured default.
+        	// +usage=Name of a crate registry added with `vela crate registry add`. Empty selects the only configured registry, or the one named `catalog` when several exist.
         	registry: *"" | string
-        	// Crate package version (the OCI/ECR tag vela crate publish writes from
-        	// _crate.cue's version field). Empty means the latest published version.
-        	// This is not the API line (apiVersion v1/v2), which is unaffected.
+        	// +usage=Package version, which is the OCI tag that `vela crate publish` writes from the `version` field of `_crate.cue`. Empty selects the highest published semver tag when the workflow of the Application runs. This is not the API line (`v1`, `v2`).
         	version: *"" | string
-        	// Where objects marked runtime are installed. Unmarked objects and
-        	// definitions stay on the hub. Set clusters or clusterLabelSelector.
+        	// +usage=Clusters that receive the objects that the crate marks `runtime`. Objects with no mark and definitions stay on the hub. Without `placement`, all objects install on the hub.
         	placement?: {
+        		// +usage=Names of the clusters, as `vela cluster list` shows them. `local` is the hub. Do not set it together with `clusterLabelSelector`.
         		clusters?: [...string]
+        		// +usage=Cluster labels to match. All labels must match. Do not set it together with `clusters`.
         		clusterLabelSelector?: [string]: string
+        		// +usage=If true, the install succeeds when `clusterLabelSelector` matches no cluster. A name in `clusters` that is not a cluster always fails.
         		allowEmpty?: bool
         	}
         }

@@ -101,27 +101,26 @@ template: {
 	output: _render.$returns.application
 
 	parameter: {
-		// Addon name; defaults to the component name.
+		// +usage=Addon name. Defaults to the component name.
 		addon: *context.name | string
-		// Exact version; empty means latest stable version.
+		// +usage=Exact addon version. Empty selects the latest stable version.
 		version: *"" | string
-		// Registry name; empty means the configured default.
+		// +usage=Name of an addon registry added with `vela addon registry add`. Empty searches the configured registries.
 		registry: *"" | string
-		// The addon's own parameters, passed through to its templates.
 		// An open struct (defaults to empty) so any addon-specific parameters
 		// are accepted; kept as a plain struct (not a "*{} | {...}" union) so
 		// the SDK generator produces valid code.
+		// +usage=The parameters of the addon itself, passed to its templates.
 		properties: {...}
-		// Skip the addon's vela/kubernetes SystemRequirements check (mirrors the
-		// imperative skipVersionValidate escape hatch). Defaults to enforcing it.
+		// +usage=If true, skip the check of the KubeVela and Kubernetes versions that the addon requires.
 		skipVersionValidation: *false | bool
-		// Where the addon installs, in the same form as a type: crate
-		// component's placement. Its imported crates follow it, keeping their
-		// hub objects on the hub. Set clusters or clusterLabelSelector. Refused
-		// for an addon that defines its own topology policy or workflow.
+		// +usage=Clusters that the addon installs on. Its imported and inline crates follow it and keep their hub objects on the hub. Refused for an addon that defines its own topology policy or workflow.
 		placement?: {
+			// +usage=Names of the clusters, as `vela cluster list` shows them. `local` is the hub. Do not set it together with `clusterLabelSelector`.
 			clusters?: [...string]
+			// +usage=Cluster labels to match. All labels must match. Do not set it together with `clusters`.
 			clusterLabelSelector?: [string]: string
+			// +usage=If true, the install succeeds when `clusterLabelSelector` matches no cluster.
 			allowEmpty?: bool
 		}
 	}
