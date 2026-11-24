@@ -288,6 +288,38 @@ spec:
 				Expect(name).To(Equal("old-name"), "the dry-run update left the live object alone")
 			})
 
+			It("shows a cluster-scoped policy object without the namespace the renderer stamps on it", func() {
+				policyDef := `apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: reader
+  namespace: vela-system
+spec:
+  schematic:
+    cue:
+      template: |
+        output: {apiVersion: "rbac.authorization.k8s.io/v1", kind: "ClusterRole", metadata: name: "team-reader", rules: [{apiGroups: [""], resources: ["pods"], verbs: ["get"]}]}
+        parameter: {}
+`
+				h = startHarness(Options{}, platformFixtures()...)
+				doc := shopDoc("nginx:1.27", 1, `  policies:
+  - name: reader
+    type: reader
+    properties: {}
+`)
+				var out DryRunOutput
+				res := h.call("dryrun_application", map[string]any{"application": doc, "definitions": []string{policyDef}}, &out)
+				Expect(res.IsError).To(BeFalse(), toJSON(res))
+				Expect(out.Policies).To(ContainElement(HaveField("Kind", "ClusterRole")))
+				for _, p := range out.Policies {
+					if p.Kind != "ClusterRole" {
+						continue
+					}
+					meta, _ := p.Object["metadata"].(map[string]any)
+					Expect(meta).NotTo(HaveKey("namespace"), "the policy summary shows the object as the server check sees it")
+				}
+			})
+
 			It("checks and diffs the objects a policy renders, not only component output", func() {
 				policyDef := `apiVersion: core.oam.dev/v1beta1
 kind: PolicyDefinition

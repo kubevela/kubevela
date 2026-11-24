@@ -324,6 +324,69 @@ var _ = Describe("diagnose_application", func() {
 		Expect(out.Findings).To(ContainElement(HaveField("Message", ContainSubstring("cause throttled (SlowDown) — owner: external"))))
 	})
 
+	It("reads past a newer warning event no rule recognises to the older one that classifies", func() {
+		b := cloudResource("s3.aws.upbound.io/v1beta1", "Bucket", "assets", 1,
+			[]map[string]any{
+				{"type": "Synced", "status": "False", "reason": "ReconcileError"},
+				{"type": "Ready", "status": "False"},
+			}, nil)
+		involved := corev1.ObjectReference{APIVersion: "s3.aws.upbound.io/v1beta1", Kind: "Bucket", Name: "assets", Namespace: "team-a"}
+		older := &corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{Name: "assets.1", Namespace: "team-a"}, InvolvedObject: involved,
+			Type: corev1.EventTypeWarning, Reason: "CannotObserveExternalResource",
+			Message: "cannot run refresh: api error SlowDown: Please reduce your request rate.",
+			Count:   3, LastTimestamp: metav1.NewTime(time.Date(2026, 11, 15, 9, 40, 0, 0, time.UTC)),
+		}
+		newer := &corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{Name: "assets.2", Namespace: "team-a"}, InvolvedObject: involved,
+			Type: corev1.EventTypeWarning, Reason: "CannotObserveExternalResource",
+			Message: "cannot run refresh: the provider returned no body",
+			Count:   1, LastTimestamp: metav1.NewTime(time.Date(2026, 11, 15, 9, 41, 0, 0, time.UTC)),
+		}
+		h = startHarness(Options{}, append(diagnoseApp(b), newer, older)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		c := out.Resources[0].Cause
+		Expect(c).NotTo(BeNil())
+		Expect(c.Class).To(Equal(causeThrottled), "the older event classifies; the newer one does not hide it")
+		Expect(c.Evidence).To(ContainSubstring("SlowDown"))
+		Expect(c.Since).NotTo(BeNil())
+		Expect(*c.Since).To(Equal(time.Date(2026, 11, 15, 9, 40, 0, 0, time.UTC)), "the classifying event's own time dates the cause")
+	})
+
+	It("does not classify a failure from an event that predates it", func() {
+		// Synced left True at 10:00. The SlowDown event was last seen at 09:40,
+		// during an earlier failure that was resolved in between.
+		b := cloudResource("s3.aws.upbound.io/v1beta1", "Bucket", "assets", 1,
+			[]map[string]any{
+				{"type": "Synced", "status": "False", "reason": "ReconcileError", "lastTransitionTime": "2026-11-15T10:00:00Z"},
+				{"type": "Ready", "status": "False"},
+			}, nil)
+		involved := corev1.ObjectReference{APIVersion: "s3.aws.upbound.io/v1beta1", Kind: "Bucket", Name: "assets", Namespace: "team-a"}
+		earlier := &corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{Name: "assets.1", Namespace: "team-a"}, InvolvedObject: involved,
+			Type: corev1.EventTypeWarning, Reason: "CannotObserveExternalResource",
+			Message: "cannot run refresh: api error SlowDown: Please reduce your request rate.",
+			Count:   3, LastTimestamp: metav1.NewTime(time.Date(2026, 11, 15, 9, 40, 0, 0, time.UTC)),
+		}
+		current := &corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{Name: "assets.2", Namespace: "team-a"}, InvolvedObject: involved,
+			Type: corev1.EventTypeWarning, Reason: "CannotObserveExternalResource",
+			Message: "cannot run refresh: the provider returned no body",
+			Count:   1, LastTimestamp: metav1.NewTime(time.Date(2026, 11, 15, 10, 1, 0, 0, time.UTC)),
+		}
+		h = startHarness(Options{}, append(diagnoseApp(b), current, earlier)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		if c := out.Resources[0].Cause; c != nil {
+			Expect(c.Class).NotTo(Equal(causeThrottled), "the earlier failure's event must not classify this one")
+			Expect(c.Evidence).NotTo(ContainSubstring("SlowDown"))
+		}
+		Expect(out.Findings).NotTo(ContainElement(HaveField("Message", ContainSubstring("SlowDown"))))
+	})
+
 	It("replaces an unclassified Crossplane cause with the one its warning event classifies", func() {
 		ts := "2026-11-15T09:12:00Z"
 		b := cloudResource("s3.aws.upbound.io/v1beta1", "Bucket", "assets", 1,
