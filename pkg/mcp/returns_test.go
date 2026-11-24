@@ -468,14 +468,15 @@ var _ = Describe("what the tools return", func() {
 
 		It("picks numbers inside exclusive and max-only bounds", func() {
 			zero, three, ten := float64(0), float64(3), float64(10)
+			yes := true
 			cases := []struct {
 				sch  *openapi3.Schema
 				want any
 			}{
-				{&openapi3.Schema{Type: &openapi3.Types{openapi3.TypeInteger}, Min: &three, ExclusiveMin: true}, int64(4)},
+				{&openapi3.Schema{Type: &openapi3.Types{openapi3.TypeInteger}, Min: &three, ExclusiveMin: openapi3.ExclusiveBound{Bool: &yes}}, int64(4)},
 				{&openapi3.Schema{Type: &openapi3.Types{openapi3.TypeInteger}, Max: &zero}, int64(0)},
-				{&openapi3.Schema{Type: &openapi3.Types{openapi3.TypeInteger}, Max: &zero, ExclusiveMax: true}, int64(-1)},
-				{&openapi3.Schema{Type: &openapi3.Types{openapi3.TypeNumber}, Min: &zero, ExclusiveMin: true, Max: &three}, 1.5},
+				{&openapi3.Schema{Type: &openapi3.Types{openapi3.TypeInteger}, Max: &zero, ExclusiveMax: openapi3.ExclusiveBound{Bool: &yes}}, int64(-1)},
+				{&openapi3.Schema{Type: &openapi3.Types{openapi3.TypeNumber}, Min: &zero, ExclusiveMin: openapi3.ExclusiveBound{Bool: &yes}, Max: &three}, 1.5},
 				{&openapi3.Schema{Type: &openapi3.Types{openapi3.TypeInteger}, Min: &three, Max: &ten}, int64(3)},
 			}
 			for _, c := range cases {

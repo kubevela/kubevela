@@ -279,7 +279,8 @@ func (f *Field) OpenAPI() *openapi3.Schema {
 		// Other kinds need nothing here.
 	}
 	s.Enum = f.Enum
-	s.Min, s.Max, s.ExclusiveMin, s.ExclusiveMax = f.Min, f.Max, f.ExclusiveMin, f.ExclusiveMax
+	s.Min, s.Max = f.Min, f.Max
+	s.ExclusiveMin, s.ExclusiveMax = exclusiveBound(f.ExclusiveMin), exclusiveBound(f.ExclusiveMax)
 	s.MultipleOf, s.UniqueItems = f.MultipleOf, f.UniqueItems
 	pattern, more := splitPatterns(f.Patterns)
 	s.Pattern, s.AllOf = pattern, append(s.AllOf, more...)
@@ -669,4 +670,12 @@ func (h UIHints) applyTo(p *uischema.UIParameter) {
 	if style != (uischema.Style{}) {
 		p.Style = &style
 	}
+}
+
+// exclusiveBound expresses an OpenAPI 3.0 exclusiveMinimum/exclusiveMaximum flag.
+func exclusiveBound(b bool) openapi3.ExclusiveBound {
+	if !b {
+		return openapi3.ExclusiveBound{}
+	}
+	return openapi3.ExclusiveBound{Bool: &b}
 }
