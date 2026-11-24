@@ -95,7 +95,7 @@ require (
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
 	open-cluster-management.io/api v0.11.0
 	oras.land/oras-go v1.2.5
-	sigs.k8s.io/controller-runtime v0.25.2
+	sigs.k8s.io/controller-runtime v0.25.3
 	sigs.k8s.io/controller-tools v0.22.0
 	sigs.k8s.io/gateway-api v0.7.1
 	sigs.k8s.io/kind v0.20.0
@@ -342,9 +342,4 @@ replace (
 	github.com/sigstore/timestamp-authority/v2 => github.com/sigstore/timestamp-authority/v2 v2.1.4
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.3-0.20261007155744-2c166cd8b945
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
-	// controller-runtime v0.25.x does not compile envtest for Windows, which the vela CLI
-	// imports for `vela def test`. This is the main-branch commit with the fix
-	// (kubernetes-sigs/controller-runtime#3586); it is on k8s 0.37 and contains every fix in
-	// v0.25.2. Switch to the v0.26.0 release once it is out.
-	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.25.1-0.20261003005320-02048c9ac9b1
 )
