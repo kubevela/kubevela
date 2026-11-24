@@ -27,6 +27,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/module"
 	modulerender "github.com/oam-dev/kubevela/pkg/module/service"
@@ -168,7 +169,11 @@ func checkModuleNameCollisions(declaredBy map[string][]string) error {
 //
 // namespace is the namespace of the Application that installs the addon, where
 // the modules' definitions install; empty means vela-system.
-func RenderInlineModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string, namespace string) ([]common2.ApplicationComponent, error) {
+//
+// place is the addon's placement from the type: addon component. Each inline
+// module's runtime objects go to those clusters, the same as an imported
+// module that sets no placement of its own. Nil keeps everything on the hub.
+func RenderInlineModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string, namespace string, place *v1alpha1.Placement) ([]common2.ApplicationComponent, error) {
 	if len(addon.InlineModules) == 0 {
 		return nil, nil
 	}
@@ -193,7 +198,7 @@ func RenderInlineModuleComponents(addon *InstallPackage, existingComponents []co
 
 	var comps []common2.ApplicationComponent
 	for _, mod := range addon.InlineModules {
-		app, err := modulerender.RenderApplication(mod, namespace, nil)
+		app, err := modulerender.RenderApplication(mod, namespace, place)
 		if err != nil {
 			return nil, fmt.Errorf("render inline module %q for addon %q: %w", mod.Name, addon.Name, err)
 		}
