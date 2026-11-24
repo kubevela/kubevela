@@ -1,7 +1,3 @@
-The example reads from a crate registry named `catalog`. Add it first with
-`vela crate registry add catalog <oci-url>`, or leave `registry` empty to use the
-configured default registry.
-
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -38,4 +34,3 @@ spec:
             region: east
 ```
 
-`namespace` is not a property. If you set it, admission rejects the Application. The definitions install into the namespace of this Application, and that namespace must exist. On a managed cluster, a runtime object with no namespace also goes into this namespace, and the namespace must exist there too. KubeVela does not create it.
