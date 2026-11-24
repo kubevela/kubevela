@@ -75,6 +75,16 @@ _worker: {
 	]}]
 }
 
+"a container resource divisor can be a plain number": test.#ComponentRender & _worker & {
+	parameter: {
+		image: "shop-worker:1.0"
+		env: [{name: "CPU_LIMIT", valueFrom: resourceFieldRef: {resource: "limits.cpu", divisor: 1}}]
+	}
+	expect: output: spec: template: spec: containers: [{env: [
+		{name: "CPU_LIMIT", valueFrom: resourceFieldRef: {resource: "limits.cpu", divisor: 1}},
+	]}]
+}
+
 "a pod field reference needs a field path": test.#ComponentRender & _worker & {
 	parameter: {
 		image: "shop-worker:1.0"

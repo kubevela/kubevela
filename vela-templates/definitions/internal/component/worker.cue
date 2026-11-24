@@ -315,7 +315,7 @@ template: {
 					// +usage=Container to read the resource from, this container by default
 					containerName?: string
 					// +usage=Unit the value is expressed in, such as 1Mi, 1 by default
-					divisor?: string
+					divisor?: string | int
 				}
 				// +usage=Selects a key of a secret in the pod's namespace
 				secretKeyRef?: {
