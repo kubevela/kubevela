@@ -97,10 +97,10 @@ spec:
     cue:
       template: |-
         output: {
-        	apiVersion: "v1"
-        	kind:       "ConfigMap"
-        	metadata: name: context.name
-        	data: {}
+          apiVersion: "v1"
+          kind:       "ConfigMap"
+          metadata: name: context.name
+          data: {}
         }
         parameter: {}
 `

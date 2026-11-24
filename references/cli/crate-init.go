@@ -220,7 +220,7 @@ crate parser expects:
 auxiliary/ (crate-wide) and v1/auxiliary/ (this line only) hold whatever
 Kubernetes objects your crate needs to install alongside its capability
 definitions, before consumers can use type: __CRATE__-v1-<capability>.
-Neither is required: leave a folder empty if your crate has no infrastructure 
+Neither is required: leave a folder empty if your crate has no infrastructure
 to install.
 
 Where to put things:

@@ -3,6 +3,10 @@ Requires the `EnableCrateComponent` feature gate. Install or upgrade the chart w
 ComponentDefinition is still installed and the `vela/crate` package still compiles,
 but no render service is registered, so rendering a `type: crate` component fails.
 
+The example reads from a registry named `crates`. Add it first with
+`vela crate registry add crates <oci-url>`, or leave `registry` empty to use the
+configured default registry.
+
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application

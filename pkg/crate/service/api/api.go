@@ -43,7 +43,7 @@ type CrateRequest struct {
 	// highest published semver tag.
 	Version string
 	// Placement is the installer's request for where this crate's runtime
-	// objects land. Nil means the installer did not ask. A hub marker on the
+	// objects land. Nil means the installer did not ask. A runtime marker on the
 	// crate can still partition the render on its own.
 	Placement *v1alpha1.Placement
 }

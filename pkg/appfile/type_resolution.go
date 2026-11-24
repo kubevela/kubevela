@@ -287,8 +287,8 @@ func definitionObjectFor(capType types.CapType) client.Object {
 }
 
 // crateGetter is implemented by every X-Definition kind that carries a
-// crate identity (apis/core.oam.dev/v1beta1/crate_identity.go), so a new
-// kind only needs its own GetCrate method there, not a new case here.
+// crate identity, through its own GetCrate method. A new kind only needs
+// that accessor, not a new case here.
 type crateGetter interface {
 	GetCrate() string
 }
