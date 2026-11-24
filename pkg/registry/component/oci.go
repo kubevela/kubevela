@@ -30,6 +30,7 @@ import (
 	"golang.org/x/sync/singleflight"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/registry"
+	"oras.land/oras-go/v2/registry/remote/errcode"
 )
 
 // ociScheme is the canonical OCI URL scheme prefix. IsOCIURL classifies the
@@ -342,15 +343,35 @@ const ociErrCodeNameUnknown = "name unknown"
 // tag-list route answers the same way for a repository that does exist -- so it
 // stays on the conservative branch.
 //
-// The code has to be read out of the message: oras-go v1.2.5 builds these errors
-// with fmt.Errorf and keeps its error types in the unexported
-// pkg/registry/remote/internal/errutil. A miss is safe in the same direction --
-// callers refuse to rewrite the catalog.
+// The registry's own answer is read first, when the error still carries it.
+// The message is the fallback for an error that reached here flattened into
+// text. A miss is safe in the same direction -- callers refuse to rewrite the
+// catalog.
 func IsOCIRepositoryAbsentError(err error) bool {
 	if err == nil {
 		return false
 	}
+	if resp, ok := OCIErrorResponse(err); ok {
+		for _, e := range resp.Errors {
+			if e.Code == errcode.ErrorCodeNameUnknown {
+				return true
+			}
+		}
+	}
 	return strings.Contains(err.Error(), ociErrCodeNameUnknown)
+}
+
+// OCIErrorResponse returns the registry's HTTP answer when err carries one.
+// oras-go v2, which the Helm registry client is built on, reports a refused
+// request as an *errcode.ErrorResponse with the status code and the
+// distribution spec's error codes. An error that was turned into text on the
+// way up no longer has it, which is why callers also match on the message.
+func OCIErrorResponse(err error) (*errcode.ErrorResponse, bool) {
+	var resp *errcode.ErrorResponse
+	if errors.As(err, &resp) && resp != nil {
+		return resp, true
+	}
+	return nil, false
 }
 
 // IsDockerHubHost reports whether host is a known Docker Hub registry alias.
