@@ -1,3 +1,5 @@
+The examples read from a crate registry named `catalog`. Add it first with `vela crate registry add catalog <oci-url>`, or leave out `registry` to use the configured default registry.
+
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application

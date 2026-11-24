@@ -171,7 +171,7 @@ func printGuidance(out io.Writer, name, target string, files []scaffoldFile, aux
 		fmt.Fprintf(out, "  %s/ (empty, see README.md)\n", filepath.Join(name, d))
 	}
 	fmt.Fprintf(out, "\nNext steps:\n")
-	fmt.Fprintf(out, "  1. Edit the TODO markers in _crate.cue (version, owners), and rename v1/definitions/example.cue to your capability.\n")
+	fmt.Fprintf(out, "  1. Edit the TODO markers in _crate.cue (version, description, owners), and rename v1/definitions/example.cue to your capability.\n")
 	fmt.Fprintf(out, "  2. If your crate needs infrastructure, add it under auxiliary/ and v1/auxiliary/ (see README.md).\n")
 	fmt.Fprintf(out, "  3. Publish it, then install with: vela crate deploy %s\n", name)
 }

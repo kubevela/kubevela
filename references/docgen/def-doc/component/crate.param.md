@@ -1,7 +1,7 @@
  Name | Description | Type | Required | Default | Immutable 
  ---- | ----------- | ---- | -------- | ------- | --------- 
  crate | Crate name. Must match `crate` in the package `_crate.cue`. | string | false | the component name |  
- registry | Name from `vela crate registry add`. Admission rejects a name that is not configured: `is not a configured crate registry; configured: [...]`. If admission cannot read the registry ConfigMap, it does not check the name, and the workflow step fails with `crate registry "<name>" not found`. Empty is resolved when KubeVela fetches the package: the only configured registry, or the registry named `catalog` when several exist. | string | false |  |  
+ registry | Name from `vela crate registry add`. Admission rejects a name that is not configured: `is not a configured crate registry; configured: [...]`. If admission cannot read the registry ConfigMap, it does not check the name. The workflow step then fails with `crate registry "<name>" not found` for a name that is not configured, or with the read error when the ConfigMap still cannot be read. Empty is resolved when KubeVela fetches the package: the only configured registry, or the registry named `catalog` when several exist. | string | false |  |  
  version | Package version (OCI tag). Empty selects the highest published semver tag when the workflow of the Application runs. A new tag in the registry does not upgrade the installed package, so set `version` on each install and each upgrade. This is not the API line. | string | false |  |  
  placement | Clusters that receive the objects that the crate marks `runtime`. Without `placement`, all objects install on the hub. See [placement](#placement-crate). | [placement](#placement-crate) | false |  |  
 
