@@ -28,7 +28,7 @@ limitations under the License.
 // addon registry over TLS only (see testdata/registry.yaml for the detail).
 //
 // The scenarios are the ones documented in
-// testing/addon-crate-cr-based-single-cluster: publish and inspect, the
+// testing/addon-module-cr-based-single-cluster: publish and inspect, the
 // three-level install, several crates per addon, type reference forms,
 // _imports.cue options, template-declared crate components, upgrade and
 // line removal, "latest" versus pinned, same-tag republish and caching,

@@ -528,7 +528,7 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 		"terraform workload has a provider reference": {
 			args: args{
 				params:      variable,
-				hcl:         "variable \"name\" {\n      description = \"Name to be used on all resources as prefix. Default to 'TF-Crate-EIP'.\"\n      default = \"TF-Crate-EIP\"\n      type = string\n    }",
+				hcl:         "variable \"name\" {\n      description = \"Name to be used on all resources as prefix. Default to 'TF-Module-EIP'.\"\n      default = \"TF-Module-EIP\"\n      type = string\n    }",
 				providerRef: &terraformtypes.Reference{Name: "aws", Namespace: "default"},
 			},
 			want: want{err: nil},

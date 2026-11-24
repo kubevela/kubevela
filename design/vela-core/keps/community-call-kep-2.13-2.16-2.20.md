@@ -568,7 +568,7 @@ lines: {
 ```
 crates/
   postgres/
-    _crate.cue         ← crate identity + line configuration
+    _crate.cue          ← crate identity + line configuration
     v1/
       _version.cue      ← source references for this line
       database.cue      ← ComponentDefinition template

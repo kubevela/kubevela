@@ -5,7 +5,7 @@ package crate
 	#provider: "crate"
 
 	$params: {
-		crate:    string
+		crate:     string
 		registry:  *"" | string
 		namespace: *"" | string
 		version:   *"" | string

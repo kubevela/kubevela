@@ -176,7 +176,7 @@ func printGuidance(out io.Writer, name, target string, files []scaffoldFile, aux
 	fmt.Fprintf(out, "  3. Publish it, then install with: vela crate deploy %s\n", name)
 }
 
-const crateCUETemplate = `crate:      "__CRATE__"
+const crateCUETemplate = `crate:       "__CRATE__"
 version:     "0.1.0"                                  // TODO: your crate's semver (major.minor.patch)
 description: "TODO: one-line description of __CRATE__"
 owners: ["TODO-your-team"]                            // TODO: the team(s) that own this crate

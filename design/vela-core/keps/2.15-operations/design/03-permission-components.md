@@ -18,7 +18,7 @@
 | Creates | the `ServiceAccount`, its `Role`s, the `use` grant | `invoke`, `operate` and `create` grants |
 | Owned by | the platform administrator | the team lead |
 | Changes when | a runbook needs a new API | somebody joins the on-call rota |
-| Ships with | the module, next to the `OperationTemplate` | the team, next to its Applications |
+| Ships with | the crate, next to the `OperationTemplate` | the team, next to its Applications |
 
 Rolling them into one object would tie a rota change to a re-review of what the service account may touch. They are shown together in [one Application](#both-in-one-application) below because it reads more clearly that way, not because it is the recommendation.
 
@@ -292,7 +292,7 @@ The KEP takes no position between those, and it should not. The verbs and the tw
 
 ## For next week
 
-- Whether `operation-access` should be able to grant `invoke` by label selector rather than by name, so a module can ship templates that a team's existing grant picks up. Convenient, and it quietly removes the review step that naming forces.
+- Whether `operation-access` should be able to grant `invoke` by label selector rather than by name, so a crate can ship templates that a team's existing grant picks up. Convenient, and it quietly removes the review step that naming forces.
 - Whether `allowIrreversible` is the right granularity, or whether `operate-irreversible` should be per-Application like `operate` is.
 - Whether the `create` on `operations` rule should carry `resourceNames`, given a name is chosen by the invoker at creation time and cannot be predicted.
 - Whether these belong in an addon at all, or stay as reference material in this KEP.

@@ -2,7 +2,7 @@
 
 Live-cluster e2e suite for addons installed as `type: addon` components that
 import crates through `crates/_imports.cue`. It is the automated form of the
-scenarios in `testing/addon-crate-cr-based-single-cluster` and follows the
+scenarios in `testing/addon-module-cr-based-single-cluster` and follows the
 shape of `test/e2e-crate-test`.
 
 ## What the cluster needs
@@ -133,5 +133,5 @@ live concurrent execution or a runtime improvement.
 | `scenario_runtime_helpers_test.go` | scenario ownership, cleanup and publication helpers |
 | `scenario_scope_test.go`, `scheduling_test.go` | cluster-free isolation and execution-contract tests |
 
-The fixtures are copies of `testing/addon-crate-cr-based-single-cluster/test-*`
+The fixtures are copies of `testing/addon-module-cr-based-single-cluster/test-*`
 with the registry names changed to `e2e-crates` and `e2e-addons`.
