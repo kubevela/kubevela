@@ -200,7 +200,7 @@ func TestRenderApplication_PlacementRequestLeavesUnmarkedObjectsOnHub(t *testing
 }
 
 func TestRenderApplication_LineWithoutDefinitionsHasNoDefsTier(t *testing.T) {
-	mod := &crate.Crate{
+	parsed := &crate.Crate{
 		Name:    "store",
 		Version: "1.0.0",
 		Lines: map[string]crate.Line{
@@ -211,19 +211,19 @@ func TestRenderApplication_LineWithoutDefinitionsHasNoDefsTier(t *testing.T) {
 			},
 		},
 	}
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 	require.Equal(t, []string{"store-v1-aux-hub"}, componentNames(t, app))
 }
 
 func TestRenderApplication_ExplicitHubDefaultStaysFlat(t *testing.T) {
-	mod := storeCrate(false)
-	mod.Placement = oam.PlacementHub
-	for version, line := range mod.Lines {
+	parsed := storeCrate(false)
+	parsed.Placement = oam.PlacementHub
+	for version, line := range parsed.Lines {
 		line.Placement = oam.PlacementHub
-		mod.Lines[version] = line
+		parsed.Lines[version] = line
 	}
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 	require.Equal(t, []string{
 		"store-aux",
@@ -239,7 +239,7 @@ func TestRenderApplication_ExplicitHubDefaultStaysFlat(t *testing.T) {
 }
 
 func TestRenderApplication_DisabledLineDoesNotPartition(t *testing.T) {
-	mod := &crate.Crate{
+	parsed := &crate.Crate{
 		Name:    "store",
 		Version: "1.0.0",
 		Lines: map[string]crate.Line{
@@ -260,7 +260,7 @@ func TestRenderApplication_DisabledLineDoesNotPartition(t *testing.T) {
 			},
 		},
 	}
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 	require.Equal(t, []string{"store-v2-aux", "store-v2-defs"}, componentNames(t, app))
 	spec := app["spec"].(map[string]interface{})
@@ -269,7 +269,7 @@ func TestRenderApplication_DisabledLineDoesNotPartition(t *testing.T) {
 }
 
 func TestRenderApplication_DisabledLineInvalidMarkerStillFails(t *testing.T) {
-	mod := &crate.Crate{
+	parsed := &crate.Crate{
 		Name:    "store",
 		Version: "1.0.0",
 		Lines: map[string]crate.Line{
@@ -283,21 +283,21 @@ func TestRenderApplication_DisabledLineInvalidMarkerStillFails(t *testing.T) {
 			},
 		},
 	}
-	_, err := RenderApplication(mod, "", nil)
+	_, err := RenderApplication(parsed, "", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "store-v1-defaults")
 }
 
 func TestRenderApplication_InvalidPlacementClassFails(t *testing.T) {
-	mod := storeCrate(false)
-	mod.Auxiliary[0] = placed("store-defaults", "spoke")
-	_, err := RenderApplication(mod, "", nil)
+	parsed := storeCrate(false)
+	parsed.Auxiliary[0] = placed("store-defaults", "spoke")
+	_, err := RenderApplication(parsed, "", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "store-defaults")
 }
 
 func TestRenderApplication_LineDefaultRuntimeYieldsToHubLabel(t *testing.T) {
-	mod := &crate.Crate{
+	parsed := &crate.Crate{
 		Name:      "store",
 		Version:   "1.0.0",
 		Placement: oam.PlacementRuntime,
@@ -315,7 +315,7 @@ func TestRenderApplication_LineDefaultRuntimeYieldsToHubLabel(t *testing.T) {
 			},
 		},
 	}
-	app, err := RenderApplication(mod, "", &v1alpha1.Placement{Clusters: []string{"spoke"}})
+	app, err := RenderApplication(parsed, "", &v1alpha1.Placement{Clusters: []string{"spoke"}})
 	require.NoError(t, err)
 	require.Equal(t, []string{
 		"store-aux",
@@ -329,7 +329,7 @@ func TestRenderApplication_LineDefaultRuntimeYieldsToHubLabel(t *testing.T) {
 }
 
 func TestRenderApplication_LineDefaultBeatsCrateDefault(t *testing.T) {
-	mod := &crate.Crate{
+	parsed := &crate.Crate{
 		Name:      "store",
 		Version:   "1.0.0",
 		Placement: oam.PlacementRuntime,
@@ -347,7 +347,7 @@ func TestRenderApplication_LineDefaultBeatsCrateDefault(t *testing.T) {
 			},
 		},
 	}
-	app, err := RenderApplication(mod, "", &v1alpha1.Placement{Clusters: []string{"spoke"}})
+	app, err := RenderApplication(parsed, "", &v1alpha1.Placement{Clusters: []string{"spoke"}})
 	require.NoError(t, err)
 	require.Equal(t, []interface{}{"store-aux", "store-v1-aux"}, policyProp(t, app, "crate-runtime-override", "selector"))
 	require.Equal(t, []interface{}{"store-v1-aux-hub", "store-v1-defs"}, policyProp(t, app, "crate-hub-override", "selector"))

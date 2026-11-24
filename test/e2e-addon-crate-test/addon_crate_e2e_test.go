@@ -201,10 +201,10 @@ var _ = Describe("Addons that import crates", func() {
 			Expect(findComponent(app, "team-config").DependsOn).Should(Equal([]string{scope.Text("widget-platform-resources")}))
 
 			By("the generated crate component depending on the resource components and the outputs, not on template components")
-			mod := findComponent(app, scope.Text("widget-kit"))
-			Expect(mod.Type).Should(Equal("crate"))
-			Expect(mod.DependsOn).Should(ConsistOf(scope.Text("widget-platform-resources"), "team-config", "addon-auxiliaries"))
-			Expect(propertiesOf(mod.Properties)).Should(Equal(map[string]interface{}{
+			crateComp := findComponent(app, scope.Text("widget-kit"))
+			Expect(crateComp.Type).Should(Equal("crate"))
+			Expect(crateComp.DependsOn).Should(ConsistOf(scope.Text("widget-platform-resources"), "team-config", "addon-auxiliaries"))
+			Expect(propertiesOf(crateComp.Properties)).Should(Equal(map[string]interface{}{
 				"crate": scope.Text("widget-kit"), "registry": crateRegistryName, "version": "1.0.0",
 			}))
 
@@ -425,17 +425,17 @@ var _ = Describe("Addons that import crates", func() {
 			Expect(findService(mustGetApp(ctx, testNS, scope.Text("kit-suite")), scope.Text("kit-suite")).Message).Should(Equal("Ready:3/3"))
 
 			for _, name := range []string{crateWidgetKit, crateGadgetKit} {
-				mod := mustGetApp(ctx, systemNS, name)
-				Expect(mod.Labels).Should(HaveKeyWithValue(oam.LabelAppName, scope.Text("addon-kit-suite")))
-				Expect(mod.Labels).Should(HaveKeyWithValue(oam.LabelAppComponent, strings.TrimPrefix(name, "crate-")))
+				crateApp := mustGetApp(ctx, systemNS, name)
+				Expect(crateApp.Labels).Should(HaveKeyWithValue(oam.LabelAppName, scope.Text("addon-kit-suite")))
+				Expect(crateApp.Labels).Should(HaveKeyWithValue(oam.LabelAppComponent, strings.TrimPrefix(name, "crate-")))
 			}
 		})
 
 		It("installs gadget-kit's three tiers and objects", func() {
-			mod := mustGetApp(ctx, systemNS, crateGadgetKit)
-			Expect(componentNames(mod)).Should(Equal([]string{scope.Text("gadget-kit-aux"), scope.Text("gadget-kit-v1-aux"), scope.Text("gadget-kit-v1-defs")}))
-			Expect(findComponent(mod, scope.Text("gadget-kit-v1-aux")).DependsOn).Should(Equal([]string{scope.Text("gadget-kit-aux")}))
-			Expect(findComponent(mod, scope.Text("gadget-kit-v1-defs")).DependsOn).Should(Equal([]string{scope.Text("gadget-kit-v1-aux")}))
+			crateApp := mustGetApp(ctx, systemNS, crateGadgetKit)
+			Expect(componentNames(crateApp)).Should(Equal([]string{scope.Text("gadget-kit-aux"), scope.Text("gadget-kit-v1-aux"), scope.Text("gadget-kit-v1-defs")}))
+			Expect(findComponent(crateApp, scope.Text("gadget-kit-v1-aux")).DependsOn).Should(Equal([]string{scope.Text("gadget-kit-aux")}))
+			Expect(findComponent(crateApp, scope.Text("gadget-kit-v1-defs")).DependsOn).Should(Equal([]string{scope.Text("gadget-kit-v1-aux")}))
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: gadgetsCRD}, crd(gadgetsCRD))).Should(Succeed())
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: scope.Text("gadget-kit-editor")}, &rbacv1.ClusterRole{})).Should(Succeed())
 			for _, cm := range []string{scope.Text("gadget-kit-v1-defaults"), scope.Text("gadget-kit-v1-profile")} {
@@ -623,10 +623,10 @@ var _ = Describe("Addons that import crates", func() {
 			app := mustGetApp(ctx, systemNS, scope.Text("addon-import-options"))
 			Expect(componentNames(app)).Should(Equal([]string{scope.Text("widget-kit"), scope.Text("import-options-resources"), scope.Text("widget-kit-2")}))
 			Expect(findComponent(app, scope.Text("widget-kit")).Type).Should(Equal("k8s-objects"), "the template's own component keeps the name")
-			mod := findComponent(app, scope.Text("widget-kit-2"))
-			Expect(mod.Type).Should(Equal("crate"))
-			Expect(mod.DependsOn).Should(Equal([]string{scope.Text("import-options-resources")}))
-			Expect(propertiesOf(mod.Properties)).Should(Equal(map[string]interface{}{"crate": scope.Text("widget-kit"), "version": "1.0.0"}))
+			crateComp := findComponent(app, scope.Text("widget-kit-2"))
+			Expect(crateComp.Type).Should(Equal("crate"))
+			Expect(crateComp.DependsOn).Should(Equal([]string{scope.Text("import-options-resources")}))
+			Expect(propertiesOf(crateComp.Properties)).Should(Equal(map[string]interface{}{"crate": scope.Text("widget-kit"), "version": "1.0.0"}))
 
 			Expect(isNotFound(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: crateGadgetKit, Namespace: systemNS}})).Should(BeTrue(),
 				"enabled: false produces no component at all")
@@ -813,9 +813,9 @@ var _ = Describe("Addons that import crates", Ordered, func() {
 		})
 
 		crateState := func(g Gomega, version string, tiers []string) {
-			mod := mustGetApp(ctx, systemNS, crateWidgetKit)
-			g.Expect(mod.Annotations).Should(HaveKeyWithValue(veltypes.AnnoDefinitionCrateVersion, version))
-			g.Expect(componentNames(mod)).Should(Equal(tiers))
+			crateApp := mustGetApp(ctx, systemNS, crateWidgetKit)
+			g.Expect(crateApp.Annotations).Should(HaveKeyWithValue(veltypes.AnnoDefinitionCrateVersion, version))
+			g.Expect(componentNames(crateApp)).Should(Equal(tiers))
 		}
 
 		BeforeAll(func() {
@@ -1140,9 +1140,9 @@ var _ = Describe("Addons that import crates", func() {
 			// Application, which on its own would make the resource keeper treat
 			// it as apply-once and skip state keep; the crate renderer declares
 			// apply-once off to prevent that.
-			mod := mustGetApp(ctx, systemNS, crateWidgetKit)
-			Expect(mod.Labels).Should(HaveKey(oam.LabelAddonName))
-			Expect(policyNames(mod)).Should(ContainElement("crate-state-keep"))
+			crateApp := mustGetApp(ctx, systemNS, crateWidgetKit)
+			Expect(crateApp.Labels).Should(HaveKey(oam.LabelAddonName))
+			Expect(policyNames(crateApp)).Should(ContainElement("crate-state-keep"))
 
 			td := traitDefinitionObj(testNS, scope.Text("widget-kit-v1-labeler"))
 			before := uidOf(td)
@@ -1430,8 +1430,8 @@ var _ = Describe("Addons that import crates", func() {
 					// (the crate cannot be fetched), before health is collected or
 					// anything is dispatched, so it gets no service entry. The reason
 					// is in the workflow step message.
-					if mod := findService(addonApp, tc.component); mod != nil {
-						g.Expect(mod.Healthy).Should(BeFalse())
+					if crateSvc := findService(addonApp, tc.component); crateSvc != nil {
+						g.Expect(crateSvc.Healthy).Should(BeFalse())
 					}
 					text := appStatusText(addonApp)
 					g.Expect(text).Should(SatisfyAll(ContainSubstring(tc.component), ContainSubstring(tc.fragment)))

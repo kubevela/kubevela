@@ -144,9 +144,9 @@ template: {
 	parameter: {}
 }
 `)}
-	mod, err := ParseCrate(m)
+	parsed, err := ParseCrate(m)
 	require.NoError(t, err)
-	defs := mod.Lines["v1"].Definitions
+	defs := parsed.Lines["v1"].Definitions
 	require.Len(t, defs, 1)
 	assert.Equal(t, "ComponentDefinition", defs[0]["kind"])
 	assert.Equal(t, "gauge", defs[0]["metadata"].(map[string]interface{})["name"])
@@ -194,8 +194,8 @@ func TestParseCrateAuxiliaryYAML(t *testing.T) {
 
 	m = minimalCrateFS()
 	m["auxiliary/xrd.yaml"] = &fstest.MapFile{Data: []byte("---\n{}\n---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: only\n---\n")}
-	mod, err := ParseCrate(m)
+	parsed, err := ParseCrate(m)
 	require.NoError(t, err)
-	require.Len(t, mod.Auxiliary, 1, "empty documents are skipped, not turned into empty objects")
-	assert.Equal(t, "ConfigMap", mod.Auxiliary[0]["kind"])
+	require.Len(t, parsed.Auxiliary, 1, "empty documents are skipped, not turned into empty objects")
+	assert.Equal(t, "ConfigMap", parsed.Auxiliary[0]["kind"])
 }

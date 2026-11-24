@@ -108,7 +108,7 @@ func TestRenderApplication_OwnedApplicationShape(t *testing.T) {
 // Application carries the concrete crate package version (from the parsed
 // crate's own _crate.cue) as an annotation, so a cluster reader sees the
 // installed version without the CLI -- including when a "latest" request
-// resolved to a specific tag, since mod.Version is always the tag that was
+// resolved to a specific tag, since parsed.Version is always the tag that was
 // actually fetched, never the raw request.
 func TestRenderApplication_StampsResolvedVersionAnnotation(t *testing.T) {
 	app, err := RenderApplication(fixtureCrate(), "", nil)
@@ -177,12 +177,12 @@ func TestRenderApplication_OwnedApplicationNameIgnoresTheNamespace(t *testing.T)
 // than following the owned Application into vela-system, and that an object
 // naming its own namespace keeps it.
 func TestRenderApplication_AuxiliaryDefaultsToTheDefinitionNamespace(t *testing.T) {
-	mod := fixtureCrate()
+	parsed := fixtureCrate()
 	pinned := auxObject("ConfigMap", "pinned")
 	pinned["metadata"].(map[string]interface{})["namespace"] = "elsewhere"
-	mod.Auxiliary = append(mod.Auxiliary, pinned)
+	parsed.Auxiliary = append(parsed.Auxiliary, pinned)
 
-	app, err := RenderApplication(mod, "team-a", nil)
+	app, err := RenderApplication(parsed, "team-a", nil)
 	require.NoError(t, err)
 
 	var objs []interface{}
@@ -271,10 +271,10 @@ func TestRenderApplication_LinesAreSiblingsNotAChain(t *testing.T) {
 }
 
 func TestRenderApplication_NoCrateAuxiliaryOmitsThatTier(t *testing.T) {
-	mod := fixtureCrate()
-	mod.Auxiliary = nil
+	parsed := fixtureCrate()
+	parsed.Auxiliary = nil
 
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 
 	comps := components(t, app)
@@ -285,12 +285,12 @@ func TestRenderApplication_NoCrateAuxiliaryOmitsThatTier(t *testing.T) {
 }
 
 func TestRenderApplication_NoLineAuxiliaryOmitsThatTier(t *testing.T) {
-	mod := fixtureCrate()
-	line := mod.Lines["v1"]
+	parsed := fixtureCrate()
+	line := parsed.Lines["v1"]
 	line.Auxiliary = nil
-	mod.Lines["v1"] = line
+	parsed.Lines["v1"] = line
 
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 
 	comps := components(t, app)
@@ -300,13 +300,13 @@ func TestRenderApplication_NoLineAuxiliaryOmitsThatTier(t *testing.T) {
 }
 
 func TestRenderApplication_CrateWithoutAuxiliaryIsDefinitionsOnly(t *testing.T) {
-	mod := fixtureCrate()
-	mod.Auxiliary = nil
-	line := mod.Lines["v1"]
+	parsed := fixtureCrate()
+	parsed.Auxiliary = nil
+	line := parsed.Lines["v1"]
 	line.Auxiliary = nil
-	mod.Lines["v1"] = line
+	parsed.Lines["v1"] = line
 
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 
 	comps := components(t, app)
@@ -329,12 +329,12 @@ func TestRenderApplication_AllLinesDisabledYieldsOnlyTheCrateAuxiliaryTier(t *te
 // version rather than the directory. Recorded so the behaviour is visible if
 // someone hits it; fixing the parser is tracked separately.
 func TestRenderApplication_TierNamesComeFromTheMapKey(t *testing.T) {
-	mod := fixtureCrate()
-	line := mod.Lines["v1"]
-	delete(mod.Lines, "v1")
-	mod.Lines["v9beta1"] = line // declared apiVersion disagreed with the directory
+	parsed := fixtureCrate()
+	line := parsed.Lines["v1"]
+	delete(parsed.Lines, "v1")
+	parsed.Lines["v9beta1"] = line // declared apiVersion disagreed with the directory
 
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"s3-aux", "s3-v9beta1-aux", "s3-v9beta1-defs"}, names(components(t, app)))
@@ -361,13 +361,13 @@ func TestRenderApplication_TiersWaitOnNothing(t *testing.T) {
 // ResourceGraphDefinitions, plain CRDs, or anything else without the renderer
 // knowing about them.
 func TestRenderApplication_OneTierPerScopeRegardlessOfKind(t *testing.T) {
-	mod := fixtureCrate()
-	mod.Auxiliary = []map[string]interface{}{
+	parsed := fixtureCrate()
+	parsed.Auxiliary = []map[string]interface{}{
 		auxObject("CompositeResourceDefinition", "xbuckets.aws.platform.io"),
 		auxObject("ConfigMap", "s3-defaults"),
 	}
 
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 
 	comps := components(t, app)
@@ -419,31 +419,31 @@ func TestRenderApplication_StampsDefinitionIdentity(t *testing.T) {
 }
 
 func TestRenderApplication_DoesNotMutateTheFetchedCrate(t *testing.T) {
-	mod := fixtureCrate()
-	_, err := RenderApplication(mod, "", nil)
+	parsed := fixtureCrate()
+	_, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 
 	// The parsed Crate is shared and may be cached; the render must copy.
-	original := mod.Lines["v1"].Definitions[0]["metadata"].(map[string]interface{})
+	original := parsed.Lines["v1"].Definitions[0]["metadata"].(map[string]interface{})
 	require.Equal(t, "bucket", original["name"])
 	require.NotContains(t, original, "labels")
 
 	// Auxiliary objects are copied for the same reason: the render defaults
 	// their namespace, and must not write that back through the shared Crate.
-	originalAux := mod.Auxiliary[0]["metadata"].(map[string]interface{})
+	originalAux := parsed.Auxiliary[0]["metadata"].(map[string]interface{})
 	require.NotContains(t, originalAux, "namespace")
 }
 
 func TestRenderApplication_TruncatesLongNamesWithAStableHash(t *testing.T) {
 	long := strings.Repeat("a", 300)
-	mod := fixtureCrate()
-	line := mod.Lines["v1"]
+	parsed := fixtureCrate()
+	line := parsed.Lines["v1"]
 	line.Definitions = []map[string]interface{}{definition(long)}
-	mod.Lines["v1"] = line
+	parsed.Lines["v1"] = line
 
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
-	app2, err := RenderApplication(mod, "", nil)
+	app2, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 
 	nameOf := func(a map[string]interface{}) string {

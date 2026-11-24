@@ -76,7 +76,7 @@ func newScenarioScope(runID, id, root string) *scenarioScope {
 	suffix := "-s" + id + "-" + runID
 	return &scenarioScope{
 		ID: id, Root: filepath.Join(root, id), suffix: suffix,
-		Namespace: "am" + suffix, Group: "s" + id + "-" + runID + ".kit.example.com",
+		Namespace: "addon-crate" + suffix, Group: "s" + id + "-" + runID + ".kit.example.com",
 		InlineGroup: "s" + id + "-" + runID + ".kitinline.example.com",
 	}
 }

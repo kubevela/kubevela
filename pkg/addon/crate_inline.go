@@ -94,11 +94,11 @@ func readInlineCratesDir(a *InstallPackage, reader AsyncReader, items []Item, ro
 				"crates/ must be an inline crate (external references belong in "+
 				"crates/_imports.cue instead)", name)
 		}
-		mod, err := crate.ParseCrate(fsys)
+		parsed, err := crate.ParseCrate(fsys)
 		if err != nil {
 			return fmt.Errorf("parse inline crate %q: %w", name, err)
 		}
-		a.InlineCrates = append(a.InlineCrates, mod)
+		a.InlineCrates = append(a.InlineCrates, parsed)
 	}
 	return nil
 }
@@ -131,8 +131,8 @@ func crateDeclaredBy(existingComponents []common2.ApplicationComponent, imports 
 		}
 		declaredBy[imp.Crate] = append(declaredBy[imp.Crate], "crates/_imports.cue")
 	}
-	for _, mod := range inline {
-		declaredBy[mod.Name] = append(declaredBy[mod.Name], fmt.Sprintf("inline crate \"crates/%s\"", mod.Name))
+	for _, inlineCrate := range inline {
+		declaredBy[inlineCrate.Name] = append(declaredBy[inlineCrate.Name], fmt.Sprintf("inline crate \"crates/%s\"", inlineCrate.Name))
 	}
 	return declaredBy
 }
@@ -197,16 +197,16 @@ func RenderInlineCrateComponents(addon *InstallPackage, existingComponents []com
 	}
 
 	var comps []common2.ApplicationComponent
-	for _, mod := range addon.InlineCrates {
-		app, err := craterender.RenderApplication(mod, namespace, place)
+	for _, inlineCrate := range addon.InlineCrates {
+		app, err := craterender.RenderApplication(inlineCrate, namespace, place)
 		if err != nil {
-			return nil, fmt.Errorf("render inline crate %q for addon %q: %w", mod.Name, addon.Name, err)
+			return nil, fmt.Errorf("render inline crate %q for addon %q: %w", inlineCrate.Name, addon.Name, err)
 		}
 		raw, err := json.Marshal(map[string]interface{}{"objects": []interface{}{app}})
 		if err != nil {
-			return nil, fmt.Errorf("render inline crate %q for addon %q: %w", mod.Name, addon.Name, err)
+			return nil, fmt.Errorf("render inline crate %q for addon %q: %w", inlineCrate.Name, addon.Name, err)
 		}
-		componentName := uniqueImportedComponentName(mod.Name, usedNames)
+		componentName := uniqueImportedComponentName(inlineCrate.Name, usedNames)
 		comps = append(comps, common2.ApplicationComponent{
 			Name:       componentName,
 			Type:       "k8s-objects",

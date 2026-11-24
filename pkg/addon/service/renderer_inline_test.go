@@ -68,13 +68,13 @@ spec:
 
 func parsedInlineCrate(t *testing.T, name string) *crate.Crate {
 	t.Helper()
-	mod, err := crate.ParseCrate(cratesvc.MapFS{
+	parsed, err := crate.ParseCrate(cratesvc.MapFS{
 		"_crate.cue":                 []byte(`crate: "` + name + `"` + "\nversion: \"0.1.0\""),
 		"v1/_version.cue":            []byte(`apiVersion: "v1"`),
 		"v1/definitions/bucket.yaml": []byte(inlineBucketDefinition),
 	})
 	require.NoError(t, err)
-	return mod
+	return parsed
 }
 
 func renderWith(t *testing.T, pkg pkgaddon.InstallPackage) (map[string]interface{}, error) {

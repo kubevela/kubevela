@@ -95,11 +95,11 @@ func (s *Service) FetchCrate(ctx context.Context, registry, crateName, version s
 			if err != nil {
 				return nil, err
 			}
-			mod, err := crate.ParseCrate(fsys)
+			parsed, err := crate.ParseCrate(fsys)
 			if err != nil {
 				return nil, fmt.Errorf("registry %q, crate %q: %w", reg.Name, crateName, err)
 			}
-			return mod, nil
+			return parsed, nil
 		},
 	)
 }

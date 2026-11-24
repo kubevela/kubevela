@@ -107,10 +107,10 @@ func TestRenderApplicationRejectsAnUnnamedOrMisnamedCrate(t *testing.T) {
 }
 
 func TestRenderApplicationSkipsALineWithOnlyAuxiliaryObjects(t *testing.T) {
-	mod := &crate.Crate{Name: "s3", Lines: map[string]crate.Line{
+	parsed := &crate.Crate{Name: "s3", Lines: map[string]crate.Line{
 		"v1": {APIVersion: "v1", Enabled: true, Auxiliary: []map[string]interface{}{auxObject("Composition", "xbuckets-v1")}},
 	}}
-	app, err := RenderApplication(mod, "", nil)
+	app, err := RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"s3-v1-aux"}, names(components(t, app)), "no definitions means no definitions tier")
 }

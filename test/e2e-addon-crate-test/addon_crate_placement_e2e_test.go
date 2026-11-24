@@ -91,9 +91,9 @@ var _ = Describe("Addons that place an imported crate", func() {
 		})
 
 		It("forwards the named topology policy's clusters as the crate's placement", func() {
-			mod := findComponent(mustGetApp(ctx, systemNS, addonApp), crateComponent)
-			Expect(mod.Type).Should(Equal("crate"))
-			Expect(propertiesOf(mod.Properties)["placement"]).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
+			found := findComponent(mustGetApp(ctx, systemNS, addonApp), crateComponent)
+			Expect(found.Type).Should(Equal("crate"))
+			Expect(propertiesOf(found.Properties)["placement"]).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
 		})
 
 		It("keeps the crate component on the hub with its own deploy step", func() {
@@ -161,8 +161,8 @@ var _ = Describe("Addons that place an imported crate", func() {
 		})
 
 		It("gives the import with no placement of its own the addon's placement", func() {
-			mod := findComponent(mustGetApp(ctx, systemNS, addonApp), crateComponent)
-			Expect(propertiesOf(mod.Properties)["placement"]).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
+			found := findComponent(mustGetApp(ctx, systemNS, addonApp), crateComponent)
+			Expect(propertiesOf(found.Properties)["placement"]).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
 			Expect(policyProperties(mustGetApp(ctx, systemNS, crateApp), "crate-runtime")).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
 		})
 

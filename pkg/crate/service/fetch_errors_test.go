@@ -160,9 +160,9 @@ func TestFetchCrateAsksTheRegistryForItsRevision(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		mod, err := s.FetchCrate(context.Background(), "local", "s3", "1.0.0")
+		parsed, err := s.FetchCrate(context.Background(), "local", "s3", "1.0.0")
 		require.NoError(t, err)
-		assert.Equal(t, "s3", mod.Name)
+		assert.Equal(t, "s3", parsed.Name)
 	}
 	assert.Equal(t, 2, pulls, "without a revision to compare, every fetch reads")
 }

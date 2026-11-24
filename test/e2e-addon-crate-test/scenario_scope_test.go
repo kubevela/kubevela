@@ -44,7 +44,7 @@ import (
 func TestScenarioScopeIdentities(t *testing.T) {
 	s := newScenarioScope("abcdef0123456789", "02", t.TempDir())
 	for _, tc := range []struct{ original, want string }{
-		{"default", "am-s02-abcdef0123456789"},
+		{"default", "addon-crate-s02-abcdef0123456789"},
 		{"widget-kit", "widget-kit-s02-abcdef0123456789"},
 		{"crate-widget-kit", "crate-widget-kit-s02-abcdef0123456789"},
 		{"widget-kit/v1/widget", "widget-kit-s02-abcdef0123456789/v1/widget-s02-abcdef0123456789"},
@@ -52,7 +52,7 @@ func TestScenarioScopeIdentities(t *testing.T) {
 		{"widget-kit-v1-standard", "widget-kit-s02-abcdef0123456789-v1-standard"},
 		{"widgets.kit.example.com", "widgets.s02-abcdef0123456789.kit.example.com"},
 		{"kit.example.com/v1alpha1", "s02-abcdef0123456789.kit.example.com/v1alpha1"},
-		{"default/platform-a", "am-s02-abcdef0123456789/platform-a"},
+		{"default/platform-a", "addon-crate-s02-abcdef0123456789/platform-a"},
 		{"vela-system/addon-widget-platform", "vela-system/addon-widget-platform-s02-abcdef0123456789"},
 		{"/widget-platform", "/widget-platform-s02-abcdef0123456789"},
 		{"e2e-addons/widget-platform", "e2e-addons/widget-platform-s02-abcdef0123456789"},
@@ -86,14 +86,14 @@ func TestScopedCrateFixturesPreserveTopologyAndResolution(t *testing.T) {
 		if err := s.Materialize(testdataPath()); err != nil {
 			t.Fatal(err)
 		}
-		mod, err := pkgcrate.ParseCrateDir(s.Path("crates", "widget-kit-1.0.0"))
+		parsed, err := pkgcrate.ParseCrateDir(s.Path("crates", "widget-kit-1.0.0"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if mod.Name != "widget-kit-s"+id+"-abcdef0123456789" || mod.Version != "1.0.0" || len(mod.Lines) != 3 {
-			t.Fatalf("fixture identity/version/line topology changed: %+v", mod)
+		if parsed.Name != "widget-kit-s"+id+"-abcdef0123456789" || parsed.Version != "1.0.0" || len(parsed.Lines) != 3 {
+			t.Fatalf("fixture identity/version/line topology changed: %+v", parsed)
 		}
-		app, err := crateservice.RenderApplication(mod, "vela-system", nil)
+		app, err := crateservice.RenderApplication(parsed, "vela-system", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -169,11 +169,11 @@ func TestScopedFixturesPreserveBrokenImportsAndInterpolation(t *testing.T) {
 	if count != 2 {
 		t.Fatalf("broken import source count = %d, want 2", count)
 	}
-	mod, err := pkgcrate.ParseCrateDir(s.Path("crates", "widget-kit-1.0.0"))
+	parsed, err := pkgcrate.ParseCrateDir(s.Path("crates", "widget-kit-1.0.0"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, definition := range mod.Lines["v1"].Definitions {
+	for _, definition := range parsed.Lines["v1"].Definitions {
 		if definition["kind"] != "TraitDefinition" {
 			continue
 		}

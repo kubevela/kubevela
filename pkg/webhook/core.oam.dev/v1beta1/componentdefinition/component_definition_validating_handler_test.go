@@ -758,11 +758,11 @@ func TestHandleValidatesIdentityFields(t *testing.T) {
 		Client:  fake.NewClientBuilder().WithScheme(sc).Build(),
 	}
 
-	build := func(crate, apiVersion string) admission.Request {
+	build := func(crateName, apiVersion string) admission.Request {
 		def := &v1beta1.ComponentDefinition{
 			TypeMeta:   metav1.TypeMeta{Kind: "ComponentDefinition", APIVersion: "core.oam.dev/v1beta1"},
 			ObjectMeta: metav1.ObjectMeta{Name: "identity-comp", Namespace: "vela-system"},
-			Spec:       v1beta1.ComponentDefinitionSpec{Workload: common.WorkloadTypeDescriptor{Type: "deployments.apps"}, Crate: crate, APIVersion: apiVersion},
+			Spec:       v1beta1.ComponentDefinitionSpec{Workload: common.WorkloadTypeDescriptor{Type: "deployments.apps"}, Crate: crateName, APIVersion: apiVersion},
 		}
 		raw, err := json.Marshal(def)
 		require.NoError(t, err)
@@ -877,7 +877,7 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 	})
 
 	It("persists the identity the real crate render path stamps, through RenderApplication/stampIdentity", func() {
-		mod := &crate.Crate{
+		parsed := &crate.Crate{
 			Name:    "identity-render",
 			Version: "1.0.0",
 			Lines: map[string]crate.Line{
@@ -894,7 +894,7 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 			},
 		}
 
-		app, err := craterender.RenderApplication(mod, "vela-system", nil)
+		app, err := craterender.RenderApplication(parsed, "vela-system", nil)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		spec, ok := app["spec"].(map[string]interface{})

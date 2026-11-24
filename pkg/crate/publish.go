@@ -73,12 +73,12 @@ type Artifact struct {
 // of the tree, so publishing leaves the author's source directory untouched
 // whether it succeeds or fails.
 func PackageCrate(dir, versionOverride string) (*Artifact, error) {
-	mod, err := ParseCrateDir(dir)
+	parsed, err := ParseCrateDir(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	tag := mod.Version
+	tag := parsed.Version
 	if versionOverride != "" {
 		if err := validateCrateVersion(versionOverride, "--version"); err != nil {
 			return nil, err
@@ -88,7 +88,7 @@ func PackageCrate(dir, versionOverride string) (*Artifact, error) {
 
 	workdir, err := os.MkdirTemp("", "vela-crate-publish-")
 	if err != nil {
-		return nil, fmt.Errorf("package crate %q: create work directory: %w", mod.Name, err)
+		return nil, fmt.Errorf("package crate %q: create work directory: %w", parsed.Name, err)
 	}
 	defer func() {
 		_ = os.RemoveAll(workdir)
@@ -96,49 +96,49 @@ func PackageCrate(dir, versionOverride string) (*Artifact, error) {
 
 	treeDir := filepath.Join(workdir, "tree")
 	if err := copyCrateTree(dir, treeDir); err != nil {
-		return nil, fmt.Errorf("package crate %q: %w", mod.Name, err)
+		return nil, fmt.Errorf("package crate %q: %w", parsed.Name, err)
 	}
 
-	annotations := crateAnnotations(mod)
+	annotations := crateAnnotations(parsed)
 	meta := &chart.Metadata{
 		APIVersion:  chart.APIVersionV2,
-		Name:        mod.Name,
+		Name:        parsed.Name,
 		Version:     tag,
-		AppVersion:  mod.Version,
+		AppVersion:  parsed.Version,
 		Type:        chartTypeLibrary,
-		Description: fmt.Sprintf("KubeVela crate %s", mod.Name),
+		Description: fmt.Sprintf("KubeVela crate %s", parsed.Name),
 		Annotations: annotations,
 	}
 	if err := chartutil.SaveChartfile(filepath.Join(treeDir, chartutil.ChartfileName), meta); err != nil {
-		return nil, fmt.Errorf("package crate %q: write %s: %w", mod.Name, chartutil.ChartfileName, err)
+		return nil, fmt.Errorf("package crate %q: write %s: %w", parsed.Name, chartutil.ChartfileName, err)
 	}
 
 	ch, err := loader.LoadDir(treeDir)
 	if err != nil {
-		return nil, fmt.Errorf("package crate %q: load chart: %w", mod.Name, err)
+		return nil, fmt.Errorf("package crate %q: load chart: %w", parsed.Name, err)
 	}
 	outDir := filepath.Join(workdir, "out")
 	if err := os.Mkdir(outDir, 0o750); err != nil {
-		return nil, fmt.Errorf("package crate %q: create output directory: %w", mod.Name, err)
+		return nil, fmt.Errorf("package crate %q: create output directory: %w", parsed.Name, err)
 	}
 	archivePath, err := chartutil.Save(ch, outDir)
 	if err != nil {
-		return nil, fmt.Errorf("package crate %q: package chart: %w", mod.Name, err)
+		return nil, fmt.Errorf("package crate %q: package chart: %w", parsed.Name, err)
 	}
 	archive, err := os.ReadFile(filepath.Clean(archivePath))
 	if err != nil {
-		return nil, fmt.Errorf("package crate %q: read archive: %w", mod.Name, err)
+		return nil, fmt.Errorf("package crate %q: read archive: %w", parsed.Name, err)
 	}
 
-	return &Artifact{Crate: mod, Tag: tag, Annotations: annotations, Archive: archive}, nil
+	return &Artifact{Crate: parsed, Tag: tag, Annotations: annotations, Archive: archive}, nil
 }
 
 // crateAnnotations builds the crate, lines, and enabled-lines annotations,
 // with line names sorted so a republished artifact is byte-stable.
-func crateAnnotations(mod *Crate) map[string]string {
-	lines := make([]string, 0, len(mod.Lines))
-	enabled := make([]string, 0, len(mod.Lines))
-	for name, line := range mod.Lines {
+func crateAnnotations(parsed *Crate) map[string]string {
+	lines := make([]string, 0, len(parsed.Lines))
+	enabled := make([]string, 0, len(parsed.Lines))
+	for name, line := range parsed.Lines {
 		lines = append(lines, name)
 		if line.Enabled {
 			enabled = append(enabled, name)
@@ -148,7 +148,7 @@ func crateAnnotations(mod *Crate) map[string]string {
 	sort.Strings(enabled)
 
 	annotations := map[string]string{
-		AnnotationCrate: mod.Name,
+		AnnotationCrate: parsed.Name,
 		AnnotationLines: strings.Join(lines, ","),
 	}
 	if len(enabled) > 0 {

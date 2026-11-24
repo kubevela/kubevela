@@ -69,13 +69,13 @@ func parseTypeRef(typeName string) (form int, crate, apiVersion, name string, er
 // legacy definitions are returned unchanged so the existing
 // GetCapabilityDefinition path handles them as before.
 func ResolveCrateType(ctx context.Context, cli client.Reader, typeName string, capType types.CapType) (string, error) {
-	form, mod, apiVersion, name, err := parseTypeRef(typeName)
+	form, crateName, apiVersion, name, err := parseTypeRef(typeName)
 	if err != nil {
 		return "", err
 	}
 	switch form {
 	case 3:
-		return resolveForm3(mod, apiVersion, name), nil
+		return resolveForm3(crateName, apiVersion, name), nil
 	default:
 		return resolveForm1(ctx, cli, typeName, name, capType)
 	}
@@ -97,10 +97,10 @@ func resolveForm3(crate, apiVersion, name string) string {
 func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string, capType types.CapType) (string, error) {
 	obj := definitionObjectFor(capType)
 	if err := oamutil.GetDefinition(ctx, cli, obj, name); err == nil {
-		if mod := definitionCrate(obj); mod != "" {
+		if crateName := definitionCrate(obj); crateName != "" {
 			return "", fmt.Errorf(
 				"type %q resolves to crate-backed definition %q (spec.crate=%q); use {crate}/{apiVersion}/{name} (Form 3)",
-				typeName, name, mod)
+				typeName, name, crateName)
 		}
 		// Found as a legacy definition; return unchanged so the caller's
 		// GetCapabilityDefinition path (which handles revisions etc.) runs normally.
@@ -134,13 +134,13 @@ func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string,
 		// Only reject when the crate label is actually present; otherwise
 		// this is a legacy definition the fallback search happened to find,
 		// and it resolves like any other unique match.
-		mod := matches[0].GetLabels()[types.LabelDefinitionCrate]
-		if mod == "" {
+		crateName := matches[0].GetLabels()[types.LabelDefinitionCrate]
+		if crateName == "" {
 			return matches[0].GetName(), nil
 		}
 		return "", fmt.Errorf(
 			"type %q resolves to crate-backed definition %q (crate=%q); use {crate}/{apiVersion}/{name} (Form 3)",
-			typeName, matches[0].GetName(), mod)
+			typeName, matches[0].GetName(), crateName)
 	default:
 		return resolveUnique(typeName, matches, "use {crate}/{apiVersion}/{name} (Form 3) to disambiguate")
 	}
@@ -249,21 +249,21 @@ func resolveUnique(typeName string, matches []client.Object, disambiguateHint st
 	case 0:
 		return "", fmt.Errorf("%w for type %q", ErrNoDefinition, typeName)
 	default:
-		mods := make([]string, 0, len(matches))
+		crateNames := make([]string, 0, len(matches))
 		seen := map[string]bool{}
 		for _, m := range matches {
-			mod := m.GetLabels()[types.LabelDefinitionCrate]
-			if mod == "" {
-				mod = m.GetName()
+			crateName := m.GetLabels()[types.LabelDefinitionCrate]
+			if crateName == "" {
+				crateName = m.GetName()
 			}
-			if !seen[mod] {
-				mods = append(mods, mod)
-				seen[mod] = true
+			if !seen[crateName] {
+				crateNames = append(crateNames, crateName)
+				seen[crateName] = true
 			}
 		}
 		return "", fmt.Errorf(
 			"type %q is ambiguous: definitions from crates [%s] all match; %s",
-			typeName, strings.Join(mods, ", "), disambiguateHint)
+			typeName, strings.Join(crateNames, ", "), disambiguateHint)
 	}
 }
 

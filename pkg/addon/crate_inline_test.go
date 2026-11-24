@@ -132,8 +132,8 @@ func TestReadInlineCratesDirDetectsMultipleCrates(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pkg.InlineCrates, 2)
 	names := map[string]bool{}
-	for _, mod := range pkg.InlineCrates {
-		names[mod.Name] = true
+	for _, inlineCrate := range pkg.InlineCrates {
+		names[inlineCrate.Name] = true
 	}
 	assert.True(t, names["aws-s3"])
 	assert.True(t, names["aws-efs"])
@@ -275,9 +275,9 @@ func TestRenderInlineCrateComponentsMatchesExternalPathForSameSource(t *testing.
 		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
 		require.NoError(t, os.WriteFile(full, []byte(content), 0o644))
 	}
-	mod, err := crate.ParseCrateDir(dir)
+	parsed, err := crate.ParseCrateDir(dir)
 	require.NoError(t, err)
-	externalApp, err := craterender.RenderApplication(mod, "", nil)
+	externalApp, err := craterender.RenderApplication(parsed, "", nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, externalApp, inlineApp)

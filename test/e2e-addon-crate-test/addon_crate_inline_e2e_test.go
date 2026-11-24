@@ -131,14 +131,14 @@ var _ = Describe("Addons that bundle crates inline", func() {
 			Expect(findComponent(app, "team-config").DependsOn).Should(Equal([]string{scope.Text("widget-platform-inline-resources")}))
 
 			By("the generated crate component depending on the resource components and the outputs, not on template components")
-			mod := findComponent(app, scope.Text("widget-kit-inline"))
-			Expect(mod.DependsOn).Should(ConsistOf(scope.Text("widget-platform-inline-resources"), "team-config", "addon-auxiliaries"))
+			crateComp := findComponent(app, scope.Text("widget-kit-inline"))
+			Expect(crateComp.DependsOn).Should(ConsistOf(scope.Text("widget-platform-inline-resources"), "team-config", "addon-auxiliaries"))
 			// Divergence 1/2: an external crate component carries its {crate,
 			// registry, version} request; an inline one has nothing to request.
 			// It wraps the already-rendered crate Application, so its
 			// properties are {objects: [<that Application>]}.
-			Expect(mod.Type).Should(Equal("k8s-objects"))
-			objs := propertiesOf(mod.Properties)["objects"].([]interface{})
+			Expect(crateComp.Type).Should(Equal("k8s-objects"))
+			objs := propertiesOf(crateComp.Properties)["objects"].([]interface{})
 			Expect(objs).Should(HaveLen(1))
 			owned := objs[0].(map[string]interface{})
 			Expect(owned["kind"]).Should(Equal("Application"))
@@ -366,17 +366,17 @@ var _ = Describe("Addons that bundle crates inline", func() {
 			Expect(findService(mustGetApp(ctx, testNS, scope.Text("kit-suite-inline")), scope.Text("kit-suite-inline")).Message).Should(Equal("Ready:3/3"))
 
 			for _, name := range []string{crateWidgetKit, crateGadgetKit} {
-				mod := mustGetApp(ctx, systemNS, name)
-				Expect(mod.Labels).Should(HaveKeyWithValue(oam.LabelAppName, scope.Text("addon-kit-suite-inline")))
-				Expect(mod.Labels).Should(HaveKeyWithValue(oam.LabelAppComponent, strings.TrimPrefix(name, "crate-")))
+				crateApp := mustGetApp(ctx, systemNS, name)
+				Expect(crateApp.Labels).Should(HaveKeyWithValue(oam.LabelAppName, scope.Text("addon-kit-suite-inline")))
+				Expect(crateApp.Labels).Should(HaveKeyWithValue(oam.LabelAppComponent, strings.TrimPrefix(name, "crate-")))
 			}
 		})
 
 		It("installs gadget-kit-inline's three tiers and objects", func() {
-			mod := mustGetApp(ctx, systemNS, crateGadgetKit)
-			Expect(componentNames(mod)).Should(Equal([]string{scope.Text("gadget-kit-inline-aux"), scope.Text("gadget-kit-inline-v1-aux"), scope.Text("gadget-kit-inline-v1-defs")}))
-			Expect(findComponent(mod, scope.Text("gadget-kit-inline-v1-aux")).DependsOn).Should(Equal([]string{scope.Text("gadget-kit-inline-aux")}))
-			Expect(findComponent(mod, scope.Text("gadget-kit-inline-v1-defs")).DependsOn).Should(Equal([]string{scope.Text("gadget-kit-inline-v1-aux")}))
+			crateApp := mustGetApp(ctx, systemNS, crateGadgetKit)
+			Expect(componentNames(crateApp)).Should(Equal([]string{scope.Text("gadget-kit-inline-aux"), scope.Text("gadget-kit-inline-v1-aux"), scope.Text("gadget-kit-inline-v1-defs")}))
+			Expect(findComponent(crateApp, scope.Text("gadget-kit-inline-v1-aux")).DependsOn).Should(Equal([]string{scope.Text("gadget-kit-inline-aux")}))
+			Expect(findComponent(crateApp, scope.Text("gadget-kit-inline-v1-defs")).DependsOn).Should(Equal([]string{scope.Text("gadget-kit-inline-v1-aux")}))
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: gadgetsCRD}, crd(gadgetsCRD))).Should(Succeed())
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: scope.Text("gadget-kit-inline-editor")}, &rbacv1.ClusterRole{})).Should(Succeed())
 			for _, cm := range []string{scope.Text("gadget-kit-inline-v1-defaults"), scope.Text("gadget-kit-inline-v1-profile")} {
@@ -560,9 +560,9 @@ var _ = Describe("Addons that bundle crates inline", func() {
 		})
 
 		crateState := func(g Gomega, version string, tiers []string) {
-			mod := mustGetApp(ctx, systemNS, crateWidgetKit)
-			g.Expect(mod.Annotations).Should(HaveKeyWithValue(veltypes.AnnoDefinitionCrateVersion, version))
-			g.Expect(componentNames(mod)).Should(Equal(tiers))
+			crateApp := mustGetApp(ctx, systemNS, crateWidgetKit)
+			g.Expect(crateApp.Annotations).Should(HaveKeyWithValue(veltypes.AnnoDefinitionCrateVersion, version))
+			g.Expect(componentNames(crateApp)).Should(Equal(tiers))
 		}
 
 		BeforeAll(func() {
@@ -793,9 +793,9 @@ var _ = Describe("Addons that bundle crates inline", func() {
 			// Application, which on its own would make the resource keeper treat
 			// it as apply-once and skip state keep; the crate renderer declares
 			// apply-once off to prevent that.
-			mod := mustGetApp(ctx, systemNS, crateWidgetKit)
-			Expect(mod.Labels).Should(HaveKey(oam.LabelAddonName))
-			Expect(policyNames(mod)).Should(ContainElement("crate-state-keep"))
+			crateApp := mustGetApp(ctx, systemNS, crateWidgetKit)
+			Expect(crateApp.Labels).Should(HaveKey(oam.LabelAddonName))
+			Expect(policyNames(crateApp)).Should(ContainElement("crate-state-keep"))
 
 			td := traitDefinitionObj(testNS, scope.Text("widget-kit-inline-v1-labeler"))
 			before := uidOf(td)

@@ -44,7 +44,7 @@ import (
 // placedInlineCrate has one runtime object and one hub object, so its owned
 // Application splits into hub and runtime parts when it gets a placement.
 func placedInlineCrate() *crate.Crate {
-	mod, err := crate.ParseCrate(cratesvc.MapFS{
+	parsed, err := crate.ParseCrate(cratesvc.MapFS{
 		"_crate.cue":      []byte("crate: \"edge-kit\"\nversion: \"0.1.0\"\nplacement: \"runtime\""),
 		"v1/_version.cue": []byte(`apiVersion: "v1"`),
 		"auxiliary/defaults.yaml": []byte(
@@ -54,7 +54,7 @@ func placedInlineCrate() *crate.Crate {
 		"v1/definitions/bucket.yaml": []byte(inlineBucketDefinition),
 	})
 	Expect(err).NotTo(HaveOccurred())
-	return mod
+	return parsed
 }
 
 // renderInlineAddon renders an addon that bundles edge-kit inline, as a

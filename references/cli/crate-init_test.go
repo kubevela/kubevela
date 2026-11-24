@@ -55,10 +55,10 @@ func TestCrateInitScaffoldsExpectedFiles(t *testing.T) {
 		assert.Empty(t, entries, "%s should be created empty", dir)
 	}
 
-	mod, err := os.ReadFile(filepath.Join(root, "_crate.cue"))
+	crateCUE, err := os.ReadFile(filepath.Join(root, "_crate.cue"))
 	require.NoError(t, err)
-	assert.Contains(t, string(mod), `crate:`)
-	assert.Contains(t, string(mod), `"s3"`)
+	assert.Contains(t, string(crateCUE), `crate:`)
+	assert.Contains(t, string(crateCUE), `"s3"`)
 
 	readme, err := os.ReadFile(filepath.Join(root, "README.md"))
 	require.NoError(t, err)

@@ -89,11 +89,11 @@ func TestFetchCrate(t *testing.T) {
 	}
 	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("catalog")}}, files)
 
-	mod, err := s.FetchCrate(context.Background(), "catalog", "s3", "")
+	parsed, err := s.FetchCrate(context.Background(), "catalog", "s3", "")
 	require.NoError(t, err)
-	require.Equal(t, "s3", mod.Name)
-	require.Equal(t, "1.0.0", mod.Version)
-	require.Contains(t, mod.Lines, "v1")
+	require.Equal(t, "s3", parsed.Name)
+	require.Equal(t, "1.0.0", parsed.Version)
+	require.Contains(t, parsed.Lines, "v1")
 }
 
 // TestFetchCrate_PullerDecidesVersion asserts FetchCrate reports whatever the
@@ -108,10 +108,10 @@ func TestFetchCrate_PullerDecidesVersion(t *testing.T) {
 	}
 	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("catalog")}}, files)
 
-	mod, err := s.FetchCrate(context.Background(), "catalog", "s3", "9.9.9-does-not-exist")
+	parsed, err := s.FetchCrate(context.Background(), "catalog", "s3", "9.9.9-does-not-exist")
 	require.NoError(t, err)
-	require.Equal(t, "s3", mod.Name)
-	require.Equal(t, "1.0.0", mod.Version)
+	require.Equal(t, "s3", parsed.Name)
+	require.Equal(t, "1.0.0", parsed.Version)
 }
 
 func TestFetchCrate_EmptyNameResolvesSole(t *testing.T) {
@@ -122,9 +122,9 @@ func TestFetchCrate_EmptyNameResolvesSole(t *testing.T) {
 	}
 	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("only")}}, files)
 
-	mod, err := s.FetchCrate(context.Background(), "", "s3", "")
+	parsed, err := s.FetchCrate(context.Background(), "", "s3", "")
 	require.NoError(t, err)
-	require.Equal(t, "s3", mod.Name)
+	require.Equal(t, "s3", parsed.Name)
 }
 
 func TestFetchCrate_EmptyNameAmbiguous(t *testing.T) {
@@ -167,9 +167,9 @@ func TestFetchCrate_EmptyNameDefaultsToCatalog(t *testing.T) {
 	}
 	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("other"), ociRegistry("catalog")}}, files)
 
-	mod, err := s.FetchCrate(context.Background(), "", "s3", "")
+	parsed, err := s.FetchCrate(context.Background(), "", "s3", "")
 	require.NoError(t, err)
-	require.Equal(t, "s3", mod.Name)
+	require.Equal(t, "s3", parsed.Name)
 }
 
 // TestFetchCrate_CrateNotFound covers a crate the registry does not carry.
@@ -231,12 +231,12 @@ func TestFetchCrate_OCI_ParsesChartLayout(t *testing.T) {
 		return bufs, nil
 	}
 
-	mod, err := s.FetchCrate(context.Background(), "oci", "s3", "")
+	parsed, err := s.FetchCrate(context.Background(), "oci", "s3", "")
 	require.NoError(t, err)
-	require.Equal(t, "s3", mod.Name)
-	require.Equal(t, "1.0.0", mod.Version)
-	require.Contains(t, mod.Lines, "v1")
-	require.Len(t, mod.Lines["v1"].Definitions, 1)
+	require.Equal(t, "s3", parsed.Name)
+	require.Equal(t, "1.0.0", parsed.Version)
+	require.Contains(t, parsed.Lines, "v1")
+	require.Len(t, parsed.Lines["v1"].Definitions, 1)
 }
 
 // TestFetchCrate_OCI_PassesRequestedVersion asserts a non-empty version
@@ -259,10 +259,10 @@ func TestFetchCrate_OCI_PassesRequestedVersion(t *testing.T) {
 		return bufs, nil
 	}
 
-	mod, err := s.FetchCrate(context.Background(), "oci", "s3", "1.2.0")
+	parsed, err := s.FetchCrate(context.Background(), "oci", "s3", "1.2.0")
 	require.NoError(t, err)
 	require.Equal(t, "1.2.0", gotVersion)
-	require.Equal(t, "1.2.0", mod.Version)
+	require.Equal(t, "1.2.0", parsed.Version)
 }
 
 // TestFetchCrate_OCI_UnknownVersionFails asserts an OCI puller error (what the
@@ -277,9 +277,9 @@ func TestFetchCrate_OCI_UnknownVersionFails(t *testing.T) {
 		return nil, errors.Errorf("failed to pull addon chart s3:%s: manifest unknown", version)
 	}
 
-	mod, err := s.FetchCrate(context.Background(), "oci", "s3", "9.9.9-does-not-exist")
+	parsed, err := s.FetchCrate(context.Background(), "oci", "s3", "9.9.9-does-not-exist")
 	require.Error(t, err)
-	require.Nil(t, mod)
+	require.Nil(t, parsed)
 	require.Contains(t, err.Error(), "s3")
 	require.Contains(t, err.Error(), "9.9.9-does-not-exist")
 }

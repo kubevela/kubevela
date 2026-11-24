@@ -68,8 +68,8 @@ func TestMapFS_ParsesThroughParser(t *testing.T) {
 		"v1/_version.cue":            []byte("apiVersion: \"v1\""),
 		"v1/definitions/bucket.yaml": []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n"),
 	}
-	mod, err := crate.ParseCrate(m)
+	parsed, err := crate.ParseCrate(m)
 	require.NoError(t, err)
-	require.Equal(t, "s3", mod.Name)
-	require.Contains(t, mod.Lines, "v1")
+	require.Equal(t, "s3", parsed.Name)
+	require.Contains(t, parsed.Lines, "v1")
 }

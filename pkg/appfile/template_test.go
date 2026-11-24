@@ -641,14 +641,14 @@ func TestLoadTemplateFromRevisionCrateReferences(t *testing.T) {
 				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
 					TraitDefinitions: traits,
 					PolicyDefinitions: map[string]v1beta1.PolicyDefinition{
-						"mod-v1-pol": {
-							ObjectMeta: metav1.ObjectMeta{Name: "mod-v1-pol", Labels: crateLabels("mod", "v1", "pol")},
+						"crate-v1-pol": {
+							ObjectMeta: metav1.ObjectMeta{Name: "crate-v1-pol", Labels: crateLabels("crate", "v1", "pol")},
 							Spec:       v1beta1.PolicyDefinitionSpec{Schematic: cueSchematic},
 						},
 					},
 					WorkflowStepDefinitions: map[string]*v1beta1.WorkflowStepDefinition{
-						"mod-v1-step": {
-							ObjectMeta: metav1.ObjectMeta{Name: "mod-v1-step", Labels: crateLabels("mod", "v1", "step")},
+						"crate-v1-step": {
+							ObjectMeta: metav1.ObjectMeta{Name: "crate-v1-step", Labels: crateLabels("crate", "v1", "step")},
 							Spec:       v1beta1.WorkflowStepDefinitionSpec{Schematic: cueSchematic},
 						},
 					},
@@ -660,7 +660,7 @@ func TestLoadTemplateFromRevisionCrateReferences(t *testing.T) {
 
 	t.Run("two-segment reference is rejected for trait, policy and workflow step", func(t *testing.T) {
 		rev := revision(map[string]*v1beta1.TraitDefinition{
-			"mod-v1-scaler": trait("mod-v1-scaler", crateLabels("mod", "v1", "scaler")),
+			"crate-v1-scaler": trait("crate-v1-scaler", crateLabels("crate", "v1", "scaler")),
 		})
 		tmpl, err := LoadTemplateFromRevision("v1/scaler", types.TypeTrait, rev, mapper)
 		assert.Error(t, err)
@@ -680,8 +680,8 @@ func TestLoadTemplateFromRevisionCrateReferences(t *testing.T) {
 
 	t.Run("two-segment reference is rejected before matching crate labels", func(t *testing.T) {
 		rev := revision(map[string]*v1beta1.TraitDefinition{
-			"foo-v1-scaler": trait("foo-v1-scaler", nil),
-			"mod-v1-scaler": trait("mod-v1-scaler", crateLabels("mod", "v1", "scaler")),
+			"foo-v1-scaler":   trait("foo-v1-scaler", nil),
+			"crate-v1-scaler": trait("crate-v1-scaler", crateLabels("crate", "v1", "scaler")),
 		})
 		tmpl, err := LoadTemplateFromRevision("v1/scaler", types.TypeTrait, rev, mapper)
 		assert.Error(t, err)
@@ -691,8 +691,8 @@ func TestLoadTemplateFromRevisionCrateReferences(t *testing.T) {
 
 	t.Run("two-segment reference is rejected even if it would have been ambiguous", func(t *testing.T) {
 		rev := revision(map[string]*v1beta1.TraitDefinition{
-			"moda-v1-scaler": trait("moda-v1-scaler", crateLabels("moda", "v1", "scaler")),
-			"modb-v1-scaler": trait("modb-v1-scaler", crateLabels("modb", "v1", "scaler")),
+			"cratea-v1-scaler": trait("cratea-v1-scaler", crateLabels("cratea", "v1", "scaler")),
+			"crateb-v1-scaler": trait("crateb-v1-scaler", crateLabels("crateb", "v1", "scaler")),
 		})
 		_, err := LoadTemplateFromRevision("v1/scaler", types.TypeTrait, rev, mapper)
 		assert.Error(t, err)
@@ -701,12 +701,12 @@ func TestLoadTemplateFromRevisionCrateReferences(t *testing.T) {
 
 	t.Run("form 3 still picks the named crate", func(t *testing.T) {
 		rev := revision(map[string]*v1beta1.TraitDefinition{
-			"moda-v1-scaler": trait("moda-v1-scaler", crateLabels("moda", "v1", "scaler")),
-			"modb-v1-scaler": trait("modb-v1-scaler", crateLabels("modb", "v1", "scaler")),
+			"cratea-v1-scaler": trait("cratea-v1-scaler", crateLabels("cratea", "v1", "scaler")),
+			"crateb-v1-scaler": trait("crateb-v1-scaler", crateLabels("crateb", "v1", "scaler")),
 		})
-		tmpl, err := LoadTemplateFromRevision("modb/v1/scaler", types.TypeTrait, rev, mapper)
+		tmpl, err := LoadTemplateFromRevision("crateb/v1/scaler", types.TypeTrait, rev, mapper)
 		assert.NoError(t, err)
-		assert.Equal(t, "modb-v1-scaler", tmpl.TraitDefinition.Name)
+		assert.Equal(t, "crateb-v1-scaler", tmpl.TraitDefinition.Name)
 	})
 }
 

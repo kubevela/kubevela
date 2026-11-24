@@ -63,11 +63,11 @@ func (r *rendererImpl) fetch(ctx context.Context, registry, crateName, version s
 
 // RenderCrate fetches the named crate and renders its owned Application.
 func (r *rendererImpl) RenderCrate(ctx context.Context, req api.CrateRequest) (*api.CrateResult, error) {
-	mod, err := r.fetch(ctx, req.Registry, req.Crate, req.Version)
+	parsed, err := r.fetch(ctx, req.Registry, req.Crate, req.Version)
 	if err != nil {
 		return nil, err
 	}
-	app, err := RenderApplication(mod, req.Namespace, req.Placement)
+	app, err := RenderApplication(parsed, req.Namespace, req.Placement)
 	if err != nil {
 		return nil, err
 	}
@@ -99,23 +99,23 @@ func (r *rendererImpl) RenderCrate(ctx context.Context, req api.CrateRequest) (*
 // leaves the flat shape on its own. With neither a runtime marker nor a
 // request, the Application is the flat shape this function has always
 // returned.
-func RenderApplication(mod *crate.Crate, definitionNamespace string, place *v1alpha1.Placement) (map[string]interface{}, error) {
-	if mod == nil || mod.Name == "" {
+func RenderApplication(parsed *crate.Crate, definitionNamespace string, place *v1alpha1.Placement) (map[string]interface{}, error) {
+	if parsed == nil || parsed.Name == "" {
 		return nil, fmt.Errorf("render crate: crate has no name")
 	}
-	if errs := validation.IsDNS1123Label(mod.Name); len(errs) > 0 {
-		return nil, fmt.Errorf("render crate: invalid crate name %q: %s", mod.Name, strings.Join(errs, "; "))
+	if errs := validation.IsDNS1123Label(parsed.Name); len(errs) > 0 {
+		return nil, fmt.Errorf("render crate: invalid crate name %q: %s", parsed.Name, strings.Join(errs, "; "))
 	}
 	if definitionNamespace == "" {
 		definitionNamespace = types.DefaultKubeVelaNS
 	}
 
-	triggered, err := partitionTriggered(mod, place)
+	triggered, err := partitionTriggered(parsed, place)
 	if err != nil {
 		return nil, err
 	}
 	if triggered {
-		return renderPartitioned(mod, definitionNamespace, place)
+		return renderPartitioned(parsed, definitionNamespace, place)
 	}
 
 	comps := []interface{}{}
@@ -125,19 +125,19 @@ func RenderApplication(mod *crate.Crate, definitionNamespace string, place *v1al
 	// the tier reports healthy as soon as they are applied: the next tier never
 	// waits for an object to become ready.
 	crateDep := ""
-	if len(mod.Auxiliary) > 0 {
-		crateDep = mod.Name + "-aux"
-		comps = append(comps, objectsTier(crateDep, toObjects(mod.Auxiliary, definitionNamespace), ""))
+	if len(parsed.Auxiliary) > 0 {
+		crateDep = parsed.Name + "-aux"
+		comps = append(comps, objectsTier(crateDep, toObjects(parsed.Auxiliary, definitionNamespace), ""))
 	}
 
-	for _, apiVersion := range enabledLines(mod) {
-		line := mod.Lines[apiVersion]
+	for _, apiVersion := range enabledLines(parsed) {
+		line := parsed.Lines[apiVersion]
 
 		// Each line hangs off the crate-level auxiliary, not off the previous
 		// line: lines are siblings, so v2 must not wait on v1.
 		dep := crateDep
 		if len(line.Auxiliary) > 0 {
-			tier := fmt.Sprintf("%s-%s-aux", mod.Name, apiVersion)
+			tier := fmt.Sprintf("%s-%s-aux", parsed.Name, apiVersion)
 			comps = append(comps, objectsTier(tier, toObjects(line.Auxiliary, definitionNamespace), dep))
 			dep = tier
 		}
@@ -147,25 +147,25 @@ func RenderApplication(mod *crate.Crate, definitionNamespace string, place *v1al
 		}
 		defs := make([]interface{}, 0, len(line.Definitions))
 		for _, def := range line.Definitions {
-			defs = append(defs, stampIdentity(def, mod.Name, apiVersion, definitionNamespace))
+			defs = append(defs, stampIdentity(def, parsed.Name, apiVersion, definitionNamespace))
 		}
-		comps = append(comps, objectsTier(fmt.Sprintf("%s-%s-defs", mod.Name, apiVersion), defs, dep))
+		comps = append(comps, objectsTier(fmt.Sprintf("%s-%s-defs", parsed.Name, apiVersion), defs, dep))
 	}
 
 	return map[string]interface{}{
 		"apiVersion": "core.oam.dev/v1beta1",
 		"kind":       "Application",
 		"metadata": map[string]interface{}{
-			"name":      "crate-" + mod.Name,
+			"name":      "crate-" + parsed.Name,
 			"namespace": types.DefaultKubeVelaNS,
 			"labels": map[string]interface{}{
-				types.LabelDefinitionCrate: mod.Name,
+				types.LabelDefinitionCrate: parsed.Name,
 			},
 			"annotations": map[string]interface{}{
-				// mod.Version is parsed from the fetched crate's own _crate.cue,
+				// parsed.Version is parsed from the fetched crate's own _crate.cue,
 				// so it is always the concrete tag that was actually fetched --
 				// including when the fetch request asked for "latest".
-				types.AnnoDefinitionCrateVersion: mod.Version,
+				types.AnnoDefinitionCrateVersion: parsed.Version,
 			},
 		},
 		"spec": map[string]interface{}{
@@ -195,10 +195,10 @@ var cratePlacementNames = placement.Names{
 // installed, so its marker does not change the shape. An invalid placement
 // marker is an error even on a disabled line, so a bad value cannot render
 // as if it were unmarked.
-func partitionTriggered(mod *crate.Crate, place *v1alpha1.Placement) (bool, error) {
+func partitionTriggered(parsed *crate.Crate, place *v1alpha1.Placement) (bool, error) {
 	found := false
-	if mod.Placement != "" {
-		class, err := placement.Normalize(mod.Placement)
+	if parsed.Placement != "" {
+		class, err := placement.Normalize(parsed.Placement)
 		if err != nil {
 			return false, fmt.Errorf("render crate: %w", err)
 		}
@@ -206,14 +206,14 @@ func partitionTriggered(mod *crate.Crate, place *v1alpha1.Placement) (bool, erro
 			found = true
 		}
 	}
-	marked, err := anyMarked(mod.Auxiliary)
+	marked, err := anyMarked(parsed.Auxiliary)
 	if err != nil {
 		return false, err
 	}
 	if marked {
 		found = true
 	}
-	for _, line := range mod.Lines {
+	for _, line := range parsed.Lines {
 		if line.Placement != "" {
 			class, err := placement.Normalize(line.Placement)
 			if err != nil {
@@ -253,13 +253,13 @@ func anyMarked(objs []map[string]interface{}) (bool, error) {
 // always hub, under the same tier name a flat render would have used.
 // dependsOn stays inside one class: a hub tier depends on the hub tier above
 // it, a runtime tier on the runtime tier above it.
-func renderPartitioned(mod *crate.Crate, namespace string, place *v1alpha1.Placement) (map[string]interface{}, error) {
+func renderPartitioned(parsed *crate.Crate, namespace string, place *v1alpha1.Placement) (map[string]interface{}, error) {
 	comps := []interface{}{}
 	var refs []placement.Component
 
 	crateRuntime, crateHub := "", ""
-	if len(mod.Auxiliary) > 0 {
-		groups, err := placement.SplitAux(mod.Name+"-aux", mod.Auxiliary, mod.Placement)
+	if len(parsed.Auxiliary) > 0 {
+		groups, err := placement.SplitAux(parsed.Name+"-aux", parsed.Auxiliary, parsed.Placement)
 		if err != nil {
 			return nil, fmt.Errorf("render crate: %w", err)
 		}
@@ -274,11 +274,11 @@ func renderPartitioned(mod *crate.Crate, namespace string, place *v1alpha1.Place
 		}
 	}
 
-	for _, apiVersion := range enabledLines(mod) {
-		line := mod.Lines[apiVersion]
+	for _, apiVersion := range enabledLines(parsed) {
+		line := parsed.Lines[apiVersion]
 		lineHub := ""
 		if len(line.Auxiliary) > 0 {
-			groups, err := placement.SplitAux(fmt.Sprintf("%s-%s-aux", mod.Name, apiVersion), line.Auxiliary, line.Placement, mod.Placement)
+			groups, err := placement.SplitAux(fmt.Sprintf("%s-%s-aux", parsed.Name, apiVersion), line.Auxiliary, line.Placement, parsed.Placement)
 			if err != nil {
 				return nil, fmt.Errorf("render crate: %w", err)
 			}
@@ -297,9 +297,9 @@ func renderPartitioned(mod *crate.Crate, namespace string, place *v1alpha1.Place
 		}
 		defs := make([]interface{}, 0, len(line.Definitions))
 		for _, def := range line.Definitions {
-			defs = append(defs, stampIdentity(def, mod.Name, apiVersion, namespace))
+			defs = append(defs, stampIdentity(def, parsed.Name, apiVersion, namespace))
 		}
-		defName := fmt.Sprintf("%s-%s-defs", mod.Name, apiVersion)
+		defName := fmt.Sprintf("%s-%s-defs", parsed.Name, apiVersion)
 		dep := lineHub
 		if dep == "" {
 			dep = crateHub
@@ -328,13 +328,13 @@ func renderPartitioned(mod *crate.Crate, namespace string, place *v1alpha1.Place
 		"apiVersion": "core.oam.dev/v1beta1",
 		"kind":       "Application",
 		"metadata": map[string]interface{}{
-			"name":      "crate-" + mod.Name,
+			"name":      "crate-" + parsed.Name,
 			"namespace": types.DefaultKubeVelaNS,
 			"labels": map[string]interface{}{
-				types.LabelDefinitionCrate: mod.Name,
+				types.LabelDefinitionCrate: parsed.Name,
 			},
 			"annotations": map[string]interface{}{
-				types.AnnoDefinitionCrateVersion: mod.Version,
+				types.AnnoDefinitionCrateVersion: parsed.Version,
 			},
 		},
 		"spec": spec,
@@ -365,9 +365,9 @@ func crateStateKeepPolicy() map[string]interface{} {
 // true, sorted for a deterministic component order (and therefore a stable
 // ApplicationRevision). Sorting is lexical, so v10 precedes v2; order between
 // lines carries no meaning because lines are siblings under the XRD.
-func enabledLines(mod *crate.Crate) []string {
-	out := make([]string, 0, len(mod.Lines))
-	for v, line := range mod.Lines {
+func enabledLines(parsed *crate.Crate) []string {
+	out := make([]string, 0, len(parsed.Lines))
+	for v, line := range parsed.Lines {
 		if !line.Enabled {
 			continue
 		}

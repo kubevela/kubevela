@@ -52,24 +52,24 @@ func findByKind(objs []map[string]interface{}, kind string) map[string]interface
 }
 
 func TestParseCrate_WellFormedCrate(t *testing.T) {
-	mod, err := ParseCrateDir(minimalCrateDir(t))
+	parsed, err := ParseCrateDir(minimalCrateDir(t))
 	require.NoError(t, err)
-	require.NotNil(t, mod)
+	require.NotNil(t, parsed)
 
-	assert.Equal(t, "minimal", mod.Name)
-	assert.Equal(t, "1.0.0", mod.Version)
-	assert.Empty(t, mod.Placement)
-	assert.Empty(t, mod.Lines["v1"].Placement)
+	assert.Equal(t, "minimal", parsed.Name)
+	assert.Equal(t, "1.0.0", parsed.Version)
+	assert.Empty(t, parsed.Placement)
+	assert.Empty(t, parsed.Lines["v1"].Placement)
 
-	require.NotEmpty(t, mod.Auxiliary)
-	xrd := findByKind(mod.Auxiliary, "CompositeResourceDefinition")
+	require.NotEmpty(t, parsed.Auxiliary)
+	xrd := findByKind(parsed.Auxiliary, "CompositeResourceDefinition")
 	require.NotNil(t, xrd, "expected a CompositeResourceDefinition among the crate's auxiliary objects")
 	xrdMetadata, ok := xrd["metadata"].(map[string]interface{})
 	require.True(t, ok, "xrd metadata must be a map")
 	assert.Equal(t, "xwidgets.example.com", xrdMetadata["name"])
 
-	require.Contains(t, mod.Lines, "v1")
-	line := mod.Lines["v1"]
+	require.Contains(t, parsed.Lines, "v1")
+	line := parsed.Lines["v1"]
 	assert.Equal(t, "v1", line.APIVersion)
 	assert.Empty(t, line.Placement)
 
@@ -92,19 +92,19 @@ func TestParseCrate_ReadsPlacementDefaults(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "_crate.cue"), "crate: \"minimal\"\nversion: \"1.0.0\"\nplacement: \"runtime\"\n")
 	writeFile(t, filepath.Join(dir, "v1", "_version.cue"), "apiVersion: \"v1\"\nplacement: \"hub\"\n")
 
-	mod, err := ParseCrateDir(dir)
+	parsed, err := ParseCrateDir(dir)
 	require.NoError(t, err)
-	assert.Equal(t, "runtime", mod.Placement)
-	assert.Equal(t, "hub", mod.Lines["v1"].Placement)
+	assert.Equal(t, "runtime", parsed.Placement)
+	assert.Equal(t, "hub", parsed.Lines["v1"].Placement)
 }
 
 func TestParseCrate_IgnoresAnnotationKeyAsCueDefault(t *testing.T) {
 	dir := minimalCrateDir(t)
 	writeFile(t, filepath.Join(dir, "_crate.cue"), "crate: \"minimal\"\nversion: \"1.0.0\"\n\"resource.oam.dev/placement\": \"runtime\"\n")
 
-	mod, err := ParseCrateDir(dir)
+	parsed, err := ParseCrateDir(dir)
 	require.NoError(t, err)
-	assert.Empty(t, mod.Placement)
+	assert.Empty(t, parsed.Placement)
 }
 
 func TestParseCrate_RejectsBadPlacementDefault(t *testing.T) {
@@ -212,9 +212,9 @@ func TestParseCrate_StructuralAndIdentityFailures(t *testing.T) {
 			dir := copyMinimalCrate(t)
 			c.mutate(t, dir)
 
-			mod, err := ParseCrateDir(dir)
+			parsed, err := ParseCrateDir(dir)
 			require.Error(t, err)
-			require.Nil(t, mod)
+			require.Nil(t, parsed)
 			assert.Contains(t, err.Error(), c.wantErrSubstr)
 		})
 	}
@@ -229,13 +229,13 @@ func TestParseCrate_OptionalAuxiliaryResources(t *testing.T) {
 		dir := copyMinimalCrate(t)
 		require.NoError(t, os.Remove(filepath.Join(dir, "auxiliary", "xrd.yaml")))
 
-		mod, err := ParseCrateDir(dir)
+		parsed, err := ParseCrateDir(dir)
 		require.NoError(t, err)
-		require.NotNil(t, mod)
+		require.NotNil(t, parsed)
 
-		assert.Empty(t, mod.Auxiliary)
-		require.Contains(t, mod.Lines, "v1")
-		line := mod.Lines["v1"]
+		assert.Empty(t, parsed.Auxiliary)
+		require.Contains(t, parsed.Lines, "v1")
+		line := parsed.Lines["v1"]
 		assert.NotEmpty(t, line.Auxiliary)
 		require.Len(t, line.Definitions, 1)
 	})
@@ -244,13 +244,13 @@ func TestParseCrate_OptionalAuxiliaryResources(t *testing.T) {
 		dir := copyMinimalCrate(t)
 		require.NoError(t, os.Remove(filepath.Join(dir, "v1", "auxiliary", "composition.yaml")))
 
-		mod, err := ParseCrateDir(dir)
+		parsed, err := ParseCrateDir(dir)
 		require.NoError(t, err)
-		require.NotNil(t, mod)
+		require.NotNil(t, parsed)
 
-		assert.NotEmpty(t, mod.Auxiliary)
-		require.Contains(t, mod.Lines, "v1")
-		line := mod.Lines["v1"]
+		assert.NotEmpty(t, parsed.Auxiliary)
+		require.Contains(t, parsed.Lines, "v1")
+		line := parsed.Lines["v1"]
 		assert.Empty(t, line.Auxiliary)
 		require.Len(t, line.Definitions, 1)
 	})
@@ -264,14 +264,14 @@ func TestParseCrate_FS(t *testing.T) {
 		"v1/auxiliary/composition.yaml": {Data: []byte("apiVersion: apiextensions.crossplane.io/v1\nkind: Composition\nmetadata:\n  name: s3\n")},
 		"v1/definitions/bucket.yaml":    {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: aws-s3-v1\n")},
 	}
-	mod, err := ParseCrate(fsys)
+	parsed, err := ParseCrate(fsys)
 	require.NoError(t, err)
-	require.Equal(t, "s3", mod.Name)
-	require.Equal(t, "1.0.0", mod.Version)
-	require.NotEmpty(t, mod.Auxiliary)
-	require.Contains(t, mod.Lines, "v1")
-	require.NotEmpty(t, mod.Lines["v1"].Auxiliary)
-	require.Len(t, mod.Lines["v1"].Definitions, 1)
+	require.Equal(t, "s3", parsed.Name)
+	require.Equal(t, "1.0.0", parsed.Version)
+	require.NotEmpty(t, parsed.Auxiliary)
+	require.Contains(t, parsed.Lines, "v1")
+	require.NotEmpty(t, parsed.Lines["v1"].Auxiliary)
+	require.Len(t, parsed.Lines["v1"].Definitions, 1)
 }
 
 // TestParseCrate_AuxiliaryReadsEveryFile is the core generalization test:
@@ -292,16 +292,16 @@ func TestParseCrate_AuxiliaryReadsEveryFile(t *testing.T) {
 		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n")},
 	}
 
-	mod, err := ParseCrate(fsys)
+	parsed, err := ParseCrate(fsys)
 	require.NoError(t, err)
 
-	require.Len(t, mod.Auxiliary, 2, "both crate-level auxiliary files are read")
-	assert.NotNil(t, findByKind(mod.Auxiliary, "ConfigMap"))
-	assert.NotNil(t, findByKind(mod.Auxiliary, "CompositeResourceDefinition"))
+	require.Len(t, parsed.Auxiliary, 2, "both crate-level auxiliary files are read")
+	assert.NotNil(t, findByKind(parsed.Auxiliary, "ConfigMap"))
+	assert.NotNil(t, findByKind(parsed.Auxiliary, "CompositeResourceDefinition"))
 	// a-config.yaml sorts before b-xrd.yaml.
-	assert.Equal(t, "ConfigMap", mod.Auxiliary[0]["kind"])
+	assert.Equal(t, "ConfigMap", parsed.Auxiliary[0]["kind"])
 
-	line := mod.Lines["v1"]
+	line := parsed.Lines["v1"]
 	require.Len(t, line.Auxiliary, 2, "both line-level auxiliary files are read")
 	assert.NotNil(t, findByKind(line.Auxiliary, "ConfigMap"))
 	assert.NotNil(t, findByKind(line.Auxiliary, "Composition"))
@@ -339,29 +339,29 @@ func TestParseCrate_HubDirStampsHub(t *testing.T) {
 		"v1/definitions/bucket.yaml":        {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n  annotations:\n    resource.oam.dev/placement: hub\n")},
 	}
 
-	mod, err := ParseCrate(fsys)
+	parsed, err := ParseCrate(fsys)
 	require.NoError(t, err)
 
-	require.Len(t, mod.Auxiliary, 3)
-	assert.Equal(t, "defaults", objectName(mod.Auxiliary[0]))
-	assert.Empty(t, placementAnnotation(mod.Auxiliary[0]))
-	assert.Equal(t, "admission", objectName(mod.Auxiliary[1]))
-	assert.Equal(t, "runtime", placementAnnotation(mod.Auxiliary[1]))
-	assert.Equal(t, "gate", objectName(mod.Auxiliary[2]))
-	assert.Equal(t, "hub", placementAnnotation(mod.Auxiliary[2]))
+	require.Len(t, parsed.Auxiliary, 3)
+	assert.Equal(t, "defaults", objectName(parsed.Auxiliary[0]))
+	assert.Empty(t, placementAnnotation(parsed.Auxiliary[0]))
+	assert.Equal(t, "admission", objectName(parsed.Auxiliary[1]))
+	assert.Equal(t, "runtime", placementAnnotation(parsed.Auxiliary[1]))
+	assert.Equal(t, "gate", objectName(parsed.Auxiliary[2]))
+	assert.Equal(t, "hub", placementAnnotation(parsed.Auxiliary[2]))
 
-	line := mod.Lines["v1"]
+	line := parsed.Lines["v1"]
 	require.Len(t, line.Auxiliary, 2)
 	assert.Equal(t, "v1-defaults", objectName(line.Auxiliary[0]))
 	assert.Empty(t, placementAnnotation(line.Auxiliary[0]))
 	assert.Equal(t, "v1-controller", objectName(line.Auxiliary[1]))
 	assert.Equal(t, "hub", placementAnnotation(line.Auxiliary[1]))
 
-	require.Len(t, mod.Warnings, 3)
-	assert.Contains(t, mod.Warnings[0], "auxiliary/other")
-	assert.Contains(t, mod.Warnings[1], "auxiliary/hub/nested")
-	assert.Contains(t, mod.Warnings[2], "auxiliary/hub/admission.yaml")
-	assert.Contains(t, mod.Warnings[2], "runtime")
+	require.Len(t, parsed.Warnings, 3)
+	assert.Contains(t, parsed.Warnings[0], "auxiliary/other")
+	assert.Contains(t, parsed.Warnings[1], "auxiliary/hub/nested")
+	assert.Contains(t, parsed.Warnings[2], "auxiliary/hub/admission.yaml")
+	assert.Contains(t, parsed.Warnings[2], "runtime")
 }
 
 func TestParseCrate_RejectsBadObjectPlacement(t *testing.T) {
@@ -385,13 +385,13 @@ func TestParseCrate_WarnsRuntimeAnnotationOnDefinition(t *testing.T) {
 		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n  annotations:\n    resource.oam.dev/placement: runtime\n")},
 	}
 
-	mod, err := ParseCrate(fsys)
+	parsed, err := ParseCrate(fsys)
 	require.NoError(t, err)
-	require.Len(t, mod.Lines["v1"].Definitions, 1, "the definition is still installed")
-	require.Len(t, mod.Warnings, 1)
-	assert.Contains(t, mod.Warnings[0], "v1/definitions/bucket.yaml")
-	assert.Contains(t, mod.Warnings[0], "runtime")
-	assert.Contains(t, mod.Warnings[0], "ignored")
+	require.Len(t, parsed.Lines["v1"].Definitions, 1, "the definition is still installed")
+	require.Len(t, parsed.Warnings, 1)
+	assert.Contains(t, parsed.Warnings[0], "v1/definitions/bucket.yaml")
+	assert.Contains(t, parsed.Warnings[0], "runtime")
+	assert.Contains(t, parsed.Warnings[0], "ignored")
 }
 
 func TestParseCrate_RejectsBadDefinitionPlacement(t *testing.T) {
@@ -481,11 +481,11 @@ metadata: name: "xs3"
 		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n")},
 	}
 
-	mod, err := ParseCrate(fsys)
+	parsed, err := ParseCrate(fsys)
 	require.NoError(t, err)
 
-	require.Len(t, mod.Auxiliary, 1)
-	xrd := mod.Auxiliary[0]
+	require.Len(t, parsed.Auxiliary, 1)
+	xrd := parsed.Auxiliary[0]
 	assert.Equal(t, "CompositeResourceDefinition", xrd["kind"])
 	meta, ok := xrd["metadata"].(map[string]interface{})
 	require.True(t, ok)
@@ -513,12 +513,12 @@ metadata:
 		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n")},
 	}
 
-	mod, err := ParseCrate(fsys)
+	parsed, err := ParseCrate(fsys)
 	require.NoError(t, err)
 
-	require.Len(t, mod.Auxiliary, 2, "one file with two documents yields two objects")
-	assert.NotNil(t, findByKind(mod.Auxiliary, "CompositeResourceDefinition"))
-	assert.NotNil(t, findByKind(mod.Auxiliary, "ConfigMap"))
+	require.Len(t, parsed.Auxiliary, 2, "one file with two documents yields two objects")
+	assert.NotNil(t, findByKind(parsed.Auxiliary, "CompositeResourceDefinition"))
+	assert.NotNil(t, findByKind(parsed.Auxiliary, "ConfigMap"))
 }
 
 // TestParseCrate_AuxiliaryUnsupportedExtension is the failure-mode guard
@@ -532,9 +532,9 @@ func TestParseCrate_AuxiliaryUnsupportedExtension(t *testing.T) {
 		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n")},
 	}
 
-	mod, err := ParseCrate(fsys)
+	parsed, err := ParseCrate(fsys)
 	require.Error(t, err)
-	require.Nil(t, mod)
+	require.Nil(t, parsed)
 	assert.Contains(t, err.Error(), "xrd.txt")
 }
 
@@ -545,9 +545,9 @@ func TestParseCrate_EnabledDefaultsTrue(t *testing.T) {
 		"v1/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n")},
 	}
 
-	mod, err := ParseCrate(fsys)
+	parsed, err := ParseCrate(fsys)
 	require.NoError(t, err)
-	require.True(t, mod.Lines["v1"].Enabled, "a line with no enabled field defaults to enabled")
+	require.True(t, parsed.Lines["v1"].Enabled, "a line with no enabled field defaults to enabled")
 }
 
 func TestParseCrate_EnabledFalseIsCaptured(t *testing.T) {
@@ -559,8 +559,8 @@ func TestParseCrate_EnabledFalseIsCaptured(t *testing.T) {
 		"v2/definitions/bucket.yaml": {Data: []byte("apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: bucket\n")},
 	}
 
-	mod, err := ParseCrate(fsys)
+	parsed, err := ParseCrate(fsys)
 	require.NoError(t, err)
-	require.False(t, mod.Lines["v1"].Enabled)
-	require.True(t, mod.Lines["v2"].Enabled)
+	require.False(t, parsed.Lines["v1"].Enabled)
+	require.True(t, parsed.Lines["v2"].Enabled)
 }
