@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	wfContext "github.com/kubevela/workflow/pkg/context"
+
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
@@ -160,6 +162,43 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name, "v2"), rt)).Should(Succeed())
 		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
 		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+	})
+
+	It("Test deleting the app deletes its in-memory workflow context", func() {
+		appName := "app-in-memory-context"
+		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
+		app := getApp(appName, namespace, "normal-worker")
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(1))
+		// The finalizer path only touches the MemStore while resource trackers are still
+		// being garbage collected, so the delete below needs one to exist.
+		Expect(k8sClient.Get(ctx, getTrackerKey(namespace, appName, "v1"), &v1beta1.ResourceTracker{})).Should(BeNil())
+
+		// An Application that ran with --optimize-enable-in-memory-workflow-context keeps its
+		// workflow context in the MemStore under <namespace>/workflow-<name>-context. The
+		// finalizer path has to drop that exact key (kubevela#7675): without the namespace it
+		// silently deletes nothing, and the context leaks for the life of the controller.
+		wfContext.EnableInMemoryContext = true
+		defer func() { wfContext.EnableInMemoryContext = false }()
+		appContext := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "workflow-" + appName + "-context", Namespace: namespace}}
+		wfContext.MemStore.CreateInMemoryContext(appContext)
+		// A context stored under the same app name in another namespace must survive the delete.
+		foreignContext := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "workflow-" + appName + "-context", Namespace: "default"}}
+		wfContext.MemStore.CreateInMemoryContext(foreignContext)
+		Expect(wfContext.MemStore.GetInMemoryContext("workflow-"+appName+"-context", namespace)).ShouldNot(BeNil())
+
+		By("Delete Application")
+		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
+		By("delete app will delete resourceTracker and the in-memory context")
+		testutil.ReconcileOnceAfterFinalizer(reconciler, ctrl.Request{NamespacedName: appKey})
+		testutil.ReconcileOnce(reconciler, ctrl.Request{NamespacedName: appKey})
+
+		Expect(wfContext.MemStore.GetInMemoryContext("workflow-"+appName+"-context", namespace)).Should(BeNil(), "the deleted app's in-memory context should be removed")
+		Expect(wfContext.MemStore.GetInMemoryContext("workflow-"+appName+"-context", "default")).ShouldNot(BeNil(), "another namespace's in-memory context should be left alone")
 	})
 })
 

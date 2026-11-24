@@ -919,7 +919,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 			}
 			if wfContext.EnableInMemoryContext {
-				wfContext.MemStore.DeleteInMemoryContext(app.Name)
+				wfContext.MemStore.DeleteInMemoryContext(app.Name, app.Namespace)
 			}
 			return true, result, err
 		}
