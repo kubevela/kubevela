@@ -26,6 +26,7 @@ import (
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
@@ -125,26 +126,46 @@ func workflowMode(steps wfTypesv1alpha1.WorkflowMode) map[string]interface{} {
 	return map[string]interface{}{"steps": string(steps), "subSteps": string(workflowv1alpha1.WorkflowModeDAG)}
 }
 
+// completeMode returns mode with every key set, taking a key the addon left
+// out from the mode the controller uses for steps written in spec. A key left
+// out would otherwise keep the value an earlier render wrote.
+func completeMode(mode interface{}) map[string]interface{} {
+	out := workflowMode(workflowv1alpha1.WorkflowModeStep)
+	set, _ := mode.(map[string]interface{})
+	for key, value := range set {
+		if s, ok := value.(string); ok && s != "" {
+			out[key] = s
+		}
+	}
+	return out
+}
+
 // writeExplicitWorkflow makes the addon Application's workflow explicit, so
 // nothing from an earlier render can stay in it.
 //
 // The addon Application is patched with no last-applied configuration (see
-// suppressLastAppliedConfig), so the patch can add and change fields but never
-// delete one. A workflow left out of a render would outlive it: the one
-// pinCrateComponentsToHub writes for a placement, after the placement is
-// removed, or default steps for a crate the next addon version drops. Their
-// steps would name policies or components that are gone. A workflow with
-// steps is replaced as a whole instead, so:
+// suppressLastAppliedConfig), so the patch can add and change fields but
+// deletes only a field the render sets to null. A workflow field left out of a
+// render would outlive it: the workflow pinCrateComponentsToHub writes for a
+// placement, after the placement is removed. Default steps for a crate the
+// next addon version drops. A ref the next version replaces with steps. Its
+// steps would name policies or components that are gone, or sit next to a ref
+// that cannot have steps. So every render states the whole workflow:
 //
 //   - With no workflow, it writes the one the controller would generate: the
-//     same steps from the same generators, run as a DAG.
-//   - Steps with no mode get the mode the controller uses for steps written in
-//     spec, so a mode from an earlier render cannot change how they run.
+//     same steps from the same generators, run as a DAG, and no ref. When the
+//     generators give no step, it removes the workflow.
+//   - Steps the addon wrote get no ref and a complete mode. A mode key the
+//     addon leaves out is the one the controller uses for steps written in
+//     spec, not one an earlier render wrote.
+//   - A ref gets no steps. A mode the addon wrote next to it stays. With none,
+//     the mode is removed, because it comes from the Workflow the ref names.
 //
-// A workflow that names a Workflow by ref takes its mode from that Workflow
-// when it sets none, so it is left as it is. Every value written here
-// survives a round trip through the typed Application unchanged; anything
-// that does not (an empty step list, for one) would flip on every pass.
+// A null removes its field from the patched Application and reads as no field
+// in the typed Application, so writing it again changes nothing. Every other
+// value written here survives a round trip through the typed Application
+// unchanged; one that does not (an empty step list, for one) would flip on
+// every pass.
 func writeExplicitWorkflow(app map[string]interface{}) error {
 	spec, _ := app["spec"].(map[string]interface{})
 	if spec == nil {
@@ -153,36 +174,77 @@ func writeExplicitWorkflow(app map[string]interface{}) error {
 	if wf, hasWorkflow := spec["workflow"].(map[string]interface{}); hasWorkflow {
 		steps, _ := wf["steps"].([]interface{})
 		ref, _ := wf["ref"].(string)
-		if _, hasMode := wf["mode"]; !hasMode && ref == "" && len(steps) > 0 {
-			wf["mode"] = workflowMode(workflowv1alpha1.WorkflowModeStep)
+		switch {
+		case ref != "":
+			wf["steps"] = nil
+			if _, hasMode := wf["mode"]; !hasMode {
+				wf["mode"] = nil
+			}
+		case len(steps) > 0:
+			wf["ref"] = nil
+			wf["mode"] = completeMode(wf["mode"])
 		}
 		return nil
-	}
-	typed := &v1beta1.Application{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(app, typed); err != nil {
-		return fmt.Errorf("read the addon Application: %w", err)
 	}
 	steps, err := step.NewChainWorkflowStepGenerator(
 		&step.DeployWorkflowStepGenerator{},
 		&step.Deploy2EnvWorkflowStepGenerator{},
 		&step.ApplyComponentWorkflowStepGenerator{},
-	).Generate(typed, nil)
+	).Generate(workflowInputs(spec), nil)
 	if err != nil {
 		return fmt.Errorf("generate the default workflow: %w", err)
 	}
 	if len(steps) == 0 {
+		spec["workflow"] = nil
 		return nil
 	}
-	raw, err := json.Marshal(steps)
-	if err != nil {
-		return fmt.Errorf("encode the default workflow: %w", err)
+	list := make([]interface{}, 0, len(steps))
+	for i := range steps {
+		item, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&steps[i])
+		if err != nil {
+			return fmt.Errorf("encode the default workflow: %w", err)
+		}
+		list = append(list, item)
 	}
-	var list []interface{}
-	if err := json.Unmarshal(raw, &list); err != nil {
-		return fmt.Errorf("encode the default workflow: %w", err)
-	}
-	spec["workflow"] = map[string]interface{}{"mode": workflowMode(workflowv1alpha1.WorkflowModeDAG), "steps": list}
+	spec["workflow"] = map[string]interface{}{"mode": workflowMode(workflowv1alpha1.WorkflowModeDAG), "steps": list, "ref": nil}
 	return nil
+}
+
+// workflowInputs returns an Application with only what the default step
+// generators read: each component's name, type and dependsOn, and each
+// policy's name and type, with the properties of an env-binding policy. It
+// leaves out component properties, so a render does not decode the manifests
+// of a large k8s-objects component only to name its steps.
+func workflowInputs(spec map[string]interface{}) *v1beta1.Application {
+	app := &v1beta1.Application{}
+	components, _ := spec["components"].([]interface{})
+	for _, raw := range components {
+		comp, _ := raw.(map[string]interface{})
+		name, _ := comp["name"].(string)
+		typ, _ := comp["type"].(string)
+		dependsOn, _ := comp["dependsOn"].([]interface{})
+		item := common.ApplicationComponent{Name: name, Type: typ}
+		for _, dep := range dependsOn {
+			if s, ok := dep.(string); ok {
+				item.DependsOn = append(item.DependsOn, s)
+			}
+		}
+		app.Spec.Components = append(app.Spec.Components, item)
+	}
+	policies, _ := spec["policies"].([]interface{})
+	for _, raw := range policies {
+		policy, _ := raw.(map[string]interface{})
+		name, _ := policy["name"].(string)
+		typ, _ := policy["type"].(string)
+		item := v1beta1.AppPolicy{Name: name, Type: typ}
+		if properties, ok := policy["properties"]; ok && typ == v1alpha1.EnvBindingPolicyType {
+			if encoded, err := json.Marshal(properties); err == nil {
+				item.Properties = &runtime.RawExtension{Raw: encoded}
+			}
+		}
+		app.Spec.Policies = append(app.Spec.Policies, item)
+	}
+	return app
 }
 
 // claimName returns a name from base that used does not hold yet, and marks it

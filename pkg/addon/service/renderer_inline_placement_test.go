@@ -21,8 +21,10 @@ import (
 	"encoding/json"
 
 	wfv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -228,10 +230,107 @@ var _ = Describe("inline crate placement", func() {
 		Expect(wf["steps"]).To(HaveLen(1))
 	})
 
+	Describe("an addon upgrade that changes the workflow", func() {
+		var (
+			ctx     context.Context
+			cli     client.Client
+			upgrade func(templates ...*v1beta1.Application) *v1beta1.Application
+		)
+		marker := common2.ApplicationComponent{Name: "marker", Type: "k8s-objects", Properties: rawJSON(map[string]interface{}{"objects": []interface{}{}})}
+		applyMarker := wfv1alpha1.WorkflowStep{
+			WorkflowStepBase: wfv1alpha1.WorkflowStepBase{Name: "apply", Type: "apply-component", Properties: rawJSON(map[string]interface{}{"component": "marker"})},
+		}
+		template := func(wf *v1beta1.Workflow, components ...common2.ApplicationComponent) *v1beta1.Application {
+			return &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: components, Workflow: wf}}
+		}
+
+		BeforeEach(func() {
+			ctx = context.Background()
+			cli = fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+			applicator := apply.NewAPIApplicator(cli)
+			// upgrade applies each template in turn as the next version of the
+			// addon, the way the dispatcher does, and returns the Application.
+			upgrade = func(templates ...*v1beta1.Application) *v1beta1.Application {
+				for _, tmpl := range templates {
+					obj := &unstructured.Unstructured{Object: renderAddon(pkgaddon.InstallPackage{AppTemplate: tmpl}, nil)}
+					obj.SetName("addon-inline-addon")
+					Expect(applicator.Apply(ctx, obj)).To(Succeed())
+				}
+				app := &v1beta1.Application{}
+				Expect(cli.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: "addon-inline-addon"}, app)).To(Succeed())
+				return app
+			}
+		})
+
+		It("fills in the mode keys the addon's own workflow leaves out", func() {
+			app := upgrade(
+				template(nil, marker),
+				template(&v1beta1.Workflow{
+					Mode:  &wfv1alpha1.WorkflowExecuteMode{SubSteps: workflowv1alpha1.WorkflowModeStep},
+					Steps: []wfv1alpha1.WorkflowStep{applyMarker},
+				}, marker),
+			)
+			Expect(app.Spec.Workflow.Mode).To(Equal(&wfv1alpha1.WorkflowExecuteMode{
+				Steps:    workflowv1alpha1.WorkflowModeStep,
+				SubSteps: workflowv1alpha1.WorkflowModeStep,
+			}), "steps written in spec run one by one, not as the DAG the earlier render wrote")
+		})
+
+		It("removes a workflow ref the next version drops", func() {
+			app := upgrade(
+				template(&v1beta1.Workflow{Ref: "my-wf"}, marker),
+				template(nil, marker),
+			)
+			Expect(app.Spec.Workflow.Ref).To(BeEmpty())
+			Expect(app.Spec.Workflow.Steps).To(HaveLen(1))
+		})
+
+		It("removes generated steps and their mode when the next version names a workflow by ref", func() {
+			app := upgrade(
+				template(nil, marker),
+				template(&v1beta1.Workflow{Ref: "my-wf"}, marker),
+			)
+			Expect(app.Spec.Workflow.Ref).To(Equal("my-wf"))
+			Expect(app.Spec.Workflow.Steps).To(BeEmpty())
+			Expect(app.Spec.Workflow.Mode).To(BeNil(), "the mode comes from the referenced Workflow")
+		})
+
+		It("keeps the mode an addon sets next to its workflow ref", func() {
+			app := upgrade(template(&v1beta1.Workflow{
+				Ref:  "my-wf",
+				Mode: &wfv1alpha1.WorkflowExecuteMode{Steps: workflowv1alpha1.WorkflowModeDAG},
+			}, marker))
+			Expect(app.Spec.Workflow.Mode).To(Equal(&wfv1alpha1.WorkflowExecuteMode{Steps: workflowv1alpha1.WorkflowModeDAG}))
+		})
+
+		It("removes the workflow when the next version has no component", func() {
+			app := upgrade(
+				template(nil, marker),
+				template(nil),
+			)
+			Expect(app.Spec.Workflow).To(BeNil(), "no step may name the component that is gone")
+		})
+
+		It("changes nothing when the same version is applied again", func() {
+			for _, tmpl := range []*v1beta1.Application{
+				template(nil, marker),
+				template(nil),
+				template(&v1beta1.Workflow{Ref: "my-wf"}, marker),
+				template(&v1beta1.Workflow{Steps: []wfv1alpha1.WorkflowStep{applyMarker}}, marker),
+			} {
+				first := upgrade(tmpl).Spec
+				Expect(upgrade(tmpl).Spec).To(Equal(first))
+				Expect(cli.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-inline-addon"}})).To(Succeed())
+			}
+		})
+	})
+
 	// Anything that updates the addon Application through the typed struct (the
 	// controller adding its finalizer, for one) drops omitempty fields. A
 	// workflow that changes on that round trip is patched back by the next
-	// dispatch, so the spec would flip on every pass.
+	// dispatch, so the spec would flip on every pass. A null is the exception:
+	// it removes its field, the typed struct has no such field, and writing the
+	// null again changes nothing.
 	It("writes workflows that survive a round trip through the typed Application", func() {
 		for _, place := range []*v1alpha1.Placement{nil, {Clusters: []string{"spoke-1"}}} {
 			rendered := renderInlineAddon(place)
@@ -239,7 +338,13 @@ var _ = Describe("inline crate placement", func() {
 			Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(rendered, typed)).To(Succeed())
 			back, err := runtime.DefaultUnstructuredConverter.ToUnstructured(typed)
 			Expect(err).NotTo(HaveOccurred())
-			want, err := json.Marshal(rendered["spec"].(map[string]interface{})["workflow"])
+			written := map[string]interface{}{}
+			for key, value := range rendered["spec"].(map[string]interface{})["workflow"].(map[string]interface{}) {
+				if value != nil {
+					written[key] = value
+				}
+			}
+			want, err := json.Marshal(written)
 			Expect(err).NotTo(HaveOccurred())
 			got, err := json.Marshal(back["spec"].(map[string]interface{})["workflow"])
 			Expect(err).NotTo(HaveOccurred())
