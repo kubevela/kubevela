@@ -34,18 +34,18 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
+	"github.com/oam-dev/kubevela/pkg/crate"
+	cratesvc "github.com/oam-dev/kubevela/pkg/crate/service"
 	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/module"
-	modulesvc "github.com/oam-dev/kubevela/pkg/module/service"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-// placedInlineModule has one runtime object and one hub object, so its owned
+// placedInlineCrate has one runtime object and one hub object, so its owned
 // Application splits into hub and runtime parts when it gets a placement.
-func placedInlineModule() *module.Module {
-	mod, err := module.ParseModule(modulesvc.MapFS{
-		"_module.cue":     []byte("module: \"edge-kit\"\nversion: \"0.1.0\"\nplacement: \"runtime\""),
+func placedInlineCrate() *crate.Crate {
+	mod, err := crate.ParseCrate(cratesvc.MapFS{
+		"_crate.cue":      []byte("crate: \"edge-kit\"\nversion: \"0.1.0\"\nplacement: \"runtime\""),
 		"v1/_version.cue": []byte(`apiVersion: "v1"`),
 		"auxiliary/defaults.yaml": []byte(
 			"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: edge-defaults\n"),
@@ -61,8 +61,8 @@ func placedInlineModule() *module.Module {
 // type: addon component with the given placement would ask for it.
 func renderInlineAddon(place *v1alpha1.Placement) map[string]interface{} {
 	return renderAddon(pkgaddon.InstallPackage{
-		AppTemplate:   &v1beta1.Application{},
-		InlineModules: []*module.Module{placedInlineModule()},
+		AppTemplate:  &v1beta1.Application{},
+		InlineCrates: []*crate.Crate{placedInlineCrate()},
 	}, place)
 }
 
@@ -82,9 +82,9 @@ func renderAddon(pkg pkgaddon.InstallPackage, place *v1alpha1.Placement) map[str
 	return res.Application
 }
 
-// ownedModulePolicies returns the policies of the owned Application that the
-// inline module's k8s-objects component carries, keyed by policy name.
-func ownedModulePolicies(app map[string]interface{}, componentName string) map[string]map[string]interface{} {
+// ownedCratePolicies returns the policies of the owned Application that the
+// inline crate's k8s-objects component carries, keyed by policy name.
+func ownedCratePolicies(app map[string]interface{}, componentName string) map[string]map[string]interface{} {
 	spec, ok := app["spec"].(map[string]interface{})
 	Expect(ok).To(BeTrue())
 	comps, ok := spec["components"].([]interface{})
@@ -117,33 +117,33 @@ func ownedModulePolicies(app map[string]interface{}, componentName string) map[s
 	return nil
 }
 
-var _ = Describe("inline module placement", func() {
+var _ = Describe("inline crate placement", func() {
 	BeforeEach(func() {
-		prev := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableModuleComponent)
-		Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.EnableModuleComponent): true})).To(Succeed())
+		prev := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCrateComponent)
+		Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.EnableCrateComponent): true})).To(Succeed())
 		DeferCleanup(func() {
-			Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.EnableModuleComponent): prev})).To(Succeed())
+			Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.EnableCrateComponent): prev})).To(Succeed())
 		})
 	})
 
 	It("sends the runtime objects to the clusters of the addon's placement", func() {
 		app := renderInlineAddon(&v1alpha1.Placement{Clusters: []string{"spoke-1"}})
-		policies := ownedModulePolicies(app, "edge-kit")
-		Expect(policies).To(HaveKey("module-runtime"))
-		Expect(policies["module-runtime"]["type"]).To(Equal(v1alpha1.TopologyPolicyType))
-		Expect(policies["module-runtime"]["properties"]).To(HaveKeyWithValue("clusters", ConsistOf("spoke-1")))
+		policies := ownedCratePolicies(app, "edge-kit")
+		Expect(policies).To(HaveKey("crate-runtime"))
+		Expect(policies["crate-runtime"]["type"]).To(Equal(v1alpha1.TopologyPolicyType))
+		Expect(policies["crate-runtime"]["properties"]).To(HaveKeyWithValue("clusters", ConsistOf("spoke-1")))
 	})
 
 	It("forwards a label selector and allowEmpty too", func() {
 		app := renderInlineAddon(&v1alpha1.Placement{ClusterLabelSelector: map[string]string{"tier": "runtime"}, AllowEmpty: true})
-		props := ownedModulePolicies(app, "edge-kit")["module-runtime"]["properties"]
+		props := ownedCratePolicies(app, "edge-kit")["crate-runtime"]["properties"]
 		Expect(props).To(HaveKeyWithValue("clusterLabelSelector", HaveKeyWithValue("tier", "runtime")))
 		Expect(props).To(HaveKeyWithValue("allowEmpty", true))
 	})
 
 	It("keeps everything on the hub without a placement", func() {
 		app := renderInlineAddon(nil)
-		Expect(ownedModulePolicies(app, "edge-kit")).NotTo(HaveKey("module-runtime"))
+		Expect(ownedCratePolicies(app, "edge-kit")).NotTo(HaveKey("crate-runtime"))
 	})
 
 	// The dispatcher patches the addon Application with no last-applied
@@ -163,7 +163,7 @@ var _ = Describe("inline module placement", func() {
 		applyRender(&v1alpha1.Placement{Clusters: []string{"spoke-1"}})
 		placed := &v1beta1.Application{}
 		Expect(cli.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: "addon-inline-addon"}, placed)).To(Succeed())
-		Expect(placed.Spec.Workflow).NotTo(BeNil(), "a placed addon with modules gets a generated workflow")
+		Expect(placed.Spec.Workflow).NotTo(BeNil(), "a placed addon with crates gets a generated workflow")
 		Expect(placed.Spec.Workflow.Steps).NotTo(BeEmpty())
 
 		applyRender(nil)
@@ -184,7 +184,7 @@ var _ = Describe("inline module placement", func() {
 		Expect(names).To(ConsistOf(components), "one apply-component step per component")
 	})
 
-	It("leaves no stale workflow when a new addon version drops its modules", func() {
+	It("leaves no stale workflow when a new addon version drops its crates", func() {
 		ctx := context.Background()
 		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 		applicator := apply.NewAPIApplicator(cli)
@@ -208,7 +208,7 @@ var _ = Describe("inline module placement", func() {
 			for _, s := range app.Spec.Workflow.Steps {
 				names = append(names, s.Name)
 			}
-			Expect(names).To(ConsistOf("marker"), "placement %v: no step names the dropped module", place)
+			Expect(names).To(ConsistOf("marker"), "placement %v: no step names the dropped crate", place)
 			Expect(cli.Delete(ctx, app)).To(Succeed())
 		}
 	})

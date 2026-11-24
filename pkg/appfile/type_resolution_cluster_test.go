@@ -30,23 +30,23 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/module/naming"
+	"github.com/oam-dev/kubevela/pkg/crate/naming"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// These tests drive ResolveModuleType against a fake API server. The
+// These tests drive ResolveCrateType against a fake API server. The
 // parse-only cases live in type_resolution_test.go.
 
 const appNS = "team-a"
 
-// stampedLabels are what the module render service stamps on every definition
-// it installs for module/apiVersion/name.
-func stampedLabels(module, apiVersion, name string) map[string]string {
+// stampedLabels are what the crate render service stamps on every definition
+// it installs for crate/apiVersion/name.
+func stampedLabels(crate, apiVersion, name string) map[string]string {
 	return map[string]string{
-		types.LabelDefinitionModule:           module,
-		types.LabelDefinitionModuleAPIVersion: apiVersion,
-		types.LabelDefinitionName:             name,
+		types.LabelDefinitionCrate:           crate,
+		types.LabelDefinitionCrateAPIVersion: apiVersion,
+		types.LabelDefinitionName:            name,
 	}
 }
 
@@ -121,26 +121,26 @@ func TestParseTypeRef_Form3InvalidAPIVersion(t *testing.T) {
 	assert.Contains(t, err.Error(), `"latest" is not a valid API version`)
 }
 
-func TestResolveModuleTypeRejectsAnUnparsableReference(t *testing.T) {
-	_, err := ResolveModuleType(appCtx(), resolutionClient(t), "a/b/c/d", types.TypeComponentDefinition)
+func TestResolveCrateTypeRejectsAnUnparsableReference(t *testing.T) {
+	_, err := ResolveCrateType(appCtx(), resolutionClient(t), "a/b/c/d", types.TypeComponentDefinition)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "3 segments")
 }
 
-func TestResolveModuleTypeForm3IsPureStringMath(t *testing.T) {
+func TestResolveCrateTypeForm3IsPureStringMath(t *testing.T) {
 	// No definition exists; Form 3 does not look.
-	got, err := ResolveModuleType(appCtx(), resolutionClient(t), "s3/v1/bucket", types.TypeComponentDefinition)
+	got, err := ResolveCrateType(appCtx(), resolutionClient(t), "s3/v1/bucket", types.TypeComponentDefinition)
 	require.NoError(t, err)
 	assert.Equal(t, naming.DefinitionName("s3", "v1", "bucket"), got)
 }
 
-func TestResolveModuleTypeRejectsTwoSegmentReferencesEverywhere(t *testing.T) {
+func TestResolveCrateTypeRejectsTwoSegmentReferencesEverywhere(t *testing.T) {
 	for _, capType := range []types.CapType{
 		types.TypeComponentDefinition, types.TypeWorkload, types.TypeTrait,
 		types.TypePolicy, types.TypeWorkflowStep, types.TypeSource,
 	} {
 		t.Run(string(capType), func(t *testing.T) {
-			_, err := ResolveModuleType(appCtx(), resolutionClient(t), "v1/bucket", capType)
+			_, err := ResolveCrateType(appCtx(), resolutionClient(t), "v1/bucket", capType)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "two-segment references are not supported")
 			assert.Contains(t, err.Error(), "Form 1")
@@ -149,89 +149,89 @@ func TestResolveModuleTypeRejectsTwoSegmentReferencesEverywhere(t *testing.T) {
 	}
 }
 
-func TestResolveModuleTypeForm1(t *testing.T) {
+func TestResolveCrateTypeForm1(t *testing.T) {
 	capType := types.TypeComponentDefinition
 
 	t.Run("a legacy definition wins and is returned unchanged", func(t *testing.T) {
 		cli := resolutionClient(t,
 			definitionOf(capType, oam.SystemDefinitionNamespace, "bucket", nil),
-			// A module also installs a "bucket"; the plain name must keep
-			// meaning what it meant before modules existed.
+			// A crate also installs a "bucket"; the plain name must keep
+			// meaning what it meant before crates existed.
 			definitionOf(capType, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")),
 		)
-		got, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
+		got, err := ResolveCrateType(appCtx(), cli, "bucket", capType)
 		require.NoError(t, err)
 		assert.Equal(t, "bucket", got)
 	})
 
-	t.Run("exact-name module-backed definition is rejected", func(t *testing.T) {
-		moduleBacked := &v1beta1.ComponentDefinition{
+	t.Run("exact-name crate-backed definition is rejected", func(t *testing.T) {
+		crateBacked := &v1beta1.ComponentDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "bucket",
 				Namespace: oam.SystemDefinitionNamespace,
 			},
 			Spec: v1beta1.ComponentDefinitionSpec{
-				Module: "s3",
+				Crate: "s3",
 			},
 		}
-		cli := resolutionClient(t, moduleBacked)
-		_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
+		cli := resolutionClient(t, crateBacked)
+		_, err := ResolveCrateType(appCtx(), cli, "bucket", capType)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), `module-backed definition`)
-		assert.Contains(t, err.Error(), `use {module}/{apiVersion}/{name} (Form 3)`)
+		assert.Contains(t, err.Error(), `crate-backed definition`)
+		assert.Contains(t, err.Error(), `use {crate}/{apiVersion}/{name} (Form 3)`)
 	})
 
-	t.Run("a unique module-label match is rejected the same way an exact-name match is", func(t *testing.T) {
+	t.Run("a unique crate-label match is rejected the same way an exact-name match is", func(t *testing.T) {
 		cli := resolutionClient(t, definitionOf(capType, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
-		_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
-		require.Error(t, err, "a unique module-backed hit must not be silently accepted")
-		assert.Contains(t, err.Error(), `module-backed definition "s3-v1-bucket"`)
-		assert.Contains(t, err.Error(), `use {module}/{apiVersion}/{name} (Form 3)`)
+		_, err := ResolveCrateType(appCtx(), cli, "bucket", capType)
+		require.Error(t, err, "a unique crate-backed hit must not be silently accepted")
+		assert.Contains(t, err.Error(), `crate-backed definition "s3-v1-bucket"`)
+		assert.Contains(t, err.Error(), `use {crate}/{apiVersion}/{name} (Form 3)`)
 	})
 
-	t.Run("a unique match carrying only the name label, not the module label, is not module-backed and resolves normally", func(t *testing.T) {
+	t.Run("a unique match carrying only the name label, not the crate label, is not crate-backed and resolves normally", func(t *testing.T) {
 		cli := resolutionClient(t, definitionOf(capType, appNS, "hand-labeled-bucket", map[string]string{types.LabelDefinitionName: "bucket"}))
-		got, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
-		require.NoError(t, err, "the label search only filters on the name label, so a hit with no module label is not module-backed")
+		got, err := ResolveCrateType(appCtx(), cli, "bucket", capType)
+		require.NoError(t, err, "the label search only filters on the name label, so a hit with no crate label is not crate-backed")
 		assert.Equal(t, "hand-labeled-bucket", got)
 	})
 
 	t.Run("no definition at all returns the name for the caller to report", func(t *testing.T) {
-		got, err := ResolveModuleType(appCtx(), resolutionClient(t), "bucket", capType)
+		got, err := ResolveCrateType(appCtx(), resolutionClient(t), "bucket", capType)
 		require.NoError(t, err)
 		assert.Equal(t, "bucket", got, "the caller's own lookup reports the authoritative not-found")
 	})
 
-	t.Run("ambiguous across modules", func(t *testing.T) {
+	t.Run("ambiguous across crates", func(t *testing.T) {
 		cli := resolutionClient(t,
 			definitionOf(capType, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")),
 			definitionOf(capType, appNS, "gcs-v1-bucket", stampedLabels("gcs", "v1", "bucket")),
 		)
-		_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
+		_, err := ResolveCrateType(appCtx(), cli, "bucket", capType)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `type "bucket" is ambiguous`)
-		assert.Contains(t, err.Error(), "use {module}/{apiVersion}/{name} (Form 3)")
+		assert.Contains(t, err.Error(), "use {crate}/{apiVersion}/{name} (Form 3)")
 	})
 
 	t.Run("a failed get other than not-found is reported", func(t *testing.T) {
 		boom := errors.New("apiserver unavailable")
 		cli := faultyReader{Reader: resolutionClient(t), getErr: boom}
-		_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
+		_, err := ResolveCrateType(appCtx(), cli, "bucket", capType)
 		assert.ErrorIs(t, err, boom)
 	})
 
 	t.Run("a failed label search is not an error", func(t *testing.T) {
 		cli := faultyReader{Reader: resolutionClient(t), listErr: func([]client.ListOption) error { return errors.New("list refused") }}
-		got, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
-		require.NoError(t, err, "a bare name resolved fine before modules existed; the search is best-effort")
+		got, err := ResolveCrateType(appCtx(), cli, "bucket", capType)
+		require.NoError(t, err, "a bare name resolved fine before crates existed; the search is best-effort")
 		assert.Equal(t, "bucket", got)
 	})
 }
 
-// TestResolveModuleTypeCoversEveryDefinitionKind runs the Form 1 legacy get
+// TestResolveCrateTypeCoversEveryDefinitionKind runs the Form 1 legacy get
 // and the Form 1 label listing for each capability type, so the per-kind
-// branches of definitionObjectFor and listModuleDefinitions are all taken.
-func TestResolveModuleTypeCoversEveryDefinitionKind(t *testing.T) {
+// branches of definitionObjectFor and listCrateDefinitions are all taken.
+func TestResolveCrateTypeCoversEveryDefinitionKind(t *testing.T) {
 	for _, capType := range []types.CapType{
 		types.TypeComponentDefinition, types.TypeWorkload, types.TypeTrait,
 		types.TypePolicy, types.TypeWorkflowStep, types.TypeSource,
@@ -242,32 +242,32 @@ func TestResolveModuleTypeCoversEveryDefinitionKind(t *testing.T) {
 				definitionOf(capType, appNS, "kit-v1-thing", stampedLabels("kit", "v1", "thing")),
 			)
 
-			got, err := ResolveModuleType(appCtx(), cli, "legacy", capType)
+			got, err := ResolveCrateType(appCtx(), cli, "legacy", capType)
 			require.NoError(t, err)
 			assert.Equal(t, "legacy", got)
 
-			_, err = ResolveModuleType(appCtx(), cli, "thing", capType)
-			require.Error(t, err, "a bare name falling back to a unique module-label match is still rejected toward Form 3")
-			assert.Contains(t, err.Error(), `module-backed definition "kit-v1-thing"`)
+			_, err = ResolveCrateType(appCtx(), cli, "thing", capType)
+			require.Error(t, err, "a bare name falling back to a unique crate-label match is still rejected toward Form 3")
+			assert.Contains(t, err.Error(), `crate-backed definition "kit-v1-thing"`)
 
 			require.NoError(t, DefinitionExists(appCtx(), cli, "kit-v1-thing", capType))
 
-			_, err = ResolveModuleType(appCtx(), cli, "v1/thing", capType)
+			_, err = ResolveCrateType(appCtx(), cli, "v1/thing", capType)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "two-segment references are not supported")
 		})
 	}
 }
 
-func TestListModuleDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
+func TestListCrateDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
 	capType := types.TypeComponentDefinition
 	// Installed into an operator-chosen namespace that is neither the app
 	// namespace nor vela-system.
-	cli := resolutionClient(t, definitionOf(capType, "platform-modules", "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
+	cli := resolutionClient(t, definitionOf(capType, "platform-crates", "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
 
-	_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
-	require.Error(t, err, "the cluster-wide listing still finds the module-backed definition, which is still rejected toward Form 3")
-	assert.Contains(t, err.Error(), `module-backed definition "s3-v1-bucket"`)
+	_, err := ResolveCrateType(appCtx(), cli, "bucket", capType)
+	require.Error(t, err, "the cluster-wide listing still finds the crate-backed definition, which is still rejected toward Form 3")
+	assert.Contains(t, err.Error(), `crate-backed definition "s3-v1-bucket"`)
 
 	t.Run("the cluster-wide listing can fail on its own", func(t *testing.T) {
 		boom := errors.New("forbidden at cluster scope")
@@ -277,15 +277,15 @@ func TestListModuleDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
 			}
 			return boom
 		}}
-		got, err := ResolveModuleType(appCtx(), faulty, "bucket", capType)
-		require.NoError(t, err, "form-1 module label search is best-effort and falls back to the plain lookup on list errors")
+		got, err := ResolveCrateType(appCtx(), faulty, "bucket", capType)
+		require.NoError(t, err, "form-1 crate label search is best-effort and falls back to the plain lookup on list errors")
 		assert.Equal(t, "bucket", got)
 	})
 
 	t.Run("a namespaced hit skips the cluster-wide listing", func(t *testing.T) {
 		withLocal := resolutionClient(t,
 			definitionOf(capType, appNS, "gcs-v1-bucket", stampedLabels("gcs", "v1", "bucket")),
-			definitionOf(capType, "platform-modules", "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")),
+			definitionOf(capType, "platform-crates", "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")),
 		)
 		faulty := faultyReader{Reader: withLocal, listErr: func(opts []client.ListOption) error {
 			if isNamespaced(opts) {
@@ -293,35 +293,35 @@ func TestListModuleDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
 			}
 			return errors.New("must not be called")
 		}}
-		_, err := ResolveModuleType(appCtx(), faulty, "bucket", capType)
+		_, err := ResolveCrateType(appCtx(), faulty, "bucket", capType)
 		require.Error(t, err, "the definition in a searched namespace wins without widening the search, and is still rejected toward Form 3")
-		assert.Contains(t, err.Error(), `module-backed definition "gcs-v1-bucket"`)
+		assert.Contains(t, err.Error(), `crate-backed definition "gcs-v1-bucket"`)
 	})
 }
 
-func TestListModuleDefinitionsDeduplicatesTheSystemNamespace(t *testing.T) {
+func TestListCrateDefinitionsDeduplicatesTheSystemNamespace(t *testing.T) {
 	capType := types.TypeComponentDefinition
 	cli := resolutionClient(t, definitionOf(capType, oam.SystemDefinitionNamespace, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
 
 	// No app namespace in the context means the app namespace is vela-system
 	// itself; the one definition must be listed once, not reported ambiguous
 	// (and, listed once, is still rejected toward Form 3).
-	_, err := ResolveModuleType(context.Background(), cli, "bucket", capType)
+	_, err := ResolveCrateType(context.Background(), cli, "bucket", capType)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `module-backed definition "s3-v1-bucket"`)
+	assert.Contains(t, err.Error(), `crate-backed definition "s3-v1-bucket"`)
 }
 
-func TestResolveUniqueNamesEachModuleOnce(t *testing.T) {
+func TestResolveUniqueNamesEachCrateOnce(t *testing.T) {
 	matches := []client.Object{
 		definitionOf(types.TypeComponentDefinition, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")),
 		definitionOf(types.TypeComponentDefinition, oam.SystemDefinitionNamespace, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")),
-		// A definition without a module label is named by itself.
+		// A definition without a crate label is named by itself.
 		definitionOf(types.TypeComponentDefinition, appNS, "hand-made-bucket", map[string]string{types.LabelDefinitionName: "bucket"}),
 	}
 	_, err := resolveUnique("bucket", matches, "pick one")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "definitions from modules [s3, hand-made-bucket] all match; pick one",
-		"the same module in two namespaces is listed once; an unlabelled definition is listed by name")
+	assert.Contains(t, err.Error(), "definitions from crates [s3, hand-made-bucket] all match; pick one",
+		"the same crate in two namespaces is listed once; an unlabelled definition is listed by name")
 
 	got, err := resolveUnique("bucket", matches[:1], "pick one")
 	require.NoError(t, err)
@@ -341,7 +341,7 @@ func TestDefinitionExists(t *testing.T) {
 
 	err := DefinitionExists(appCtx(), cli, "s3-v1-gauge", capType)
 	require.Error(t, err)
-	assert.Equal(t, `definition "s3-v1-gauge" not found: ensure the module is installed`, err.Error())
+	assert.Equal(t, `definition "s3-v1-gauge" not found: ensure the crate is installed`, err.Error())
 
 	boom := errors.New("apiserver unavailable")
 	err = DefinitionExists(appCtx(), faultyReader{Reader: cli, getErr: boom}, "s3-v1-note", capType)

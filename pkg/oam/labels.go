@@ -294,13 +294,13 @@ const (
 	// AnnotationAddonDefinitionBondCompKey indicates the definition in addon bond component.
 	AnnotationAddonDefinitionBondCompKey = "addon.oam.dev/bind-component"
 
-	// AnnotationModuleInstallNamespace is set by the addon renderer on an owned
+	// AnnotationCrateInstallNamespace is set by the addon renderer on an owned
 	// addon Application to the namespace of the Application that installed the
 	// addon. The owned Application itself always lives in vela-system, so a
-	// type: module component inside it installs its definitions here instead.
-	// The module definition honors it only on Applications carrying
+	// type: crate component inside it installs its definitions here instead.
+	// The crate definition honors it only on Applications carrying
 	// LabelAddonName.
-	AnnotationModuleInstallNamespace = "modules.oam.dev/install-namespace"
+	AnnotationCrateInstallNamespace = "crates.oam.dev/install-namespace"
 
 	// AnnotationSkipResume annotation indicates that the resource does not need to be resumed.
 	AnnotationSkipResume = "controller.core.oam.dev/skip-resume"
@@ -345,7 +345,7 @@ var internalMetadataPrefixes = map[string]struct{}{
 	"k8s.io/":                {},
 	"helm.sh/":               {},
 	"app.kubernetes.io/":     {},
-	"modules.oam.dev/":       {},
+	"crates.oam.dev/":        {},
 }
 
 // FilterInternalMetadata returns a copy of metadata with internal platform keys removed.

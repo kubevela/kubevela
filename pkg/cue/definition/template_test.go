@@ -1400,8 +1400,8 @@ func TestTraitOutputsCarryTypeLabel(t *testing.T) {
 		engine AbstractEngine
 		want   string
 	}{
-		"plain trait uses its name":            {engine: NewTraitAbstractEngine("note"), want: "note"},
-		"module trait uses the installed name": {engine: NewTraitAbstractEngineWithTypeLabel("note", "widget-kit-v1-note"), want: "widget-kit-v1-note"},
+		"plain trait uses its name":           {engine: NewTraitAbstractEngine("note"), want: "note"},
+		"crate trait uses the installed name": {engine: NewTraitAbstractEngineWithTypeLabel("note", "widget-kit-v1-note"), want: "widget-kit-v1-note"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)

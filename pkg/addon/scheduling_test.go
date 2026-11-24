@@ -83,7 +83,7 @@ func TestAttachSchedulingTrait(t *testing.T) {
 		}},
 		{Name: "addon-demo-ns", Type: "k8s-objects"},
 		{Name: "chart", Type: "helmchart"},
-		{Name: "provider-kit", Type: "module"},
+		{Name: "provider-kit", Type: "crate"},
 	}
 	props := SchedulingProperties{NodeSelector: map[string]string{"disktype": "ssd"}}
 	require.NoError(t, AttachSchedulingTrait(app, props))
@@ -96,7 +96,7 @@ func TestAttachSchedulingTrait(t *testing.T) {
 
 	require.Empty(t, app.Spec.Components[1].Traits)
 	require.Equal(t, AffinityTraitType, app.Spec.Components[2].Traits[0].Type)
-	require.Equal(t, AffinityTraitType, app.Spec.Components[3].Traits[0].Type, "type: module gets affinity trait")
+	require.Equal(t, AffinityTraitType, app.Spec.Components[3].Traits[0].Type, "type: crate gets affinity trait")
 }
 
 func TestAttachSchedulingTraitTopology(t *testing.T) {
@@ -144,7 +144,7 @@ func TestMergeNodeSelector(t *testing.T) {
 	require.Equal(t, "a", empty.NodeSelector["zone"])
 }
 
-// GitHub #5362: AttachSchedulingTrait puts affinity onto webservice/helmchart/module
+// GitHub #5362: AttachSchedulingTrait puts affinity onto webservice/helmchart/crate
 // components and skips *-ns helpers / raw. CLI flag wiring is covered by
 // TestInjectSchedulingArgs in references/cli.
 func TestAttachSchedulingTraitIssue5362Matrix(t *testing.T) {
@@ -153,7 +153,7 @@ func TestAttachSchedulingTraitIssue5362Matrix(t *testing.T) {
 		{Name: "addon-demo-ns", Type: "k8s-objects"},
 		{Name: "velaux", Type: "webservice"},
 		{Name: "chart", Type: "helmchart"},
-		{Name: "provider-kit", Type: "module"},
+		{Name: "provider-kit", Type: "crate"},
 		{Name: "raw-blob", Type: "raw"},
 		{Name: "aux-objects", Type: "k8s-objects"},
 		{Name: "backend-ns", Type: "webservice"},

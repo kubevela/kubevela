@@ -7,7 +7,7 @@ paging: "%d / %d"
 
 # KubeVela vNext: KEP 2.13, 2.16, 2.20
 
-**Declarative Addons · Source Resolution · Module Versioning**
+**Declarative Addons · Source Resolution · Crate Versioning**
 
 Community Call · April 2026
 
@@ -16,7 +16,7 @@ Community Call · April 2026
 ## Three KEPs, One Thread
 
 ```
-KEP-2.20: Module & API Line Versioning
+KEP-2.20: Crate & API Line Versioning
          ↑ defines stable names for definitions
 
 KEP-2.13: Declarative Addon Lifecycle
@@ -429,7 +429,7 @@ Admission webhook enforces the boundary at `kubectl apply` time:
 
 ---
 
-# KEP-2.20 - Module & API Line Versioning
+# KEP-2.20 - Crate & API Line Versioning
 
 ## The Problem Today
 
@@ -450,7 +450,7 @@ Common workaround: name the new definition `database-v2`.
 
 ---
 
-# KEP-2.20 - Module & API Line Versioning
+# KEP-2.20 - Crate & API Line Versioning
 
 ## Semver is for Releases. API Lines are for Contracts.
 
@@ -493,12 +493,12 @@ Breaking the contract requires a new line (`v2`), not an in-place edit.
 
 ---
 
-# KEP-2.20 - Module & API Line Versioning
+# KEP-2.20 - Crate & API Line Versioning
 
-## The Fix: Module Identity + API Lines
+## The Fix: Crate Identity + API Lines
 
 ```
-module: postgres
+crate: postgres
   └── v1/                ← API line (stable contract)
   │     └── database     ← ComponentDefinition: postgres-v1-database
   └── v2/                ← new API line (breaking change)
@@ -519,12 +519,12 @@ spec:
 
 ---
 
-# KEP-2.20 - Module & API Line Versioning
+# KEP-2.20 - Crate & API Line Versioning
 
 ## Definition Naming Convention
 
 ```
-{module}-{apiVersion}-{definition-name}
+{crate}-{apiVersion}-{definition-name}
 
 Examples:
   postgres-v1-database
@@ -533,27 +533,27 @@ Examples:
   aws-s3-v1beta1-encryption-policy
 ```
 
-`spec.module` and `spec.apiVersion` are new fields on all X-Definitions.
-The addon controller stamps them at install time from `_module.cue`.
+`spec.crate` and `spec.apiVersion` are new fields on all X-Definitions.
+The addon controller stamps them at install time from `_crate.cue`.
 
 ```bash
 kubectl get componentdefinition postgres-v1-database -o yaml | grep -A2 spec:
 # spec:
-#   module: postgres
+#   crate: postgres
 #   apiVersion: v1
 #   version: 1.2.3    # could be 2.x.x but still v1 conformant
 ```
 
 ---
 
-# KEP-2.20 - Module & API Line Versioning
+# KEP-2.20 - Crate & API Line Versioning
 
-## The `_module.cue` Contract
+## The `_crate.cue` Contract
 
 ```cue
-// modules/postgres/_module.cue
+// crates/postgres/_crate.cue
 
-module: "postgres"      // globally unique module identifier
+crate: "postgres"      // globally unique crate identifier
 
 lines: {
   v1: {
@@ -566,9 +566,9 @@ lines: {
 ```
 
 ```
-modules/
+crates/
   postgres/
-    _module.cue         ← module identity + line configuration
+    _crate.cue         ← crate identity + line configuration
     v1/
       _version.cue      ← source references for this line
       database.cue      ← ComponentDefinition template
@@ -581,7 +581,7 @@ modules/
 
 ---
 
-# KEP-2.20 - Module & API Line Versioning
+# KEP-2.20 - Crate & API Line Versioning
 
 ## v1 and v2 Live Side by Side
 
@@ -613,12 +613,12 @@ components:
 
 ---
 
-# KEP-2.20 - Module & API Line Versioning
+# KEP-2.20 - Crate & API Line Versioning
 
 ## Deprecation Lifecycle
 
 ```cue
-// modules/postgres/_module.cue  (addon v3.0.0)
+// crates/postgres/_crate.cue  (addon v3.0.0)
 
 lines: {
   v1: {
@@ -642,15 +642,15 @@ kubectl get componentdefinition postgres-v1-database -o yaml | grep deprecated
 
 ---
 
-# KEP-2.20 - Module & API Line Versioning
+# KEP-2.20 - Crate & API Line Versioning
 
 ## Summary: How They Connect
 
 ```
-Module author writes postgres/v1/database template
-    └─► vela module publish  →  Module registry
+Crate author writes postgres/v1/database template
+    └─► vela crate publish  →  Crate registry
 
-Platform team bundles it in an Addon (or modules can exist in-line)
+Platform team bundles it in an Addon (or crates can exist in-line)
     └─► vela addon publish   →  Addon registry
 
 GitOps declares desired cluster state:
@@ -674,6 +674,6 @@ All three KEPs are **Ready for Review**.
 |-----|-------|--------|
 | 2.13 | Declarative Addon Lifecycle | Ready for Review |
 | 2.16 | SourceDefinition & fromSource | Ready for Review |
-| 2.20 | Module & API Line Versioning | Ready for Review |
+| 2.20 | Crate & API Line Versioning | Ready for Review |
 
 Questions, feedback, concerns - please comment on the PR or raise in the community channel.

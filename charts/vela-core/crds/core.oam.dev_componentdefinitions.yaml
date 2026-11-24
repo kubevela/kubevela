@@ -63,8 +63,8 @@ spec:
                 type: boolean
               apiVersion:
                 description: |-
-                  APIVersion is the API line of the module this definition belongs to, for
-                  example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                  APIVersion is the API line of the crate this definition belongs to, for
+                  example "v1" or "v1beta2". Set it together with crate, or leave both empty.
                 pattern: ^v\d+(alpha\d+|beta\d+)?$
                 type: string
               childResourceKinds:
@@ -91,6 +91,12 @@ spec:
                   - kind
                   type: object
                 type: array
+              crate:
+                description: |-
+                  Crate names the crate this definition was published in, for example
+                  "s3". It identifies a versioned definition on the spec itself, not only
+                  through labels. Set it together with apiVersion, or leave both empty.
+                type: string
               extends:
                 description: |-
                   Extends names a ComponentDefinition this one builds on. The parent renders
@@ -113,12 +119,6 @@ spec:
                   builders
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
-              module:
-                description: |-
-                  Module names the module this definition was published in, for example
-                  "s3". It identifies a versioned definition on the spec itself, not only
-                  through labels. Set it together with apiVersion, or leave both empty.
-                type: string
               podSpecPath:
                 description: |-
                   PodSpecPath indicates where/if this workload has K8s podSpec field

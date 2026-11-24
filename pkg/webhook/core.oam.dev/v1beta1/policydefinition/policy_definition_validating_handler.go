@@ -153,8 +153,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("validate-version").Debug("PolicyDefinition version follows semantic versioning format", "version", obj.Spec.Version)
 		}
 
-		// Validate identity fields: module and apiVersion are set together or not at all.
-		if resp, denied := webhookutils.DenyOnInvalidIdentity(logger, "PolicyDefinition", obj.Spec.Module, obj.Spec.APIVersion, req.UID); denied {
+		// Validate identity fields: crate and apiVersion are set together or not at all.
+		if resp, denied := webhookutils.DenyOnInvalidIdentity(logger, "PolicyDefinition", obj.Spec.Crate, obj.Spec.APIVersion, req.UID); denied {
 			return resp
 		}
 

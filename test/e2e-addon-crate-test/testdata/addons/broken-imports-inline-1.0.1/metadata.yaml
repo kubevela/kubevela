@@ -1,0 +1,7 @@
+name: broken-imports-inline
+version: 1.0.1
+description: "Deliberately broken inline crate: crates/badmod/ has no _crate.cue."
+tags:
+  - test
+  - crate-inline
+dependencies: []

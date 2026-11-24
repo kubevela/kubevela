@@ -28,7 +28,7 @@ import (
 )
 
 // DefaultRevisionCacheSize is how many packages one cache keeps. A cluster
-// reads a handful of modules and addons from a handful of registries, so this
+// reads a handful of crates and addons from a handful of registries, so this
 // is a bound, not a target.
 const DefaultRevisionCacheSize = 64
 
@@ -42,7 +42,7 @@ const DefaultRevisionTTL = 12 * time.Hour
 //
 // A read that failed at a revision fails the same way at that revision, and
 // without remembering it the expensive part runs again on every reconcile: a
-// module whose _module.cue does not compile, or an addon whose metadata cannot
+// crate whose _crate.cue does not compile, or an addon whose metadata cannot
 // be parsed, crawls the whole registry, fails downstream of the crawl, and is
 // requeued a second later by the workflow. The rate-limit gate does not help,
 // because the registry is answering perfectly well. It is kept short so that
@@ -61,9 +61,9 @@ type revisionEntry[T any] struct {
 // revision it was read at, so a reconcile that finds the revision unchanged
 // spends nothing reading it again.
 //
-// This is the whole point of the type. Reading one module from a git registry
+// This is the whole point of the type. Reading one crate from a git registry
 // costs one API request per directory in the registry plus one per file of the
-// module, every time, and the render path runs on every reconcile of every
+// crate, every time, and the render path runs on every reconcile of every
 // Application that names it. Several applications retrying on failure once a
 // second is enough to spend a 5000-request hour in minutes, and once the hour
 // is spent every render fails, which makes every Application retry, which

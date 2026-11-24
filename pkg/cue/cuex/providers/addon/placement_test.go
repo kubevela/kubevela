@@ -31,7 +31,7 @@ import (
 )
 
 // The provider hands a valid placement to the renderer and refuses a bad one
-// with the same message as the module provider, before the renderer is
+// with the same message as the crate provider, before the renderer is
 // reached. It runs under a validation-only context too, so admission refuses
 // the same request.
 var _ = Describe("Render placement", func() {

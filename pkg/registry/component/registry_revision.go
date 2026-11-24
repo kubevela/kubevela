@@ -42,7 +42,7 @@ func (r *Registry) PackageRevision(ctx context.Context, name, version, lastKnown
 		return "", fmt.Errorf("%q: %w", name, ErrPackageNotExist)
 	}
 	// OCISource, not OCIChartSource: the latter deliberately widens to
-	// scheme-less and http:// URLs for the module chart path, and a plain Helm
+	// scheme-less and http:// URLs for the crate chart path, and a plain Helm
 	// repository served over HTTP matches that spelling too. Asking such a
 	// server for a manifest digest fails, and failing a revision probe is worse
 	// than not having one -- so only an unambiguous oci:// endpoint takes this
@@ -60,7 +60,7 @@ func (r *Registry) PackageRevision(ctx context.Context, name, version, lastKnown
 // ociPackageRevision is the resolved tag and the digest behind it. Both belong
 // in the key: the digest alone would miss a move from one tag to another when
 // the caller asked for no particular version, and the tag alone would miss a
-// re-push of the same tag, which is the ordinary way a module is corrected.
+// re-push of the same tag, which is the ordinary way a crate is corrected.
 func (r *Registry) ociPackageRevision(ctx context.Context, oci *HelmSource, name, version, lastKnown string) (string, error) {
 	repoRef, host := OCIRepoRef(oci.URL, name)
 	tag, err := resolveOCITag(ctx, repoRef, host, oci.Username, oci.Token, version)

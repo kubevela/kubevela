@@ -90,8 +90,8 @@ jobs:
           - suite: core-helm
             package: e2e-helm-test
             k8s-version: v1.37.0
-          - suite: module
-            package: e2e-module-test
+          - suite: crate
+            package: e2e-crate-test
             k8s-version: v1.37.0
           - suite: source
             package: e2e-source-test
@@ -99,8 +99,8 @@ jobs:
           - suite: addon
             package: e2e-addon-test
             k8s-version: v1.37.0
-          - suite: addon-module
-            package: e2e-addon-module-test
+          - suite: addon-crate
+            package: e2e-addon-crate-test
             k8s-version: v1.37.0
           - suite: addon-component
             package: e2e-addon-component-test

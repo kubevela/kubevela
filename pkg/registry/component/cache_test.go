@@ -162,7 +162,7 @@ func TestRevisionCacheReadsWhenProbeFailsAndNothingIsCached(t *testing.T) {
 func TestRevisionCacheRemembersFailedReadAtRevision(t *testing.T) {
 	c := newRevisionCache[string](context.Background(), 8, time.Minute)
 	p := &cacheProbe{}
-	readErr := errors.New("_module.cue does not compile")
+	readErr := errors.New("_crate.cue does not compile")
 
 	got, err := c.Load("widget", p.revision("r1", nil), p.read("", readErr))
 	assert.ErrorIs(t, err, readErr)

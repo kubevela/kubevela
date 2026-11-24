@@ -19,7 +19,7 @@ package addon
 import "github.com/oam-dev/kubevela/pkg/registry/component"
 
 // The registry model, its data store and the source readers now live in
-// pkg/registry/component, shared with pkg/module. These aliases keep the addon
+// pkg/registry/component, shared with pkg/crate. These aliases keep the addon
 // package's existing spelling working; new code should reach for the component
 // package directly.
 type (

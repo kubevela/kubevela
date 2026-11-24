@@ -564,30 +564,30 @@ output: kube.#Read & {
 func TestValidateDefinitionIdentity(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {
-		module     string
+		crate      string
 		apiVersion string
 		wantErr    string
 	}{
-		"bothSet":         {module: "s3", apiVersion: "v1"},
+		"bothSet":         {crate: "s3", apiVersion: "v1"},
 		"bothEmpty":       {},
-		"moduleOnly":      {module: "s3", wantErr: "spec.module is set but spec.apiVersion is empty"},
-		"apiVersionOnly":  {apiVersion: "v1", wantErr: "spec.apiVersion is set but spec.module is empty"},
-		"prereleaseValid": {module: "s3", apiVersion: "v1beta2"},
-		"moduleHasUppercase": {
-			module:     "Widget-Kit",
+		"crateOnly":       {crate: "s3", wantErr: "spec.crate is set but spec.apiVersion is empty"},
+		"apiVersionOnly":  {apiVersion: "v1", wantErr: "spec.apiVersion is set but spec.crate is empty"},
+		"prereleaseValid": {crate: "s3", apiVersion: "v1beta2"},
+		"crateHasUppercase": {
+			crate:      "Widget-Kit",
 			apiVersion: "v1",
-			wantErr:    "spec.module \"Widget-Kit\" is not a valid DNS-1123 label",
+			wantErr:    "spec.crate \"Widget-Kit\" is not a valid DNS-1123 label",
 		},
-		"moduleHasSpace": {
-			module:     "widget kit",
+		"crateHasSpace": {
+			crate:      "widget kit",
 			apiVersion: "v1",
-			wantErr:    "spec.module \"widget kit\" is not a valid DNS-1123 label",
+			wantErr:    "spec.crate \"widget kit\" is not a valid DNS-1123 label",
 		},
 	}
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
 			t.Parallel()
-			err := ValidateDefinitionIdentity(cs.module, cs.apiVersion)
+			err := ValidateDefinitionIdentity(cs.crate, cs.apiVersion)
 			if cs.wantErr == "" {
 				assert.NoError(t, err)
 				return
@@ -610,7 +610,7 @@ func TestDenyOnInvalidIdentity(t *testing.T) {
 		resp, denied := DenyOnInvalidIdentity(logger, "ComponentDefinition", "s3", "", types.UID("req-2"))
 		assert.True(t, denied)
 		assert.False(t, resp.Allowed)
-		assert.Contains(t, resp.Result.Message, "spec.module is set but spec.apiVersion is empty")
+		assert.Contains(t, resp.Result.Message, "spec.crate is set but spec.apiVersion is empty")
 		assert.Contains(t, resp.Result.Message, "requestUID=req-2")
 	})
 }

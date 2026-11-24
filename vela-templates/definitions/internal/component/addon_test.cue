@@ -25,7 +25,7 @@ _rendered: $returns: {
 			properties: {} @exact()
 			skipVersionValidate: false
 			// The installing Application's namespace, where the addon's
-			// modules install their definitions.
+			// crates install their definitions.
 			namespace: "team-a"
 		}}]
 	}

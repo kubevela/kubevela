@@ -1,8 +1,8 @@
 .PHONY: e2e-addon-test
 E2E_PROCS ?= auto
 E2E_TIMEOUT ?= 1h
-E2E_ADDON_MODULE_TIMEOUT ?= 2h
-E2E_ADDON_MODULE_SERIAL_KUBECONFIG ?=
+E2E_ADDON_CRATE_TIMEOUT ?= 2h
+E2E_ADDON_CRATE_SERIAL_KUBECONFIG ?=
 E2E_REPORT_DIR ?= _artifacts/e2e
 E2E_CORE_LABEL_FILTER ?=
 E2E_CORE_AUTH ?= 1
@@ -54,7 +54,7 @@ e2e-setup-core-wo-auth:
 		--set featureGates.enableGlobalPolicies=true \
 		--set controllerArgs.allowNamespaceGlobalPolicies=true \
 		--set featureGates.enableAddonComponent=true \
-		--set featureGates.enableModuleComponent=true \
+		--set featureGates.enableCrateComponent=true \
 		--set definitionRestrictions.overrides.addon=null \
 		--set featureGates.enableCelExpressions=true \
 		--set featureGates.requireCelExpressionOptIn=true \
@@ -100,16 +100,16 @@ e2e-setup-core-w-auth:
 .PHONY: e2e-setup-core
 e2e-setup-core: e2e-setup-core-pre-hook e2e-setup-core-wo-auth e2e-setup-core-post-hook
 
-.PHONY: e2e-setup-core-module e2e-setup-core-module-install
-e2e-setup-core-module: e2e-setup-core-pre-hook e2e-setup-core-module-install
+.PHONY: e2e-setup-core-crate e2e-setup-core-crate-install
+e2e-setup-core-crate: e2e-setup-core-pre-hook e2e-setup-core-crate-install
 
 # Installs the chart without patching it: e2e-setup-core-pre-hook edits the
 # chart in place and must run only once, however many clusters get it.
-e2e-setup-core-module-install: e2e-setup-core-wo-auth
+e2e-setup-core-crate-install: e2e-setup-core-wo-auth
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
 
 .PHONY: e2e-setup-core-minimal
-e2e-setup-core-minimal: e2e-setup-core-module
+e2e-setup-core-minimal: e2e-setup-core-crate
 
 .PHONY: e2e-setup-core-auth
 e2e-setup-core-auth: e2e-setup-core-pre-hook e2e-setup-core-w-auth e2e-setup-core-post-hook
@@ -164,16 +164,16 @@ e2e-core-discovery:
 e2e-workers-test:
 	bash hack/e2e/ginkgo_workers_test.sh
 
-.PHONY: e2e-module-test
-e2e-module-test:
-	# Run the module-as-a-component e2e suite (KUBEVELA_E2E_AUTH=1 enables
+.PHONY: e2e-crate-test
+e2e-crate-test:
+	# Run the crate-as-a-component e2e suite (KUBEVELA_E2E_AUTH=1 enables
 	# the zot auth-test registry, used by one credentialed-registry test).
 	# Kept as its own package/target so a failure elsewhere in e2e-api-test
 	# or e2e-test cannot prevent this from running.
 	mkdir -p "$(E2E_REPORT_DIR)"
 	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
 	echo "Ginkgo workers: $$workers"; \
-	KUBEVELA_E2E_AUTH=1 ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --json-report="$(E2E_REPORT_DIR)/e2e-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-module-test.xml" ./test/e2e-module-test
+	KUBEVELA_E2E_AUTH=1 ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --json-report="$(E2E_REPORT_DIR)/e2e-crate-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-crate-test.xml" ./test/e2e-crate-test
 	@$(OK) tests pass
 
 .PHONY: e2e-source-test
@@ -191,7 +191,7 @@ e2e-addon-component-test:
 	# test/e2e-addon-component-test/testdata/addon into it, so it needs no
 	# external registry and no credentials.
 	#
-	# Kept as its own package/target for the same reason as e2e-module-test:
+	# Kept as its own package/target for the same reason as e2e-crate-test:
 	# a failure elsewhere in e2e-api-test or e2e-test must not stop it running.
 	# Requires featureGates.enableAddonComponent=true on the installed chart.
 	mkdir -p "$(E2E_REPORT_DIR)"
@@ -231,21 +231,21 @@ e2e-addon-component-test-local:
 	ginkgo -v ./test/e2e-addon-component-test
 	@$(OK) tests pass
 
-.PHONY: e2e-addon-module-test
-e2e-addon-module-test:
-	# Run the addon-imports-modules e2e suite: "type: addon" components whose
-	# modules/_imports.cue pulls "type: module" components. It needs both
-	# EnableAddonComponent and EnableModuleComponent on, the admission webhook
+.PHONY: e2e-addon-crate-test
+e2e-addon-crate-test:
+	# Run the addon-imports-crates e2e suite: "type: addon" components whose
+	# crates/_imports.cue pulls "type: crate" components. It needs both
+	# EnableAddonComponent and EnableCrateComponent on, the admission webhook
 	# enabled, reSyncPeriod=1m, bin/vela built from this source, and the
-	# images below loaded (registry:2 for modules, chartmuseum for addons;
-	# see test/e2e-addon-module-test/testdata/registry.yaml).
+	# images below loaded (registry:2 for crates, chartmuseum for addons;
+	# see test/e2e-addon-crate-test/testdata/registry.yaml).
 	# Ginkgo's own default (1h) can be too tight for this suite: several
 	# scenarios run multiple install/upgrade/uninstall cycles against
 	# installWait=6m/reconcileWait=4m, and a loaded CI runner can push the
 	# total past an hour with no single step hung.
 	#
-	# With E2E_ADDON_MODULE_SERIAL_KUBECONFIG set, the Serial scenarios
-	# (selected by test/e2e-addon-module-test/serial-label-filter: they
+	# With E2E_ADDON_CRATE_SERIAL_KUBECONFIG set, the Serial scenarios
+	# (selected by test/e2e-addon-crate-test/serial-label-filter: they
 	# restart vela-core, toggle its feature gates or change the default
 	# registry) run on that second cluster while the rest run here, at the
 	# same time. The second cluster needs the same setup as this one. Its
@@ -253,36 +253,36 @@ e2e-addon-module-test:
 	mkdir -p "$(E2E_REPORT_DIR)"
 	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
 	echo "Ginkgo workers: $$workers"; \
-	if [ -z "$(E2E_ADDON_MODULE_SERIAL_KUBECONFIG)" ]; then \
-	  ginkgo -v --procs="$$workers" --timeout=$(E2E_ADDON_MODULE_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" ./test/e2e-addon-module-test; \
+	if [ -z "$(E2E_ADDON_CRATE_SERIAL_KUBECONFIG)" ]; then \
+	  ginkgo -v --procs="$$workers" --timeout=$(E2E_ADDON_CRATE_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-crate-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-crate-test.xml" ./test/e2e-addon-crate-test; \
 	else \
-	  serial_filter=$$(<test/e2e-addon-module-test/serial-label-filter); \
-	  suite_bin=test/e2e-addon-module-test/e2e-addon-module-test.test; \
-	  ginkgo build ./test/e2e-addon-module-test; \
-	  KUBECONFIG="$(E2E_ADDON_MODULE_SERIAL_KUBECONFIG)" bash hack/e2e/background_job.sh start addon-module-serial \
-	    ginkgo -v --procs=1 --timeout=$(E2E_ADDON_MODULE_TIMEOUT) --fail-on-empty --label-filter="$$serial_filter" --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test-serial.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test-serial.xml" "$$suite_bin"; \
+	  serial_filter=$$(<test/e2e-addon-crate-test/serial-label-filter); \
+	  suite_bin=test/e2e-addon-crate-test/e2e-addon-crate-test.test; \
+	  ginkgo build ./test/e2e-addon-crate-test; \
+	  KUBECONFIG="$(E2E_ADDON_CRATE_SERIAL_KUBECONFIG)" bash hack/e2e/background_job.sh start addon-crate-serial \
+	    ginkgo -v --procs=1 --timeout=$(E2E_ADDON_CRATE_TIMEOUT) --fail-on-empty --label-filter="$$serial_filter" --json-report="$(E2E_REPORT_DIR)/e2e-addon-crate-test-serial.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-crate-test-serial.xml" "$$suite_bin"; \
 	  rc=0; \
-	  ginkgo -v --procs="$$workers" --timeout=$(E2E_ADDON_MODULE_TIMEOUT) --fail-on-empty --label-filter="!($$serial_filter)" --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" "$$suite_bin" || rc=$$?; \
+	  ginkgo -v --procs="$$workers" --timeout=$(E2E_ADDON_CRATE_TIMEOUT) --fail-on-empty --label-filter="!($$serial_filter)" --json-report="$(E2E_REPORT_DIR)/e2e-addon-crate-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-crate-test.xml" "$$suite_bin" || rc=$$?; \
 	  echo "=== Serial scenarios on the second cluster ==="; \
-	  bash hack/e2e/background_job.sh wait addon-module-serial 7200 || rc=$$?; \
+	  bash hack/e2e/background_job.sh wait addon-crate-serial 7200 || rc=$$?; \
 	  exit $$rc; \
 	fi
 	@$(OK) tests pass
 
-.PHONY: e2e-addon-module-discovery
-e2e-addon-module-discovery:
-	bash hack/e2e/verify_addon_module_execution.sh
+.PHONY: e2e-addon-crate-discovery
+e2e-addon-crate-discovery:
+	bash hack/e2e/verify_addon_crate_execution.sh
 
 # Bring up (or reuse) the k3d cluster the local e2e targets share, build and
 # load the vela-core image, preload the registry images, and install the chart
 # with the webhook and both component feature gates on.
 #
 # Port 30500 is the NodePort of the in-cluster OCI registry
-# (test/e2e-module-test/testdata/module/registry.yaml, shared with
-# test/e2e-addon-module-test) and 30501 the NodePort of the addon ChartMuseum
-# (test/e2e-addon-module-test/testdata/registry.yaml). Mapping them onto the
+# (test/e2e-crate-test/testdata/crate/registry.yaml, shared with
+# test/e2e-addon-crate-test) and 30501 the NodePort of the addon ChartMuseum
+# (test/e2e-addon-crate-test/testdata/registry.yaml). Mapping them onto the
 # host is what lets a test process outside the docker network reach them: on
-# a Mac the k3d node IP is not routable from the host, so the addon-module
+# a Mac the k3d node IP is not routable from the host, so the addon-crate
 # suite falls back to http://127.0.0.1:<port> for its own pushes and checks
 # while the cluster keeps the node-IP URL. An already-existing cluster keeps
 # its old port mappings: run `k3d cluster delete kubevela-debug` first to
@@ -295,7 +295,7 @@ e2e-local-cluster:
 	k3d image import vela-core:e2e-test -c kubevela-debug
 	# Pre-load the registry images the suites deploy (zot/chartmuseum/nginx
 	# for test/e2e-helm-test, registry:2 and
-	# chartmuseum for the module suites). Each command runs on its own line
+	# chartmuseum for the crate suites). Each command runs on its own line
 	# under `set -e` so a failed pull stops the loop (a `&&` chain would
 	# swallow the failure as far as `set -e` is concerned).
 	# The images are saved with `--platform` (Docker 28+) and the tarball is
@@ -332,7 +332,7 @@ e2e-local-cluster:
 		--set featureGates.enableCueValidation=true \
 		--set featureGates.validateResourcesExist=true \
 		--set featureGates.enableAddonComponent=true \
-		--set featureGates.enableModuleComponent=true \
+		--set featureGates.enableCrateComponent=true \
 		--set definitionRestrictions.overrides.addon=null \
 		--set applicationRevisionLimit=5 \
 		--set controllerArgs.reSyncPeriod=1m \
@@ -340,20 +340,20 @@ e2e-local-cluster:
 	# The suites drive the vela CLI built from this source.
 	$(MAKE) vela-cli
 
-# Run the module e2e suites with k3d and webhook validation. The addon-module
+# Run the crate e2e suites with k3d and webhook validation. The addon-crate
 # suite goes first: it runs on a Mac (see e2e-local-cluster), whereas the
-# module suite's own "vela module deploy" steps need the k3d node IP to be
+# crate suite's own "vela crate deploy" steps need the k3d node IP to be
 # routable from the host, which only a Linux host or CI runner has.
 .PHONY: e2e-test-local
 e2e-test-local: e2e-local-cluster
-	$(MAKE) e2e-addon-module-test
-	$(MAKE) e2e-module-test
+	$(MAKE) e2e-addon-crate-test
+	$(MAKE) e2e-crate-test
 	@$(OK) tests pass
 
-# Run only the addon-module e2e suite against the local k3d cluster.
-.PHONY: e2e-addon-module-test-local
-e2e-addon-module-test-local: e2e-local-cluster
-	$(MAKE) e2e-addon-module-test
+# Run only the addon-crate e2e suite against the local k3d cluster.
+.PHONY: e2e-addon-crate-test-local
+e2e-addon-crate-test-local: e2e-local-cluster
+	$(MAKE) e2e-addon-crate-test
 	@$(OK) tests pass
 
 # Run e2e application tests with k3d and webhook validation

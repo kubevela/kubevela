@@ -1,0 +1,137 @@
+# e2e-addon-crate-test
+
+Live-cluster e2e suite for addons installed as `type: addon` components that
+import crates through `crates/_imports.cue`. It is the automated form of the
+scenarios in `testing/addon-crate-cr-based-single-cluster` and follows the
+shape of `test/e2e-crate-test`.
+
+## What the cluster needs
+
+- vela-core built from this source, installed with
+  `featureGates.enableAddonComponent=true`,
+  `featureGates.enableCrateComponent=true`,
+  `admissionWebhooks.enabled=true` and `controllerArgs.reSyncPeriod=1m`
+  (`make e2e-test-local` does all of this).
+- `bin/vela` built from this source (`CGO_ENABLED=0 go build -o bin/vela ./references/cmd/cli`).
+- The images `docker.io/library/registry:2` and
+  `ghcr.io/helm/chartmuseum:v0.16.2` loadable by the cluster.
+
+The suite brings up its own registries from `testdata/registry.yaml`:
+
+| registry | used for | why |
+| --- | --- | --- |
+| `registry:2`, NodePort 30500 | crates | the same Deployment/Service `test/e2e-crate-test` uses |
+| ChartMuseum, NodePort 30501 | addons | the controller reads an OCI addon registry over TLS only, so a plain-HTTP registry can only serve addons as a Helm repository |
+
+Each registry record stores one URL, `http://<node InternalIP>:<port>`, and
+the controller pod always reaches that. The test process itself may not: on
+a Mac the k3d node sits on a docker network the host cannot route to. The
+suite therefore probes the node-IP URL from the test process and, when it
+does not answer, uses the k3d port mapping `http://127.0.0.1:<port>` for its
+own publishes, pushes and HTTP checks (`make e2e-local-cluster` creates the
+cluster with `-p 30500:30500@server:0 -p 30501:30501@server:0`). On a Linux
+runner the node IP is routable, so one URL serves both sides.
+
+Two specs need the vela CLI on the test machine to fetch *through* the
+stored record: `vela crate deploy --dry-run` (scenario 01) and `vela addon
+enable` (scenario 16). They are skipped, with the reason printed, when the
+node-IP URL is unreachable from the host, and run on a Linux runner.
+
+Overrides, all optional:
+
+| variable | meaning |
+| --- | --- |
+| `CRATE_E2E_REGISTRY_URL` | URL stored in the crate registry record (default `http://<node IP>:30500/crates`) |
+| `ADDON_E2E_REGISTRY_URL` | URL stored in the addon registry record (default `http://<node IP>:30501`) |
+| `CRATE_E2E_REGISTRY_HOST_URL` | URL this process uses for crates when the stored one is unreachable (default `http://127.0.0.1:30500/crates`) |
+| `ADDON_E2E_REGISTRY_HOST_URL` | same for addons (default `http://127.0.0.1:30501`) |
+
+To run every spec on a Mac, including `test/e2e-crate-test`, give both
+sides one name: add `127.0.0.1 host.k3d.internal` to `/etc/hosts` (k3d
+already resolves that name to the host inside the cluster) and export
+`CRATE_E2E_REGISTRY_URL=http://host.k3d.internal:30500/crates` and
+`ADDON_E2E_REGISTRY_URL=http://host.k3d.internal:30501`.
+
+## Running
+
+```bash
+make e2e-addon-crate-test-local    # k3d cluster + image build + this suite only
+make e2e-test-local                 # the same setup, then this suite and test/e2e-crate-test
+make e2e-addon-crate-test          # against an already prepared cluster
+```
+
+CI runs one job with one Ginkgo worker per available CPU. Scenarios with
+dependent steps use separate `Ordered` containers (08 and 07 share one chain);
+the read-only scenario 01 is not ordered. Each scenario has a namespace, crate/addon
+identities, exported definition aliases, CRD API group and ClusterRole names
+specific to that scenario and run. The original fixture files remain intact;
+synchronized setup materializes private copies and publishes initial versions
+before tests can render. Each worker has its own `VELA_HOME`.
+
+Scenarios 08 and 07 stay together because the first publishes versions the
+second uses. Scenarios 05, 09, 15 and 18 use `Serial, Ordered`: they change
+default-registry resolution, restart the shared controller or toggle gates.
+With `E2E_ADDON_CRATE_SERIAL_KUBECONFIG` set to a second cluster prepared the
+same way, `make e2e-addon-crate-test` runs them there (the labels in
+`serial-label-filter`) while the rest run on the current cluster, both at once.
+Scenarios with an `i` suffix (02i, 03i, 04i, 07i, 10i, 11i, 12i, 13i, 14i, 16i)
+repeat their external counterpart against a crate bundled inline in the addon
+(`addon_crate_inline_e2e_test.go`), and scenario 19 installs an inline and an
+imported crate from one addon. Inline scenarios need no crate registry, so
+07i does not join the 08/07 chain. Scenario 18 also checks an inline install
+while the gates are off. This leaves 106 specs in parallel-capable scenarios
+and 13 serial specs. The same observation windows and parameter/version/line
+contracts are retained.
+
+Use `E2E_PROCS=1` for serial execution or `E2E_PROCS=auto` (the default)
+for parallel workers. `E2E_REPORT_DIR` selects the JSON/JUnit output directory.
+For example:
+
+```bash
+KUBECONFIG=/absolute/path/to/test-cluster.kubeconfig make e2e-addon-crate-test E2E_PROCS=2
+make e2e-addon-crate-discovery  # no live cluster needed
+```
+
+Use a dedicated cluster per complete invocation; separate invocations cannot
+coordinate their controller restarts through Ginkgo's `Serial` decorator.
+Avoid focusing only scenario 07, since it needs scenario 08 to publish its
+crate versions. The discovery target verifies fixture parsing, definition
+resolution, cleanup ownership, real Ginkgo scheduling metadata and complete
+spec discovery. The single addon/crate CI job runs it automatically.
+
+After building `bin/vela` and preparing the dedicated cluster, compare
+`make e2e-addon-crate-test E2E_PROCS=1` with `E2E_PROCS=2` and the default
+`E2E_PROCS=auto`. Repeat the parallel run with distinct seeds and keep reports:
+
+```bash
+set -euo pipefail
+mkdir -p _artifacts/e2e
+workers=$(bash hack/e2e/ginkgo_workers.sh auto)
+for seed in 101 202 303; do
+  ginkgo -v --procs="$workers" --seed="$seed" --timeout=1h --fail-on-empty \
+    --json-report="_artifacts/e2e/addon-crate-$seed.json" \
+    --junit-report="_artifacts/e2e/addon-crate-$seed.xml" ./test/e2e-addon-crate-test
+done
+```
+
+Inspect process assignments and timestamps for overlapping independent
+scenarios, absence of overlap during the serial phase, all 119 specs passing,
+and no scenario namespaces, CRDs, definitions, roles or Applications left
+after cleanup. A dry run proves discovery and scheduling configuration, not
+live concurrent execution or a runtime improvement.
+
+## Layout
+
+| path | content |
+| --- | --- |
+| `testdata/crates/` | `widget-kit` 1.0.0/1.1.0/1.2.0, `gadget-kit`, `probe-kit` builds a and b, and `invalid/` trees the publisher must refuse |
+| `testdata/addons/` | `widget-platform` 1.0.0/1.1.0/1.2.0, `kit-suite` 1.0.0/2.0.0, `widget-latest`, `import-options`, `cache-probe` builds a and b, `broken-imports` 1.0.1 to 1.0.7; inline-crate counterparts `widget-platform-inline` 1.0.0/1.1.0/1.2.0, `kit-suite-inline` 1.0.0/2.0.0, `broken-imports-inline` 1.0.1 to 1.0.3, and `inline-mixed` |
+| `testdata/apps/` | consumer Applications that use the crate definitions |
+| `publish_validation_test.go` | CLI-only checks (`vela crate publish --dry-run`) |
+| `addon_crate_e2e_test.go` | independent ordered scenarios and the narrow serial phase |
+| `scenario_scope_helpers_test.go` | generated fixture identities and structured YAML/CUE materialization |
+| `scenario_runtime_helpers_test.go` | scenario ownership, cleanup and publication helpers |
+| `scenario_scope_test.go`, `scheduling_test.go` | cluster-free isolation and execution-contract tests |
+
+The fixtures are copies of `testing/addon-crate-cr-based-single-cluster/test-*`
+with the registry names changed to `e2e-crates` and `e2e-addons`.

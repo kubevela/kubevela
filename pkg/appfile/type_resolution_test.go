@@ -24,7 +24,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/oam-dev/kubevela/pkg/module/naming"
+	"github.com/oam-dev/kubevela/pkg/crate/naming"
 )
 
 // --- parseTypeRef ---

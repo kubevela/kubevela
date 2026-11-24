@@ -1,6 +1,6 @@
 # Declarative addon with affinity trait (EnableAddonComponent).
 # Trait overlays PodSpec fields on workloads in the owned addon Application
-# (same pattern as module / helmchart).
+# (same pattern as crate / helmchart).
 #
 # Prerequisites: enable the feature gate (off by default):
 #   --set featureGates.enableAddonComponent=true

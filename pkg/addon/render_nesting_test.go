@@ -37,7 +37,7 @@ func TestAnAddonNestedTooDeeplyIsRefused(t *testing.T) {
 }
 
 // So are the files an addon render builds from its parts: the context file from its parameters,
-// its notes, and a module's imports.
+// its notes, and a crate's imports.
 func TestAnAddonsOtherCUEIsCheckedToo(t *testing.T) {
 	deep := "x: " + strings.Repeat("[", nesting.MaxDepth+1)
 	r := addonCueTemplateRender{addon: &InstallPackage{Meta: Meta{Name: "deep"}, Parameters: deep}}
@@ -50,6 +50,6 @@ func TestAnAddonsOtherCUEIsCheckedToo(t *testing.T) {
 	_, err = h.renderNotes(&InstallPackage{Meta: Meta{Name: "deep"}, Notes: ElementFile{Name: "NOTES.cue", Data: deep}})
 	require.ErrorContains(t, err, "nested deeper than 1000 levels")
 
-	_, err = parseModuleImports(deep)
+	_, err = parseCrateImports(deep)
 	require.ErrorContains(t, err, "nested deeper than 1000 levels")
 }
