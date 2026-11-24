@@ -66,7 +66,7 @@ var _ = Describe("pinModuleComponentsToHub", func() {
 			{"name":"addon-modules-hub","type":"topology","properties":{"clusters":["local"]}},
 			{"name":"addon-modules","type":"override","properties":{"selector":["store"]}}
 		]`), "the module components get their own hub topology; everything else keeps the addon's")
-		Expect(asJSON(spec["workflow"])).To(MatchJSON(`{"steps":[
+		Expect(asJSON(spec["workflow"])).To(MatchJSON(`{"mode":{"steps":"StepByStep","subSteps":"DAG"},"steps":[
 			{"name":"deploy-topo-runtime","type":"deploy","properties":{"policies":["patch-all","addon-components","topo-runtime"]}},
 			{"name":"deploy-addon-modules","type":"deploy","properties":{"policies":["patch-all","addon-modules-hub","addon-modules"]}}
 		]}`), "one step per addon topology, as the default workflow would, then the modules on the hub")
@@ -85,7 +85,7 @@ var _ = Describe("pinModuleComponentsToHub", func() {
 
 		pinModuleComponentsToHub(app, []string{"store"})
 
-		Expect(asJSON(specOf(app)["workflow"])).To(MatchJSON(`{"steps":[
+		Expect(asJSON(specOf(app)["workflow"])).To(MatchJSON(`{"mode":{"steps":"StepByStep","subSteps":"DAG"},"steps":[
 			{"name":"deploy-east","type":"deploy","properties":{"policies":["addon-components","east"]}},
 			{"name":"deploy-west","type":"deploy","properties":{"policies":["addon-components","west"]}},
 			{"name":"deploy-addon-modules","type":"deploy","properties":{"policies":["addon-modules-hub","addon-modules"]}}
@@ -124,7 +124,7 @@ var _ = Describe("pinModuleComponentsToHub", func() {
 			{"name":"addon-modules-hub","type":"topology","properties":{"clusters":["local"]}},
 			{"name":"addon-modules-2","type":"override","properties":{"selector":["store"]}}
 		]`))
-		Expect(asJSON(spec["workflow"])).To(MatchJSON(`{"steps":[
+		Expect(asJSON(spec["workflow"])).To(MatchJSON(`{"mode":{"steps":"StepByStep","subSteps":"DAG"},"steps":[
 			{"name":"deploy-addon-modules","type":"deploy","properties":{"policies":["addon-components","addon-components-2","addon-modules"]}},
 			{"name":"deploy-addon-modules-2","type":"deploy","properties":{"policies":["addon-components","addon-modules-hub","addon-modules-2"]}}
 		]}`))

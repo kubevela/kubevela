@@ -1,0 +1,8 @@
+# auxiliary/hub/ keeps this on the hub.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: placed-kit-admission
+  namespace: default
+data:
+  placement: hub

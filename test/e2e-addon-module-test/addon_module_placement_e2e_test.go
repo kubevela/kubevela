@@ -183,3 +183,105 @@ var _ = Describe("Addons that place an imported module", func() {
 		})
 	})
 })
+
+var _ = Describe("Addons that place an inline module", func() {
+	ctx := context.Background()
+
+	// --- Scenario 22 ---
+	// placement on a type: addon component whose addon bundles its module
+	// inline under modules/. The inline module follows the addon's placement,
+	// the same as an import with no placement of its own. CI runs a single
+	// cluster, so the addon asks for the local one; the assertions are about
+	// the wiring.
+	Context("placement on a type: addon component with an inline module (scenario 22)", Ordered, Label("addon-module-scenario-22"), func() {
+		scope := scenarioScopes["22"]
+		local := map[string]interface{}{"clusters": []interface{}{"local"}}
+		var appName, addonApp, moduleApp string
+
+		BeforeAll(func() {
+			appName = scope.Text("placement-inline")
+			addonApp = scope.Text("addon-placement-inline")
+			moduleApp = scope.Text("module-placed-kit")
+			scope.prepare(ctx)
+
+			Expect(k8sClient.Create(ctx, withPlacement(scope.addonApplication(appName, scope.Text("placement-inline"), "1.0.0", nil), local))).Should(Succeed())
+			waitAppRunning(ctx, scope.Namespace, appName, installWait)
+			waitAppRunning(ctx, systemNS, addonApp, shortWait)
+			waitAppRunning(ctx, systemNS, moduleApp, shortWait)
+			DeferCleanup(func() {
+				scope.uninstall(ctx, appName, addonApp, moduleApp)
+			})
+		})
+
+		It("places the addon with a topology built from the placement and keeps the inline module on the hub", func() {
+			app := mustGetApp(ctx, systemNS, addonApp)
+			Expect(policyProperties(app, "addon-placement")).Should(Equal(local))
+			Expect(findComponent(app, scope.Text("placed-kit")).Type).Should(Equal("k8s-objects"))
+			Expect(workflowSteps(app)).Should(HaveKeyWithValue("deploy-addon-modules", []interface{}{"addon-modules-hub", "addon-modules"}),
+				"the inline module component stays on the hub")
+		})
+
+		It("gives the inline module's owned Application a runtime policy from the addon's placement", func() {
+			owned := mustGetApp(ctx, systemNS, moduleApp)
+			Expect(policyProperties(owned, "module-runtime")).Should(Equal(local))
+			Expect(policyProperties(owned, "module-hub")).Should(Equal(local))
+			steps := map[string]string{}
+			for _, step := range owned.Status.Workflow.Steps {
+				steps[step.Name] = string(step.Phase)
+			}
+			Expect(steps).Should(HaveKeyWithValue("deploy-module-hub", "succeeded"))
+			Expect(steps).Should(HaveKeyWithValue("deploy-module-runtime", "succeeded"))
+		})
+
+		It("deploys both the runtime object and the hub object", func() {
+			for name, placement := range map[string]string{"placed-kit-defaults": "runtime", "placed-kit-admission": "hub"} {
+				cm, err := getConfigMap(ctx, scope.Namespace, scope.Text(name))
+				Expect(err).ShouldNot(HaveOccurred(), name)
+				Expect(cm.Data).Should(HaveKeyWithValue("placement", placement), name)
+			}
+		})
+
+		// The addon Application is patched with no last-applied configuration,
+		// so this also checks that the workflow generated for the placement
+		// does not outlive it and name policies that are gone.
+		It("drops the placement, its policies and its workflow when the placement is removed", func() {
+			Eventually(func(g Gomega) {
+				app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: scope.Namespace, Name: appName}, app)).Should(Succeed())
+				props := propertiesOf(app.Spec.Components[0].Properties)
+				delete(props, "placement")
+				raw, err := json.Marshal(props)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				app.Spec.Components[0].Properties = &k8sruntime.RawExtension{Raw: raw}
+				g.Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+			}, shortWait, pollInterval).Should(Succeed())
+			Eventually(func(g Gomega) {
+				addon := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: systemNS, Name: addonApp}, addon)).Should(Succeed())
+				g.Expect(policyNames(addon)).ShouldNot(ContainElement("addon-placement"))
+				g.Expect(addon.Spec.Workflow).ShouldNot(BeNil())
+				for _, step := range addon.Spec.Workflow.Steps {
+					g.Expect(step.Type).Should(Equal("apply-component"), "the default steps replace the placement's deploy steps")
+				}
+				owned := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: systemNS, Name: moduleApp}, owned)).Should(Succeed())
+				g.Expect(policyNames(owned)).ShouldNot(ContainElement("module-runtime"))
+			}, reconcileWait, pollInterval).Should(Succeed())
+			waitAppRunning(ctx, scope.Namespace, appName, reconcileWait)
+			waitAppRunning(ctx, systemNS, addonApp, reconcileWait)
+			waitAppRunning(ctx, systemNS, moduleApp, reconcileWait)
+		})
+
+		It("keeps the inline module on the hub when the addon is installed with no placement", func() {
+			scope.uninstall(ctx, appName, addonApp, moduleApp)
+			Expect(k8sClient.Create(ctx, scope.addonApplication(appName, scope.Text("placement-inline"), "1.0.0", nil))).Should(Succeed())
+			waitAppRunning(ctx, scope.Namespace, appName, installWait)
+			waitAppRunning(ctx, systemNS, moduleApp, shortWait)
+			owned := mustGetApp(ctx, systemNS, moduleApp)
+			Expect(policyNames(owned)).ShouldNot(ContainElement("module-runtime"))
+			Expect(policyNames(mustGetApp(ctx, systemNS, addonApp))).ShouldNot(ContainElement("addon-placement"))
+			_, err := getConfigMap(ctx, scope.Namespace, scope.Text("placed-kit-defaults"))
+			Expect(err).ShouldNot(HaveOccurred(), "the runtime object installs on the hub")
+		})
+	})
+})

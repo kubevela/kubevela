@@ -406,7 +406,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	// CueX render runs later), an inline module renders eagerly, right here,
 	// so req.Namespace -- the addon's own installing namespace -- is already
 	// in hand and can be passed straight through with no annotation needed.
-	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn, req.Namespace)
+	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn, req.Namespace, req.Placement)
 	if err != nil {
 		return nil, fmt.Errorf("render inline module components for addon %q: %w", req.Name, err)
 	}
@@ -467,6 +467,9 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	appendAuxComponents(appMap, groups)
 	ensureAddonComponentStateKeepPolicy(appMap)
 	pinModuleComponentsToHub(appMap, append(componentNames(moduleComps), componentNames(inlineModuleComps)...))
+	if err := writeExplicitWorkflow(appMap); err != nil {
+		return nil, fmt.Errorf("render addon %q: %w", req.Name, err)
+	}
 	sanitizeManifest(appMap)
 	suppressLastAppliedConfig(appMap)
 
