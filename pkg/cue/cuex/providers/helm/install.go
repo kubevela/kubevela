@@ -82,7 +82,7 @@ func (p *Provider) newInstallAction(actionConfig *action.Configuration, releaseN
 }
 
 // applyCommonInstallOptions wires user-facing options onto action.Install.
-// Helm SDK v3.14.4 does not expose MaxHistory, CleanupOnFail, or Recreate on
+// The Helm SDK does not expose MaxHistory, CleanupOnFail, or Recreate on
 // action.Install; those take effect only on upgrade. The asymmetry between
 // this applier and applyCommonUpgradeOptions in upgrade.go is the SDK's by
 // design: a fresh install has no prior state to clean, no history to bound,

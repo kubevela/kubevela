@@ -34,7 +34,7 @@ import (
 
 // archiveFS turns a packaged chart archive back into the fs.FS a fetch would
 // see. loader.LoadArchiveFiles already strips each tar entry's leading
-// <chartName>/ path segment (helm.sh/helm/v3@v3.14.4/pkg/chart/loader/archive.go),
+// <chartName>/ path segment (Helm's pkg/chart/loader/archive.go),
 // so the returned names are already module-root relative; chartName is kept
 // as a parameter to document that relationship at call sites.
 func archiveFS(t *testing.T, archive []byte, chartName string) fs.FS {
