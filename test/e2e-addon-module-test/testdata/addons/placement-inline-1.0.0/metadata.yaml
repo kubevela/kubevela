@@ -1,0 +1,7 @@
+name: placement-inline
+version: 1.0.0
+description: "Test addon with no topology policy of its own and one inline module, placed-kit. Placed by the type: addon component's placement, which the inline module follows."
+tags:
+  - test
+  - module-inline
+dependencies: []
