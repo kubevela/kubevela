@@ -30,7 +30,7 @@ import (
 
 // workloadKinds are the plain Kubernetes kinds whose pod template says what
 // a consumer reads.
-var workloadKinds = map[string]bool{"Deployment": true, "StatefulSet": true, "DaemonSet": true, "Job": true, "CronJob": true}
+var workloadKinds = map[string]bool{"Deployment": true, "StatefulSet": true, "DaemonSet": true, "ReplicaSet": true, "ReplicationController": true, "Job": true, "CronJob": true}
 
 // How a pod template reads a Secret or ConfigMap. A value read through env
 // is fixed when the container starts; a mounted file updates in place.
@@ -49,10 +49,11 @@ type consumedRef struct {
 
 // producer is who fills a Secret or ConfigMap in this Application: an
 // exporter resource of a component, or a component that manages the object
-// itself.
+// itself, in one cluster and namespace.
 type producer struct {
-	component string
-	exporter  *ResourceDiagnosis
+	component          string
+	cluster, namespace string
+	exporter           *ResourceDiagnosis
 }
 
 func producerKey(cluster, namespace, kind, name string) string {
@@ -71,7 +72,7 @@ func producersOf(applied []querytypes.AppliedResource, resources []ResourceDiagn
 		if res.Kind != secretKind && res.Kind != "ConfigMap" {
 			continue
 		}
-		producers[producerKey(clusterName(res.Cluster), res.Namespace, res.Kind, res.Name)] = producer{component: res.Component}
+		producers[producerKey(clusterName(res.Cluster), res.Namespace, res.Kind, res.Name)] = producer{component: res.Component, cluster: clusterName(res.Cluster), namespace: res.Namespace}
 	}
 	for i := range resources {
 		r := &resources[i]
@@ -82,7 +83,7 @@ func producersOf(applied []querytypes.AppliedResource, resources []ResourceDiagn
 		if ns == "" {
 			ns = r.Namespace
 		}
-		producers[producerKey(r.Cluster, ns, r.Export.TargetKind, r.Export.TargetName)] = producer{component: r.Component, exporter: r}
+		producers[producerKey(r.Cluster, ns, r.Export.TargetKind, r.Export.TargetName)] = producer{component: r.Component, cluster: r.Cluster, namespace: r.Namespace, exporter: r}
 	}
 	return producers
 }
@@ -176,7 +177,7 @@ func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared
 	case p.exporter != nil && p.exporter.Export.Written != nil && !*p.exporter.Export.Written:
 		why = fmt.Sprintf("which %s %s of component %q has not written yet", p.exporter.Kind, p.exporter.Name, p.component)
 	default:
-		nr := notReadyOf(resources, p.component)
+		nr := notReadyOf(resources, p)
 		if nr == nil {
 			return Finding{}, false
 		}
@@ -200,13 +201,17 @@ func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared
 	}, true
 }
 
-// notReadyOf returns the first diagnosed resource of a component that is
-// known not to be ready, or nil. A resource whose state is unknown, after a
-// failed read or the read bound, is not evidence either way.
-func notReadyOf(resources []ResourceDiagnosis, component string) *ResourceDiagnosis {
+// notReadyOf returns the first diagnosed resource of the producer's
+// component, in the producer's cluster and namespace, that is known not to
+// be ready, or nil. A resource whose state is unknown, after a failed read
+// or the read bound, is not evidence either way.
+func notReadyOf(resources []ResourceDiagnosis, p producer) *ResourceDiagnosis {
 	for i := range resources {
 		r := &resources[i]
-		if r.Component == component && (r.State == stateNotReady || r.State == stateHalted) {
+		if r.Component != p.component || r.Cluster != p.cluster || r.Namespace != p.namespace {
+			continue
+		}
+		if r.State == stateNotReady || r.State == stateHalted {
 			return r
 		}
 	}

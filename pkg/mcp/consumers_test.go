@@ -56,7 +56,8 @@ func webDeployment(secret string) *appsv1.Deployment {
 				Containers: []corev1.Container{{Name: "web", Image: "petclinic", Env: []corev1.EnvVar{
 					{Name: "DB_HOST", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: secret}, Key: "host"}}},
 					{Name: "DB_PORT", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: secret}, Key: "port"}}},
-				}, EnvFrom: []corev1.EnvFromSource{{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "app-settings"}}}}}},
+				}, EnvFrom: []corev1.EnvFromSource{{ConfigMapRef: &corev1.ConfigMapEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "app-settings"}}}},
+					VolumeMounts: []corev1.VolumeMount{{Name: "creds", MountPath: "/etc/creds", ReadOnly: true}}}},
 				Volumes: []corev1.Volume{{Name: "creds", VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{SecretName: secret}}}},
 			}},
 		},
