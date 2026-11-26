@@ -57,6 +57,15 @@ func (a *appOwner) Orphaning() bool {
 	return slices.Contains(a.app.GetFinalizers(), oam.FinalizerOrphanResource)
 }
 
+// CurrentRevisionLabel mirrors the Application's Tracked in pkg/appkeeper, so GC tests can
+// exercise the history-RT guard.
+func (a *appOwner) CurrentRevisionLabel() (string, string) {
+	if rev := a.app.Status.LatestRevision; rev != nil {
+		return oam.LabelAppRevision, rev.Name
+	}
+	return oam.LabelAppRevision, ""
+}
+
 func (a *appOwner) ControlledBy(obj client.Object) string {
 	name, ns := obj.GetLabels()[oam.LabelAppName], obj.GetLabels()[oam.LabelAppNamespace]
 	if name == "" || ns == "" {
