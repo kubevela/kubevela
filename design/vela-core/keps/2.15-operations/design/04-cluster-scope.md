@@ -84,7 +84,7 @@ spec:
 
 `NewVirtualClusterFromLocal()` (`pkg/multicluster/virtual_cluster.go`) synthesises the hub with an empty label map, so the hub can never match a `matchLabels` selector. Fleet-wide templates therefore exclude it for free.
 
-That is accidental rather than designed, and it stops being true the moment the hub gains labels, which is what [KEP-2.20 Design 04](../../2.20-module-versioning/design/04-cluster-context.md) wants. A behaviour worth relying on should not rest on a map being empty, so hub inclusion is stated rather than inferred.
+That is accidental rather than designed, and it stops being true the moment the hub gains labels, which is what [KEP-2.20 Design 04](../../2.20-crate-versioning/design/04-cluster-context.md) wants. A behaviour worth relying on should not rest on a map being empty, so hub inclusion is stated rather than inferred.
 
 ## Context
 
@@ -96,7 +96,7 @@ In practice that is `context.cluster`, `context.clusterVersion`, `context.namesp
 
 **`context.clusterVersion` is more useful here than anywhere else.** It exists today and is available in every scope, but a fleet-wide procedure branching on a cluster's Kubernetes version is the case it was made for.
 
-**Nothing else cluster-descriptive is available.** No labels, no provider, no region. A template wanting those reads them out of the cluster itself, which is what the example above does. Selection by label happens controller-side at admission, against the `VirtualCluster`; exposing labels at step time is [KEP-2.20 Design 04](../../2.20-module-versioning/design/04-cluster-context.md)'s to grant and is not assumed here.
+**Nothing else cluster-descriptive is available.** No labels, no provider, no region. A template wanting those reads them out of the cluster itself, which is what the example above does. Selection by label happens controller-side at admission, against the `VirtualCluster`; exposing labels at step time is [KEP-2.20 Design 04](../../2.20-crate-versioning/design/04-cluster-context.md)'s to grant and is not assumed here.
 
 ## Permissions
 

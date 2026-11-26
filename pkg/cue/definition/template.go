@@ -332,7 +332,7 @@ func (wd *workloadDef) GetTemplateContext(ctx process.Context, cli client.Client
 type traitDef struct {
 	def
 	// typeLabel is the trait.oam.dev/type value put on the objects the trait
-	// emits through outputs. It is the name, except for a module definition,
+	// emits through outputs. It is the name, except for a crate definition,
 	// where it is the installed name (see NewTraitAbstractEngineWithTypeLabel).
 	typeLabel string
 }
@@ -347,7 +347,7 @@ func NewTraitAbstractEngine(name string, ancestors ...inherit.Level) AbstractEng
 }
 
 // NewTraitAbstractEngineWithTypeLabel is NewTraitAbstractEngine for a trait
-// whose outputs are labelled with something other than its name. A module
+// whose outputs are labelled with something other than its name. A crate
 // trait referenced as "note" or "widget-kit/v1/note" is labelled with its
 // installed name "widget-kit-v1-note": the slashes of the long forms are not
 // valid in a label value, and the dispatcher looks the label up among the

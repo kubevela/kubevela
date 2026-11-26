@@ -7,10 +7,10 @@ Depends on the placement primitive in
 "thin controller" and Design 03's "no controller" are the two sides of one directional fork,
 not complementary layers; see the [design index](./README.md) for that framing.
 
-**Companion to:** [KEP-2.13](../README.md), [KEP-2.20](../../2.20-module-versioning/README.md)
+**Companion to:** [KEP-2.13](../README.md), [KEP-2.20](../../2.20-crate-versioning/README.md)
 
 > **TL;DR**
-> - A lifecycle resource (Addon/Module) should own **intent**, not deployment; the
+> - A lifecycle resource (Addon/Crate) should own **intent**, not deployment; the
 >   **Application** owns deployment (dispatch, drift, tracking, GC, health, VelaUX).
 > - With per-component placement (Design 01), *all* addon resources move inside the
 >   generated Application's `spec.components` — the out-of-band apply path disappears, and
@@ -21,7 +21,7 @@ not complementary layers; see the [design index](./README.md) for that framing.
 
 ## Thesis
 
-A lifecycle resource (Addon today; Module and API Line later) should own **intent
+A lifecycle resource (Addon today; Crate and API Line later) should own **intent
 and lifecycle**, not deployment. It declares what capability should exist and
 governs when that capability may be removed. It should own none of the hard
 distributed-systems machinery: multi-cluster dispatch, resource tracking, drift
@@ -44,7 +44,7 @@ up:
 > Everything is an Application.
 
 User workloads are already delivered as Applications. Platform capabilities
-(addons, modules, API lines) should be delivered the same way, through the same
+(addons, crates, API lines) should be delivered the same way, through the same
 engine, so that the same guarantees (dispatch, drift correction, tracking, GC,
 topology, health, VelaUX visibility) apply uniformly from user workloads up to the
 platform capabilities that serve them.
@@ -152,11 +152,11 @@ The payoff is concrete:
 - **Less maintenance.** There is one deployment engine to maintain, not a shadow one
   inside each lifecycle controller.
 - **Faster, simpler rollout.** Small, uniform controllers are quicker to build and
-  safer to ship; the same thinning applies identically to the Module and API Line
+  safer to ship; the same thinning applies identically to the Crate and API Line
   controllers when they arrive.
 - **Native VelaUX visibility.** VelaUX already understands Applications; it renders
   their health, workflow, resources, events, drift, and topology. Because every
-  lifecycle layer *is* an Application, a Module (and later an API Line) is visible in
+  lifecycle layer *is* an Application, a Crate (and later an API Line) is visible in
   VelaUX with no new UI surface: the resource hierarchy becomes the UI hierarchy. This
   visibility is a direct consequence of the philosophy, not a separate feature to
   build.
@@ -166,7 +166,7 @@ The payoff is concrete:
 The change to the rendering pipeline is small and localised. Two of the three steps
 are what the addon system already does today; only the workflow generation changes.
 
-1. **Render all resources** (unchanged). The controller renders the addon/module
+1. **Render all resources** (unchanged). The controller renders the addon/crate
    source into the full set of Kubernetes resources.
 2. **Collate into `k8s-objects` components** (unchanged). Rendered resources are
    wrapped as Application components, as they are today.
@@ -245,7 +245,7 @@ replacing what the author authored. The one unresolved interaction is an author 
 that re-dispatches all components (and so could undo the hub/spoke segregation); how to prevent
 that is an explicit open item and spike in
 [Design 03](./03-cuex-components-instead-of-crs.md). The precise author-vs-controller split
-per layer (Addon vs Module) is part of that spike.
+per layer (Addon vs Crate) is part of that spike.
 
 ## Resource layering across lifecycle layers
 
@@ -254,8 +254,8 @@ each layer's Application owning that layer's resources:
 
 - **Addon Application** owns broad, shared platform infrastructure (for example the
   Crossplane AWS provider, shared CRDs, cluster-wide RBAC).
-- **Module Application** owns capability-wide resources shared across all of a
-  module's API lines (for example a module-wide XRD or provider configuration).
+- **Crate Application** owns capability-wide resources shared across all of a
+  crate's API lines (for example a crate-wide XRD or provider configuration).
 - **API Line Application** (subject to the API Line investigation) owns the
   version-specific contract and implementation resources (that line's definitions and
   the auxiliary resources that back them).
@@ -270,9 +270,9 @@ an Application as its deployment engine.
 - This note does not define how components are named, grouped, or rendered into an
   Application; that is a KEP-2.20 Design 01 rendering concern.
 - It does not resolve whether the API Line is its own resource with its own
-  Application; that is an open investigation deferred to the Module/API Line design
+  Application; that is an open investigation deferred to the Crate/API Line design
   work.
-- It does not specify the namespace and ownership mechanics for the module-owned
+- It does not specify the namespace and ownership mechanics for the crate-owned
   Application; those are detailed in KEP-2.20 Design 01.
 - It does not change the Application controller; the entire premise is that no change
   to the deployment engine is required, only reuse of it.

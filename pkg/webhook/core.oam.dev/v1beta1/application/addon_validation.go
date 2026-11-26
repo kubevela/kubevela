@@ -32,7 +32,7 @@ import (
 )
 
 // componentValidator is the shape of a per-component-type admission check.
-// The addon and module checks share it: both answer from the Application plus
+// The addon and crate checks share it: both answer from the Application plus
 // a registry ConfigMap, and both return field errors against the component's
 // properties path.
 type componentValidator interface {
@@ -64,7 +64,7 @@ type componentCheck struct {
 	newValidator func() componentValidator
 }
 
-// validateComponentsOfType runs one componentCheck. The addon and module
+// validateComponentsOfType runs one componentCheck. The addon and crate
 // checks differ only in the struct above, so the gate test, the
 // does-this-Application-even-have-one scan and the validator fallback live
 // here once rather than in each caller.

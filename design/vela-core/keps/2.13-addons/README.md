@@ -3,7 +3,7 @@
 **Status:** In Progress
 **Parent:** [vNext Roadmap](../README.md)
 
-Addons are the **delivery and distribution mechanism** for versioned X-Definition APIs. The module identity model, API line versioning, and definition naming convention that make those APIs stable and manageable are covered in [KEP-2.20](../2.20-module-versioning/README.md). This KEP covers the declarative addon lifecycle that powers that delivery: continuous reconciliation of the `Addon` CR, drift correction, and addon-of-addons composition.
+Addons are the **delivery and distribution mechanism** for versioned X-Definition APIs. The crate identity model, API line versioning, and definition naming convention that make those APIs stable and manageable are covered in [KEP-2.20](../2.20-crate-versioning/README.md). This KEP covers the declarative addon lifecycle that powers that delivery: continuous reconciliation of the `Addon` CR, drift correction, and addon-of-addons composition.
 
 Together, KEP-2.13 and KEP-2.20 form the complete declarative addon delivery model; KEP-2.20 defines the versioned API contract, KEP-2.13 defines how that contract is reliably delivered and kept in sync with the cluster.
 
@@ -32,14 +32,14 @@ KubeVela addons today are installed imperatively via `vela addon enable` and man
 
 ```mermaid
 graph LR
-    subgraph authoring["Module Authoring"]
-        MD["Module Developer<br/>CUE templates · auxiliary/"]
+    subgraph authoring["Crate Authoring"]
+        MD["Crate Developer<br/>CUE templates · auxiliary/"]
     end
 
-    MR[("Module Registry<br/>OCI / Git")]
+    MR[("Crate Registry<br/>OCI / Git")]
 
     subgraph addonAuth["Addon Authoring"]
-        AA_REF["Reference modules<br/>via source in _version.cue"]
+        AA_REF["Reference crates<br/>via source in _version.cue"]
         AA_INLINE["Write definitions<br/>inline in addon"]
         ADDON["Addon source tree"]
     end
@@ -56,7 +56,7 @@ graph LR
         end
     end
 
-    MD -->|vela module publish| MR
+    MD -->|vela crate publish| MR
     MR -->|referenced by| AA_REF
     AA_REF --> ADDON
     AA_INLINE --> ADDON
@@ -71,7 +71,7 @@ graph LR
     APP -->|owns lifecycle of| DEFS
 ```
 
-Modules are independently versioned and published to a registry. Addon authors either reference published modules (pulling definitions and auxiliary resources at install time via `source` in `_version.cue`) or write definitions directly inline in the addon source tree. The addon is published to a registry and installed by creating an `Addon` CR. The Addon controller fetches the source, creates the owned Application for infrastructure resources, applies auxiliary resources, and (once those are ready) applies the X-Definitions that platform teams consume.
+Crates are independently versioned and published to a registry. Addon authors either reference published crates (pulling definitions and auxiliary resources at install time via `source` in `_version.cue`) or write definitions directly inline in the addon source tree. The addon is published to a registry and installed by creating an `Addon` CR. The Addon controller fetches the source, creates the owned Application for infrastructure resources, applies auxiliary resources, and (once those are ready) applies the X-Definitions that platform teams consume.
 
 The design has two explicit layers: the **Addon CR** is the declarative GitOps-facing interface that expresses desired addon state, and the **generated Application** in `vela-system` is the payload representation (the existing addon vehicle through which all installed resources are owned, tracked, and cleaned up). The Addon controller bridges the two, translating Addon CR desired state into Application content and resource operations on every reconcile cycle.
 
@@ -126,12 +126,12 @@ On each cycle:
 
 > **Implementation note - source caching strategy:** Whether to cache raw source files (in-memory LRU, filesystem tarballs à la Flux source-controller, or no cache with always-fetch) is an implementation decision to be made based on observed performance. The digest-based change detection above is the important design constraint; the caching mechanism is an optimisation detail. Flux stores fetched artifacts as compressed tarballs on the filesystem served via a local HTTP server, avoiding memory pressure entirely (this is the reference approach if caching proves necessary).
 2. Resolve the addon source from `spec.registry` and `spec.version`
-3. Build addon context: query all `Config` resources in `vela-system` labelled `addon.oam.dev/cluster-context: "true"`, merge their values, and inject into the shared context for `_module.cue` and `_version.cue` evaluation (see KEP-2.20, Cluster Context)
+3. Build addon context: query all `Config` resources in `vela-system` labelled `addon.oam.dev/cluster-context: "true"`, merge their values, and inject into the shared context for `_crate.cue` and `_version.cue` evaluation (see KEP-2.20, Cluster Context)
 4. Apply addon-wide assets: create or update the owned Application CR (the payload representation of the addon, which owns and tracks all installed resources), rendering it from the top-level `resources/` content; apply `ConfigTemplate` resources; apply VelaQL `View` resources; apply UI `Schema` resources
 5. Check the owned Application's health: inspect `status.conditions` for a condition of type `Ready`; if `status: "True"` the Application is healthy; if the Application's `status.phase` is `workflowFailed`, `workflowTerminated`, or if any component reports an error condition, set Addon `phase: failed` with `ApplicationHealthy=false`; if none of these match (e.g. `phase: rendering`, `phase: running` but not yet `Ready`), requeue and wait. **No definitions are applied until this gate passes** (infrastructure must be operational before any API surface is exposed).
 6. **Definition conflict pre-flight (global):** if `spec.overrideDefinitions` is false, check every definition this addon would install against the cluster. If any definition already exists under a different owner (a different addon, or no owner), set `phase: failed` and `DefinitionConflict=True` with the condition message listing each conflicting definition name and its current owner. **Stop: no definitions are applied, no API lines proceed.** This check is global and all-or-nothing: a single conflict blocks the entire addon, not just the affected line. The operator must remove or retransfer the conflicting definition, or set `spec.overrideDefinitions: true`, before the next reconcile can proceed.
-7. For each enabled API line (in parallel): apply `auxiliary/` resources via server-side apply; wait for readiness using kstatus: poll each resource for a `Ready` or `Established` condition with `status: "True"` (standard kstatus semantics). Resources that expose no kstatus conditions are considered ready once accepted by the API server without error (a best-effort gate for non-kstatus-compliant resources). Once the line's auxiliary resources are ready, apply definitions; definitions are the go-live gate for that line. Lines run in parallel; if one line fails, the others continue. After all parallel work completes, if any line failed the Addon phase is set to `failed` with the `AuxiliaryReady` or `ModulesSynced` condition recording which lines failed and why. The field manager string for all Addon controller SSA writes is `addon.oam.dev/controller`.
-8. If `modules/` is present: module lifecycle semantics run within step 7 per API line (see KEP-2.20). If `definitions/` is present: definitions are applied at the end of step 7 after the Application health gate and conflict pre-flight. Both paths are independent and can coexist; `definitions/` is a permanent valid authoring path, not a migration target.
+7. For each enabled API line (in parallel): apply `auxiliary/` resources via server-side apply; wait for readiness using kstatus: poll each resource for a `Ready` or `Established` condition with `status: "True"` (standard kstatus semantics). Resources that expose no kstatus conditions are considered ready once accepted by the API server without error (a best-effort gate for non-kstatus-compliant resources). Once the line's auxiliary resources are ready, apply definitions; definitions are the go-live gate for that line. Lines run in parallel; if one line fails, the others continue. After all parallel work completes, if any line failed the Addon phase is set to `failed` with the `AuxiliaryReady` or `CratesSynced` condition recording which lines failed and why. The field manager string for all Addon controller SSA writes is `addon.oam.dev/controller`.
+8. If `crates/` is present: crate lifecycle semantics run within step 7 per API line (see KEP-2.20). If `definitions/` is present: definitions are applied at the end of step 7 after the Application health gate and conflict pre-flight. Both paths are independent and can coexist; `definitions/` is a permanent valid authoring path, not a migration target.
 9. Run stale resource cleanup: compare `status.installedResources` from the previous reconcile against the set of resources produced by the current render. Hard-delete any metadata resources (Views, ConfigTemplates, Schemas) present in the previous set but absent from the current one. For definitions and auxiliary resources, skip hard-delete; they remain on the cluster. Deprecated resources (carrying `definition.oam.dev/deprecated: "true"`) follow the deprecation lifecycle in KEP-2.20; non-deprecated stale resources are retained indefinitely until explicitly removed by an operator. Update `status.installedResources` with the current set. Set `phase: running`.
 
 For auxiliary resources that do not expose kstatus conditions, the tier-2 readiness guarantee is best-effort (API server acceptance only). See KEP-2.20 (Two-Tier Resource Model) for the broader rationale behind infrastructure-first ordering.
@@ -178,7 +178,7 @@ flowchart TD
         subgraph lines["Tier 2+3: Per API line - in parallel"]
             I[Apply auxiliary/] --> J{kstatus Ready?<br/>fallback: accepted?}
             J -->|Error / not ready| FAIL2([phase: Failed<br/>AuxiliaryReady=false<br/>requeue])
-            J -->|Ready| K{modules/ or<br/>definitions/ present?}
+            J -->|Ready| K{crates/ or<br/>definitions/ present?}
             K -->|Yes| DEF[Tier 3: Apply definitions<br/>✓ API line live]
             K -->|No| NODEFS([Line complete<br/>no definitions])
         end
@@ -272,7 +272,7 @@ If `spec.version` is omitted, the controller resolves to the latest available ve
 
 ## Ownership Model
 
-> **Design exploration (not yet accepted):** [Design 02](./design/02-application-managed-resources.md) corrects a factual assumption used below: X-Definitions (`ComponentDefinition`, `TraitDefinition`, etc.) are **Namespaced**, not cluster-scoped (`scope: Namespaced` in the CRDs). This means a module-owned Application co-located with its definitions can own them via ordinary owner references, and the "direct SSA-apply outside the Application" step is not required. [Design 03](./design/03-cuex-components-instead-of-crs.md) extends this to a nested-Application ownership chain. This KEP's ownership description below reflects the current implementation and remains the baseline until the exploration is accepted.
+> **Design exploration (not yet accepted):** [Design 02](./design/02-application-managed-resources.md) corrects a factual assumption used below: X-Definitions (`ComponentDefinition`, `TraitDefinition`, etc.) are **Namespaced**, not cluster-scoped (`scope: Namespaced` in the CRDs). This means a crate-owned Application co-located with its definitions can own them via ordinary owner references, and the "direct SSA-apply outside the Application" step is not required. [Design 03](./design/03-cuex-components-instead-of-crs.md) extends this to a nested-Application ownership chain. This KEP's ownership description below reflects the current implementation and remains the baseline until the exploration is accepted.
 
 **The Application is the execution unit and structural owner of all addon-installed resources.** The Addon CR declares desired state; the Addon controller translates that state into Application content and direct SSA-applies; but it is the Application (through the Application controller's ResourceTracker GC) that owns the lifecycle of every installed resource. No resource is considered owned by the Addon CR directly. The Addon CR's sole structural role is to gate deletion of the Application via its finalizer.
 
@@ -330,7 +330,7 @@ Definition deprecation (marking a definition as superseded while leaving it avai
 
 ## Addon-of-Addons Composition
 
-> **Design exploration (not yet accepted):** [Design 03](./design/03-cuex-components-instead-of-crs.md) takes this composition idea further, exploring whether addons and modules can be delivered *as* components that render nested Applications, removing the need for dedicated CRs and controllers altogether. It also introduces a **Module** as a lighter-weight API unit (see [KEP-2.20 design notes](../2.20-module-versioning/design/)). This KEP's `Addon` CR model remains the baseline; the component-based approach is a documented alternative under evaluation.
+> **Design exploration (not yet accepted):** [Design 03](./design/03-cuex-components-instead-of-crs.md) takes this composition idea further, exploring whether addons and crates can be delivered *as* components that render nested Applications, removing the need for dedicated CRs and controllers altogether. It also introduces a **Crate** as a lighter-weight API unit (see [KEP-2.20 design notes](../2.20-crate-versioning/design/)). This KEP's `Addon` CR model remains the baseline; the component-based approach is a documented alternative under evaluation.
 
 Multiple addons can be composed into a capability set using the OAM Application model with a new built-in `addon` component type:
 
@@ -429,7 +429,7 @@ The composition is recursive; the `crossplane` addon is itself an addon-of-addon
 
 The Addon CR name equals the addon name (`{name}` from `AddonComponentProperties`). Installing two components with the same `name` updates the same Addon CR.
 
-> **Multi-instance addons** (where the Addon CR name is derived from instance parameters via `instance` in `_module.cue`) are deferred to [KEP-2.22](../2.22-multi-instance-addons/README.md). The `instance` field is reserved but not implemented in the initial delivery.
+> **Multi-instance addons** (where the Addon CR name is derived from instance parameters via `instance` in `_crate.cue`) are deferred to [KEP-2.22](../2.22-multi-instance-addons/README.md). The `instance` field is reserved but not implemented in the initial delivery.
 
 ## CLI Commands
 
@@ -472,11 +472,11 @@ For testing an addon source tree directly against a cluster (without publishing 
 # No Addon CR is created; no registry is involved.
 vela addon apply --local ./my-addon
 
-# Apply a single module within a local addon tree
-vela addon apply --local ./my-addon --module aws-s3
+# Apply a single crate within a local addon tree
+vela addon apply --local ./my-addon --crate aws-s3
 
 # Apply a specific API line only
-vela addon apply --local ./my-addon --module aws-s3 --line v1
+vela addon apply --local ./my-addon --crate aws-s3 --line v1
 
 # Dry-run: show what would be applied without touching the cluster
 vela addon apply --local ./my-addon --dry-run
@@ -484,7 +484,7 @@ vela addon apply --local ./my-addon --dry-run
 
 `vela addon apply --local` is the inner development loop for addon authors. It is intentionally separate from `vela addon enable` to make the boundary between "testing locally" and "declaring desired cluster state" explicit; running `--local` does not leave a reconciling CR behind, so drift correction is not active. Resources applied this way are unmanaged until an Addon CR is created.
 
-> **Relationship to `vela module deploy`:** `vela module deploy` (KEP-2.20) targets a single module within a larger addon tree and is aimed at module authors iterating on definitions and auxiliary resources in isolation. `vela addon apply --local` operates on the full addon (including the top-level `resources/` Application) and is aimed at addon authors testing the complete installation end-to-end.
+> **Relationship to `vela crate deploy`:** `vela crate deploy` (KEP-2.20) targets a single crate within a larger addon tree and is aimed at crate authors iterating on definitions and auxiliary resources in isolation. `vela addon apply --local` operates on the full addon (including the top-level `resources/` Application) and is aimed at addon authors testing the complete installation end-to-end.
 
 ## API Changes
 
@@ -654,7 +654,7 @@ type AddonComponentProperties struct {
     Clusters   []string               `json:"clusters,omitempty"`
     // Include controls which addon asset categories are installed.
     // All categories default to true. Set a category to false to skip it.
-    // Useful when a team only wants module definitions installed without
+    // Useful when a team only wants crate definitions installed without
     // the accompanying Application resources (e.g. Crossplane compositions).
     Include    *AddonInclude          `json:"include,omitempty"`
 }
@@ -730,8 +730,8 @@ type AddonStatus struct {
     // with kubectl wait, GitOps health checks, and status.conditions tooling.
     Conditions         []metav1.Condition      `json:"conditions,omitempty"`
     InstalledResources AddonInstalledResources  `json:"installedResources,omitempty"`
-    // Modules records per-module API line states (see KEP-2.20)
-    Modules            []AddonModuleStatus     `json:"modules,omitempty"`
+    // Crates records per-crate API line states (see KEP-2.20)
+    Crates            []AddonCrateStatus     `json:"crates,omitempty"`
 }
 
 type AddonPhase string
@@ -758,7 +758,7 @@ stateDiagram-v2
 ```go
 // Standard condition types set on the Addon CR.
 const (
-    // AddonConditionReady is true when all modules are synced and all API lines
+    // AddonConditionReady is true when all crates are synced and all API lines
     // that are enabled have their auxiliary resources ready and definitions applied.
     AddonConditionReady              = "Ready"
     // AddonConditionSourceResolved is true when the source artifact was successfully
@@ -769,11 +769,11 @@ const (
     // reached Healthy status. False blocks auxiliary and definition application.
     AddonConditionApplicationHealthy = "ApplicationHealthy"
     // AddonConditionAuxiliaryReady is true when all enabled API line auxiliary
-    // resources across all modules have reached Ready status.
+    // resources across all crates have reached Ready status.
     AddonConditionAuxiliaryReady     = "AuxiliaryReady"
-    // AddonConditionModulesSynced is true when all modules have been evaluated
+    // AddonConditionCratesSynced is true when all crates have been evaluated
     // and their definitions applied without error on the last reconcile cycle.
-    AddonConditionModulesSynced      = "ModulesSynced"
+    AddonConditionCratesSynced      = "CratesSynced"
     // AddonConditionDefinitionConflict is true when one or more definitions this
     // addon would install already exist on the cluster under a different owner and
     // spec.overrideDefinitions is false. The condition message lists each conflicting
@@ -803,18 +803,18 @@ type AddonResourceRef struct {
 ```
 
 ```go
-// AddonModuleStatus records the reconcile state of a single module within the addon.
-type AddonModuleStatus struct {
-    // Name is the module directory name under modules/.
+// AddonCrateStatus records the reconcile state of a single crate within the addon.
+type AddonCrateStatus struct {
+    // Name is the crate directory name under crates/.
     Name  string                  `json:"name"`
-    Lines []AddonModuleLineStatus `json:"lines,omitempty"`
+    Lines []AddonCrateLineStatus `json:"lines,omitempty"`
 }
 ```
 
-`AddonModuleLineStatus` (defined in KEP-2.20) is extended with one additional field to track applied auxiliary resources per API line:
+`AddonCrateLineStatus` (defined in KEP-2.20) is extended with one additional field to track applied auxiliary resources per API line:
 
 ```go
-type AddonModuleLineStatus struct {
+type AddonCrateLineStatus struct {
     APIVersion            string             `json:"apiVersion"`
     Enabled               bool               `json:"enabled"`
     Deprecated            bool               `json:"deprecated"`
@@ -832,7 +832,7 @@ type AddonModuleLineStatus struct {
 
 Implemented entirely in KubeVela core (`github.com/kubevela/kubevela`):
 
-- `pkg/addon/` - addon source loading, module tree scanning, local apply logic shared by CLI and controller
+- `pkg/addon/` - addon source loading, crate tree scanning, local apply logic shared by CLI and controller
 - `pkg/controller/addon/` - `AddonReconciler` extension with continuous reconciliation
 - `pkg/webhook/core.oam.dev/v1beta1/application/` - semver range validation on `addon` component `version` field
 - `references/cli/` - `vela addon` command group; CR write operations and `apply --local` path
@@ -866,11 +866,11 @@ This is feasible because all the information needed to reconstruct the Addon CR'
 
 > **Feasibility caveat:** The inheritance path should be validated against real clusters during implementation. Edge cases to investigate: addons installed without explicit `--registry` (using the default registry), addons where the parameter secret has been manually modified post-install, and addons installed by very old CLI versions that may use different label keys.
 
-### `definitions/` and `modules/` Directory Support
+### `definitions/` and `crates/` Directory Support
 
-The `definitions/` directory is a permanent, first-class authoring path (not a migration target). Addon authors using `definitions/` are not expected or encouraged to migrate to `modules/` unless they specifically need API line versioning and coexistence.
+The `definitions/` directory is a permanent, first-class authoring path (not a migration target). Addon authors using `definitions/` are not expected or encouraged to migrate to `crates/` unless they specifically need API line versioning and coexistence.
 
-Both directories are supported simultaneously. If an addon contains both `definitions/` and `modules/`, the reconciler runs both paths independently on each cycle; definitions from `definitions/` are installed as unversioned component types; modules from `modules/` are installed under the full API line model (see KEP-2.20).
+Both directories are supported simultaneously. If an addon contains both `definitions/` and `crates/`, the reconciler runs both paths independently on each cycle; definitions from `definitions/` are installed as unversioned component types; crates from `crates/` are installed under the full API line model (see KEP-2.20).
 
 Addons using only `definitions/` gain everything from KEP-2.13:
 - Continuous reconciliation and drift correction
@@ -879,21 +879,21 @@ Addons using only `definitions/` gain everything from KEP-2.13:
 - Stale resource cleanup on upgrade
 - `spec.deletionPolicy` on disable
 
-Addons using `modules/` additionally gain:
+Addons using `crates/` additionally gain:
 - API line versioning and simultaneous coexistence (`v1` and `v2` live together)
 - Context-aware `enabled` expressions per line
 - Per-line auxiliary resource management and deprecation lifecycle
 
-The `modules/` structure is an advanced feature for platform teams managing versioned capability APIs across large numbers of consumers. See KEP-2.20 for the full module authoring model.
+The `crates/` structure is an advanced feature for platform teams managing versioned capability APIs across large numbers of consumers. See KEP-2.20 for the full crate authoring model.
 
 ## Security Considerations
 
 - **RBAC for Addon CR creation**: Creating an `Addon` CR causes the controller to install arbitrary Definitions. RBAC should limit Addon CR creation to platform team service accounts.
-- See KEP-2.20 for module-specific security considerations (definition name collision, remote defkit source trust boundary, CueX evaluation sandbox).
+- See KEP-2.20 for crate-specific security considerations (definition name collision, remote defkit source trust boundary, CueX evaluation sandbox).
 
 ## Cross-KEP References
 
-- **KEP-2.20**: Module identity, API line versioning, definition naming convention, deprecation lifecycle
-- **KEP-2.22**: Multi-instance addons; `instance` field in `_module.cue`; per-instance Addon CR naming
+- **KEP-2.20**: Crate identity, API line versioning, definition naming convention, deprecation lifecycle
+- **KEP-2.22**: Multi-instance addons; `instance` field in `_crate.cue`; per-instance Addon CR naming
 - **KEP-2.19**: Named topology groups; forward migration target for `spec.clusters`
 - **KEP-2.6**: KubeVela Operator installs and drift-corrects the addon controller deployment

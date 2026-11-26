@@ -46,9 +46,15 @@ spec:
             properties:
               apiVersion:
                 description: |-
-                  APIVersion is the API line of the module this definition belongs to, for
-                  example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                  APIVersion is the API line of the crate this definition belongs to, for
+                  example "v1" or "v1beta2". Set it together with crate, or leave both empty.
                 pattern: ^v\d+(alpha\d+|beta\d+)?$
+                type: string
+              crate:
+                description: |-
+                  Crate names the crate this definition was published in, for example
+                  "s3". It identifies a versioned definition on the spec itself, not only
+                  through labels. Set it together with apiVersion, or leave both empty.
                 type: string
               definitionRef:
                 description: Reference to the CustomResourceDefinition that defines
@@ -65,12 +71,6 @@ spec:
                 required:
                 - name
                 type: object
-              module:
-                description: |-
-                  Module names the module this definition was published in, for example
-                  "s3". It identifies a versioned definition on the spec itself, not only
-                  through labels. Set it together with apiVersion, or leave both empty.
-                type: string
               restrictions:
                 description: |-
                   Restrictions limits where this definition may be used. Absent or empty means

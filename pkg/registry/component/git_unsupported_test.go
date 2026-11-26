@@ -42,8 +42,8 @@ func TestGitFamilySource(t *testing.T) {
 }
 
 func TestGitSourceUnsupportedWording(t *testing.T) {
-	detail := GitSourceUnsupportedDetail("gitee", ModuleGitRemedy)
-	assert.Equal(t, "is a gitee source, and git registries are not supported for addon and module components; use an OCI registry", detail)
+	detail := GitSourceUnsupportedDetail("gitee", CrateGitRemedy)
+	assert.Equal(t, "is a gitee source, and git registries are not supported for addon and crate components; use an OCI registry", detail)
 
 	err := GitSourceUnsupportedError("team-addons", "git", AddonGitRemedy)
 	assert.ErrorIs(t, err, ErrGitSourceUnsupported, "callers classify the refusal with errors.Is")
@@ -115,17 +115,17 @@ func TestListRegistryGitKinds(t *testing.T) {
 
 func TestListRegistryGitKindsInReadsAnotherConfigMap(t *testing.T) {
 	ctx := context.Background()
-	modules := registryConfigMap(t, "vela-module-registry", map[string]Registry{
+	crates := registryConfigMap(t, "vela-crate-registry", map[string]Registry{
 		"lab": {Name: "lab", Gitlab: &GitlabAddonSource{URL: "https://gitlab.com", Repo: "o/r"}},
 	})
 	addons := registryConfigMap(t, registryConfigMapName, map[string]Registry{
 		"gh": {Name: "gh", Git: &GitAddonSource{URL: "https://github.com/o/r"}},
 	})
-	cli := fakeRegistryClient(t, modules, addons)
+	cli := fakeRegistryClient(t, crates, addons)
 
-	kinds, err := ListRegistryGitKindsIn(ctx, cli, "vela-module-registry")
+	kinds, err := ListRegistryGitKindsIn(ctx, cli, "vela-crate-registry")
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"lab": "gitlab"}, kinds, "the module ConfigMap is inspected, not the addon one")
+	assert.Equal(t, map[string]string{"lab": "gitlab"}, kinds, "the crate ConfigMap is inspected, not the addon one")
 
 	kinds, err = ListRegistryGitKindsIn(ctx, cli, "no-such-configmap")
 	require.NoError(t, err)

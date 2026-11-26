@@ -36,7 +36,7 @@ import (
 // The Git-family registry transport lives here rather than in
 // pkg/registry/component, which is where it sat between commits 353296064 and
 // this one. Only `vela addon enable` reads an addon from Git: a type: addon or
-// type: module component resolves from an OCI registry or a Helm repository,
+// type: crate component resolves from an OCI registry or a Helm repository,
 // and refuses a Git registry. Keeping the GitHub, Gitee and GitLab clients in
 // the package that needs them leaves the shared registry layer free of them.
 //

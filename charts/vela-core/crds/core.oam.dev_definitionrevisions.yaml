@@ -107,8 +107,8 @@ spec:
                         type: boolean
                       apiVersion:
                         description: |-
-                          APIVersion is the API line of the module this definition belongs to, for
-                          example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          APIVersion is the API line of the crate this definition belongs to, for
+                          example "v1" or "v1beta2". Set it together with crate, or leave both empty.
                         pattern: ^v\d+(alpha\d+|beta\d+)?$
                         type: string
                       childResourceKinds:
@@ -135,6 +135,12 @@ spec:
                           - kind
                           type: object
                         type: array
+                      crate:
+                        description: |-
+                          Crate names the crate this definition was published in, for example
+                          "s3". It identifies a versioned definition on the spec itself, not only
+                          through labels. Set it together with apiVersion, or leave both empty.
+                        type: string
                       extends:
                         description: |-
                           Extends names a ComponentDefinition this one builds on. The parent renders
@@ -157,12 +163,6 @@ spec:
                           platform builders
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
-                      module:
-                        description: |-
-                          Module names the module this definition was published in, for example
-                          "s3". It identifies a versioned definition on the spec itself, not only
-                          through labels. Set it together with apiVersion, or leave both empty.
-                        type: string
                       podSpecPath:
                         description: |-
                           PodSpecPath indicates where/if this workload has K8s podSpec field
@@ -583,9 +583,15 @@ spec:
                     properties:
                       apiVersion:
                         description: |-
-                          APIVersion is the API line of the module this definition belongs to, for
-                          example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          APIVersion is the API line of the crate this definition belongs to, for
+                          example "v1" or "v1beta2". Set it together with crate, or leave both empty.
                         pattern: ^v\d+(alpha\d+|beta\d+)?$
+                        type: string
+                      crate:
+                        description: |-
+                          Crate names the crate this definition was published in, for example
+                          "s3". It identifies a versioned definition on the spec itself, not only
+                          through labels. Set it together with apiVersion, or leave both empty.
                         type: string
                       definitionRef:
                         description: Reference to the CustomResourceDefinition that
@@ -615,12 +621,6 @@ spec:
                           ManageHealthCheck means the policy will handle health checking and skip application controller
                           built-in health checking.
                         type: boolean
-                      module:
-                        description: |-
-                          Module names the module this definition was published in, for example
-                          "s3". It identifies a versioned definition on the spec itself, not only
-                          through labels. Set it together with apiVersion, or leave both empty.
-                        type: string
                       priority:
                         description: |-
                           Priority defines the order in which global policies are applied.
@@ -1393,8 +1393,8 @@ spec:
                         type: boolean
                       apiVersion:
                         description: |-
-                          APIVersion is the API line of the module this definition belongs to, for
-                          example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          APIVersion is the API line of the crate this definition belongs to, for
+                          example "v1" or "v1beta2". Set it together with crate, or leave both empty.
                         pattern: ^v\d+(alpha\d+|beta\d+)?$
                         type: string
                       appliesToWorkloads:
@@ -1424,6 +1424,12 @@ spec:
                         description: ControlPlaneOnly defines which cluster is dispatched
                           to
                         type: boolean
+                      crate:
+                        description: |-
+                          Crate names the crate this definition was published in, for example
+                          "s3". It identifies a versioned definition on the spec itself, not only
+                          through labels. Set it together with apiVersion, or leave both empty.
+                        type: string
                       definitionRef:
                         description: Reference to the CustomResourceDefinition that
                           defines this trait kind.
@@ -1466,12 +1472,6 @@ spec:
                         description: ManageWorkload defines the trait would be responsible
                           for creating the workload
                         type: boolean
-                      module:
-                        description: |-
-                          Module names the module this definition was published in, for example
-                          "s3". It identifies a versioned definition on the spec itself, not only
-                          through labels. Set it together with apiVersion, or leave both empty.
-                        type: string
                       podDisruptive:
                         description: |-
                           PodDisruptive indicates that this trait is disruptive to the pod: applying or
@@ -1883,9 +1883,15 @@ spec:
                     properties:
                       apiVersion:
                         description: |-
-                          APIVersion is the API line of the module this definition belongs to, for
-                          example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                          APIVersion is the API line of the crate this definition belongs to, for
+                          example "v1" or "v1beta2". Set it together with crate, or leave both empty.
                         pattern: ^v\d+(alpha\d+|beta\d+)?$
+                        type: string
+                      crate:
+                        description: |-
+                          Crate names the crate this definition was published in, for example
+                          "s3". It identifies a versioned definition on the spec itself, not only
+                          through labels. Set it together with apiVersion, or leave both empty.
                         type: string
                       definitionRef:
                         description: Reference to the CustomResourceDefinition that
@@ -1902,12 +1908,6 @@ spec:
                         required:
                         - name
                         type: object
-                      module:
-                        description: |-
-                          Module names the module this definition was published in, for example
-                          "s3". It identifies a versioned definition on the spec itself, not only
-                          through labels. Set it together with apiVersion, or leave both empty.
-                        type: string
                       restrictions:
                         description: |-
                           Restrictions limits where this definition may be used. Absent or empty means

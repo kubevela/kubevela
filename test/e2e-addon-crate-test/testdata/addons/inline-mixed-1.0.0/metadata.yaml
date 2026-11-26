@@ -1,0 +1,7 @@
+name: inline-mixed
+version: 1.0.0
+description: "Addon bundling one inline crate and importing widget-kit from the crate registry."
+tags:
+  - test
+  - crate-inline
+dependencies: []

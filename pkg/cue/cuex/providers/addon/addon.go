@@ -21,6 +21,7 @@ package addon
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 
 	"github.com/kubevela/pkg/cue/cuex/providers"
@@ -107,7 +108,7 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 	return &RenderReturns{Returns: ResultVars{
 		ResolvedVersion: res.ResolvedVersion,
 		Registry:        res.Registry,
-		Application:     res.Application,
+		Application:     nullsForCUE(res.Application),
 	}}, nil
 }
 
@@ -159,3 +160,41 @@ func GetProviders() map[string]cuexruntime.ProviderFn {
 
 // Package is the internal CueX package registered on the WorkloadCompiler.
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, GetTemplate(), GetProviders()))
+
+// cueNull is a null that stays null in CUE. The CueX runtime fills a call's
+// returns into the definition's value, and that conversion reads a Go nil as
+// "any value", which leaves the field incomplete and fails the render.
+var cueNull = json.RawMessage("null")
+
+// nullsForCUE returns a copy of the rendered Application with every nil
+// replaced by cueNull. The renderer writes a nil where the patched
+// Application must lose a field an earlier render wrote. The renderer's own
+// result is left as it is, because it may be cached or used again.
+func nullsForCUE(app map[string]interface{}) map[string]interface{} {
+	if app == nil {
+		return nil
+	}
+	out, _ := nullForCUE(app).(map[string]interface{})
+	return out
+}
+
+func nullForCUE(v interface{}) interface{} {
+	switch t := v.(type) {
+	case nil:
+		return cueNull
+	case map[string]interface{}:
+		out := make(map[string]interface{}, len(t))
+		for key, value := range t {
+			out[key] = nullForCUE(value)
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(t))
+		for i, value := range t {
+			out[i] = nullForCUE(value)
+		}
+		return out
+	default:
+		return v
+	}
+}

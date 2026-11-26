@@ -90,8 +90,8 @@ func (p *Parser) ValidateCUESchematicAppfile(ctx context.Context, a *Appfile) er
 		// Set dry-run mode so provider functions (e.g., helm.#Render) perform
 		// client-only rendering instead of real cluster installs during validation.
 		ctxData.Ctx = helm.WithDryRun(renderContext(ctx, ctxData.Ctx))
-		// Same reasoning for the addon and module providers, which would
-		// otherwise resolve every type: addon and type: module component from
+		// Same reasoning for the addon and crate providers, which would
+		// otherwise resolve every type: addon and type: crate component from
 		// its remote registry while the apiserver holds the admission request
 		// open.
 		//
@@ -134,7 +134,7 @@ func (p *Parser) ValidateCUESchematicAppfile(ctx context.Context, a *Appfile) er
 			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
 		}
 
-		// Under a validation-only context the addon and module providers return a
+		// Under a validation-only context the addon and crate providers return a
 		// placeholder Application instead of fetching the real one, so any trait
 		// evaluated here would be checked against content that does not exist yet
 		// and could reject an Application that renders correctly.
@@ -195,8 +195,8 @@ func isChained(wl *Component, traits []*Trait) bool {
 // placeholderRenderedTypes are the ComponentDefinitions whose output is a
 // remote-fetch placeholder during admission (see validation.WithValidationOnly).
 var placeholderRenderedTypes = map[string]bool{
-	"addon":  true,
-	"module": true,
+	"addon": true,
+	"crate": true,
 }
 
 func rendersPlaceholderDuringValidation(wl *Component) bool {

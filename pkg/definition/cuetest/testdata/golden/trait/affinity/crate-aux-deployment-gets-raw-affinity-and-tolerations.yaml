@@ -1,0 +1,66 @@
+calls: {}
+output:
+  apiVersion: core.oam.dev/v1beta1
+  kind: Application
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: test-app-v1
+      app.oam.dev/component: test-component
+      app.oam.dev/name: test-app
+      app.oam.dev/namespace: default
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: cuetest-workload
+    name: crate-provider-kit
+    namespace: default
+  spec:
+    components:
+    - name: provider-kit-aux
+      properties:
+        objects:
+        - apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: provider-ctrl
+          spec:
+            template:
+              spec:
+                affinity:
+                  nodeAffinity:
+                    requiredDuringSchedulingIgnoredDuringExecution:
+                      nodeSelectorTerms:
+                      - matchExpressions:
+                        - key: node-type
+                          operator: In
+                          values:
+                          - infra
+                containers:
+                - image: provider:1
+                  name: ctrl
+                tolerations:
+                - effect: NoSchedule
+                  key: dedicated
+                  operator: Exists
+        - apiVersion: apiextensions.crossplane.io/v1
+          kind: CompositeResourceDefinition
+          metadata:
+            name: xbuckets.aws.platform.io
+          spec: {}
+      traits:
+      - properties:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                    - infra
+          tolerations:
+          - effect: NoSchedule
+            key: dedicated
+            operator: Exists
+        type: affinity
+      type: k8s-objects
+outputs: {}

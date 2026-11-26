@@ -40,12 +40,12 @@ type AddonRequest struct {
 	// Namespace is the namespace of the Application that installs the addon,
 	// captured where the type: addon component renders. The owned addon
 	// Application always lives in vela-system, so this is the only record of
-	// where the addon's modules install their definitions.
+	// where the addon's crates install their definitions.
 	Namespace string
 	// Placement is where the installer wants the addon. Nil means the addon
 	// places itself, if at all. An addon that defines its own topology policy
 	// or workflow refuses it; one that does not gets a topology from it, and so
-	// do its imported modules that set no placement of their own.
+	// do its imported crates that set no placement of their own.
 	Placement *v1alpha1.Placement
 }
 

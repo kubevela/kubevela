@@ -283,19 +283,19 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 	return nil
 }
 
-// ValidateDefinitionIdentity validates that a Definition's spec.module and
+// ValidateDefinitionIdentity validates that a Definition's spec.crate and
 // spec.apiVersion are set together or both left empty. The apiVersion format is
 // enforced by the CRD schema, not here.
-func ValidateDefinitionIdentity(module, apiVersion string) error {
+func ValidateDefinitionIdentity(crate, apiVersion string) error {
 	switch {
-	case module != "" && apiVersion == "":
-		return errors.New("spec.module is set but spec.apiVersion is empty: set both or neither")
-	case module == "" && apiVersion != "":
-		return errors.New("spec.apiVersion is set but spec.module is empty: set both or neither")
+	case crate != "" && apiVersion == "":
+		return errors.New("spec.crate is set but spec.apiVersion is empty: set both or neither")
+	case crate == "" && apiVersion != "":
+		return errors.New("spec.apiVersion is set but spec.crate is empty: set both or neither")
 	}
-	if module != "" {
-		if errs := validation.IsDNS1123Label(module); len(errs) != 0 {
-			return errors.Errorf("spec.module %q is not a valid DNS-1123 label: %s", module, strings.Join(errs, ","))
+	if crate != "" {
+		if errs := validation.IsDNS1123Label(crate); len(errs) != 0 {
+			return errors.Errorf("spec.crate %q is not a valid DNS-1123 label: %s", crate, strings.Join(errs, ","))
 		}
 	}
 	return nil
@@ -312,14 +312,14 @@ func ValidateDefinitionIdentity(module, apiVersion string) error {
 // caller returns the response immediately in that case and otherwise
 // continues to its next check.
 //
-// Logged at Info, not Error: an inconsistent module/apiVersion pair is the
+// Logged at Info, not Error: an inconsistent crate/apiVersion pair is the
 // requester's bad input, not a server-side fault, and WithError already
 // attaches the error to the structured log fields, so passing err again to
 // Error would log it twice for no extra signal.
-func DenyOnInvalidIdentity(logger logging.Logger, kind, module, apiVersion string, requestUID types.UID) (admission.Response, bool) {
-	if err := ValidateDefinitionIdentity(module, apiVersion); err != nil {
+func DenyOnInvalidIdentity(logger logging.Logger, kind, crate, apiVersion string, requestUID types.UID) (admission.Response, bool) {
+	if err := ValidateDefinitionIdentity(crate, apiVersion); err != nil {
 		logger.WithStep("validate-identity").WithError(err).Info(
-			kind+" identity fields are inconsistent", "module", module, "apiVersion", apiVersion)
+			kind+" identity fields are inconsistent", "crate", crate, "apiVersion", apiVersion)
 		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), requestUID)), true
 	}
 	return admission.Response{}, false

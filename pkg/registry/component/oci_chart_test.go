@@ -31,11 +31,11 @@ func TestOCIChartRef(t *testing.T) {
 		url  string
 		want string
 	}{
-		{name: "scheme and prefix", url: "oci://registry.example.com/modules", want: "registry.example.com/modules/s3:1.0.0"},
+		{name: "scheme and prefix", url: "oci://registry.example.com/crates", want: "registry.example.com/crates/s3:1.0.0"},
 		{name: "no prefix", url: "oci://registry.example.com", want: "registry.example.com/s3:1.0.0"},
-		{name: "bare ecr host", url: "123456789012.dkr.ecr.us-west-2.amazonaws.com/modules", want: "123456789012.dkr.ecr.us-west-2.amazonaws.com/modules/s3:1.0.0"},
-		{name: "http scheme", url: "http://127.0.0.1:5000/modules", want: "127.0.0.1:5000/modules/s3:1.0.0"},
-		{name: "trailing slash", url: "oci://registry.example.com/modules/", want: "registry.example.com/modules/s3:1.0.0"},
+		{name: "bare ecr host", url: "123456789012.dkr.ecr.us-west-2.amazonaws.com/crates", want: "123456789012.dkr.ecr.us-west-2.amazonaws.com/crates/s3:1.0.0"},
+		{name: "http scheme", url: "http://127.0.0.1:5000/crates", want: "127.0.0.1:5000/crates/s3:1.0.0"},
+		{name: "trailing slash", url: "oci://registry.example.com/crates/", want: "registry.example.com/crates/s3:1.0.0"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestPushOCIChartRejectsNonOCIRegistry(t *testing.T) {
 }
 
 func TestOCIChartTagExists(t *testing.T) {
-	reg := Registry{Name: "r", Helm: &HelmSource{URL: "oci://registry.example.com/modules"}}
+	reg := Registry{Name: "r", Helm: &HelmSource{URL: "oci://registry.example.com/crates"}}
 	cases := []struct {
 		name    string
 		tags    []string
@@ -96,8 +96,8 @@ func TestOCIChartTagExistsUsesPlainHTTPTransportForHTTPURL(t *testing.T) {
 		url       string
 		plainHTTP bool
 	}{
-		{name: "http URL uses plain HTTP", url: "http://127.0.0.1:5000/modules", plainHTTP: true},
-		{name: "oci URL uses TLS", url: "oci://registry.example.com/modules", plainHTTP: false},
+		{name: "http URL uses plain HTTP", url: "http://127.0.0.1:5000/crates", plainHTTP: true},
+		{name: "oci URL uses TLS", url: "oci://registry.example.com/crates", plainHTTP: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,9 +117,9 @@ func TestOCIChartTagExistsUsesPlainHTTPTransportForHTTPURL(t *testing.T) {
 
 func TestIsOCIRepositoryNotFound(t *testing.T) {
 	require.True(t, IsOCIRepositoryNotFound(errors.New("unexpected status: 404 Not Found: NAME_UNKNOWN")))
-	require.True(t, IsOCIRepositoryNotFound(errors.New("RepositoryNotFoundException: The repository with name 'modules/s3' does not exist")))
-	require.True(t, IsOCIRepositoryNotFound(errors.New(`failed to push chart 123456789012.dkr.ecr.us-west-2.amazonaws.com/modules/s3:1.0.0: unexpected status from POST request to https://123456789012.dkr.ecr.us-west-2.amazonaws.com/v2/modules/s3/blobs/uploads/: 404 Not Found`)))
-	require.False(t, IsOCIRepositoryNotFound(errors.New(`unexpected status from POST request to https://registry.example.com/v2/modules/s3/blobs/uploads/: 401 Unauthorized`)))
+	require.True(t, IsOCIRepositoryNotFound(errors.New("RepositoryNotFoundException: The repository with name 'crates/s3' does not exist")))
+	require.True(t, IsOCIRepositoryNotFound(errors.New(`failed to push chart 123456789012.dkr.ecr.us-west-2.amazonaws.com/crates/s3:1.0.0: unexpected status from POST request to https://123456789012.dkr.ecr.us-west-2.amazonaws.com/v2/crates/s3/blobs/uploads/: 404 Not Found`)))
+	require.False(t, IsOCIRepositoryNotFound(errors.New(`unexpected status from POST request to https://registry.example.com/v2/crates/s3/blobs/uploads/: 401 Unauthorized`)))
 	require.False(t, IsOCIRepositoryNotFound(errors.New("unauthorized: authentication required")))
 }
 
