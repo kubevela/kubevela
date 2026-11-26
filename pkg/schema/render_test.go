@@ -18,6 +18,7 @@ package schema
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"testing"
 
@@ -117,6 +118,74 @@ parameter: {
 	assert.Equal(t, "Container port", ports.Items.Value.Properties["port"].Value.Description)
 	assert.Equal(t, uint64(1), ps.OpenAPI.Properties["items"].Value.MinItems)
 	assert.Equal(t, "Strings", uiParam(t, ps.UI, "items").UIType)
+}
+
+func TestGenerateForbiddenField(t *testing.T) {
+	ps := generate(t, `
+parameter: values?: {
+	// +usage=keep the default name
+	nameOverride?:     error("nameOverride is not supported: the addon health check needs the default Deployment name")
+	fullnameOverride?: _|_
+	replicas?:         *1 | int
+}`)
+	values := ps.OpenAPI.Properties["values"].Value
+	assert.NotContains(t, values.Required, "nameOverride")
+	assert.NotContains(t, values.Required, "fullnameOverride")
+
+	name := values.Properties["nameOverride"].Value
+	require.NotNil(t, name.Not)
+	require.NotNil(t, name.Not.Value)
+	assert.True(t, name.Not.Value.IsEmpty())
+	assert.Nil(t, name.Type)
+	assert.Equal(t, "nameOverride is not supported: the addon health check needs the default Deployment name", name.Description)
+	raw, err := json.Marshal(name)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"not":{}`)
+
+	full := values.Properties["fullnameOverride"].Value
+	require.NotNil(t, full.Not)
+	assert.True(t, full.Not.Value.IsEmpty())
+	assert.Equal(t, "explicit error (_|_ literal) in source", full.Description)
+
+	assert.Equal(t, int64(1), values.Properties["replicas"].Value.Default)
+	assert.NoError(t, values.VisitJSON(map[string]any{"replicas": int64(1)}))
+
+	var keys []string
+	for _, p := range uiParam(t, ps.UI, "values").SubParameters {
+		keys = append(keys, p.JSONKey)
+	}
+	assert.Equal(t, []string{"replicas"}, keys)
+}
+
+func TestGenerateForbiddenFieldMessage(t *testing.T) {
+	ps := generate(t, `
+msg: "computed"
+parameter: {
+	paren?: (error("paren"))
+	via?:   error(msg)
+	kept?:  string
+}`)
+	assert.Equal(t, "paren", ps.OpenAPI.Properties["paren"].Value.Description)
+	assert.Equal(t, "computed", ps.OpenAPI.Properties["via"].Value.Description)
+	require.NotNil(t, ps.OpenAPI.Properties["paren"].Value.Not)
+	assert.Equal(t, []string{"kept"}, uiKeys(ps.UI))
+}
+
+func TestGenerateConflictIsNotForbidden(t *testing.T) {
+	_, err := GenerateParameterSchemas(context.Background(), `parameter: {ns: int & "x"}`)
+	require.Error(t, err)
+
+	ps := generate(t, `parameter: {bad?: int & "x", ok?: string}`)
+	assert.Nil(t, ps.OpenAPI.Properties["bad"].Value.Not)
+	assert.Equal(t, []string{"bad", "ok"}, uiKeys(ps.UI))
+}
+
+func uiKeys(ps uischema.UISchema) []string {
+	var keys []string
+	for _, p := range ps {
+		keys = append(keys, p.JSONKey)
+	}
+	return keys
 }
 
 func TestGenerateDeclarationOrder(t *testing.T) {

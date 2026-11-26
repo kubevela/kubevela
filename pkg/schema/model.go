@@ -24,6 +24,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/token"
 	"github.com/getkin/kin-openapi/openapi3"
 )
@@ -58,7 +59,10 @@ type Field struct {
 	// Optional is true for a field that need not be supplied: marked `?`, or
 	// carrying a default.
 	Optional bool
-	Nullable bool
+	// Forbidden is a field declared as error(...) or _|_: a value must not
+	// set it. OpenAPI records that as `not: {}`; the UI leaves the field out.
+	Forbidden bool
+	Nullable  bool
 	// HasDefault distinguishes a null default from none.
 	HasDefault bool
 	Default    any
@@ -316,6 +320,15 @@ func (w *walker) fields(v cue.Value, path cue.Path, refs []string, depth int) []
 		if sel.ConstraintType() == cue.OptionalConstraint || child.HasDefault {
 			child.Optional = true
 		}
+		// error(...) and _|_ evaluate to bottom, which the walk would otherwise
+		// read as an untyped field. The declaration is what distinguishes them
+		// from a conflict, which is also bottom but is not a forbidden field.
+		if msg, ok := forbiddenMessage(it.Value()); ok {
+			child.Forbidden = true
+			if msg != "" {
+				child.Description = msg
+			}
+		}
 		out = append(out, child)
 	}
 	return out
@@ -528,6 +541,52 @@ func pathJoin(p cue.Path, name string) cue.Path {
 
 func appendPath(p cue.Path, sel cue.Selector) cue.Path {
 	return cue.MakePath(append(append([]cue.Selector(nil), p.Selectors()...), sel)...)
+}
+
+// forbiddenMessage reports whether v is declared as error(...) or _|_, and
+// the message that declaration carries.
+func forbiddenMessage(v cue.Value) (string, bool) {
+	if !isForbiddenExpr(declaredExpr(v.Source())) {
+		return "", false
+	}
+	return cueMessage(v.Err()), true
+}
+
+func declaredExpr(n ast.Node) ast.Expr {
+	switch n := n.(type) {
+	case *ast.Field:
+		return n.Value
+	case ast.Expr:
+		return n
+	default:
+		return nil
+	}
+}
+
+func isForbiddenExpr(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.ParenExpr:
+		return e != nil && isForbiddenExpr(e.X)
+	case *ast.BottomLit:
+		return true
+	case *ast.CallExpr:
+		id, ok := e.Fun.(*ast.Ident)
+		return ok && id.Name == "error"
+	default:
+		return false
+	}
+}
+
+func cueMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	list := cueerrors.Errors(err)
+	if len(list) == 0 {
+		return ""
+	}
+	format, args := list[0].Msg()
+	return fmt.Sprintf(format, args...)
 }
 
 func labelName(sel cue.Selector) string {

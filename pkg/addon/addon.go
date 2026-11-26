@@ -301,10 +301,7 @@ func GetUIDataFromReader(r AsyncReader, meta *SourceMeta, opt ListOptions) (*UID
 			}
 			addon.Parameters = addon.GlobalParameters
 		}
-		err := genAddonAPISchema(addon)
-		if err != nil {
-			return nil, fmt.Errorf("fail to generate openAPIschema for addon %s : %w (parameter: %s)", meta.Name, err, addon.Parameters)
-		}
+		genAddonAPISchema(addon)
 	}
 	addon.AvailableVersions = []string{addon.Version}
 	return addon, nil
@@ -517,22 +514,23 @@ func readReadme(a *UIData, reader AsyncReader, readPath string) error {
 	return nil
 }
 
-// genAddonAPISchema generates the addon's parameter schemas. A parameter the
-// generator cannot read gets the CUE encoder's OpenAPI and no UI schema; one
-// neither can read is reported with the generator's error.
-func genAddonAPISchema(addonRes *UIData) error {
+// genAddonAPISchema generates the addon's parameter schemas. The schema only
+// feeds VelaUX's forms, so a parameter neither the generator nor the CUE
+// encoder can read is installed with no schema: the failure is logged, and
+// enable continues.
+func genAddonAPISchema(addonRes *UIData) {
 	ps, genErr := schema.GenerateParameterSchemas(context.Background(), addonRes.Parameters)
 	if genErr == nil {
 		addonRes.APISchema, addonRes.DefaultUISchema = ps.OpenAPI, ps.UI
-		return nil
+		return
 	}
 	klog.Warningf("addon %s: falling back to the CUE OpenAPI encoder, no default UI schema: %v", addonRes.Name, genErr)
 	s, err := schema.ParsePropertiesToSchema(context.Background(), addonRes.Parameters)
 	if err != nil {
-		return genErr
+		klog.Warningf("addon %s: parameter schema generation failed, installing without one: %v", addonRes.Name, genErr)
+		return
 	}
 	addonRes.APISchema = s
-	return nil
 }
 
 func getClusters(args map[string]interface{}) []string {

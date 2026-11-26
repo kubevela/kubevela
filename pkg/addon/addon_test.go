@@ -1711,11 +1711,36 @@ func TestLoadLocalInstallPackage(t *testing.T) {
 	assert.NotEmpty(t, pkg.CUETemplates, "resources/ is read")
 }
 
-// A parameter both generators reject is reported with the schema generator's
-// cause, not the CUE encoder's.
-func TestGenAddonAPISchemaReportsTheGeneratorsError(t *testing.T) {
-	addon := &UIData{Parameters: `parameter: {ns: int & context.namespace}`}
-	err := genAddonAPISchema(addon)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "conflicting values int and string")
+// A parameter neither generator can read does not block enable. The addon
+// installs with no schema; the failure is only logged.
+func TestGenAddonAPISchemaInstallsWhenGenerationFails(t *testing.T) {
+	addon := &UIData{Name: "example", Parameters: `parameter: {ns: int & context.namespace}`}
+	genAddonAPISchema(addon)
+	assert.Nil(t, addon.APISchema)
+	assert.Empty(t, addon.DefaultUISchema)
+}
+
+// error(...) forbids a field. Enable still produces a schema, and the form
+// does not offer the field.
+func TestGenAddonAPISchemaOmitsForbiddenFields(t *testing.T) {
+	addon := &UIData{Name: "ocm", Parameters: `parameter: values?: {
+		nameOverride?: error("nameOverride is not supported")
+		replicas?: *1 | int
+	}`}
+	genAddonAPISchema(addon)
+	require.NotNil(t, addon.APISchema)
+	name := addon.APISchema.Properties["values"].Value.Properties["nameOverride"].Value
+	require.NotNil(t, name.Not)
+	assert.True(t, name.Not.Value.IsEmpty())
+	assert.Equal(t, "nameOverride is not supported", name.Description)
+
+	var keys []string
+	for _, p := range addon.DefaultUISchema {
+		keys = append(keys, p.JSONKey)
+		for _, sub := range p.SubParameters {
+			keys = append(keys, p.JSONKey+"."+sub.JSONKey)
+		}
+	}
+	assert.NotContains(t, keys, "values.nameOverride")
+	assert.Contains(t, keys, "values.replicas")
 }

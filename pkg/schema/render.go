@@ -182,6 +182,14 @@ func GenerateParameterSchemasFromValue(val cue.Value, src string) (*ParameterSch
 
 // OpenAPI renders the field as an OpenAPI 3.0 schema.
 func (f *Field) OpenAPI() *openapi3.Schema {
+	if f.Forbidden {
+		// `not: {}` matches nothing, which is what error(...) and _|_ mean.
+		return &openapi3.Schema{
+			Title:       f.Name,
+			Description: f.Description,
+			Not:         openapi3.NewSchemaRef("", &openapi3.Schema{}),
+		}
+	}
 	s := &openapi3.Schema{Title: f.Name, Description: f.Description, Default: f.Default, Nullable: f.Nullable}
 	if f.Immutable {
 		s.Extensions = map[string]any{ExtensionImmutable: true}
@@ -348,8 +356,14 @@ func onlyOn(conds []Condition, name string, v any) bool {
 // UIParameters renders an object's fields as the default VelaUX form, in the
 // order the template declares them.
 func (f *Field) UIParameters() uischema.UISchema {
+	var visible []*Field
+	for _, c := range f.formFields() {
+		if !c.Forbidden {
+			visible = append(visible, c)
+		}
+	}
 	var out uischema.UISchema
-	for i, c := range placeByOrder(f.formFields()) {
+	for i, c := range placeByOrder(visible) {
 		p := c.uiParameter()
 		p.Sort = uint(100 + i)
 		out = append(out, p)
