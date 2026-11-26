@@ -238,7 +238,6 @@ fi
 # The analysis: one finding per object and problem, as {level, check, object, problem, fix, link}.
 read -r -d '' analysis <<'JQ' || true
 def guide($a): "https://kubevela.io/upgrade-guides/v1.12/#" + $a;
-def notes: "https://kubevela.io/release-notes/v1.12/v1.12.0/#breaking-changes";
 def f($level; $check; $object; $problem; $fix; $link):
   {level: $level, check: $check, object: $object, problem: $problem, fix: $fix, link: $link};
 
@@ -370,8 +369,20 @@ def first_version: {
       else false end;
   def conflicts($a; $b): any(($a.spec.conflictsWith // [])[]; rulematch(.; $b));
 
-# path.Match, as definition restrictions and namespace patterns use it.
-  def globmatch($p): test("^" + ($p | gsub("(?<c>[.+$(){}|])"; "\\\(.c)") | gsub("\\*"; "[^/]*") | gsub("\\?"; "[^/]")) + "$");
+# path.Match, as definition restrictions and namespace patterns use it. A pattern path.Match
+# refuses matches nothing, as in nsrestrict.
+  def globtok: "\\\\.|\\[\\^?(?:(?:\\\\.|[^\\]\\\\-])(?:-(?:\\\\.|[^\\]\\\\-]))?)+\\]|[^\\[\\\\]";
+  def globvalid: test("^(?:" + globtok + ")*$");
+  def reesc: gsub("(?<c>[^A-Za-z0-9_])"; "\\\(.c)");
+  def globre:
+    [scan(globtok)] | map(
+      if . == "*" then "[^/]*" elif . == "?" then "[^/]"
+      elif startswith("\\") then .[1:] | reesc
+      elif startswith("[") then
+        (if .[1:2] == "^" then ["[^", .[2:-1]] else ["[", .[1:-1]] end) as [$open, $body]
+        | $open + ([$body | scan("\\\\.|.")] | map(if . == "-" then . elif startswith("\\") then .[1:] | reesc else reesc end) | join("")) + "]"
+      else reesc end) | join("");
+  def globmatch($p): . as $s | ($p | globvalid) and ($s | test("^" + ($p | globre) + "$"));
 
 # Addresses as bit strings, for CIDR matching.
   def hex2n: explode | map(if . >= 97 then . - 87 elif . >= 65 then . - 55 else . - 48 end) | reduce .[] as $d (0; . * 16 + $d);
@@ -482,36 +493,36 @@ def first_version: {
           (if ($chart | test("^1\\.11\\.[01]$")) then "chart \($chart): helm upgrade --reuse-values fails to render the 1.12 chart with these values"
            else "chart \($chart): helm upgrade --reuse-values keeps the \($chart) image values, so vela-core and cluster-gateway are not upgraded" end);
           "upgrade with your own values file (-f), or --reset-then-reuse-values (Helm 3.14 and later), never --reuse-values";
-          guide("config-templates-and-configs")),
+          guide("3-upgrade-the-chart")),
       ( $vals.image.tag // empty | select(startswith("v1.12") | not)
         | f("error"; "helm-values"; "Release \($ns)/\($rel)";
             "the values pin image.tag \(.), so the upgrade keeps that controller image";
             "remove image.tag from your values file, or set it to the 1.12 tag you are installing";
-            guide("config-templates-and-configs")) ),
+            guide("3-upgrade-the-chart")) ),
       ( $vals.multicluster.clusterGateway.image.tag // empty | select(startswith("v1.10") | not)
         | f("error"; "helm-values"; "Release \($ns)/\($rel)";
             "the values pin multicluster.clusterGateway.image.tag \(.); 1.12 ships v1.10.0-alpha.1";
             "remove multicluster.clusterGateway.image.tag from your values file";
-            notes) )
+            guide("3-upgrade-the-chart")) )
     else
       f("info"; "helm-values"; "Release \($ns)/\($rel)";
         "the release values were not read (no helm), so the checks that use them assume the running gates and the 1.12 defaults";
         "install helm and run again, or check the values yourself: no image.tag pin, and the global policy, restriction and HTTP settings";
-        notes)
+        guide("3-upgrade-the-chart"))
     end ),
 
 # 3. CRDs.
   ( f("info"; "crds"; "CustomResourceDefinitions";
       "helm upgrade does not update the chart's crds/, and 1.12 adds the Config, ConfigTemplate and SourceDefinition CRDs";
       "before helm upgrade: helm pull kubevela/vela-core --version <1.12 version> --untar && kubectl apply --server-side --force-conflicts -f vela-core/crds/";
-      guide("config-templates-and-configs")),
+      guide("1-apply-the-v112-crds-server-side")),
     ( [items($crd)[0] // $crd[0] | .spec.versions[]? | select(.name == "v1beta1")
         | .schema.openAPIV3Schema.properties.status.properties.appliedApplicationPolicies] | first
       | select(. == null)
       | f("info"; "crds"; "CustomResourceDefinition applications.core.oam.dev";
           "the Application CRD is older than 1.11's (no status.appliedApplicationPolicies): an earlier upgrade skipped the CRDs";
           "apply the 1.12 CRDs as above before helm upgrade; it brings the 1.11 fields too";
-          guide("config-templates-and-configs")) ) ),
+          guide("1-apply-the-v112-crds-server-side")) ) ),
 
 # 4. Credentials in other namespaces.
   ( items($apps)[] as $a | $a.metadata.namespace as $appns
@@ -522,13 +533,13 @@ def first_version: {
             "component \($c.name): valuesFrom \(.kind) \(.namespace)/\(.name) is outside the Application's namespace";
             "1.12 refuses it";
             "copy \(.kind) \(.name) into namespace \($appns) and drop valuesFrom[].namespace";
-            notes) ),
+            guide("helm-components")) ),
       ( $p.chart.auth.secretRef? // empty | select((.namespace // "") != "" and .namespace != $appns)
         | fx("helm-sources"; "error"; "cross-namespace-credentials"; "Application \($a | nn)";
             "component \($c.name): chart.auth.secretRef \(.namespace)/\(.name) is outside the Application's namespace";
             "1.12 refuses it";
             "copy Secret \(.name) into namespace \($appns) and drop chart.auth.secretRef.namespace";
-            notes) ),
+            guide("helm-components")) ),
       ( ($p.release.namespace // "") as $relns
         | ([($p.valuesFrom // [])[] | select((.namespace // "") == "") | "\(.kind) \(.name)"]
            + [($p.chart.auth.secretRef? // empty) | select((.namespace // "") == "") | "Secret \(.name)"]) as $unset
@@ -537,12 +548,12 @@ def first_version: {
             | f("warn"; "cross-namespace-credentials"; "Application \($a | nn)";
                 "component \($c.name): sources without a namespace (\($unset | join(", "))); \(vlabel) reads them from the release namespace \($relns), 1.12 only from \($appns)";
                 "create \($unset | join(", ")) in namespace \($appns) before upgrading";
-                notes) ),
+                guide("helm-components")) ),
           ( select($topons != null)
             | f("warn"; "cross-namespace-credentials"; "Application \($a | nn)";
                 "component \($c.name): sources without a namespace (\($unset | join(", "))); under the topology namespace \($topons) 1.11 reads them from \($topons), 1.12 only from \($appns)";
                 "create \($unset | join(", ")) in namespace \($appns) before upgrading";
-                notes) ) ) ),
+                guide("helm-components")) ) ) ),
   ( items($apps)[] as $a | $a.metadata.namespace as $appns
     | $a | steps | select(.type | IN("read-config", "list-config", "create-config", "delete-config")) as $s
     | ($s.properties // {}) as $p
@@ -554,13 +565,13 @@ def first_version: {
             f("warn"; "cross-namespace-credentials"; "Application \($a | nn)";
               "step \($s.name) (\($s.type)) reaches config \($p.namespace)/\($p.name // "*"); 1.12 allows it only if the Application's user may \($verb) configs there";
               "grant the Application's user \($verb) on configs.config.oam.dev in namespace \($p.namespace), or move the config to \($appns)";
-              notes)
+              guide("config-templates-and-configs"))
           else
             fx("config-steps"; "error"; "cross-namespace-credentials"; "Application \($a | nn)";
               "step \($s.name) (\($s.type)) reaches config \($p.namespace)/\($p.name // "*") outside the Application's namespace";
               "1.12 refuses it";
               "move the config into namespace \($appns) and drop the step's namespace property (a shared config in vela-system made from a vela-system template stays readable)";
-              notes)
+              guide("config-templates-and-configs"))
           end ),
       ( select($s.type == "create-config" and (($p.template // "") | contains("/")))
         | ($p.template | split("/")[0]) as $tns
@@ -573,7 +584,7 @@ def first_version: {
     | f("info"; "cross-namespace-credentials"; "WorkflowStepDefinition \(nn)";
         "its template sets tls_config: 1.12 reads that TLS Secret only from the namespace of the Application running the step";
         "check that each Application using step type \(.metadata.name) has the Secret in its own namespace";
-        notes) ),
+        guide("workflow")) ),
   ( items($cdefs)[] | . as $d | (.spec.schematic.terraform // {}) as $tf
     | select($tf.type == "remote")
     | $tf.gitCredentialsSecretReference? // empty
@@ -582,7 +593,7 @@ def first_version: {
         "gitCredentialsSecretReference \(.namespace)/\(.name) is outside the definition's namespace, so the module's variables cannot be read";
         "1.12 refuses it";
         "copy Secret \(.name) into namespace \($d.metadata.namespace) and set gitCredentialsSecretReference.namespace to \($d.metadata.namespace)";
-        notes) ),
+        guide("definitions-crates-and-addons")) ),
 
 # 5. Workflow HTTP guard and limits.
   ( items($apps)[] as $a
@@ -591,11 +602,11 @@ def first_version: {
         | if $now.DisableWorkflowHTTP // false then
             f("warn"; "http-guard"; "Application \($a | nn)";
               "already refused: step \($s.name) (\($s.type)) makes a workflow HTTP request, and disableWorkflowHTTP is on";
-              "turn featureGates.disableWorkflowHTTP off, or remove the step"; notes)
+              "turn featureGates.disableWorkflowHTTP off, or remove the step"; guide("workflow"))
           else
             f("error"; "http-guard"; "Application \($a | nn)";
               "step \($s.name) (\($s.type)) makes a workflow HTTP request; with featureGates.disableWorkflowHTTP on in the values 1.12 refuses every one";
-              "turn featureGates.disableWorkflowHTTP off, or remove the step"; notes)
+              "turn featureGates.disableWorkflowHTTP off, or remove the step"; guide("workflow"))
           end ),
       ( $s | stepurls[] as $u
         | (if $u.url != null then {host: ($u.url | urlhost), from: ""}
@@ -606,7 +617,7 @@ def first_version: {
             f("info"; "http-guard"; "Application \($a | nn)";
               "step \($s.name) (\($s.type)) takes its \($u.at) from Secret \($t.secret), which could not be read (\($t.skipped)), so its host was not checked";
               "check that the URL in Secret \($t.secret) is not a metadata, link-local, loopback or denied address";
-              notes)
+              guide("workflow"))
           else
             hostdenied($t.host) as $hits | select(($hits | length) > 0)
             | ($hits | map(select(.after))) as $later | select(($later | length) > 0)
@@ -614,12 +625,12 @@ def first_version: {
                 f("warn"; "http-guard"; "Application \($a | nn)";
                   "already refused on \(vlabel): step \($s.name) (\($s.type)) calls \($t.host) at \($u.at)\($t.from), \(([$hits[] | select(.now)] | first).why)";
                   "point \($u.at) at an address the controller may call, such as the Service's cluster DNS name";
-                  notes)
+                  guide("workflow"))
               else
                 f("error"; "http-guard"; "Application \($a | nn)";
                   "step \($s.name) (\($s.type)) calls \($t.host) at \($u.at)\($t.from), \($later[0].why): the 1.12 HTTP guard refuses it";
                   "point \($u.at) at an address the controller may call, such as the Service's cluster DNS name";
-                  notes)
+                  guide("workflow"))
               end
           end ),
       ( $s | select(.type | IN("request", "webhook", "notification")) | .properties.timeout? // empty
@@ -635,9 +646,9 @@ def first_version: {
            else "lower timeout to \($maxAfterStr) or less, or raise workflow.http.maxTimeout in the chart values" end) as $fix
         | if $failsNow and ("http-timeout" | since(.)) then
             f("warn"; "http-guard"; "Application \($a | nn)";
-              "already refused on \(vlabel) (since \(first_version["http-timeout"])): step \($s.name) (\($s.type)) \($why)"; $fix; notes)
+              "already refused on \(vlabel) (since \(first_version["http-timeout"])): step \($s.name) (\($s.type)) \($why)"; $fix; guide("workflow"))
           else
-            f("error"; "http-guard"; "Application \($a | nn)"; "step \($s.name) (\($s.type)) \($why); 1.12 refuses it"; $fix; notes)
+            f("error"; "http-guard"; "Application \($a | nn)"; "step \($s.name) (\($s.type)) \($why); 1.12 refuses it"; $fix; guide("workflow"))
           end ) ),
 
 # 6. vela-cli outside the namespaces it is allowed in.
@@ -650,7 +661,7 @@ def first_version: {
     | f("error"; "vela-cli-namespace"; "Application \($a | nn)";
         "step \($s.name) uses vela-cli in namespace \($appns); 1.12 restricts vela-cli to \(describe($r)) and refuses the next spec change";
         "add \($appns) to definitionRestrictions.overrides.vela-cli.namespaces in your values file, and set the step's serviceAccountName to an account in \($appns) that may do what it runs";
-        notes) ),
+        guide("workflow")) ),
   # Before 1.11.2 the step's Job ran in vela-system as vela-core's own service account by default.
   ( select("vela-cli-account" | since(.) | not)
     | items($apps)[] as $a
@@ -658,7 +669,7 @@ def first_version: {
     | f("warn"; "vela-cli-namespace"; "Application \($a | nn)";
         "step \($s.name) names no serviceAccountName: on \(vlabel) its Job runs as vela-core's service account, from 1.11.2 as default in \($a.metadata.namespace)";
         "set serviceAccountName to an account in \($a.metadata.namespace) with the permissions the command needs (kubevela-vela-core, in vela-system only)";
-        notes) ),
+        guide("workflow")) ),
 
 # 7. Global policy defaults. Global policies run only with both gates on.
   ( select($after.EnableGlobalPolicies and $after.EnableApplicationScopedPolicies)
@@ -667,13 +678,13 @@ def first_version: {
         | f("error"; "global-policies"; "PolicyDefinition \(nn)";
             "a global policy outside \($sysns): with controllerArgs.allowNamespaceGlobalPolicies defaulting to false in 1.12 it stops applying";
             "set controllerArgs.allowNamespaceGlobalPolicies: true in your values file, or move the policy to \($sysns)";
-            notes) ),
+            guide("3-upgrade-the-chart")) ),
       ( select($after.allowSkipGlobalPolicies | not)
         | items($apps)[] | select(.metadata.annotations["policy.oam.dev/skip-global"] == "true")
         | f("error"; "global-policies"; "Application \(nn)";
             "has policy.oam.dev/skip-global: with controllerArgs.allowSkipGlobalPolicies defaulting to false in 1.12 the annotation is ignored and global policies apply";
             "set controllerArgs.allowSkipGlobalPolicies: true in your values file, or remove the annotation";
-            notes) ) ),
+            guide("3-upgrade-the-chart")) ) ),
 
 # 8. The resource trait sets only what it is given.
   ( items($apps)[] as $a
@@ -685,7 +696,7 @@ def first_version: {
     | f("warn"; "resource-trait"; "Application \($a | nn)";
         "component \($c.name): the resource trait sets only \($set); 1.11 ignored a lone \($set) and set no requests or limits, 1.12 sets \($set) requests and limits, so the Pods restart with them";
         "check that \($set) \($p[$set]) is what the workload should get, and add \($other) if it needs one; remove the trait to keep the 1.11 result";
-        notes) ),
+        guide("changes-to-built-in-definitions")) ),
 
 # 9. Configs as resources.
   ( [items($secrets)[] | select(.metadata.labels["config.oam.dev/type"] != null)] as $configs
@@ -756,7 +767,16 @@ def first_version: {
     | f("warn"; "definition-restrictions"; "Application \($a | nn)";
         "uses \($uses | join(", ")), none allowing namespace \($appns); with RestrictDefinitionNamespaces on 1.12 refuses its next spec change";
         "allow \($appns) in each definition's definition.oam.dev/restrict-namespaces annotation or the chart's definitionRestrictions, or move the Application";
-        notes) ),
+        guide("definitions-crates-and-addons")) ),
+
+  ( [items($cdefs)[], items($tdefs)[], items($pdefs)[], items($sdefs)[]] | .[] | . as $d
+    | [($d.metadata.annotations["definition.oam.dev/restrict-namespaces"] // "") | split(",")[] | trim
+       | select(. != "" and (globvalid | not))] as $bad
+    | select(($bad | length) > 0)
+    | f("warn"; "definition-restrictions"; "\($d.kind) \($d | nn)";
+        "definition.oam.dev/restrict-namespaces has \($bad | map(@json) | join(", ")), not a valid pattern: in 1.12 it allows no namespace, and the definition's next spec change is refused";
+        "correct the pattern (path.Match syntax: *, ?, [a-z]) or remove it";
+        guide("definitions-crates-and-addons")) ),
 
 # 11. Webhooks with cert-manager or a supplied Secret.
   ( select(($vals.admissionWebhooks.certManager.enabled // false) == true or ($vals.admissionWebhooks.patch.enabled // true) == false)
@@ -780,7 +800,16 @@ def first_version: {
     | f("info"; "images"; "Images";
         "1.12 pulls alpine/k8s:1.34.13 (definitions Job), oamdev/cluster-gateway:v1.10.0-alpha.1 and ghcr.io/osscontainertools/kaniko:v1.29.1 (build-push-image), beside \($repo) and oamdev/vela-cli at the 1.12 tag; oamdev/kube-webhook-certgen is no longer used";
         "on an air-gapped cluster, mirror these before upgrading and point builtinDefinitions.job.image.* and multicluster.clusterGateway.image.* at the mirror";
-        guide("built-in-definitions")) )
+        guide("built-in-definitions")) ),
+
+# 14. Custom step definitions: 1.12 compiles a step's template at admission and fails a step whose
+# template does not compile, where 1.11 marked it Succeeded without running it.
+  ( [items($sdefs)[] | . as $d | select(($d.metadata.namespace == $sysns and (($builtins.WorkflowStepDefinition | index($d.metadata.name)) != null)) | not) | nn] | sort
+    | select(length > 0)
+    | f("info"; "step-definitions"; "WorkflowStepDefinitions";
+        "custom step definitions (\(join(", "))): 1.12 refuses one whose template does not compile at its next spec change, and fails its steps, which 1.11 marked Succeeded without running";
+        "run vela def vet with the 1.12 CLI on each, fix any that do not compile, and re-run the workflows using them on a staging cluster";
+        guide("2-check-applications-and-step-definitions-against-the-new-admission-rules")) )
 ]
 | map(select(. != null))
 | unique_by([.level, .check, .object, .problem])
@@ -811,7 +840,7 @@ if [ "$format" = json ]; then
 else
 	if [ "$verbosity" = verbose ]; then
 		for check in trait-conflicts helm-values crds cross-namespace-credentials http-guard vela-cli-namespace \
-			global-policies resource-trait configs definition-restrictions cert-manager gitops images; do
+			global-policies resource-trait configs definition-restrictions cert-manager gitops images step-definitions; do
 			echo "check $check: $(echo "$findings" | jq --arg c "$check" '[.[] | select(.check == $c)] | length') findings"
 		done
 	fi
