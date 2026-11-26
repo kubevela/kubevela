@@ -1,0 +1,10 @@
+{"items":[
+ {"metadata":{"namespace":"vela-system","name":"config-template-image-registry","labels":{"config.oam.dev/catalog":"velacore-config","config.oam.dev/scope":"system"},"annotations":{"config.oam.dev/sensitive":"false"}},"data":{"template":"template: parameter: {registry: string}"}},
+ {"metadata":{"namespace":"team-a","name":"config-template-team-sys","labels":{"config.oam.dev/catalog":"velacore-config","config.oam.dev/scope":"system"},"annotations":{"config.oam.dev/sensitive":"false"}},"data":{"template":"template: parameter: {}"}},
+ {"metadata":{"namespace":"team-a","name":"config-template-team-ns","labels":{"config.oam.dev/catalog":"velacore-config","config.oam.dev/scope":"namespace"},"annotations":{"config.oam.dev/sensitive":"false"}},"data":{"template":"template: parameter: {}"}},
+ {"metadata":{"namespace":"vela-system","name":"config-template-nacos-app","labels":{"config.oam.dev/catalog":"velacore-config","config.oam.dev/scope":"system"},"annotations":{"config.oam.dev/sensitive":"false"}},
+  "data":{"template":"metadata: name: \"nacos-app\"\ntemplate: {\n  nacos: {\n    endpoint: {\n      name: \"nacos-server\"\n    }\n    format: \"json\"\n  }\n  parameter: {}\n}"}},
+ {"metadata":{"namespace":"team-a","name":"config-template-nacos-far","labels":{"config.oam.dev/catalog":"velacore-config"},"annotations":{"config.oam.dev/sensitive":"false"}},
+  "data":{"template":"template: nacos: {\n  endpoint: { name: \"nacos-marked\", namespace: \"team-b\" }\n}"}},
+ {"metadata":{"namespace":"vela-system","name":"config-template-tls","labels":{"config.oam.dev/catalog":"velacore-config"},"annotations":{"config.oam.dev/sensitive":"true"}},"data":{"template":"template: parameter: {}"}}
+]}

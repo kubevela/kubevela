@@ -1,0 +1,3 @@
+warn definition-restrictions Application team-a/web-in-team
+warn definition-restrictions Application team-a/override-trait
+warn definition-restrictions Application team-a/step

@@ -1,0 +1,4 @@
+{"items":[
+ {"metadata":{"namespace":"team-a","name":"runs-cli"},"spec":{"components":[],"workflow":{"steps":[{"name":"cli","type":"vela-cli","properties":{"command":["vela","version"]}}]}}},
+ {"metadata":{"namespace":"vela-system","name":"platform-cli"},"spec":{"components":[],"workflow":{"steps":[{"name":"cli","type":"vela-cli","properties":{"command":["vela","version"],"serviceAccountName":"kubevela-vela-core"}}]}}}
+]}

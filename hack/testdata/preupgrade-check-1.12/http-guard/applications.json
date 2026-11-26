@@ -1,0 +1,14 @@
+{"items":[
+ {"metadata":{"namespace":"default","name":"metadata-call"},"spec":{"components":[],"workflow":{"steps":[{"name":"creds","type":"request","properties":{"url":"http://169.254.169.254/latest/meta-data"}}]}}},
+ {"metadata":{"namespace":"default","name":"localhost-hook"},"spec":{"components":[],"workflow":{"steps":[{"name":"hook","type":"webhook","properties":{"url":{"value":"http://localhost:8080/hook"}}}]}}},
+ {"metadata":{"namespace":"default","name":"loopback-slack"},"spec":{"components":[],"workflow":{"steps":[{"name":"tell","type":"notification","properties":{"slack":{"url":{"value":"https://[::1]:8443/hook"},"message":{"text":"hi"}}}}]}}},
+ {"metadata":{"namespace":"default","name":"private-sub"},"spec":{"components":[],"workflow":{"steps":[{"name":"g","type":"step-group","subSteps":[{"name":"inner","type":"request","properties":{"url":"http://10.0.0.5/api"}}]}]}}},
+ {"metadata":{"namespace":"default","name":"by-ref"},"spec":{"components":[],"workflow":{"ref":"shared-flow"}}},
+ {"metadata":{"namespace":"default","name":"no-unit"},"spec":{"components":[],"workflow":{"steps":[{"name":"r","type":"request","properties":{"url":"https://example.com","timeout":"30"}}]}}},
+ {"metadata":{"namespace":"default","name":"too-long"},"spec":{"components":[],"workflow":{"steps":[{"name":"w","type":"webhook","properties":{"url":{"value":"https://example.com"},"timeout":"2m"}}]}}},
+ {"metadata":{"namespace":"default","name":"zero"},"spec":{"components":[],"workflow":{"steps":[{"name":"n","type":"notification","properties":{"timeout":"0","lark":{"url":{"value":"https://open.larksuite.com/x"},"message":{"msg_type":"text"}}}}]}}},
+ {"metadata":{"namespace":"default","name":"fine"},"spec":{"components":[],"workflow":{"steps":[
+   {"name":"a","type":"request","properties":{"url":"https://api.example.com:8443/v1","timeout":"1m"}},
+   {"name":"b","type":"webhook","properties":{"url":{"secretRef":{"name":"hook","key":"url"}},"timeout":"1.5s"}},
+   {"name":"c","type":"request","properties":{"url":"http://172.32.0.1/","timeout":"500ms"}}]}}}
+]}

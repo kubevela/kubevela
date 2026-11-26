@@ -1,0 +1,5 @@
+exit 1
+error trait-conflicts Application default/by-name
+error trait-conflicts Application default/wildcard
+error trait-conflicts Application default/by-group
+error trait-conflicts Application default/by-label

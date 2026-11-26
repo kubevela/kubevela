@@ -1,0 +1,3 @@
+exit 1
+error global-policies PolicyDefinition team-a/team-labels
+error global-policies Application team-a/opts-out

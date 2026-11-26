@@ -1,0 +1,2 @@
+{"items":[{"kind":"Deployment","metadata":{"namespace":"vela-system","name":"kubevela-vela-core"},
+ "spec":{"template":{"spec":{"containers":[{"name":"kubevela","args":["--feature-gates=EnableGlobalPolicies=true","--feature-gates=EnableApplicationScopedPolicies=true","--allow-namespace-global-policies=true"]}]}}}}]}

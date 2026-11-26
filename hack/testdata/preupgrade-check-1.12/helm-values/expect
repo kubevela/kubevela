@@ -1,0 +1,4 @@
+exit 1
+error helm-values Release vela-system/kubevela
+error helm-values Release vela-system/kubevela
+match fails to render the 1.12 chart

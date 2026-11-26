@@ -1,0 +1,3 @@
+warn resource-trait Application default/cpu-only
+warn resource-trait Application default/memory-only
+match add memory: 2048Mi

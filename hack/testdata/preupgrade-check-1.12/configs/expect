@@ -1,0 +1,10 @@
+warn configs Configs (5 in 2 namespaces)
+warn configs ConfigMap team-a/config-template-team-sys
+warn configs Secret team-a/out-cfg
+warn configs ConfigMap vela-system/config-template-nacos-app
+warn configs Secret vela-system/nacos-server
+warn configs ConfigMap team-a/config-template-nacos-far
+warn configs ConfigMap team-a/config-template-nacos-far
+warn configs Secret team-a/old-tls
+match kubectl annotate secret -n vela-system nacos-server config.oam.dev/nacos-endpoint=true
+match Secret vela-system/out-copy

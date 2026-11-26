@@ -1,0 +1,9 @@
+{"items":[
+ {"metadata":{"namespace":"vela-system","name":"scaler"},"spec":{}},
+ {"metadata":{"namespace":"vela-system","name":"gateway"},"spec":{"definitionRef":{"name":"ingresses.networking.k8s.io"},"conflictsWith":["scaler"]}},
+ {"metadata":{"namespace":"vela-system","name":"solo"},"spec":{"conflictsWith":["*"]}},
+ {"metadata":{"namespace":"vela-system","name":"netpol"},"spec":{"conflictsWith":["*.networking.k8s.io"]}},
+ {"metadata":{"namespace":"vela-system","name":"edge-tls","labels":{"tier":"edge","team":"web"}},"spec":{}},
+ {"metadata":{"namespace":"vela-system","name":"picky"},"spec":{"conflictsWith":["labelSelector:tier in (edge, mid),team!=core"]}},
+ {"metadata":{"namespace":"team-a","name":"gateway"},"spec":{"definitionRef":{"name":"ingresses.networking.k8s.io"}}}
+]}
