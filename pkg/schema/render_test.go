@@ -157,6 +157,30 @@ parameter: values?: {
 	assert.Equal(t, []string{"replicas"}, keys)
 }
 
+func TestGenerateForbiddenFieldInCondition(t *testing.T) {
+	ps := generate(t, `
+parameter: {
+	type: "a" | "b"
+	if type == "a" {
+		nameOverride?: error("nameOverride is not supported")
+		fullnameOverride?: _|_
+	}
+	replicas?: *1 | int
+}`)
+	name := ps.OpenAPI.Properties["nameOverride"].Value
+	require.NotNil(t, name.Not)
+	assert.True(t, name.Not.Value.IsEmpty())
+	assert.Equal(t, "nameOverride is not supported", name.Description)
+	full := ps.OpenAPI.Properties["fullnameOverride"].Value
+	require.NotNil(t, full.Not)
+	assert.True(t, full.Not.Value.IsEmpty())
+	keys := uiKeys(ps.UI)
+	assert.NotContains(t, keys, "nameOverride")
+	assert.NotContains(t, keys, "fullnameOverride")
+	assert.Contains(t, keys, "replicas")
+	assert.Contains(t, keys, "type")
+}
+
 func TestGenerateForbiddenFieldMessage(t *testing.T) {
 	ps := generate(t, `
 msg: "computed"

@@ -320,15 +320,7 @@ func (w *walker) fields(v cue.Value, path cue.Path, refs []string, depth int) []
 		if sel.ConstraintType() == cue.OptionalConstraint || child.HasDefault {
 			child.Optional = true
 		}
-		// error(...) and _|_ evaluate to bottom, which the walk would otherwise
-		// read as an untyped field. The declaration is what distinguishes them
-		// from a conflict, which is also bottom but is not a forbidden field.
-		if msg, ok := forbiddenMessage(it.Value()); ok {
-			child.Forbidden = true
-			if msg != "" {
-				child.Description = msg
-			}
-		}
+		markForbidden(child, it.Value())
 		out = append(out, child)
 	}
 	return out
@@ -543,13 +535,49 @@ func appendPath(p cue.Path, sel cue.Selector) cue.Path {
 	return cue.MakePath(append(append([]cue.Selector(nil), p.Selectors()...), sel)...)
 }
 
-// forbiddenMessage reports whether v is declared as error(...) or _|_, and
-// the message that declaration carries.
-func forbiddenMessage(v cue.Value) (string, bool) {
-	if !isForbiddenExpr(declaredExpr(v.Source())) {
-		return "", false
+// markForbidden records a field declared as error(...) or _|_. Those evaluate
+// to bottom, which the walk would otherwise read as an untyped field. The
+// declaration is what distinguishes them from a conflict, which is also bottom.
+func markForbidden(f *Field, v cue.Value) {
+	msg, ok := forbiddenMessage(v)
+	if !ok {
+		return
 	}
-	return cueMessage(v.Err()), true
+	f.Forbidden = true
+	if msg != "" {
+		f.Description = msg
+	}
+}
+
+// forbiddenMessage reports whether v is declared as error(...) or _|_, and
+// the message that declaration carries. The evaluated expression is what an
+// if body still has: every field of the if shares the comprehension as its
+// source, so the declaration alone cannot tell them apart.
+func forbiddenMessage(v cue.Value) (string, bool) {
+	if isErrorCall(v) || isBottomLiteral(v) || isForbiddenExpr(declaredExpr(v.Source())) {
+		return cueMessage(v.Err()), true
+	}
+	return "", false
+}
+
+func isErrorCall(v cue.Value) bool {
+	op, args := unwrap(v)
+	if op != cue.CallOp || len(args) == 0 {
+		return false
+	}
+	name := funcName(args[0])
+	return name == "error" || name == "error()"
+}
+
+func isBottomLiteral(v cue.Value) bool {
+	op, args := unwrap(v)
+	if op != cue.NoOp || len(args) != 1 || args[0].IncompleteKind() != cue.BottomKind {
+		return false
+	}
+	if _, ok := args[0].Source().(*ast.BottomLit); ok {
+		return true
+	}
+	return cueMessage(args[0].Err()) == "explicit error (_|_ literal) in source"
 }
 
 func declaredExpr(n ast.Node) ast.Expr {

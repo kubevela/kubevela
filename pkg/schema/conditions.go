@@ -359,6 +359,8 @@ func (w *walker) branch(ds []*discriminator, fields []*Field, path cue.Path, ref
 			fl.pos = vr.value.Pos()
 			w.placeInClause(fl, vr.sub)
 			fl.Optional = vr.sel.ConstraintType() == cue.OptionalConstraint || fl.HasDefault
+			// A field that exists only inside an if is built here, not by fields().
+			markForbidden(fl, vr.value)
 			fl.Conditions = addConditions(append([]Condition(nil), own...), conds...)
 			fields = insertAfter(fields, fl, vr.prev)
 			if w.condNames[fl.Name] {

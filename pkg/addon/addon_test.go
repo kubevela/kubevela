@@ -1711,13 +1711,35 @@ func TestLoadLocalInstallPackage(t *testing.T) {
 	assert.NotEmpty(t, pkg.CUETemplates, "resources/ is read")
 }
 
-// A parameter neither generator can read does not block enable. The addon
-// installs with no schema; the failure is only logged.
+// A parameter neither generator can read does not block enable. Reading the
+// addon, which is what enable does before it installs, returns the UI data
+// with no schema.
 func TestGenAddonAPISchemaInstallsWhenGenerationFails(t *testing.T) {
-	addon := &UIData{Name: "example", Parameters: `parameter: {ns: int & context.namespace}`}
-	genAddonAPISchema(addon)
-	assert.Nil(t, addon.APISchema)
-	assert.Empty(t, addon.DefaultUISchema)
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, MetadataFileName), []byte("name: example\nversion: 1.0.0\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, GlobalParameterFileName), []byte("parameter: {ns: int & context.namespace, password: \"hunter2\" & int}\n"), 0o600))
+
+	reader := component.NewLocalReader(dir, "example")
+	metas, err := reader.ListAddonMeta()
+	require.NoError(t, err)
+	meta := metas["example"]
+	ui, err := GetUIDataFromReader(reader, &meta, UIMetaOptions)
+	require.NoError(t, err)
+	require.NotNil(t, ui)
+	assert.Nil(t, ui.APISchema)
+	assert.Empty(t, ui.DefaultUISchema)
+
+	pkg, err := LoadLocalInstallPackage("example", dir)
+	require.NoError(t, err)
+	assert.Equal(t, "example", pkg.Name)
+}
+
+func TestSchemaErrForLogRedactsQuotedLiterals(t *testing.T) {
+	msg := schemaErrForLog(errors.New("parameter.password: conflicting values \"hunter2\" and int\nnext line"))
+	assert.NotContains(t, msg, "hunter2")
+	assert.NotContains(t, msg, "\n")
+	assert.Contains(t, msg, "conflicting values")
+	assert.Contains(t, msg, "[redacted]")
 }
 
 // error(...) forbids a field. Enable still produces a schema, and the form

@@ -24,6 +24,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -524,13 +525,27 @@ func genAddonAPISchema(addonRes *UIData) {
 		addonRes.APISchema, addonRes.DefaultUISchema = ps.OpenAPI, ps.UI
 		return
 	}
-	klog.Warningf("addon %s: falling back to the CUE OpenAPI encoder, no default UI schema: %v", addonRes.Name, genErr)
+	klog.Warningf("addon %s: falling back to the CUE OpenAPI encoder, no default UI schema: %s", addonRes.Name, schemaErrForLog(genErr))
 	s, err := schema.ParsePropertiesToSchema(context.Background(), addonRes.Parameters)
 	if err != nil {
-		klog.Warningf("addon %s: parameter schema generation failed, installing without one: %v", addonRes.Name, genErr)
+		klog.Warningf("addon %s: parameter schema generation failed, installing without one: %s", addonRes.Name, schemaErrForLog(err))
 		return
 	}
 	addonRes.APISchema = s
+}
+
+// cueQuotedLiteral matches a CUE string a diagnostic quotes. The text inside
+// can be a password or token written into the parameter.
+var cueQuotedLiteral = regexp.MustCompile("\"(?:\\\\.|[^\"\\\\])*\"|`[^`]*`")
+
+// schemaErrForLog is a schema error safe to write to the log. Newlines are
+// removed, and quoted literals are replaced, so a conflicting password or
+// token is not recorded.
+func schemaErrForLog(err error) string {
+	if err == nil {
+		return ""
+	}
+	return cueQuotedLiteral.ReplaceAllString(utils.Sanitize(err.Error()), `"[redacted]"`)
 }
 
 func getClusters(args map[string]interface{}) []string {
