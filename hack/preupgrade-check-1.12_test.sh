@@ -58,6 +58,23 @@ run_scenario() {
 		sed -n '3,$p' "$work/diff" | grep '^[-+]' | sed 's/^/    /'
 		ok=false
 	fi
+	# Every finding carries a problem, a fix and a link into the upgrade guide, and the summary counts them.
+	local bad
+	bad="$(jq -r '
+		([.findings[] | select(
+			(.level | IN("error", "warn", "info") | not)
+			or ((.problem // "") | type != "string" or . == "")
+			or ((.fix // "") | type != "string" or . == "")
+			or ((.link // "") | type != "string" or (startswith("https://kubevela.io/docs/upgrade-guides/v1.12/#") | not)))
+		| "finding \(.level) \(.check) \(.object) lacks a problem, fix or upgrade-guide link"]
+		+ (.findings as $f | {errors: ([$f[] | select(.level == "error")] | length),
+			warnings: ([$f[] | select(.level == "warn")] | length), info: ([$f[] | select(.level == "info")] | length)}
+			| if . == $s then [] else ["summary \($s | tojson), the findings count \(tojson)"] end)) | .[]
+	' --argjson s "$(jq -c '.summary' "$work/out.json" 2>/dev/null || echo null)" "$work/out.json" 2>&1)" || bad="unreadable JSON output: $bad"
+	if [ -n "$bad" ]; then
+		fail "$name" "$bad"
+		ok=false
+	fi
 	local text_exit=0
 	"$check" --from-dir "$work" >"$work/out.txt" 2>&1 || text_exit=$?
 	while read -r regex; do
