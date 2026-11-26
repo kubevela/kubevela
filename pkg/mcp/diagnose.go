@@ -120,6 +120,9 @@ type ResourceDiagnosis struct {
 	// Cause is the error classified from the family's error fields; nil
 	// when the resource is ready or carries no error text.
 	Cause *Cause `json:"cause,omitempty" jsonschema:"The error behind this verdict, classified from the condition the family writes it into, with the layer that owns the fix. Absent when the resource is ready or recorded no error text."`
+	// Export is set for a resource that hands a value to workloads through a
+	// Secret or ConfigMap; nil for everything else.
+	Export *ExportDetail `json:"export,omitempty" jsonschema:"Set when this resource exports a value for workloads, such as an ACK FieldExport or a Crossplane resource with a connection Secret: the source field, the target and key, and whether the exporter says it has written it. The target is never read."`
 }
 
 // DiagnoseApplicationOutput is the structured result of diagnose_application.
@@ -203,12 +206,18 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 				diag.Notes = append(diag.Notes, "writes no conditions: kept the resource tree's health, which defaults unknown kinds to Healthy; a controller family profile for "+groupOf(res.APIVersion)+" can name the controller whose logs carry its state")
 			}
 		}
+		if diag.Export != nil {
+			// after both paths settled readiness, so a resource judged from
+			// the tree reports its export as well
+			describeExport(&diag)
+		}
 		if !diag.Ready {
 			allReady = false
 		}
 		out.Findings = append(out.Findings, diagnosisFindings(diag)...)
 		out.Resources = append(out.Resources, diag)
 	}
+	linkExports(&out)
 
 	events, eventNotes, eventsCut := d.applicationEvents(ctx, cli, app, applied)
 	out.Events = events
@@ -279,7 +288,9 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 func providerOf(apiVersion string) string {
 	group := groupOf(apiVersion)
 	switch {
-	case strings.HasSuffix(group, ".services.k8s.aws"):
+	// a service group such as rds.services.k8s.aws, or the common group
+	// itself, where FieldExport and AdoptedResource live
+	case strings.HasSuffix(group, "."+ackCommonGroup), group == ackCommonGroup:
 		return providerACK
 	case strings.HasSuffix(group, ".cnrm.cloud.google.com"):
 		return providerConfigConnector
@@ -331,11 +342,14 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 	}
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s", diag.Kind, diag.Namespace, diag.Name, diag.Cluster, obj.GetResourceVersion()))
 	diag.Conditions = objectConditions(obj)
+	// read before the family is settled: a resource that writes no
+	// conditions, such as a Terraform Configuration, can still export
+	diag.Export = exportOf(diag, obj)
 	if diag.Provider == providerStandardConditions && len(diag.Conditions) == 0 {
 		diag.Provider = providerKubernetes
 		return
 	}
-	service := strings.TrimSuffix(groupOf(diag.APIVersion), ".services.k8s.aws")
+	service := ackService(diag, obj)
 	var ep ackEndpointResult
 	if diag.Provider == providerACK {
 		// key by cluster and service: the lookup is cluster-scoped through
