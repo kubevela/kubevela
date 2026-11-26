@@ -416,6 +416,15 @@ def stepurls:
         "step \($s.name) uses vela-cli in namespace \($appns); 1.12 restricts vela-cli to \($allowed | join(", "))";
         "add \($appns) to definitionRestrictions.overrides.vela-cli.namespaces in your values file, and set the step's serviceAccountName to an account in \($appns) that may do what it runs";
         notes) ),
+  # Before 1.11.2 the step's Job ran in vela-system as vela-core's own service account by default.
+  ( ($release[0][0].chart // "" | ltrimstr("vela-core-")) as $chart
+    | select($chart | test("^1\\.11\\.[01]$"))
+    | items($apps)[] as $a
+    | $a | appsteps | select((.type | sub("@.*$"; "") == "vela-cli") and (.properties.serviceAccountName // "") == "") as $s
+    | f("warn"; "vela-cli-namespace"; "Application \($a | nn)";
+        "step \($s.name) names no serviceAccountName: on chart \($chart) its Job ran as vela-core's service account, from 1.11.2 it runs as default in \($a.metadata.namespace)";
+        "set serviceAccountName to an account in \($a.metadata.namespace) with the permissions the command needs (kubevela-vela-core, in vela-system only)";
+        notes) ),
 
 # 7. Global policy defaults.
   ( ($gates.EnableGlobalPolicies // false) as $globals
