@@ -624,6 +624,7 @@ func (p *Parser) convertTemplate2Component(name, typ string, capType types.CapTy
 		Traits:             []*Trait{},
 		Name:               name,
 		Type:               cpType,
+		Reference:          typ,
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
@@ -663,6 +664,12 @@ func setComponentDefinitions(af *Appfile, comps []*Component) {
 			cd := comp.FullTemplate.ComponentDefinition.DeepCopy()
 			cd.Status = v1beta1.ComponentDefinitionStatus{}
 			af.RelatedComponentDefinitions[comp.FullTemplate.ComponentDefinition.Name] = cd
+			// Every revision of a definition carries the definition's name, so
+			// components pinning different revisions of it each need an entry of
+			// their own, under the reference a replay looks up.
+			if strings.Contains(comp.Reference, "@") {
+				af.RelatedComponentDefinitions[comp.Reference] = cd.DeepCopy()
+			}
 		}
 		// Whatever the component extended goes in beside it. A render that went
 		// through a chain is only reproducible from the revision if every level it
@@ -680,6 +687,9 @@ func setComponentDefinitions(af *Appfile, comps []*Component) {
 				td := t.FullTemplate.TraitDefinition.DeepCopy()
 				td.Status = v1beta1.TraitDefinitionStatus{}
 				af.RelatedTraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td
+				if strings.Contains(t.Reference, "@") {
+					af.RelatedTraitDefinitions[t.Reference] = td.DeepCopy()
+				}
 			}
 			for name, ancestor := range t.FullTemplate.AncestorTraitDefinitions {
 				af.RelatedTraitDefinitions[name] = ancestor.DeepCopy()
@@ -835,6 +845,7 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 	return &Trait{
 		Name:               traitName,
 		TypeLabel:          typeLabel,
+		Reference:          name,
 		CapabilityCategory: templ.CapabilityCategory,
 		Params:             properties,
 		Template:           templ.TemplateStr,
