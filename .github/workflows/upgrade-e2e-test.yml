@@ -119,7 +119,7 @@ jobs:
     steps:
       - name: Detect config changes
         id: paths
-        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf
+        uses: fkirc/skip-duplicate-actions@b974a9395958c231af965b70070979a577efa578
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           paths: '["apis/config.oam.dev/**", "pkg/config/**", "pkg/controller/config.oam.dev/**", "pkg/webhook/config.oam.dev/**", "pkg/workflow/providers/config/**", "references/cli/config*.go", "charts/vela-core/crds/config.oam.dev_*", "charts/vela-core/templates/admission-webhooks/validatingWebhookConfiguration.yaml", "charts/vela-core/templates/kubevela-controller.yaml", "test/e2e-config-upgrade-test/**", ".github/actions/start-nacos/**", ".github/actions/deploy-current-branch/**", ".github/workflows/upgrade-e2e-test.yml"]'
