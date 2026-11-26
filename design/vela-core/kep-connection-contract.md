@@ -106,7 +106,11 @@ Each piece solves a slice. None of them says what a connection looks like.
    copies or invents the password itself.
 4. The ordering problem goes away by construction: connecting to a component implies
    depending on it, and in Phase 2 implies waiting until the declared keys exist.
-5. Everything is additive. A definition that ignores the contract keeps working. A
+5. Nobody files a ticket for the common case. A component with no credential named gets one
+   generated, the platform configures the generator once, and a stricter namespace opts in
+   to provided-only through a declared practice rather than through a queue.
+6. Losing a Secret by mistake is recoverable, and in the recommended modes it heals itself.
+7. Everything is additive. A definition that ignores the contract keeps working. A
    developer who writes `secretKeyRef` by hand keeps working.
 
 ### Non-goals
@@ -176,17 +180,27 @@ every reconcile, and let it go when the Application goes.
 
 ### Who creates the credentials Secret
 
-Two modes, chosen by whether `credentialsSecret` is set.
+Two modes, chosen by whether `credentialsSecret` is set. Generated is the default, so the
+common case needs nobody's help.
 
 **Provided.** `credentialsSecret` names a Secret that already exists. This is the mode for
 anything that outlives the Application: production databases, shared services, anything
 whose password is managed in a vault. The component only points the provider at it.
+"Exists already" does not mean "ask the platform team". The developer can create it
+themselves, or write an `ExternalSecret` that pulls it from a vault path they own, and the
+platform's part is done once when it sets up the store. A provided Secret that is sourced
+from a vault is also the one that survives mistakes, see "Losing the credentials Secret".
 
 **Generated.** `credentialsSecret` is left out. The component arranges for a Secret named
 `<component>-credentials` to be created once, with a random value, and then never changed
 by KubeVela. This is the mode for a developer trying a database, a preview environment, or
-a service nobody else connects to. The consumer side does not change, because the name is
-the one `connect` looks for anyway.
+a service nobody else connects to, and it is what happens when the Application says nothing.
+The consumer side does not change, because the name is the one `connect` looks for anyway.
+
+The platform's lever is not a ticket queue but a namespace practice: a namespace can
+declare `credentials: provided` and the dry-run lint refuses a generated credential there,
+the way the developer skill already reads a namespace's delivery practice. Everywhere else
+generation is on and nobody is in the loop.
 
 Generation is never done by the render. Rendering is deterministic and runs on every
 reconcile; a random value produced there would be a new password every time, and CUE has
@@ -217,6 +231,44 @@ that is as disposable as the Application may use a generated one. A platform can
 Rotation of a generated credential is whatever the generator offers: the operator's own
 mechanism, or ESO's `refreshInterval` set to something other than zero, in which case the
 consumer should mount the Secret as a file so it sees the new value without a restart.
+
+One rule follows from the deletion cases below and binds every definition: **generated mode
+is only allowed with a provider that honours a changed password, or with the operator's own
+generator.** A generator that recreates a deleted Secret produces a new value; if the
+provider applies it, that is a rotation and everything lines up again; if the provider read
+the Secret only at bootstrap, the database and the Secret now disagree and nothing will fix
+it on its own. A definition for a bootstrap-only provider therefore either uses the
+operator's generator or offers provided mode only, and says so.
+
+### Losing the credentials Secret
+
+Someone will delete one by mistake. What happens depends on which Secret and which mode, and
+the contract is designed so that most of these heal themselves. In every row the diagnosis
+names the missing Secret, who was supposed to fill it, and the recovery step.
+
+| What was deleted | What breaks | How it comes back |
+|---|---|---|
+| `<component>-connection` | pods that start afterwards cannot resolve `secretKeyRef`; running pods keep their values | KubeVela owns it as an output and re-applies it on the next reconcile; per-field exporters refill their keys. Heals itself. |
+| provided `-credentials`, sourced from a vault through ESO | the same | ESO recreates it from the vault on its next refresh. Heals itself; the password was never only in the cluster. |
+| provided `-credentials`, created by hand | pods fail to start; the provider's controller reports the missing Secret in its conditions | the value is gone. Recovery is a rotation: create a new Secret with a new password, and the provider applies it (ACK, Crossplane, CloudNativePG through `managed.roles`). For a bootstrap-only provider an admin resets the password with the admin credential. This is the mode the guidance steers away from. |
+| generated `-credentials`, ESO generator | the same | ESO sees the target missing and generates a new value. With a provider that honours changes this is a rotation and the database follows. That is why the rule above exists. |
+| the operator's own generated Secret (`<name>-app`) | operator-specific | the operator reconciles its own Secret; what it does with the password is its rule and the definition documents it. |
+
+Two platform-side guards make the whole table rarer, and both are ordinary Kubernetes
+rather than vela-core:
+
+- **A copy outside the cluster.** ESO's `PushSecret` can push a generated credential to the
+  platform's store at creation. A deleted Secret is then a restore, not a rotation, and the
+  password of a retained snapshot survives the Application. A definition in generated mode
+  may emit the `PushSecret` as an output when the platform declares a store.
+- **Refuse the delete.** A `ValidatingAdmissionPolicy` can reject deletion of a Secret that
+  carries a protection label while an Application in the namespace still references it. The
+  `connect` trait labels the Secrets it renders references to, so the policy has something
+  to match on. Platforms that want this turn it on; nothing in the contract depends on it.
+
+The one case that cannot heal is a hand-made provided Secret with no copy anywhere and a
+provider that only reads it at bootstrap. The contract does not forbid it, but the dry run
+reports it as "credential has no recovery path" so the developer chooses it knowingly.
 
 `uri`, where present, never contains the password. A framework that wants a full URL
 composes it from `host`, `port`, `database` and the credentials at start-up; the one we
@@ -508,7 +560,9 @@ the service picks it up depends on the provider: ACK re-applies a changed master
 CloudNativePG reads `initdb.secret` only at first start, which is why the definition also
 declares the same user under `managed.roles` with `passwordSecret`, which it does watch;
 Crossplane re-applies on reconcile. A definition documents which it is, and a definition
-for an operator that never re-reads the Secret says rotation is manual.
+for an operator that never re-reads the Secret says rotation is manual. Recovery from a
+deleted Secret is the same path as rotation, which is why every definition has to have one;
+see "Losing the credentials Secret".
 
 **A key that appears late.** ACK fills `port` into `spec` only after the first reconcile,
 and `host` only after the writer instance exists. In Phase 1 the producer's health rule
