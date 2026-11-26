@@ -34,7 +34,7 @@ import (
 	"github.com/kubevela/workflow/pkg/providers/util"
 
 	addonprovider "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/addon"
-	moduleprovider "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/module"
+	crateprovider "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/crate"
 	velaregistry "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/registry"
 	velaconfig "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
@@ -80,12 +80,12 @@ func WorkflowPackages() []cuexruntime.Package {
 		runtime.Must(cuexruntime.NewInternalPackage("terraform", terraform.GetTemplate(), terraform.GetProviders())),
 
 		// Component provider packages, so definitions importing "vela/addon" and
-		// "vela/module" can be compiled for OpenAPI schema generation and
+		// "vela/crate" can be compiled for OpenAPI schema generation and
 		// definition validation. Reuse the package each provider already exports
 		// rather than rebuilding it here: the name would otherwise be spelled in
 		// two places and the provider's own ProviderName in a third.
 		addonprovider.Package,
-		moduleprovider.Package,
+		crateprovider.Package,
 		// SourceDefinitions compile against this compiler too - vela def render,
 		// the SDK generator and dry-run all reach it - so the packages a source
 		// may import belong here as well as in WorkloadCompiler.

@@ -1,8 +1,0 @@
-# Runtime by the module default, so it follows the addon's placement.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: placed-kit-defaults
-  namespace: default
-data:
-  placement: runtime

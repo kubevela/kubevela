@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // Package component holds the package-source machinery shared by the addon and
-// module implementations: the Registry model and its data store, the readers
+// crate implementations: the Registry model and its data store, the readers
 // that speak git, OSS and OCI, and the OCI chart helpers.
 package component
 
@@ -374,7 +374,7 @@ type GitReaderBuilder func(baseURL, repo, subPath, token string, rdType ReaderTy
 
 // gitReaderBuilder is registered by pkg/addon, which owns the GitHub, Gitee
 // and GitLab clients. This package deliberately holds none of them: a
-// type: addon or type: module component cannot resolve from Git, and the
+// type: addon or type: crate component cannot resolve from Git, and the
 // legacy `vela addon enable` path that can is what pkg/addon serves.
 //
 // Registration happens from an init in pkg/addon, and every caller that can

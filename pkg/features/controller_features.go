@@ -192,14 +192,14 @@ const (
 	// `$super`.
 	EnableDefinitionInheritance featuregate.Feature = "EnableDefinitionInheritance"
 
-	// EnableModuleComponent enables installing a module as an Application component via the
-	// type: module ComponentDefinition. As with EnableAddonComponent, the ComponentDefinition
-	// and its vela/module CueX package always ship, because the definition cannot compile
+	// EnableCrateComponent enables installing a crate as an Application component via the
+	// type: crate ComponentDefinition. As with EnableAddonComponent, the ComponentDefinition
+	// and its vela/crate CueX package always ship, because the definition cannot compile
 	// without the package; this gate controls whether the render service is wired up and
-	// whether the shared Application webhook runs its module-specific validation branch.
-	// When disabled, an Application using type: module fails at render with an actionable
+	// whether the shared Application webhook runs its crate-specific validation branch.
+	// When disabled, an Application using type: crate fails at render with an actionable
 	// message.
-	EnableModuleComponent featuregate.Feature = "EnableModuleComponent"
+	EnableCrateComponent featuregate.Feature = "EnableCrateComponent"
 
 	// AutoMigrateLegacyConfigs runs one adoption sweep when the controller starts:
 	// every legacy config template (config-template-* ConfigMap) and legacy config
@@ -247,7 +247,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableCelExpressions:                          {Default: false, PreRelease: featuregate.Alpha},
 	RequireCelExpressionOptIn:                     {Default: true, PreRelease: featuregate.Alpha},
 	EnableDefinitionInheritance:                   {Default: false, PreRelease: featuregate.Alpha},
-	EnableModuleComponent:                         {Default: false, PreRelease: featuregate.Alpha},
+	EnableCrateComponent:                          {Default: false, PreRelease: featuregate.Alpha},
 	AutoMigrateLegacyConfigs:                      {Default: false, PreRelease: featuregate.Alpha},
 }
 

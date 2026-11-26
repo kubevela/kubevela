@@ -33,7 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/module/naming"
+	"github.com/oam-dev/kubevela/pkg/crate/naming"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -44,7 +44,7 @@ func overridePolicy(t *testing.T, spec v1alpha1.OverridePolicySpec) v1beta1.AppP
 }
 
 // A restriction binds every definition an Application uses, however it names it: inline, through
-// an override policy, by its module name, or in a Workflow its workflow.ref names.
+// an override policy, by its crate name, or in a Workflow its workflow.ref names.
 func TestValidateDefinitionNamespacesThroughIndirection(t *testing.T) {
 	restrictedTrait := &v1beta1.TraitDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: "privileged", Namespace: oam.SystemDefinitionNamespace},
@@ -77,7 +77,7 @@ func TestValidateDefinitionNamespacesThroughIndirection(t *testing.T) {
 		assert.Equal(t, "spec.policies[0].properties.components[0].traits[0].type", errs[0].Field)
 	})
 
-	t.Run("a module type, named by module, version and name", func(t *testing.T) {
+	t.Run("a crate type, named by crate, version and name", func(t *testing.T) {
 		installed := restrictedCompDef(naming.DefinitionName("storage", "v1", "bucket"), oam.SystemDefinitionNamespace, "platform")
 		h := nsRestrictHandler(t, installed)
 		errs := restrictionErrs(h, appUsing("tenant-a", "storage/v1/bucket"))

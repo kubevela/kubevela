@@ -25,29 +25,29 @@ import (
 )
 
 // ErrGitSourceUnsupported means a registry backed by Git was named by an
-// Application component. The type: addon and type: module components resolve
+// Application component. The type: addon and type: crate components resolve
 // packages from an OCI registry or a Helm repository only.
 //
 // This restricts the component path, not the registry format. A Git registry
 // stays a valid record and `vela addon enable` keeps installing from it; only
 // the declarative components refuse to resolve one.
-var ErrGitSourceUnsupported = NewError("git registries are not supported for addon and module components")
+var ErrGitSourceUnsupported = NewError("git registries are not supported for addon and crate components")
 
 // The remedy each component type offers when it refuses a Git registry. They
 // differ because what the two can read differs.
 const (
 	// AddonGitRemedy is what a type: addon component can resolve instead.
 	AddonGitRemedy = "use an OCI registry or a Helm repository"
-	// ModuleGitRemedy is what a type: module component can resolve instead.
-	// Modules have never read a Helm chart repository.
-	ModuleGitRemedy = "use an OCI registry"
+	// CrateGitRemedy is what a type: crate component can resolve instead.
+	// Crates have never read a Helm chart repository.
+	CrateGitRemedy = "use an OCI registry"
 )
 
 // GitFamilySource names the Git flavour a registry is backed by -- "git",
 // "gitee" or "gitlab" -- or "" for any other kind of entry.
 //
 // Every place that refuses Git for a component goes through this rather than
-// testing the three fields itself, so the admission check, the module resolver
+// testing the three fields itself, so the admission check, the crate resolver
 // and the addon renderer cannot drift apart on what counts as Git.
 func GitFamilySource(reg Registry) string {
 	switch {
@@ -68,15 +68,15 @@ func GitFamilySource(reg Registry) string {
 //
 // kind comes from GitFamilySource; callers have already established it is
 // non-empty. remedy is the caller's, because the answer differs: an addon
-// component can resolve from an OCI registry or a Helm repository, a module
+// component can resolve from an OCI registry or a Helm repository, a crate
 // component from an OCI registry only. Baking one remedy in here would tell
-// module users to reach for a source modules cannot read.
+// crate users to reach for a source crates cannot read.
 //
 // Every refusal goes through this or through GitSourceUnsupportedError below,
 // so the wording cannot drift between what admission says and what the
 // resolve reports.
 func GitSourceUnsupportedDetail(kind, remedy string) string {
-	return fmt.Sprintf("is a %s source, and git registries are not supported for addon and module components; %s",
+	return fmt.Sprintf("is a %s source, and git registries are not supported for addon and crate components; %s",
 		kind, remedy)
 }
 
@@ -100,7 +100,7 @@ func ListRegistryGitKinds(ctx context.Context, cli client.Client) (map[string]st
 }
 
 // ListRegistryGitKindsIn is ListRegistryGitKinds over a named ConfigMap, so
-// the module registry can be inspected the same way. Module registries live
+// the crate registry can be inspected the same way. Crate registries live
 // in their own ConfigMap but share the record format, and therefore the
 // question.
 func ListRegistryGitKindsIn(ctx context.Context, cli client.Client, cmName string) (map[string]string, error) {
@@ -121,7 +121,7 @@ func ListRegistrySources(ctx context.Context, cli client.Client) (names []string
 }
 
 // ListRegistrySourcesIn is ListRegistrySources over a named ConfigMap, so the
-// module registry can be inspected the same way. Module registries live in
+// crate registry can be inspected the same way. Crate registries live in
 // their own ConfigMap but share the record format, and therefore the
 // question.
 //

@@ -190,7 +190,7 @@ func (c *erroringClient) Get(_ context.Context, _ client.ObjectKey, _ client.Obj
 	return c.err
 }
 
-// listErroringClient fails every List, which is what the module label search
+// listErroringClient fails every List, which is what the crate label search
 // sees from a busy or restrictive API server.
 type listErroringClient struct {
 	client.Client
@@ -201,22 +201,22 @@ func (c *listErroringClient) List(_ context.Context, _ client.ObjectList, _ ...c
 	return c.err
 }
 
-// moduleDef builds a definition the way the module render service installs
-// it: named {module}-{apiVersion}-{name} and carrying the identity labels that
+// crateDef builds a definition the way the crate render service installs
+// it: named {crate}-{apiVersion}-{name} and carrying the identity labels that
 // short-name and fully-qualified references resolve through.
-func moduleDef(namespace, module, apiVersion, name string, abstract bool) *v1beta1.ComponentDefinition {
-	cd := componentDef(namespace, module+"-"+apiVersion+"-"+name, "")
+func crateDef(namespace, crate, apiVersion, name string, abstract bool) *v1beta1.ComponentDefinition {
+	cd := componentDef(namespace, crate+"-"+apiVersion+"-"+name, "")
 	cd.Labels = map[string]string{
-		velatypes.LabelDefinitionModule:           module,
-		velatypes.LabelDefinitionModuleAPIVersion: apiVersion,
-		velatypes.LabelDefinitionName:             name,
+		velatypes.LabelDefinitionCrate:           crate,
+		velatypes.LabelDefinitionCrateAPIVersion: apiVersion,
+		velatypes.LabelDefinitionName:            name,
 	}
 	cd.Spec.Abstract = abstract
 	return cd
 }
 
-func TestAModuleScopedAbstractTypeCannotBeNamedDirectly(t *testing.T) {
-	h := handlerWith(moduleDef("team-a", "s3", "v1", "base", true))
+func TestACrateScopedAbstractTypeCannotBeNamedDirectly(t *testing.T) {
+	h := handlerWith(crateDef("team-a", "s3", "v1", "base", true))
 	for _, typ := range []string{"s3/v1/base"} {
 		errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", typ))
 		require.Len(t, errs, 1, "%s resolves to an abstract definition", typ)
@@ -224,8 +224,8 @@ func TestAModuleScopedAbstractTypeCannotBeNamedDirectly(t *testing.T) {
 	}
 }
 
-func TestAModuleScopedTypeThatDoesNotExistIsNotAbstract(t *testing.T) {
-	h := handlerWith(moduleDef("team-a", "s3", "v1", "bucket", false))
+func TestACrateScopedTypeThatDoesNotExistIsNotAbstract(t *testing.T) {
+	h := handlerWith(crateDef("team-a", "s3", "v1", "bucket", false))
 	for _, typ := range []string{"s3/v1/missing"} {
 		errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", typ))
 		require.Empty(t, errs, "%s names nothing, and a type that does not exist is not abstract", typ)
@@ -235,11 +235,11 @@ func TestAModuleScopedTypeThatDoesNotExistIsNotAbstract(t *testing.T) {
 // Form-1 fallback lookup is best-effort: when label listing fails, the
 // resolver falls back to the plain definition lookup path instead of failing
 // resolution.
-func TestAFailedModuleLookupFallsBackToPlainLookup(t *testing.T) {
+func TestAFailedCrateLookupFallsBackToPlainLookup(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = v1beta1.AddToScheme(scheme)
 	failing := &listErroringClient{
-		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(moduleDef("team-a", "s3", "v1", "base", true)).Build(),
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(crateDef("team-a", "s3", "v1", "base", true)).Build(),
 		err:    apierrors.NewServiceUnavailable("apiserver is having a moment"),
 	}
 	h := &ValidatingHandler{Client: failing}
@@ -248,17 +248,17 @@ func TestAFailedModuleLookupFallsBackToPlainLookup(t *testing.T) {
 	require.Empty(t, errs, "a failed label search on Form-1 lookup should not block admission")
 }
 
-func TestAnAmbiguousModuleScopedTypeIsNotAdmitted(t *testing.T) {
+func TestAnAmbiguousCrateScopedTypeIsNotAdmitted(t *testing.T) {
 	h := handlerWith(
-		moduleDef("team-a", "s3", "v1", "bucket", false),
-		moduleDef("team-a", "gcs", "v1", "bucket", true),
+		crateDef("team-a", "s3", "v1", "bucket", false),
+		crateDef("team-a", "gcs", "v1", "bucket", true),
 	)
 	errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", "bucket"))
 	require.Len(t, errs, 1, "one of the candidates is abstract, so the answer is not known")
 	require.Contains(t, errs[0].Error(), "is ambiguous")
 }
 
-func TestAnUnparsableModuleScopedTypeIsNotAdmitted(t *testing.T) {
+func TestAnUnparsableCrateScopedTypeIsNotAdmitted(t *testing.T) {
 	h := handlerWith()
 	errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", "s3/latest/base"))
 	require.Len(t, errs, 1)

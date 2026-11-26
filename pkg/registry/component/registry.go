@@ -62,15 +62,15 @@ func (r *Registry) OCISource() *HelmSource {
 	return r.Helm
 }
 
-// OCIChartSource returns the chart source for a registry the module chart
+// OCIChartSource returns the chart source for a registry the crate chart
 // pull/push path can talk to, or nil for every other kind of entry. It widens
 // OCISource by the two spellings that path has always accepted:
 //
 //   - http://host/prefix, an OCI registry served without TLS (a local or
 //     port-forwarded test registry). IsOCIURL rejects that because for an
-//     addon registry http(s):// means a ChartMuseum repository, but modules
+//     addon registry http(s):// means a ChartMuseum repository, but crates
 //     never supported ChartMuseum, so the spelling is free here.
-//   - a bare host such as an ECR endpoint, the form `vela module publish`
+//   - a bare host such as an ECR endpoint, the form `vela crate publish`
 //     documents. OCIRegistryLocation parses it the same either way.
 //
 // https:// is still not OCI: that one really does address a chart repository,
@@ -161,7 +161,7 @@ func NewRegistryDataStore(cli client.Client) RegistryDataStore {
 
 // NewRegistryDataStoreFor returns a RegistryDataStore backed by the ConfigMap named
 // cmName, storing registry tokens in secrets named secretNamePrefix + registry name.
-// The module registry store uses this so its entries and credentials stay separate
+// The crate registry store uses this so its entries and credentials stay separate
 // from the addon registry store.
 func NewRegistryDataStoreFor(cli client.Client, cmName, secretNamePrefix string) RegistryDataStore {
 	return registryImpl{cli, cmName, secretNamePrefix}
@@ -230,7 +230,7 @@ func (r registryImpl) ListRegistries(ctx context.Context) ([]Registry, error) {
 // without resolving any token Secret, so a caller that only needs a name or a
 // source kind does not need Secret access to get one. That matters on the
 // admission path, where an unreadable token Secret must not turn the check
-// into an error. The ConfigMap is a parameter because module registries share
+// into an error. The ConfigMap is a parameter because crate registries share
 // the record format but live in their own.
 //
 // A missing ConfigMap yields no records rather than an error, matching

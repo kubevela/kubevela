@@ -189,7 +189,7 @@ func unquoteETag(v string) string {
 // about 1.5% of the time -- and always in a host port like :5429 or a tag like
 // v1429. Matching that rewrites a genuine failure (a missing layer, a bad
 // media type, an auth refusal) as a rate limit, discards its real cause, and
-// gates the whole registry host, blocking every unrelated addon and module on
+// gates the whole registry host, blocking every unrelated addon and crate on
 // it. So the digits are only trusted with a status word next to them.
 var ociThrottleMarkers = []string{
 	"toomanyrequests",

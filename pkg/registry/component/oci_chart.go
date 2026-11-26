@@ -55,7 +55,7 @@ func ociURLIsPlainHTTP(rawURL string) bool {
 	return strings.HasPrefix(strings.ToLower(rawURL), "http://")
 }
 
-// OCIChartRef returns the full OCI reference a module chart publishes to,
+// OCIChartRef returns the full OCI reference a crate chart publishes to,
 // "<host>[/<prefix>]/<name>:<tag>". It is exported so a caller can print the
 // target before pushing.
 func OCIChartRef(reg Registry, name, tag string) (string, error) {
@@ -69,8 +69,8 @@ func OCIChartRef(reg Registry, name, tag string) (string, error) {
 
 // PushOCIChart pushes a packaged Helm chart archive to reg as name:version.
 // It is the push counterpart of PullOCIChartFiles and uses the same reference
-// construction and the same authenticated Helm registry client, so a module
-// published here is pulled by the module fetch unchanged.
+// construction and the same authenticated Helm registry client, so a crate
+// published here is pulled by the crate fetch unchanged.
 func PushOCIChart(ctx context.Context, reg Registry, name, version string, archive []byte) error {
 	oci := reg.OCIChartSource()
 	if oci == nil {
@@ -93,7 +93,7 @@ func PushOCIChart(ctx context.Context, reg Registry, name, version string, archi
 
 // OCIChartTagExists reports whether tag is already published for name in reg.
 // A repository that does not exist yet is reported as "no such tag" rather
-// than an error: the first publish of a module is exactly that case.
+// than an error: the first publish of a crate is exactly that case.
 func OCIChartTagExists(ctx context.Context, reg Registry, name, tag string) (bool, error) {
 	oci := reg.OCIChartSource()
 	if oci == nil {

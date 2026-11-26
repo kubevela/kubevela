@@ -30,9 +30,9 @@ import (
 var _ = Describe("Common labels", func() {
 	It("does not copy the Application's cluster label onto its objects", func() {
 		af := &Appfile{
-			Name:            "module-store",
+			Name:            "crate-store",
 			Namespace:       "vela-system",
-			AppRevisionName: "module-store-v1",
+			AppRevisionName: "crate-store-v1",
 			AppLabels: map[string]string{
 				oam.LabelAppCluster:   "local",
 				"addons.oam.dev/name": "placement-platform",
@@ -43,6 +43,6 @@ var _ = Describe("Common labels", func() {
 
 		Expect(labels).NotTo(HaveKey(oam.LabelAppCluster))
 		Expect(labels).To(HaveKeyWithValue("addons.oam.dev/name", "placement-platform"), "other Application labels are still copied")
-		Expect(labels).To(HaveKeyWithValue(oam.LabelAppName, "module-store"))
+		Expect(labels).To(HaveKeyWithValue(oam.LabelAppName, "crate-store"))
 	})
 })

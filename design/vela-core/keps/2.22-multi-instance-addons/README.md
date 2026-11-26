@@ -4,7 +4,7 @@
 
 **Status:** Drafting (Not ready for consumption)
 **Parent:** [vNext Roadmap](../README.md)
-**Depends on:** [KEP-2.13](../2.13-addons/README.md), [KEP-2.20](../2.20-module-versioning/README.md)
+**Depends on:** [KEP-2.13](../2.13-addons/README.md), [KEP-2.20](../2.20-crate-versioning/README.md)
 
 ## Problem
 
@@ -22,11 +22,11 @@ The single-instance model in KEP-2.13 does not support this: the Addon CR is nam
 
 ## `instance` — Multi-Instance Addons
 
-The optional `instance` field in `_module.cue` is a CUE expression that, when present, marks the addon as multi-instance and determines the Addon CR name suffix. It is evaluated against the injected context — including `parameter` (the addon's `spec.parameters`):
+The optional `instance` field in `_crate.cue` is a CUE expression that, when present, marks the addon as multi-instance and determines the Addon CR name suffix. It is evaluated against the injected context — including `parameter` (the addon's `spec.parameters`):
 
 ```cue
-// modules/tenant-infra/_module.cue
-module:   "tenant-infra"
+// crates/tenant-infra/_crate.cue
+crate:   "tenant-infra"
 type:     "cue"
 instance: parameter.tenant   // Addon CR name = "tenant-infra-{parameter.tenant}"
 ```
@@ -92,4 +92,4 @@ The OAM component name (`s3-team-a`, `s3-team-b`) is only used within the Applic
 ## Cross-KEP References
 
 - **KEP-2.13** — Declarative addon lifecycle; Addon CR; `addon` component type
-- **KEP-2.20** — Module identity; `instance` field reserved in `_module.cue`
+- **KEP-2.20** — Crate identity; `instance` field reserved in `_crate.cue`

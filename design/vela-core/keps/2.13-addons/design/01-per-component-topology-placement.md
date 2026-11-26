@@ -8,7 +8,7 @@ Application model described in the sibling design notes. It is not a proposal fo
 new work; the syntax examples below are illustrative and the merged PR is the
 source of truth for the concrete API.
 
-**Companion to:** [KEP-2.13](../README.md), [KEP-2.20](../../2.20-module-versioning/README.md)
+**Companion to:** [KEP-2.13](../README.md), [KEP-2.20](../../2.20-crate-versioning/README.md)
 
 > **TL;DR**
 > - Before #7213, a deploy step sent *all* its components to *all* its clusters, so one
@@ -20,9 +20,9 @@ source of truth for the concrete API.
 
 ## Overview
 
-The evolved architecture for module and API line versioning reuses the KubeVela
+The evolved architecture for crate and API line versioning reuses the KubeVela
 `Application` as the common deployment engine at every lifecycle layer (Addon,
-Module, and later API Line). A single `Application` at a given layer is expected to
+Crate, and later API Line). A single `Application` at a given layer is expected to
 carry two kinds of resource that belong on different clusters:
 
 - **Control-plane resources** that live on the hub: X-Definitions, VelaQL Views, UI
@@ -139,9 +139,9 @@ categories go to the hub, the runtime categories go to the spokes.
 Design 01 establishes only the placement primitive: a step can select components and
 target a topology. How components are grouped into those hub and spoke sets is **not
 decided here** and is a rendering concern. For full details see [Design 02](./02-application-managed-resources.md)
-and [KEP-2.20 Design 01](../../2.20-module-versioning/design/01-module-crd.md), which cover:
+and [KEP-2.20 Design 01](../../2.20-crate-versioning/design/01-crate-crd.md), which cover:
 
-- how the module-owned Application names and labels its components;
+- how the crate-owned Application names and labels its components;
 - whether steps select components by explicit name or by a category label / naming convention;
 - how those groups map onto hub and spoke topologies.
 
@@ -180,8 +180,8 @@ This capability is the foundation the two downstream notes build on:
   layer would need either bespoke hub/spoke deployment logic or a separate
   Application per target.
 
-- **KEP-2.20 Design 01 (Module CRD and module-owned Application)** inherits that pattern: the
-  module-owned Application uses per-component placement to deliver a module's
+- **KEP-2.20 Design 01 (Crate CRD and crate-owned Application)** inherits that pattern: the
+  crate-owned Application uses per-component placement to deliver a crate's
   Definitions to the hub and its auxiliary resources to the spokes as one unit.
 
 Because placement is solved at the deployment-engine layer, the layered model does
@@ -194,11 +194,11 @@ is sufficient. See the boundary note below.
   capability that closed the placement gap and its role in the layered design.
 - It does not address how the generated Application **owns** the resources it places;
   that is covered in [Design 02](./02-application-managed-resources.md) and
-  [KEP-2.20 Design 01](../../2.20-module-versioning/design/01-module-crd.md). (Definitions are
+  [KEP-2.20 Design 01](../../2.20-crate-versioning/design/01-crate-crd.md). (Definitions are
   namespaced, so ownership is ordinary; there is no cross-scope problem to solve here.)
 - It does not define how components are named or grouped into hub/spoke sets; that
   is a [Design 02](./02-application-managed-resources.md) /
-  [KEP-2.20 Design 01](../../2.20-module-versioning/design/01-module-crd.md) rendering concern.
+  [KEP-2.20 Design 01](../../2.20-crate-versioning/design/01-crate-crd.md) rendering concern.
 - Concrete API (step name, properties, whether placement is a step field or a new
   policy type) is defined by the merged PR, not by this note.
 

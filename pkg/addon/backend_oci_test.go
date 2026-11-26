@@ -419,7 +419,7 @@ func TestOCIRegistryLoadAddon(t *testing.T) {
 
 // TestOCIRegistryLoadFiles verifies resolve returns the chart's raw buffered
 // files (chart-name-prefixed) without the addon-specific parse, the reuse the
-// module fetch (PullOCIChartFiles) depends on. Same fixture + seams.
+// crate fetch (PullOCIChartFiles) depends on. Same fixture + seams.
 func TestOCIRegistryLoadFiles(t *testing.T) {
 	data, err := os.ReadFile("./testdata/helm-repo/fluxcd-1.0.0.tgz")
 	require.NoError(t, err)

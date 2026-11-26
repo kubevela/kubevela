@@ -1,0 +1,32 @@
+calls:
+  vela/crate:
+    '#Render':
+    - $params:
+        crate: widget
+        namespace: team-a
+        placement: {}
+        registry: ""
+        version: ""
+      $returns:
+        application:
+          apiVersion: core.oam.dev/v1beta1
+          kind: Application
+          metadata:
+            name: crate-widget
+            namespace: vela-system
+output:
+  apiVersion: core.oam.dev/v1beta1
+  kind: Application
+  metadata:
+    annotations: {}
+    labels:
+      app.oam.dev/appRevision: test-app-v1
+      app.oam.dev/component: widget
+      app.oam.dev/name: test-app
+      app.oam.dev/namespace: team-a
+      app.oam.dev/resourceType: WORKLOAD
+      workload.oam.dev/type: crate
+    name: crate-widget
+    namespace: vela-system
+outputs: {}
+traits: {}

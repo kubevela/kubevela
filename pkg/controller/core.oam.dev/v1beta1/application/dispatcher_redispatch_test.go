@@ -68,11 +68,11 @@ func TestDefinitionRequestsRedispatch(t *testing.T) {
 	}
 }
 
-// The built-in addon and module definitions render from a registry, so a
+// The built-in addon and crate definitions render from a registry, so a
 // workflow run must re-apply them even when their properties are unchanged: a
 // new tag or a re-pushed tag only shows up in what they render.
-func TestAddonAndModuleDefinitionsRequestRedispatch(t *testing.T) {
-	for _, name := range []string{"addon", "module"} {
+func TestAddonAndCrateDefinitionsRequestRedispatch(t *testing.T) {
+	for _, name := range []string{"addon", "crate"} {
 		t.Run(name, func(t *testing.T) {
 			raw, err := os.ReadFile("../../../../../charts/vela-core/definitions/" + name + ".yaml")
 			require.NoError(t, err)

@@ -81,7 +81,7 @@ func TestOCIRegistryLocation(t *testing.T) {
 		"oci://reg.example.com":                        {"reg.example.com", ""},
 		"oci://reg.example.com/":                       {"reg.example.com", ""},
 		"https://reg.example.com/a/b/":                 {"reg.example.com", "a/b"},
-		"http://127.0.0.1:30500/modules":               {"127.0.0.1:30500", "modules"},
+		"http://127.0.0.1:30500/crates":                {"127.0.0.1:30500", "crates"},
 		"reg.example.com/charts":                       {"reg.example.com", "charts"},
 		"123456789012.dkr.ecr.us-west-2.amazonaws.com": {"123456789012.dkr.ecr.us-west-2.amazonaws.com", ""},
 		"": {"", ""},
@@ -97,7 +97,7 @@ func TestOCIRepoRef(t *testing.T) {
 		{"oci://reg.example.com/charts", "widget", "reg.example.com/charts/widget", "reg.example.com"},
 		{"oci://reg.example.com/charts/", "/widget", "reg.example.com/charts/widget", "reg.example.com"},
 		{"oci://reg.example.com", "widget", "reg.example.com/widget", "reg.example.com"},
-		{"http://127.0.0.1:30500/modules", "widget-kit", "127.0.0.1:30500/modules/widget-kit", "127.0.0.1:30500"},
+		{"http://127.0.0.1:30500/crates", "widget-kit", "127.0.0.1:30500/crates/widget-kit", "127.0.0.1:30500"},
 		{"reg.example.com", "widget", "reg.example.com/widget", "reg.example.com"},
 	} {
 		repoRef, host := OCIRepoRef(tc.url, tc.name)

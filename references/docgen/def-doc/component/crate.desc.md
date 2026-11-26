@@ -1,0 +1,3 @@
+Fetch a crate package from an OCI registry and install its definitions and auxiliary objects. The package version is the OCI tag. It is not the API line (`v1`, `v2`). Definitions are created in the namespace of the Application that contains this component. For a crate that an addon installs, they are created in the namespace of the Application that installs the addon.
+
+`EnableCrateComponent` must be true. See [Crates](../../platform-engineers/crate/intro.md) for what a crate is. See [Install and Use a Crate](../../platform-engineers/crate/crate-install.md) for the CLI and for the definitions that a crate adds.

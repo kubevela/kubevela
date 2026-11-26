@@ -47,7 +47,7 @@ import (
 
 const (
 	// chartMuseumNodePort must match testdata/addon/chartmuseum.yaml. It is
-	// distinct from the module suite's 30500 so both suites can run against
+	// distinct from the crate suite's 30500 so both suites can run against
 	// the same cluster without fighting over a port.
 	chartMuseumNodePort = 30800
 

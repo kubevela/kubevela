@@ -11,7 +11,7 @@ gotchas that trip people up.
 |---|---|
 | Unit tests | `make test` |
 | Shipped definition tests (`*_test.cue` beside `vela-templates/definitions/internal`) | `make test-definitions` |
-| Module/addon-module e2e (self-provisions a cluster) | `make e2e-test-local` |
+| Crate/addon-crate e2e (self-provisions a cluster) | `make e2e-test-local` |
 | Controller e2e against a cluster you already deployed to | `make e2e-test` |
 | One application e2e spec / flake check | `ginkgo -v --focus="<text>" ./test/e2e-application-test` |
 | CLI-driven application e2e | `make e2e-application-test-local` |
@@ -111,8 +111,8 @@ no cluster or kubeconfig is needed. CI runs this as its own workflow,
 
 The most self-contained option. It creates (or reuses) a `kubevela-debug` k3d
 cluster, builds and imports a `vela-core:e2e-test` image, pre-loads the
-public registry images the module and addon-module packages pull (zot for the
-module suite's credentialed-registry test, ChartMuseum and nginx for their
+public registry images the crate and addon-crate packages pull (zot for the
+crate suite's credentialed-registry test, ChartMuseum and nginx for their
 registries: `ghcr.io/project-zot/zot-minimal-linux-amd64`,
 `ghcr.io/helm/chartmuseum`, `docker.io/library/nginx`), installs the chart with
 the webhook enabled, and runs those two packages:

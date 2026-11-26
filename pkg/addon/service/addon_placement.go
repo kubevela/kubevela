@@ -34,15 +34,15 @@ const addonPlacementPolicy = "addon-placement"
 
 // applyAddonPlacement turns the installer's placement on a type: addon
 // component into the addon's placement. The addon gets a topology policy built
-// from it, and every imported module that sets no placement of its own gets
-// the same placement, so the module's runtime objects follow the addon.
+// from it, and every imported crate that sets no placement of its own gets
+// the same placement, so the crate's runtime objects follow the addon.
 //
 // An addon that defines its own topology policy decides where it goes, usually
 // from its own parameters, so a placement request is refused rather than
 // silently replacing or ignoring the author's topology. An addon that defines
 // its own workflow is refused too: its deploy steps name their own policies,
 // so the new topology would never take effect. A nil place changes nothing.
-func applyAddonPlacement(app *v1beta1.Application, addonName string, place *v1alpha1.Placement, moduleComps []common2.ApplicationComponent) error {
+func applyAddonPlacement(app *v1beta1.Application, addonName string, place *v1alpha1.Placement, crateComps []common2.ApplicationComponent) error {
 	if place == nil {
 		return nil
 	}
@@ -67,11 +67,11 @@ func applyAddonPlacement(app *v1beta1.Application, addonName string, place *v1al
 		Properties: &runtime.RawExtension{Raw: raw},
 	})
 
-	for i := range moduleComps {
+	for i := range crateComps {
 		var compProps map[string]interface{}
-		if moduleComps[i].Properties != nil && len(moduleComps[i].Properties.Raw) > 0 {
-			if err := json.Unmarshal(moduleComps[i].Properties.Raw, &compProps); err != nil {
-				return fmt.Errorf("read module component %q of addon %q: %w", moduleComps[i].Name, addonName, err)
+		if crateComps[i].Properties != nil && len(crateComps[i].Properties.Raw) > 0 {
+			if err := json.Unmarshal(crateComps[i].Properties.Raw, &compProps); err != nil {
+				return fmt.Errorf("read crate component %q of addon %q: %w", crateComps[i].Name, addonName, err)
 			}
 		}
 		if compProps == nil {
@@ -83,9 +83,9 @@ func applyAddonPlacement(app *v1beta1.Application, addonName string, place *v1al
 		compProps["placement"] = props
 		b, err := json.Marshal(compProps)
 		if err != nil {
-			return fmt.Errorf("encode module component %q of addon %q: %w", moduleComps[i].Name, addonName, err)
+			return fmt.Errorf("encode crate component %q of addon %q: %w", crateComps[i].Name, addonName, err)
 		}
-		moduleComps[i].Properties = &runtime.RawExtension{Raw: b}
+		crateComps[i].Properties = &runtime.RawExtension{Raw: b}
 	}
 	return nil
 }

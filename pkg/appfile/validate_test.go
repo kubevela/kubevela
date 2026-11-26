@@ -670,7 +670,7 @@ func TestParser_ValidateCUESchematicAppfile(t *testing.T) {
 	})
 
 	t.Run("should skip traits on placeholder-rendered components", func(t *testing.T) {
-		for _, compType := range []string{"addon", "module"} {
+		for _, compType := range []string{"addon", "crate"} {
 			t.Run(compType, func(t *testing.T) {
 				appfile := &Appfile{
 					Name:      "test-app",

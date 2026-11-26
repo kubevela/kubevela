@@ -374,9 +374,9 @@ func (c *restrictionCheck) checkDefinition(defType string, newDef func() client.
 	def := newDef()
 	err := oamutil.GetDefinition(c.defCtx, c.h.Client, def, name)
 	if errors.IsNotFound(err) {
-		// A module's definition is installed under a name derived from module, version and
+		// A crate's definition is installed under a name derived from crate, version and
 		// name, which the type may give in full or by its bare name.
-		if resolved, rerr := appfile.ResolveModuleType(c.defCtx, c.h.Client, name, capTypeOf(def)); rerr == nil && resolved != name {
+		if resolved, rerr := appfile.ResolveCrateType(c.defCtx, c.h.Client, name, capTypeOf(def)); rerr == nil && resolved != name {
 			def = newDef()
 			err = oamutil.GetDefinition(c.defCtx, c.h.Client, def, resolved)
 		}
@@ -623,7 +623,7 @@ func (h *ValidatingHandler) namespaceReader() client.Reader {
 	return h.Client
 }
 
-// capTypeOf is the capability type ResolveModuleType resolves a definition kind as.
+// capTypeOf is the capability type ResolveCrateType resolves a definition kind as.
 func capTypeOf(def client.Object) types.CapType {
 	switch def.(type) {
 	case *v1beta1.TraitDefinition:
