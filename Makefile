@@ -16,6 +16,7 @@ test: envtest unit-test-core test-cli-gen test-hack-scripts
 	@$(OK) unit-tests pass
 
 ## test-hack-scripts: Run the tests of the scripts in hack/ (needs jq)
+.PHONY: test-hack-scripts
 test-hack-scripts:
 	bash ./hack/preupgrade-check-1.12_test.sh
 
