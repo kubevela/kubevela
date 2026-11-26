@@ -175,7 +175,7 @@ func exampleNumber(sch *openapi3.Schema, integer bool) any {
 	switch {
 	case sch.Min != nil:
 		v = *sch.Min
-		if sch.ExclusiveMin {
+		if sch.ExclusiveMin.IsTrue() {
 			if !integer && sch.Max != nil {
 				v = (*sch.Min + *sch.Max) / 2
 			} else {
@@ -184,15 +184,15 @@ func exampleNumber(sch *openapi3.Schema, integer bool) any {
 		}
 	case sch.Max != nil:
 		v = math.Min(1, *sch.Max)
-		if sch.ExclusiveMax && v >= *sch.Max {
+		if sch.ExclusiveMax.IsTrue() && v >= *sch.Max {
 			v = *sch.Max - 1
 		}
 	}
 	if integer {
 		v = math.Ceil(v)
-		if sch.Max != nil && (v > *sch.Max || (sch.ExclusiveMax && v >= *sch.Max)) {
+		if sch.Max != nil && (v > *sch.Max || (sch.ExclusiveMax.IsTrue() && v >= *sch.Max)) {
 			v = math.Floor(*sch.Max)
-			if sch.ExclusiveMax && v >= *sch.Max {
+			if sch.ExclusiveMax.IsTrue() && v >= *sch.Max {
 				v--
 			}
 		}

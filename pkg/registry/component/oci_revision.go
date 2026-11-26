@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"oras.land/oras-go/pkg/registry/remote/auth"
+	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
 // The manifest digest is OCI's ETag. A registry answers HEAD
@@ -181,9 +181,9 @@ func unquoteETag(v string) string {
 
 // ociThrottleMarkers are how the registries answer "you are asking too often".
 // The distribution spec says 429 TOOMANYREQUESTS, Docker Hub says it in prose
-// when the pull limit is hit, and ECR raises its own throttling exception --
-// and all of it arrives here as an opaque error from the Helm registry client,
-// which does not keep the status code.
+// when the pull limit is hit, and ECR raises its own throttling exception.
+// These markers are for an error that arrives as text, without the registry's
+// response; IsOCIThrottledError reads the status code first when it is there.
 // A bare "429" is deliberately absent. Pull failures carry the resolved
 // digest, and those three digits appear somewhere in a random 64-hex digest
 // about 1.5% of the time -- and always in a host port like :5429 or a tag like
@@ -211,6 +211,9 @@ func IsOCIThrottledError(err error) bool {
 		return false
 	}
 	if _, ok := rateLimitHold(err); ok {
+		return true
+	}
+	if resp, ok := OCIErrorResponse(err); ok && resp.StatusCode == http.StatusTooManyRequests {
 		return true
 	}
 	msg := strings.ToLower(err.Error())

@@ -36,7 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
-	registryauth "oras.land/oras-go/pkg/registry/remote/auth"
+	registryauth "oras.land/oras-go/v2/registry/remote/auth"
 
 	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
