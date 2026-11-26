@@ -237,7 +237,7 @@ fi
 
 # The analysis: one finding per object and problem, as {level, check, object, problem, fix, link}.
 read -r -d '' analysis <<'JQ' || true
-def guide($a): "https://kubevela.io/upgrade-guides/v1.12/#" + $a;
+def guide($a): "https://kubevela.io/docs/upgrade-guides/v1.12/#" + $a;
 def f($level; $check; $object; $problem; $fix; $link):
   {level: $level, check: $check, object: $object, problem: $problem, fix: $fix, link: $link};
 
