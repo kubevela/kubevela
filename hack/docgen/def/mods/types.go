@@ -32,3 +32,11 @@ func (o Options) SiteBase() string {
 	}
 	return "../kubevela.github.io"
 }
+
+// The notice at the top of every generated definition page. It carries no
+// timestamp, so regenerating unchanged definitions gives the same page and a
+// CI job can compare the output with the published docs.
+const (
+	generatedNoticeEN = "> It was generated automatically by [scripts](../../contributor/cli-ref-doc.md), please don't update manually.\n\n"
+	generatedNoticeZH = "> 本文档由[脚本](../../contributor/cli-ref-doc.md)自动生成，请勿手动修改。\n\n"
+)
