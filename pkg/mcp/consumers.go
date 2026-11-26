@@ -378,24 +378,39 @@ func consumedRefs(obj *unstructured.Unstructured) []consumedRef {
 			}
 		}
 	}
+	// a volume that selects keys through items reads only those keys; one
+	// without items reads the whole object
+	addVolume := func(kind, name string, sel map[string]any) {
+		items, _ := sel["items"].([]any)
+		if len(items) == 0 {
+			add(kind, name, "", viaVolume, isOptional(sel))
+			return
+		}
+		for _, it := range items {
+			item, _ := it.(map[string]any)
+			if key := stringAt(item, "key"); key != "" {
+				add(kind, name, key, viaVolume, isOptional(sel))
+			}
+		}
+	}
 	volumes, _ := podSpec["volumes"].([]any)
 	for _, v := range volumes {
 		volume, _ := v.(map[string]any)
 		if sel, ok := volume["secret"].(map[string]any); ok {
-			add(secretKind, stringAt(sel, "secretName"), "", viaVolume, isOptional(sel))
+			addVolume(secretKind, stringAt(sel, "secretName"), sel)
 		}
 		if sel, ok := volume["configMap"].(map[string]any); ok {
-			add("ConfigMap", stringAt(sel, "name"), "", viaVolume, isOptional(sel))
+			addVolume("ConfigMap", stringAt(sel, "name"), sel)
 		}
 		projected, _ := volume["projected"].(map[string]any)
 		sources, _ := projected["sources"].([]any)
 		for _, s := range sources {
 			source, _ := s.(map[string]any)
 			if sel, ok := source["secret"].(map[string]any); ok {
-				add(secretKind, stringAt(sel, "name"), "", viaVolume, isOptional(sel))
+				addVolume(secretKind, stringAt(sel, "name"), sel)
 			}
 			if sel, ok := source["configMap"].(map[string]any); ok {
-				add("ConfigMap", stringAt(sel, "name"), "", viaVolume, isOptional(sel))
+				addVolume("ConfigMap", stringAt(sel, "name"), sel)
 			}
 		}
 	}

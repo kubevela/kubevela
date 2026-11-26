@@ -279,7 +279,7 @@ var _ = Describe("diagnose_application consumers", func() {
 		found := consumerFindings(out)
 		Expect(found).To(HaveLen(1), toJSON(out.Findings))
 		Expect(found[0].Message).To(ContainSubstring(`which FieldExport petclinic-db-conn-port of component "petclinic-db" has not written yet`))
-		Expect(found[0].Message).NotTo(ContainSubstring("conn-host of"))
+		Expect(found[0].Message).NotTo(ContainSubstring("conn-host"))
 	})
 
 	It("blames any unwritten exporter when the workload reads the whole object", func() {
@@ -339,6 +339,11 @@ var _ = Describe("diagnose_application consumers", func() {
 						map[string]any{"secret": map[string]any{"name": "tls"}},
 						map[string]any{"configMap": map[string]any{"name": "ca", "optional": true}},
 					}}},
+					// items select keys: only those are read, not the whole Secret
+					map[string]any{"name": "k", "secret": map[string]any{"secretName": "db", "items": []any{
+						map[string]any{"key": "host", "path": "host"},
+						map[string]any{"key": "port", "path": "port"},
+					}}},
 				},
 			}}}}},
 		}}
@@ -349,6 +354,8 @@ var _ = Describe("diagnose_application consumers", func() {
 			{kind: "ConfigMap", name: "settings", via: viaVolume},
 			{kind: "Secret", name: "tls", via: viaVolume},
 			{kind: "ConfigMap", name: "ca", via: viaVolume, optional: true},
+			{kind: "Secret", name: "db", key: "host", via: viaVolume},
+			{kind: "Secret", name: "db", key: "port", via: viaVolume},
 		}))
 	})
 })
