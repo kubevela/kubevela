@@ -11,7 +11,8 @@
 #     -q            print only the summary line
 #     --resolve     resolve the hostnames workflow steps call, from this machine (not from the
 #                   cluster, whose DNS can differ), and check the addresses too
-#     --from-dir    read captured files from DIR instead of the cluster (see collect below for names)
+#     --from-dir    read captured files from DIR instead of the cluster (see collect below for names);
+#                   with --resolve, the captured hosts are resolved afresh
 #
 # Exit codes: 0 no errors, 1 errors found, 2 the check could not run (a missing tool, no cluster,
 # KubeVela not installed).
@@ -40,7 +41,7 @@ while [ $# -gt 0 ]; do
 	-q | --quiet) verbosity=quiet ;;
 	--resolve) resolve=true ;;
 	--from-dir) from_dir="$2"; shift ;;
-	-h | --help) sed -n '2,24p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,25p' "$0"; exit 0 ;;
 	*) echo "error: unknown argument $1" >&2; exit 2 ;;
 	esac
 	shift
@@ -155,10 +156,6 @@ collect() {
 			echo '{"items":[]}' >"$tmp/argocd-applications.json"
 	fi
 	collect_secret_hosts
-	if $resolve; then
-		echo "note: --resolve looks hostnames up from this machine, not from the cluster, whose DNS can answer differently" >&2
-		collect_resolved
-	fi
 }
 
 # steps_query lists, one per line, what jq program $1 derives from every step the Applications run.
@@ -206,10 +203,14 @@ resolve_host() {
 	fi
 }
 
+# collect_resolved resolves every host the steps call, from a literal URL or a Secret's.
 collect_resolved() {
 	local host
 	echo '{}' >"$tmp/resolved.json"
-	for host in $(steps_query 'stepurls[] | select(.url != null) | .url | urlhost | select(isip | not)' | sort -u); do
+	for host in $({
+		steps_query 'stepurls[] | select(.url != null) | .url | urlhost'
+		jq -r "$lib"' .items[] | .host // empty | urlhost' "$tmp/secret-hosts.json"
+	} | jq -Rr "$lib"' select(isip | not)' | sort -u); do
 		resolve_host "$host" | { grep -E '^[0-9a-fA-F:.]+$' || true; } | sort -u | jq -R . | jq -s --arg h "$host" '{($h): .}' >"$tmp/one.json"
 		jq -s '.[0] * .[1]' "$tmp/resolved.json" "$tmp/one.json" >"$tmp/merged.json"
 		mv "$tmp/merged.json" "$tmp/resolved.json"
@@ -229,6 +230,10 @@ for f in applications workflows componentdefinitions traitdefinitions policydefi
 	definitionrevisions namespaces configmaps deny-configmaps secrets secret-hosts deployment argocd-applications; do
 	[ -s "$tmp/$f.json" ] || echo '{"items":[]}' >"$tmp/$f.json"
 done
+if $resolve; then
+	echo "note: --resolve looks hostnames up from this machine, not from the cluster, whose DNS can answer differently" >&2
+	collect_resolved
+fi
 [ -s "$tmp/resolved.json" ] || echo '{}' >"$tmp/resolved.json"
 helm_read=true
 if [ ! -f "$tmp/helm-values.json" ]; then

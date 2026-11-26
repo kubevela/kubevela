@@ -96,5 +96,22 @@ cp "$data/base/"*.json "$tmp/quiet/"
 quiet="$("$check" --from-dir "$tmp/quiet" -q)"
 if [ "$quiet" = "0 errors, 0 warnings, 3 info" ]; then passed=$((passed + 1)); else fail "cli" "-q printed: $quiet"; fi
 
+# --resolve with --from-dir resolves the captured hosts afresh, a Secret's host as well as a literal
+# one. A stub getent answers every name with the metadata address.
+mkdir -p "$tmp/stub" "$tmp/resolve"
+printf '#!/bin/sh\necho "169.254.169.254 STREAM $2"\n' >"$tmp/stub/getent"
+chmod +x "$tmp/stub/getent"
+cp "$data/base/"*.json "$data/resolve-secret/"*.json "$tmp/resolve/"
+PATH="$tmp/stub:$PATH" "$check" --from-dir "$tmp/resolve" --resolve --json 2>/dev/null >"$tmp/resolve/out.json" || true
+for app in hook-resolves-to-metadata call-resolves-to-metadata; do
+	if jq -e --arg o "Application default/$app" \
+		'any(.findings[]; .check == "http-guard" and .object == $o and (.problem | test("resolves to 169.254.169.254")))' \
+		"$tmp/resolve/out.json" >/dev/null 2>&1; then
+		passed=$((passed + 1))
+	else
+		fail "resolve" "--resolve found no metadata address for $app"
+	fi
+done
+
 echo "$passed passed, $failed failed"
 [ "$failed" -eq 0 ]
