@@ -47,13 +47,25 @@ type consumedRef struct {
 	optional        bool
 }
 
-// producer is who fills a Secret or ConfigMap in this Application: an
-// exporter resource of a component, or a component that manages the object
-// itself, in one cluster and namespace.
+// producer is who fills a Secret or ConfigMap in this Application: a
+// component that manages the object itself, or one or more exporter
+// resources of a component, in one cluster and namespace. Exporters are kept
+// per target key, so the key a consumer reads is judged by the exporter that
+// writes it; a connection-Secret writer, which writes every key, is kept
+// under the empty key.
 type producer struct {
 	component          string
 	cluster, namespace string
-	exporter           *ResourceDiagnosis
+	exporters          map[string]*ResourceDiagnosis
+}
+
+// exporterFor returns the exporter that writes the given key, or the one
+// that writes the whole object, or nil.
+func (p producer) exporterFor(key string) *ResourceDiagnosis {
+	if e := p.exporters[key]; e != nil {
+		return e
+	}
+	return p.exporters[""]
 }
 
 func producerKey(cluster, namespace, kind, name string) string {
@@ -62,9 +74,9 @@ func producerKey(cluster, namespace, kind, name string) string {
 
 // producersOf maps every Secret and ConfigMap this Application fills to the
 // component that fills it. A component that manages the object directly is
-// recorded first; an exporter writing into it takes precedence, because it
-// is the more specific fact. An exporter's target lives in the namespace it
-// names, else the exporter's own.
+// recorded first; exporters writing into it take precedence, because they
+// are the more specific fact, and are kept per target key. An exporter's
+// target lives in the namespace it names, else the exporter's own.
 func producersOf(applied []querytypes.AppliedResource, resources []ResourceDiagnosis) map[string]producer {
 	producers := map[string]producer{}
 	for i := range applied {
@@ -83,7 +95,13 @@ func producersOf(applied []querytypes.AppliedResource, resources []ResourceDiagn
 		if ns == "" {
 			ns = r.Namespace
 		}
-		producers[producerKey(r.Cluster, ns, r.Export.TargetKind, r.Export.TargetName)] = producer{component: r.Component, cluster: r.Cluster, namespace: r.Namespace, exporter: r}
+		key := producerKey(r.Cluster, ns, r.Export.TargetKind, r.Export.TargetName)
+		p, ok := producers[key]
+		if !ok || p.component != r.Component || p.exporters == nil {
+			p = producer{component: r.Component, cluster: r.Cluster, namespace: r.Namespace, exporters: map[string]*ResourceDiagnosis{}}
+		}
+		p.exporters[r.Export.TargetKey] = r
+		producers[key] = p
 	}
 	return producers
 }
@@ -173,9 +191,10 @@ func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared
 		what += fmt.Sprintf(" key %q", ref.key)
 	}
 	var why string
+	exporter := p.exporterFor(ref.key)
 	switch {
-	case p.exporter != nil && p.exporter.Export.Written != nil && !*p.exporter.Export.Written:
-		why = fmt.Sprintf("which %s %s of component %q has not written yet", p.exporter.Kind, p.exporter.Name, p.component)
+	case exporter != nil && exporter.Export.Written != nil && !*exporter.Export.Written:
+		why = fmt.Sprintf("which %s %s of component %q has not written yet", exporter.Kind, exporter.Name, p.component)
 	default:
 		nr := notReadyOf(resources, p)
 		if nr == nil {
@@ -189,9 +208,9 @@ func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared
 	} else {
 		consequence += "; the mounted file updates in place once written"
 	}
-	ordering := fmt.Sprintf("%q declares no dependsOn on %q, so the workflow applied both at once; the fix is in the Application spec", r.Component, p.component)
+	ordering := fmt.Sprintf("%q declares no dependsOn on %q, so the workflow applied both at once; owner: %s, the Application", r.Component, p.component, ownerApplicationSpec)
 	if declared {
-		ordering = fmt.Sprintf("%q depends on %q, so the workflow released it when %q reported healthy; that component's health rule does not cover everything a consumer needs, and the fix is in its definition", r.Component, p.component, p.component)
+		ordering = fmt.Sprintf("%q depends on %q, so the workflow released it when %q reported healthy; that component's health rule does not cover everything a consumer needs; owner: %s, its definition", r.Component, p.component, p.component, ownerPlatform)
 	}
 	return Finding{
 		Severity: SeverityWarning,
