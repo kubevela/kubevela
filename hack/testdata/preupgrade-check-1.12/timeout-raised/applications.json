@@ -1,0 +1,46 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "t90"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://example.com",
+        "timeout": "90s"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "t3m"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://example.com",
+        "timeout": "3m"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

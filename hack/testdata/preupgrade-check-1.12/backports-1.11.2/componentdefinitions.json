@@ -1,0 +1,22 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "vela-system",
+    "name": "tf-remote"
+   },
+   "spec": {
+    "schematic": {
+     "terraform": {
+      "type": "remote",
+      "configuration": "git@x:y.git",
+      "gitCredentialsSecretReference": {
+       "name": "k",
+       "namespace": "default"
+      }
+     }
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,45 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "vela-system",
+    "name": "gateway-v1"
+   },
+   "spec": {
+    "definitionType": "Trait",
+    "revision": 1,
+    "traitDefinition": {
+     "metadata": {
+      "name": "gateway",
+      "namespace": "vela-system"
+     },
+     "spec": {
+      "conflictsWith": [
+       "scaler"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "vela-system",
+    "name": "web2-v3"
+   },
+   "spec": {
+    "definitionType": "Component",
+    "revision": 3,
+    "componentDefinition": {
+     "metadata": {
+      "name": "web2",
+      "namespace": "vela-system",
+      "annotations": {
+       "definition.oam.dev/restrict-namespaces": "vela-system"
+      }
+     },
+     "spec": {}
+    }
+   }
+  }
+ ]
+}

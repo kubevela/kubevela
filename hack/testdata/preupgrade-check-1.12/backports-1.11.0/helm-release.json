@@ -1,0 +1,8 @@
+[
+ {
+  "name": "kubevela",
+  "namespace": "vela-system",
+  "chart": "vela-core-1.11.0",
+  "status": "deployed"
+ }
+]

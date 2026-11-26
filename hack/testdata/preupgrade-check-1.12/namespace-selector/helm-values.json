@@ -1,0 +1,27 @@
+{
+ "definitionRestrictions": {
+  "default": {
+   "namespaceSelector": {
+    "matchLabels": {
+     "tenant": "true"
+    },
+    "matchExpressions": [
+     {
+      "key": "tier",
+      "operator": "NotIn",
+      "values": [
+       "frozen"
+      ]
+     }
+    ]
+   }
+  },
+  "overrides": {
+   "worker": {
+    "namespaces": [
+     "batch-*"
+    ]
+   }
+  }
+ }
+}

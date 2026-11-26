@@ -1,0 +1,6 @@
+exit 1
+error http-guard Application default/wildcard-host
+error http-guard Application default/exact-host
+error http-guard Application default/cidr4
+error http-guard Application default/cidr6
+error http-guard Application default/values-host

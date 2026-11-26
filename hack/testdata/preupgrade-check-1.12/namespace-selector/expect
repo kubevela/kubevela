@@ -1,0 +1,3 @@
+warn definition-restrictions Application team-c/frozen
+warn definition-restrictions Application default/unlabelled
+warn definition-restrictions Application team-a/worker-elsewhere

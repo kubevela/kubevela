@@ -1,2 +1,0 @@
-{"items":[{"kind":"Deployment","metadata":{"namespace":"vela-system","name":"kubevela-vela-core"},
- "spec":{"template":{"spec":{"containers":[{"name":"kubevela","args":["--max-workflow-http-timeout=60s","--feature-gates=BlockPrivateHTTPAddresses=true"]}]}}}}]}

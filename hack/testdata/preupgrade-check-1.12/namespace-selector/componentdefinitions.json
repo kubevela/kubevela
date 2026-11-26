@@ -1,0 +1,32 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "vela-system",
+    "name": "webservice"
+   },
+   "spec": {}
+  },
+  {
+   "metadata": {
+    "namespace": "vela-system",
+    "name": "worker"
+   },
+   "spec": {}
+  },
+  {
+   "metadata": {
+    "namespace": "vela-system",
+    "name": "custom-web"
+   },
+   "spec": {}
+  },
+  {
+   "metadata": {
+    "namespace": "team-b",
+    "name": "webservice"
+   },
+   "spec": {}
+  }
+ ]
+}

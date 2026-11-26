@@ -1,0 +1,24 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "private"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "p",
+       "type": "request",
+       "properties": {
+        "url": "http://10.0.0.5/"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,5 @@
+exit 1
+error http-guard Application default/hook-secret
+error http-guard Application default/slack-secret
+info http-guard Application default/denied-secret
+match from Secret default/hook
