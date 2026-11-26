@@ -704,7 +704,7 @@ func TestInjectSchedulingArgs(t *testing.T) {
 		addonSchedulingFile = ""
 		args := map[string]interface{}{}
 		require.NoError(t, injectSchedulingArgs(args))
-		require.Nil(t, addonNodeSelector)
+		require.Empty(t, addonNodeSelector)
 		require.Empty(t, addonSchedulingFile)
 
 		props, err := pkgaddon.ExtractSchedulingFromArgs(args)

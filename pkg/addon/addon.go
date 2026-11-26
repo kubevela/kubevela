@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -844,6 +845,9 @@ type Installer struct {
 
 // NewAddonInstaller will create an installer for addon
 func NewAddonInstaller(ctx context.Context, cli client.Client, discoveryClient *discovery.DiscoveryClient, apply apply.Applicator, config *rest.Config, r *Registry, args map[string]interface{}, cache *Cache, registries []Registry, opts ...InstallOption) Installer {
+	// Work on a copy: the reserved keys are removed below, and the caller
+	// passes the same map again when it tries the next registry.
+	args = maps.Clone(args)
 	if args == nil {
 		args = map[string]interface{}{}
 	}
