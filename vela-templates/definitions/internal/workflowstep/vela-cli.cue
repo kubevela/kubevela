@@ -157,7 +157,7 @@ template: {
 		// +usage=Specify the vela command
 		command: [...string]
 		// +usage=Specify the image
-		image: *"oamdev/vela-cli:v1.6.4" | string
+		image: *"oamdev/vela-cli:v1.10.10" | string
 		// +usage=The service account the Job runs as, in the Application's namespace
 		serviceAccountName: *"default" | string
 		storage?: {
