@@ -249,10 +249,11 @@ def semver:
 
 # The release each change shipped in, from the tags: v1.11.1 carries the trait conflict webhook and
 # the HTTP guard's deny lists; v1.11.2 the loopback denial, the timeout bounds, the Application
-# namespace rule for helmchart sources and Terraform SSH keys, and the vela-cli Job's account.
+# namespace rule for helmchart sources, Terraform SSH keys and config steps, and the vela-cli Job's
+# account.
 def first_version: {
   "trait-conflicts": "1.11.1", "http-deny": "1.11.1", "http-loopback": "1.11.2", "http-timeout": "1.11.2",
-  "helm-sources": "1.11.2", "terraform-ssh": "1.11.2", "vela-cli-account": "1.11.2"};
+  "helm-sources": "1.11.2", "terraform-ssh": "1.11.2", "vela-cli-account": "1.11.2", "config-steps": "1.11.2"};
 
 ($values[0] // {}) as $vals
 | ($vals.systemDefinitionNamespace // $ns | if . == "" or . == null then $ns else . end) as $sysns
@@ -555,8 +556,9 @@ def first_version: {
               "grant the Application's user \($verb) on configs.config.oam.dev in namespace \($p.namespace), or move the config to \($appns)";
               notes)
           else
-            f("error"; "cross-namespace-credentials"; "Application \($a | nn)";
-              "step \($s.name) (\($s.type)) reaches config \($p.namespace)/\($p.name // "*"); 1.12 keeps config steps to the Application's namespace";
+            fx("config-steps"; "error"; "cross-namespace-credentials"; "Application \($a | nn)";
+              "step \($s.name) (\($s.type)) reaches config \($p.namespace)/\($p.name // "*") outside the Application's namespace";
+              "1.12 refuses it";
               "move the config into namespace \($appns) and drop the step's namespace property (a shared config in vela-system made from a vela-system template stays readable)";
               notes)
           end ),
@@ -679,10 +681,10 @@ def first_version: {
     | (($c.traits // [])[] | select(.type | split("@")[0] == "resource")) as $t
     | ($t.properties // {}) as $p
     | select((($p.cpu != null) != ($p.memory != null)) and $p.requests == null and $p.limits == null)
-    | (if $p.cpu != null then ["cpu", "memory", "2048Mi"] else ["memory", "cpu", "1"] end) as [$set, $other, $default]
+    | (if $p.cpu != null then ["cpu", "memory"] else ["memory", "cpu"] end) as [$set, $other]
     | f("warn"; "resource-trait"; "Application \($a | nn)";
-        "component \($c.name): the resource trait sets only \($set); 1.11 also set \($other) to \($default), 1.12 leaves \($other) as the workload has it";
-        "add \($other): \($default) to the trait's properties to keep the 1.11 result";
+        "component \($c.name): the resource trait sets only \($set); 1.11 ignored a lone \($set) and set no requests or limits, 1.12 sets \($set) requests and limits, so the Pods restart with them";
+        "check that \($set) \($p[$set]) is what the workload should get, and add \($other) if it needs one; remove the trait to keep the 1.11 result";
         notes) ),
 
 # 9. Configs as resources.

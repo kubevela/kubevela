@@ -8,3 +8,4 @@ error cross-namespace-credentials ComponentDefinition vela-system/tf-remote
 error vela-cli-namespace Application team-a/cli
 warn vela-cli-namespace Application team-a/cli
 match already refused on v1.11.1 \(since 1.11.1\)
+error cross-namespace-credentials Application team-a/reads-elsewhere
