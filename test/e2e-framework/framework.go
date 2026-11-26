@@ -211,35 +211,52 @@ func (f *Framework) requestReconcile(ctx context.Context, o client.Object) (stri
 // while a busy app requeues itself, so a request waits until the object has
 // been unchanged for quietPeriod: the controller is then waiting out a backoff
 // or the resync, which is the wait a request is meant to cut short.
+//
+// The reconcile a request starts is in flight until it writes the object, so
+// the next request waits for that write, or for settle if it wrote nothing. An
+// Application with many components can take longer than quietPeriod to
+// reconcile on a busy runner.
 type reconcileRequester struct {
-	framework *Framework
-	ctx       context.Context
-	obj       client.Object
-	seenRV    string
-	seenAt    time.Time
+	framework   *Framework
+	ctx         context.Context
+	obj         client.Object
+	seenRV      string
+	seenAt      time.Time
+	requestedRV string
+	settle      time.Duration
+	now         func() time.Time
 }
 
-const quietPeriod = 3 * time.Second
+const (
+	quietPeriod = 3 * time.Second
+	// settlePeriod is how long a requested reconcile has to write the object
+	// before EventuallyReconciled takes it to have changed nothing.
+	settlePeriod = 20 * time.Second
+)
 
 func (r *reconcileRequester) request(g gomega.Gomega) {
 	current := r.obj.DeepCopyObject().(client.Object)
 	g.Expect(r.framework.Client.Get(r.ctx, client.ObjectKeyFromObject(r.obj), current)).To(gomega.Succeed())
-	now := time.Now()
+	now := r.now()
 	if rv := current.GetResourceVersion(); rv != r.seenRV {
 		r.seenRV, r.seenAt = rv, now
 	}
-	if now.Sub(r.seenAt) < quietPeriod {
+	wait := quietPeriod
+	if r.seenRV == r.requestedRV {
+		wait = r.settle
+	}
+	if now.Sub(r.seenAt) < wait {
 		return
 	}
 	rv, err := r.framework.requestReconcile(r.ctx, r.obj)
 	g.Expect(err).To(gomega.Succeed())
-	r.seenRV, r.seenAt = rv, now
+	r.seenRV, r.seenAt, r.requestedRV = rv, now, rv
 }
 
-func (f *Framework) requesters(ctx context.Context, objs []client.Object) func(g gomega.Gomega) {
+func (f *Framework) requesters(ctx context.Context, objs []client.Object, settle time.Duration) func(g gomega.Gomega) {
 	rs := make([]*reconcileRequester, 0, len(objs))
 	for _, o := range objs {
-		rs = append(rs, &reconcileRequester{framework: f, ctx: ctx, obj: o})
+		rs = append(rs, &reconcileRequester{framework: f, ctx: ctx, obj: o, settle: settle, now: time.Now})
 	}
 	return func(g gomega.Gomega) {
 		for _, r := range rs {
@@ -258,7 +275,7 @@ func (f *Framework) EventuallyReconciled(ctx context.Context, o client.Object, a
 // EventuallyReconciledAll is EventuallyReconciled for an assertion that spans
 // several objects, each requested independently.
 func (f *Framework) EventuallyReconciledAll(ctx context.Context, objs []client.Object, assertion func(g gomega.Gomega)) gomega.AsyncAssertion {
-	request := f.requesters(ctx, objs)
+	request := f.requesters(ctx, objs, settlePeriod)
 	return gomega.Eventually(func(g gomega.Gomega) {
 		request(g)
 		assertion(g)
@@ -268,7 +285,8 @@ func (f *Framework) EventuallyReconciledAll(ctx context.Context, objs []client.O
 // ConsistentlyReconciled holds assertion while requesting reconciles of o, so
 // "nothing changed" is checked across real reconciles. The controller records
 // nothing when a requested reconcile completes, so the window spans three
-// requests rather than relying on the first one finishing.
+// requests rather than relying on the first one finishing: a request does not
+// wait for the previous one to write.
 func (f *Framework) ConsistentlyReconciled(ctx context.Context, o client.Object, assertion func(g gomega.Gomega)) gomega.AsyncAssertion {
 	return f.ConsistentlyReconciledAll(ctx, []client.Object{o}, assertion)
 }
@@ -276,7 +294,7 @@ func (f *Framework) ConsistentlyReconciled(ctx context.Context, o client.Object,
 // ConsistentlyReconciledAll is ConsistentlyReconciled for an assertion that
 // spans several objects, each requested independently.
 func (f *Framework) ConsistentlyReconciledAll(ctx context.Context, objs []client.Object, assertion func(g gomega.Gomega)) gomega.AsyncAssertion {
-	request := f.requesters(ctx, objs)
+	request := f.requesters(ctx, objs, quietPeriod)
 	return gomega.Consistently(func(g gomega.Gomega) {
 		request(g)
 		assertion(g)
