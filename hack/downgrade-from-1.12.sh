@@ -2,16 +2,19 @@
 # Downgrades a vela-core release from 1.12 to a 1.11 chart.
 #
 # helm rollback cannot do it: 1.12 no longer ships the builtin definitions in the release
-# manifest (a hook Job applies them), so the 1.11 release finds definitions it no longer owns.
-# This script hands them back to Helm with their 1.11 content, which a plain helm upgrade leaves
-# at 1.12, downgrades, and removes the admission webhooks only 1.12 serves.
+# manifest (a hook Job applies them). How they get their 1.11 content back depends on the target:
+#   1.11.1 and later apply them from the same kind of hook Job, which runs during the downgrade;
+#   1.11.0 renders them into the release, so this script first re-applies them with their 1.11
+#   content and hands them to Helm, which a plain helm upgrade would refuse to adopt.
+# Either way it downgrades and removes the admission webhooks only 1.12 serves.
 #
 # Usage:
 #   hack/downgrade-from-1.12.sh [-n] [--release NAME] [--namespace NS] [--version 1.11.x] [--chart REF]
 #     -n, --dry-run   show what would change; change nothing
 #     --release       Helm release name (default kubevela)
 #     --namespace     release namespace (default vela-system)
-#     --version       1.11 chart version to downgrade to (default 1.11.2, the first that keeps pinned definition revisions)
+#     --version       1.11 chart version to downgrade to (default 1.11.2, the first that keeps pinned definition
+#                     revisions)
 #     --chart         chart reference (default kubevela/vela-core; a local path works too)
 #     --image-repository  controller image repository, when a 1.12 value pinned another one
 #
@@ -38,7 +41,7 @@ while [ $# -gt 0 ]; do
 	--version) version="$2"; shift ;;
 	--chart) chart="$2"; shift ;;
 	--image-repository) image_repository="$2"; shift ;;
-	-h | --help) sed -n '2,25p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,26p' "$0"; exit 0 ;;
 	*) echo "error: unknown argument $1" >&2; exit 2 ;;
 	esac
 	shift
@@ -65,6 +68,10 @@ case "$version" in
 1.11.*) ;;
 *) echo "error: --version must be a 1.11 chart version, got $version" >&2; exit 1 ;;
 esac
+if ! helm show chart "$chart" --version "$version" >/dev/null 2>&1; then
+	echo "error: chart $chart version $version not found (helm repo add kubevela https://kubevela.github.io/charts && helm repo update, if the repo is missing)" >&2
+	exit 1
+fi
 latest="$(helm history "$release" -n "$namespace" --max 1 -o json 2>/dev/null || true)"
 current="$(echo "$latest" | sed -n 's/.*"chart":"vela-core-\([^"]*\)".*/\1/p')"
 status="$(echo "$latest" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
@@ -86,22 +93,31 @@ esac
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-# The 1.11 builtins, rendered with this release's values, are what Helm will own again.
+# The 1.11 builtins, rendered with this release's values. A chart that applies them from a hook
+# Job (1.11.1+) re-applies them itself during the downgrade; one that renders them into the
+# release (1.11.0) needs them back under Helm first.
 helm get values "$release" -n "$namespace" -o yaml >"$tmp/values.yaml"
 helm template "$release" "$chart" --version "$version" -n "$namespace" -f "$tmp/values.yaml" \
 	--output-dir "$tmp/rendered" >/dev/null
-builtins="$(find "$tmp/rendered" -path '*/templates/defwithtemplate/*' -name '*.yaml' | sort)"
-[ -n "$builtins" ] || { echo "error: the $version chart rendered no builtin definitions" >&2; exit 1; }
+builtins=""
+if [ -n "$(find "$tmp/rendered" -path '*/templates/builtin-definitions/*' -name '*.yaml')" ]; then
+	hook_job=true
+else
+	hook_job=false
+	builtins="$(find "$tmp/rendered" -path '*/templates/defwithtemplate/*' -name '*.yaml' | sort)"
+	[ -n "$builtins" ] || { echo "error: the $version chart rendered no builtin definitions" >&2; exit 1; }
+fi
 
-# 1. Put the 1.11 builtins back as 1.11 renders them, under Helm's field manager. Done before
-# the upgrade: it leaves the 1.12 content of fields the 1.11 manifest does not change, and a
-# Helm that applies server side would conflict with the 1.12 Job that applied them.
+# 1. Release-owned builtins only: put them back as 1.11 renders them, under Helm's field manager.
+# Done before the upgrade: it leaves the 1.12 content of fields the 1.11 manifest does not change,
+# and a Helm that applies server side would conflict with the 1.12 Job that applied them.
 for f in $builtins; do
 	run kubectl apply --server-side --force-conflicts --field-manager=helm -n "$namespace" -f "$f"
 done
 
-# 2. Hand the builtins to Helm, so the 1.11 release adopts rather than refuses them. After the
-# apply above: its manager may be the one that owns these labels, and would drop them.
+# 2. Release-owned builtins only: hand them to Helm, so the 1.11 release adopts rather than
+# refuses them. After the apply above: its manager may be the one that owns these labels, and
+# would drop them.
 adopt=0
 for f in $builtins; do
 	for ref in $(kubectl apply --dry-run=client -f "$f" -o name 2>/dev/null); do
@@ -114,7 +130,8 @@ for f in $builtins; do
 	done
 done
 
-# 3. Downgrade the release, keeping its values on the 1.11 chart's defaults.
+# 3. Downgrade the release, keeping its values on the 1.11 chart's defaults. A hook Job chart
+# re-applies its builtins here, and Helm fails the upgrade if that Job fails.
 image_set="--set image.tag=v$version"
 [ -n "$image_repository" ] && image_set="$image_set --set image.repository=$image_repository"
 run helm upgrade "$release" "$chart" --version "$version" -n "$namespace" --reset-then-reuse-values $image_set $helm_apply --wait --timeout 10m
@@ -137,7 +154,8 @@ for vwc in $(kubectl get validatingwebhookconfigurations -o name); do
 	done
 done
 
-# 5. Verify: nothing left to change in the builtins, and no 1.12-only webhook registered.
+# 5. Verify: nothing left to change in release-owned builtins, no 1.12-only webhook registered,
+# and the controller on the 1.11 image.
 if ! $dry_run; then
 	drift=0
 	for f in $builtins; do
@@ -153,4 +171,9 @@ fi
 
 mode=""
 $dry_run && mode=" (dry run)"
-echo "summary$mode: $release $current -> $version, $adopt builtins handed to Helm, $removed webhooks removed, $(echo "$builtins" | wc -l | tr -d ' ') builtin files re-applied"
+if $hook_job; then
+	applied="builtins re-applied by the $version chart's hook Job"
+else
+	applied="$adopt builtins handed to Helm, $(echo "$builtins" | wc -l | tr -d ' ') builtin files re-applied"
+fi
+echo "summary$mode: $release $current -> $version, $applied, $removed webhooks removed"
