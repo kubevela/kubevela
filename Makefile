@@ -12,8 +12,12 @@ all: build
 # Targets
 
 ## test: Run tests
-test: envtest unit-test-core test-cli-gen
+test: envtest unit-test-core test-cli-gen test-hack-scripts
 	@$(OK) unit-tests pass
+
+## test-hack-scripts: Run the tests of the scripts in hack/ (needs jq)
+test-hack-scripts:
+	bash ./hack/preupgrade-check-1.12_test.sh
 
 ## test-cli-gen: Run the unit tests for cli gen
 test-cli-gen: 
