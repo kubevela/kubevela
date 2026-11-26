@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/go-version"
 	"github.com/kubevela/pkg/util/k8s"
@@ -206,6 +207,10 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			pd := p.FullTemplate.PolicyDefinition.DeepCopy()
 			pd.Status = v1beta1.PolicyDefinitionStatus{}
 			appRev.Spec.PolicyDefinitions[p.FullTemplate.PolicyDefinition.Name] = *pd
+			// Each pinned revision also goes under its reference, as components do.
+			if strings.Contains(p.Reference, "@") {
+				appRev.Spec.PolicyDefinitions[p.Reference] = *pd.DeepCopy()
+			}
 		}
 	}
 	for name, def := range af.RelatedComponentDefinitions {

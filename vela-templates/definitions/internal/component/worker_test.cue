@@ -57,6 +57,50 @@ _worker: {
 	}
 }
 
+"environment from pod fields and container resources": test.#ComponentRender & _worker & {
+	parameter: {
+		image: "shop-worker:1.0"
+		env: [
+			{name: "POD_NAME", valueFrom: fieldRef: fieldPath: "metadata.name"},
+			{name: "POD_IP", valueFrom: fieldRef: {fieldPath: "status.podIP", apiVersion: "v1"}},
+			{name: "MEMORY_LIMIT", valueFrom: resourceFieldRef: {resource: "limits.memory", divisor: "1Mi"}},
+			{name: "CPU_REQUEST", valueFrom: resourceFieldRef: {resource: "requests.cpu", containerName: "main"}},
+		]
+	}
+	expect: output: spec: template: spec: containers: [{env: [
+		{name: "POD_NAME", valueFrom: fieldRef: fieldPath: "metadata.name"},
+		{name: "POD_IP", valueFrom: fieldRef: {fieldPath: "status.podIP", apiVersion: "v1"}},
+		{name: "MEMORY_LIMIT", valueFrom: resourceFieldRef: {resource: "limits.memory", divisor: "1Mi"}},
+		{name: "CPU_REQUEST", valueFrom: resourceFieldRef: {resource: "requests.cpu", containerName: "main"}},
+	]}]
+}
+
+"a container resource divisor can be a plain number": test.#ComponentRender & _worker & {
+	parameter: {
+		image: "shop-worker:1.0"
+		env: [{name: "CPU_LIMIT", valueFrom: resourceFieldRef: {resource: "limits.cpu", divisor: 1}}]
+	}
+	expect: output: spec: template: spec: containers: [{env: [
+		{name: "CPU_LIMIT", valueFrom: resourceFieldRef: {resource: "limits.cpu", divisor: 1}},
+	]}]
+}
+
+"a pod field reference needs a field path": test.#ComponentRender & _worker & {
+	parameter: {
+		image: "shop-worker:1.0"
+		env: [{name: "POD_NAME", valueFrom: fieldRef: apiVersion: "v1"}]
+	}
+	expect: error: parameter: [=~"fieldPath"]
+}
+
+"a container resource reference needs a resource": test.#ComponentRender & _worker & {
+	parameter: {
+		image: "shop-worker:1.0"
+		env: [{name: "MEMORY_LIMIT", valueFrom: resourceFieldRef: divisor: "1Mi"}]
+	}
+	expect: error: parameter: [=~"resource"]
+}
+
 "cpu is both request and limit": test.#ComponentRender & _worker & {
 	parameter: {image: "shop-worker:1.0", cpu: "500m"}
 	expect: output: spec: template: spec: containers: [{resources: {
