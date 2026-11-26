@@ -35,7 +35,8 @@ the same way:
 
 - a `credentialsSecret` parameter naming a Secret the developer or platform owns, holding
   whatever is secret for that kind of service: a login, a token, an access key pair, a
-  client certificate;
+  client certificate; left out, the component arranges for one to be generated once, under
+  the same name the consumer would look for;
 - a `<component>-connection` Secret the component emits, carrying the non-secret facts
   (host, port, database, bucket, topic, and so on) under one fixed set of key names per
   kind of service;
@@ -101,7 +102,8 @@ Each piece solves a slice. None of them says what a connection looks like.
    it: the dry run, `explain_definition`, `diagnose_application` and the real-cloud test
    suite described in the skills.
 3. Credentials never pass through KubeVela's render. The component points the provider at
-   a Secret the developer owns; it never reads, emits or copies the password.
+   a Secret the developer owns, or at one a generator created once; it never reads, emits,
+   copies or invents the password itself.
 4. The ordering problem goes away by construction: connecting to a component implies
    depending on it, and in Phase 2 implies waiting until the declared keys exist.
 5. Everything is additive. A definition that ignores the contract keeps working. A
@@ -162,14 +164,59 @@ Application's namespace.
 
 | Secret | Keys | Created by | Deleted with the Application |
 |---|---|---|---|
-| `<component>-credentials` | `username`, `password` (type `kubernetes.io/basic-auth`) | the developer or the platform, before the Application | no |
+| `<component>-credentials` | `username`, `password` (type `kubernetes.io/basic-auth`) | the developer or the platform before the Application, or a generator the component arranges when `credentialsSecret` is left out | only when generated for this Application |
 | `<component>-connection` | `type`, `provider`, `host`, `port`, `database`, and optional `uri`, `ca.crt`, `options` | the component, or the provider's controller on the component's behalf | yes |
 
 The split is deliberate. The credentials Secret carries the only thing that must stay
-secret, is never emitted by any template, and so is never adopted or garbage-collected by
-KubeVela. Rotating a password is an edit to that Secret plus whatever the provider does on
-its own. The connection Secret carries facts that are not secret, so the component can
-emit it freely, overwrite it on every reconcile, and let it go when the Application goes.
+secret, and no template ever renders its value. When the developer or platform provides
+it, KubeVela never adopts it and never garbage-collects it, so rotating a password is an
+edit to that Secret plus whatever the provider does on its own. The connection Secret
+carries facts that are not secret, so the component can emit it freely, overwrite it on
+every reconcile, and let it go when the Application goes.
+
+### Who creates the credentials Secret
+
+Two modes, chosen by whether `credentialsSecret` is set.
+
+**Provided.** `credentialsSecret` names a Secret that already exists. This is the mode for
+anything that outlives the Application: production databases, shared services, anything
+whose password is managed in a vault. The component only points the provider at it.
+
+**Generated.** `credentialsSecret` is left out. The component arranges for a Secret named
+`<component>-credentials` to be created once, with a random value, and then never changed
+by KubeVela. This is the mode for a developer trying a database, a preview environment, or
+a service nobody else connects to. The consumer side does not change, because the name is
+the one `connect` looks for anyway.
+
+Generation is never done by the render. Rendering is deterministic and runs on every
+reconcile; a random value produced there would be a new password every time, and CUE has
+no stable random. So the component delegates generation to something that does it once and
+keeps the value. Three options, in the order a definition author should prefer them:
+
+| Generator | How the component uses it | Who owns the Secret | Name the consumer sees |
+|---|---|---|---|
+| The provider's own | leave the provider's credential field unset so the operator generates: CloudNativePG creates `<name>-app`, Percona and Crunchy create `<cluster>-pguser-<user>`, ACK cannot (RDS has `manageMasterUserPassword`, which stores the secret in AWS Secrets Manager, not in the cluster) | the operator | the operator's name; Phase 2 declares it, Phase 1 needs the trait override `credentialsSecret: orders-db-app` or a projection |
+| External Secrets Operator's `Password` generator | the component emits a `Password` generator and an `ExternalSecret` with `refreshInterval: 0` targeting `<component>-credentials`, then points the provider at that Secret | the Application, through the ExternalSecret | `<component>-credentials` |
+| A built-in generator in vela-core | a `GeneratedSecret` resource or a `generate-credentials` workflow step that creates the Secret once and is a no-op afterwards; not proposed here, see "Unresolved questions" | the Application | `<component>-credentials` |
+
+The provider's own generator is best when it exists, because the operator already knows
+how to create the user with that password and often how to rotate it. Its one cost is the
+name: in Phase 1 the consumer has to be told `orders-db-app` instead of
+`orders-db-credentials`, which leaks the operator again; Phase 2 fixes that because the
+definition declares where the password lives. The ESO generator keeps the contract name but
+makes the platform install ESO. A definition says which generator it uses and what happens
+on delete.
+
+What generation changes about lifecycle: a generated Secret is owned by the Application and
+is deleted with it. For a database with a retained final snapshot that means the snapshot's
+password is gone with the Application. The definition documents this, and the guidance is
+simple: a database that must outlive its Application gets a provided credential; a database
+that is as disposable as the Application may use a generated one. A platform can enforce
+"provided only" in production namespaces through the dry-run lint.
+
+Rotation of a generated credential is whatever the generator offers: the operator's own
+mechanism, or ESO's `refreshInterval` set to something other than zero, in which case the
+consumer should mount the Secret as a file so it sees the new value without a restart.
 
 `uri`, where present, never contains the password. A framework that wants a full URL
 composes it from `host`, `port`, `database` and the credentials at start-up; the one we
@@ -189,10 +236,12 @@ row in the same table as they are added; see "Other kinds of service" below.
 
 ### What the component does with `credentialsSecret`
 
-`credentialsSecret` is a Secret that already exists. The component never creates it,
-never reads its values and never copies it. It hands the Secret's name to whatever field
-the provider uses to say "take the password from this Secret", so the credential goes from
-the Secret to the database without passing through KubeVela's render.
+In provided mode, `credentialsSecret` is a Secret that already exists. The component never
+creates it, never reads its values and never copies it. It hands the Secret's name to
+whatever field the provider uses to say "take the password from this Secret", so the
+credential goes from the Secret to the database without passing through KubeVela's render.
+In generated mode the same field receives `<component>-credentials`, or is left unset so
+the operator generates, as the table in "Who creates the credentials Secret" says.
 
 That field is different for every provider, and that difference is exactly what the
 definition hides:
@@ -429,10 +478,24 @@ owned by a different Application through its owner labels.
 `connectionSecret` and `credentialsSecret` overrides exist for the day some operator uses
 one of them anyway, and the Phase 2 declaration makes the names irrelevant.
 
-**A definition that emits a Secret with the credentials name.** It must not. KubeVela would
-adopt it and delete it with the Application, taking the password with it. The Phase 2
+**A definition that emits a Secret with a provided credentials name.** It must not. KubeVela
+would adopt it and delete it with the Application, taking the password with it. The Phase 2
 webhook rejects a template output whose name equals `parameter.credentialsSecret`; in
-Phase 1 the dry-run lint reports it.
+Phase 1 the dry-run lint reports it. A generated credential is different: there the
+Application is meant to own the Secret, and the object that creates it (an `ExternalSecret`,
+a generator resource) is an ordinary output.
+
+**A credentials Secret that exists when generation was asked for.** If `<component>-credentials`
+already exists and is not owned by this Application, the component must not take it over.
+The ESO path fails its ExternalSecret with a clear ownership error, which the diagnosis
+surfaces; a built-in generator would refuse the same way. The developer either names it
+with `credentialsSecret` or renames one of the two.
+
+**Switching from generated to provided.** Setting `credentialsSecret` on a component that
+previously generated one changes the password the provider uses. For providers that honour
+a changed credential this is a rotation; for those that read it only at bootstrap it does
+nothing until the user is recreated. The definition's rotation note covers both, and the
+dry run reports the switch as a change that touches credentials.
 
 **The credentials Secret does not exist yet.** The provider's controller fails to create
 the service and says so in its conditions. The component is not healthy, the consumer
@@ -669,6 +732,11 @@ facts it knows at render time. No projection, no copy.
    consumer composes the URL.
 5. Whether Phase 1's trait-driven `dependsOn` can be done without touching the application
    controller. Needs a prototype.
+6. Whether vela-core should grow a small built-in credential generator, a resource or a
+   workflow step that creates a random Secret once and never touches it again, so the
+   generated mode does not depend on External Secrets Operator or on the operator having
+   its own generator. It is a few hundred lines, but it is also a new thing that holds
+   secrets, and the project has so far kept that out of vela-core on purpose.
 
 ## References
 
