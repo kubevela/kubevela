@@ -400,7 +400,7 @@ func (f *Field) uiParameter() *uischema.UIParameter {
 		p.Validate.MinLength = *f.MinLength
 	}
 	for _, e := range f.Enum {
-		p.Validate.Options = append(p.Validate.Options, uischema.Option{Label: optionLabel(e), Value: e})
+		p.Validate.Options = append(p.Validate.Options, uischema.Option{Label: optionLabel(e, f.Default), Value: e})
 	}
 	for _, c := range f.Conditions {
 		p.Conditions = append(p.Conditions, c.ui())
@@ -476,11 +476,20 @@ func (f *Field) uiParameter() *uischema.UIParameter {
 	return p
 }
 
-func optionLabel(v any) string {
-	if s, ok := v.(string); ok {
+// optionLabel is the label of an enum choice. An empty string is a real
+// choice (the storage trait's emptyDir medium, for one), so it reads Default
+// when it is also the default and (empty) otherwise, never a blank line.
+func optionLabel(v, dflt any) string {
+	s, ok := v.(string)
+	switch {
+	case !ok:
+		return fmt.Sprint(v)
+	case s != "":
 		return stringtools.Capitalize(s)
+	case dflt == "":
+		return "Default"
 	}
-	return fmt.Sprint(v)
+	return "(empty)"
 }
 
 // formFields are the fields a form shows for a value: an object's own, or
