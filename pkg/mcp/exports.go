@@ -35,7 +35,8 @@ const (
 // FieldExport, or any custom resource that writes a connection Secret the
 // way Crossplane managed resources and Terraform Configurations do. The
 // target's content is never read; whether the value landed is taken from
-// the exporter's own conditions, and is unknown when it writes none.
+// the exporter's own conditions, and is unknown when it writes none or
+// when its family's conditions are missing so its readiness is unknown.
 type ExportDetail struct {
 	SourceGroup     string `json:"sourceGroup,omitempty" jsonschema:"API group of the resource the value is read from."`
 	SourceKind      string `json:"sourceKind,omitempty" jsonschema:"Kind of the resource the value is read from."`
@@ -46,8 +47,9 @@ type ExportDetail struct {
 	TargetNamespace string `json:"targetNamespace,omitempty" jsonschema:"Namespace of the target when the exporter names one; otherwise the exporter's own namespace."`
 	TargetKey       string `json:"targetKey,omitempty" jsonschema:"Key written in the target; empty when the exporter writes several keys, such as a connection Secret."`
 	// Written is nil when the exporter writes no conditions, so its
-	// verdict came from the resource tree, which cannot say.
-	Written *bool `json:"written,omitempty" jsonschema:"True when the exporter's own conditions say the target has been written, false when they say it has not. Absent when the resource writes no conditions and was judged from the resource tree, which cannot tell. The target is never read."`
+	// verdict came from the resource tree, which cannot say, and when its
+	// readiness is unknown because the family's conditions are missing.
+	Written *bool `json:"written,omitempty" jsonschema:"True when the exporter's own conditions say the target has been written, false when they say it has not. Absent when the resource writes no conditions and was judged from the resource tree, which cannot tell, and when its readiness is unknown because the conditions its family reads are missing. The target is never read."`
 }
 
 // exportOf reads what a resource exports for workloads, or nil when it is not
