@@ -24,6 +24,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/kubevela/workflow/pkg/providers/http"
+	"github.com/kubevela/workflow/pkg/providers/legacy"
 )
 
 // childEnvVar marks the re-executed copy of this test binary that does the
@@ -93,6 +96,18 @@ func TestDefaultCompilerInProcess(t *testing.T) {
 
 	if c := DefaultCompiler.Get(); c == nil {
 		t.Fatal("expected a usable compiler when no kubeconfig is available")
+	}
+}
+
+func TestAllowStandardHTTPMethods(t *testing.T) {
+	narrow := "method: " + narrowHTTPMethods
+	wide := allowStandardHTTPMethods(narrow)
+	require.Equal(t, "method: "+standardHTTPMethods, wide)
+	require.Equal(t, wide, allowStandardHTTPMethods(wide))
+	for _, tmpl := range []string{http.GetTemplate(), legacy.GetLegacyTemplate()} {
+		got := allowStandardHTTPMethods(tmpl)
+		require.NotContains(t, got, narrowHTTPMethods)
+		require.Contains(t, got, standardHTTPMethods)
 	}
 }
 

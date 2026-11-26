@@ -15,6 +15,25 @@ _ok: mocks: "vela/http": "#HTTPDo": $returns: {statusCode: 200, body: "{\"versio
 	}
 }
 
+"sends a PATCH": test.#WorkflowStepExec & _ok & {
+	definition: "request"
+	parameter: {
+		url:    "https://api.example.com/thing/1"
+		method: "PATCH"
+		body: {status: "ready"}
+	}
+	expect: {
+		phase: "succeeded"
+		calls: "vela/http": "#HTTPDo": [{$params: {
+			method: "PATCH"
+			url:    "https://api.example.com/thing/1"
+			request: {
+				body: "{\"status\":\"ready\"}"
+			} @exact()
+		}}]
+	}
+}
+
 "sends the body as JSON with the given method and header": test.#WorkflowStepExec & _ok & {
 	definition: "request"
 	parameter: {

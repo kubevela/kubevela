@@ -18,6 +18,7 @@ package providers
 
 import (
 	"context"
+	"strings"
 
 	"github.com/kubevela/pkg/cue/cuex"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
@@ -55,16 +56,30 @@ const (
 	QLProviderName = "ql"
 )
 
+// The workflow module's HTTP schemas still allow only GET, POST, PUT and DELETE.
+// The request step accepts the full standard set, and the provider passes the
+// method through to the client, so widen the schemas KubeVela registers until
+// kubevela/workflow#295 is in the dependency. The wider form does not contain
+// the narrower one, so this is a no-op once the module already allows them.
+const (
+	narrowHTTPMethods   = `*"GET" | "POST" | "PUT" | "DELETE"`
+	standardHTTPMethods = `*"GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "CONNECT" | "OPTIONS" | "TRACE" | "PATCH"`
+)
+
+func allowStandardHTTPMethods(template string) string {
+	return strings.ReplaceAll(template, narrowHTTPMethods, standardHTTPMethods)
+}
+
 // WorkflowPackages are the packages a workflow step template can import.
 func WorkflowPackages() []cuexruntime.Package {
 	return []cuexruntime.Package{
 		// legacy packages
-		runtime.Must(cuexruntime.NewInternalPackage(LegacyProviderName, legacy.GetLegacyTemplate(), legacy.GetLegacyProviders())),
+		runtime.Must(cuexruntime.NewInternalPackage(LegacyProviderName, allowStandardHTTPMethods(legacy.GetLegacyTemplate()), legacy.GetLegacyProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage(QLProviderName, legacyquery.GetTemplate(), legacyquery.GetProviders())),
 
 		// workflow internal packages
 		runtime.Must(cuexruntime.NewInternalPackage("email", email.GetTemplate(), email.GetProviders())),
-		runtime.Must(cuexruntime.NewInternalPackage("http", http.GetTemplate(), http.GetProviders())),
+		runtime.Must(cuexruntime.NewInternalPackage("http", allowStandardHTTPMethods(http.GetTemplate()), http.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("kube", kube.GetTemplate(), kube.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("metrics", metrics.GetTemplate(), metrics.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("time", time.GetTemplate(), time.GetProviders())),
