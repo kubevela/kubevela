@@ -1,9 +1,1 @@
-{
- "featureGates": {
-  "enableGlobalPolicies": true
- },
- "controllerArgs": {
-  "allowNamespaceGlobalPolicies": true,
-  "allowSkipGlobalPolicies": true
- }
-}
+{"featureGates":{"enableGlobalPolicies":true,"enableApplicationScopedPolicies":true},"controllerArgs":{"allowNamespaceGlobalPolicies":true,"allowSkipGlobalPolicies":true}}

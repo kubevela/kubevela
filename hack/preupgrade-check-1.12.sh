@@ -288,6 +288,7 @@ def first_version: {
    RestrictDefinitionNamespaces: gate($vals.featureGates.restrictDefinitionNamespaces; "RestrictDefinitionNamespaces"; true),
    AuthenticateApplication: gate($vals.authentication.enabled; "AuthenticateApplication"; false),
    EnableGlobalPolicies: gate($vals.featureGates.enableGlobalPolicies; "EnableGlobalPolicies"; false),
+   EnableApplicationScopedPolicies: gate($vals.featureGates.enableApplicationScopedPolicies; "EnableApplicationScopedPolicies"; false),
    allowNamespaceGlobalPolicies: ($vals.controllerArgs.allowNamespaceGlobalPolicies // false),
    allowSkipGlobalPolicies: ($vals.controllerArgs.allowSkipGlobalPolicies // false)} as $after
 
@@ -657,8 +658,8 @@ def first_version: {
         "set serviceAccountName to an account in \($a.metadata.namespace) with the permissions the command needs (kubevela-vela-core, in vela-system only)";
         notes) ),
 
-# 7. Global policy defaults.
-  ( select($after.EnableGlobalPolicies)
+# 7. Global policy defaults. Global policies run only with both gates on.
+  ( select($after.EnableGlobalPolicies and $after.EnableApplicationScopedPolicies)
     | ( select($after.allowNamespaceGlobalPolicies | not)
         | items($pdefs)[] | select(.spec.global == true and .metadata.namespace != $sysns)
         | f("error"; "global-policies"; "PolicyDefinition \(nn)";

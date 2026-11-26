@@ -1,0 +1,4 @@
+{"items":[
+ {"metadata":{"namespace":"team-a","name":"opts-out","annotations":{"policy.oam.dev/skip-global":"true"}},"spec":{"components":[]}},
+ {"metadata":{"namespace":"team-a","name":"stays-in","annotations":{"policy.oam.dev/skip-global":"false"}},"spec":{"components":[]}}
+]}
