@@ -180,8 +180,9 @@ every reconcile, and let it go when the Application goes.
 
 ### Who creates the credentials Secret
 
-Two modes, chosen by whether `credentialsSecret` is set. Generated is the default, so the
-common case needs nobody's help.
+Three modes. The first two are chosen by whether `credentialsSecret` is set, and generated
+is the default, so the common case needs nobody's help. The third, dynamic, is chosen by the
+definition and has no Secret at all; it has its own section below.
 
 **Provided.** `credentialsSecret` names a Secret that already exists. This is the mode for
 anything that outlives the Application: production databases, shared services, anything
@@ -269,6 +270,88 @@ rather than vela-core:
 The one case that cannot heal is a hand-made provided Secret with no copy anywhere and a
 provider that only reads it at bootstrap. The contract does not forbid it, but the dry run
 reports it as "credential has no recovery path" so the developer chooses it knowingly.
+
+### Dynamic credentials: no Secret at all
+
+The provided and generated modes both store a password somewhere. The third mode does not.
+A vault that supports dynamic database credentials (OpenBao and Vault do, for Postgres,
+MySQL, MongoDB, Redis and most others) creates a fresh database user on demand, hands it to
+the workload with an expiry, and drops the user when the lease ends. Every pod gets its own
+user, nothing is stored, nothing is rotated by hand, and the database log names the workload
+instead of a shared account.
+
+How it fits the contract: `credentials` becomes a kind declared by the definition rather than
+a Secret the developer names.
+
+```yaml
+- name: orders-db
+  type: aurora-postgres
+  properties:
+    credentials:
+      kind: dynamic              # provided | generated | dynamic
+      role: orders-app           # the vault role; the platform defines it once
+```
+
+Where the pieces live:
+
+- **The vault role** is platform-owned. It holds the one long-lived privileged account for
+  that database, the SQL that creates a user with the right grants, and the lease times. It
+  is written once per database and per access level, which is the same unit as the `users`
+  list in provided mode: `orders-app` and `orders-reporting` are two roles.
+- **Who may ask** is decided by the vault's auth method, not by KubeVela. In a cluster the
+  workload authenticates with its service account token, and a vault role binds that
+  service account and namespace to a policy that allows exactly one database role. On AWS
+  the workload can authenticate with its IAM role instead, which is the better fit when the
+  same identity also reaches S3 or SQS. Nobody files for a database account; the platform
+  binds an identity to a role once and every pod with that identity gets credentials by
+  asking.
+- **Delivery into the pod** is a sidecar or a CSI volume, not a `secretKeyRef`. The
+  `connect` trait, for a producer whose credentials are dynamic, mounts the vault agent or
+  the Secrets Store CSI driver's volume at `mountPath` and renders `username` and
+  `password` as file paths. Environment variables are not offered for this kind, because the
+  value changes while the pod runs and an env var cannot.
+- **Renewal** is the agent's job. It renews the lease before it expires, and the same user,
+  password and grants stay valid. When the lease reaches its maximum the agent asks for a
+  new pair, rewrites the files, and the old user is dropped shortly after. Access is
+  identical each time because the grants come from the role's SQL, not from the user.
+- **The connection facts** are unchanged: `<component>-connection` still carries `type`,
+  `provider`, `host`, `port` and `database`, filled the same way as before. Only the
+  credential half moves.
+
+What the definition author does: the Aurora, CNPG or Crossplane definition still creates the
+database, and in dynamic mode also creates or references the vault role for it, with the
+privileged account the vault needs. On ACK that privileged account is the master user and
+its password is the one stored credential left, held by the vault and nowhere else; the
+definition in dynamic mode may still take `adminCredentialsSecret` for it, or the vault can
+own it through its own rotation. In Phase 2 the definition's `connection` block declares the
+credential kind and the role, so the trait, the dry run and the diagnosis know not to look
+for a Secret.
+
+What this does to the deletion table: there is nothing to delete. The failure modes move to
+the vault being unreachable, which the agent reports and the diagnosis surfaces as a consumer
+whose credential source is down, and to the privileged account being revoked, which shows
+up as the vault failing to create users.
+
+Auditing works as a join. The vault's audit log records which identity asked for which role
+and which user name it was given; the user name is templated to carry the role and a
+timestamp. The database's own log records each statement with that user name. Joining the
+two says: this statement, by this user, which the vault issued to service account `web` in
+namespace `orders` at this time. One service account per workload gives workload-level
+attribution; pod-level attribution needs the pod name recorded at login, which projected
+service account tokens carry as a claim and which the vault's Kubernetes auth method can
+store as alias metadata in recent versions, to be confirmed for the pinned version.
+
+AWS has a vault-free cousin, RDS IAM database authentication: a database user is created
+once and marked IAM-authenticated, an IAM policy grants `rds-db:connect` on it, and the
+workload asks AWS for a fifteen-minute token to use as the password. It removes the stored
+password but keeps one shared user per IAM role, so it sits between generated and dynamic.
+A definition can offer it as `credentials.kind: iam` on providers that support it, with the
+same file-based delivery, and it is listed here so the vocabulary has a place for it rather
+than as something the first version builds.
+
+Dynamic credentials are a Phase 2 kind. Phase 1 definitions support provided and generated
+only, and a Phase 1 Application that wants dynamic credentials wires the agent itself, as it
+would today.
 
 `uri`, where present, never contains the password. A framework that wants a full URL
 composes it from `host`, `port`, `database` and the credentials at start-up; the one we
@@ -377,7 +460,10 @@ What it renders, for `component: orders-db, prefix: DB_`:
   the pod;
 - with `mountPath`, a projected volume combining both Secrets under one directory, one
   file per key, plus a `type` file, which is the directory layout binding-aware frameworks
-  read.
+  read;
+- for a producer whose credentials are dynamic (Phase 2), the agent or CSI volume at
+  `mountPath` instead of a credentials Secret, with `username` and `password` as files
+  only; `prefix` then injects the file paths, never the values.
 
 In Phase 1 the trait resolves Secret names by convention from the component name. It
 cannot see the producer's definition at render time, because a trait only sees its own
@@ -617,7 +703,8 @@ whatever issues them, usually External Secrets Operator or a workload identity m
 by rewriting the credentials Secret. A consumer that reads it through environment variables
 keeps the old value until it restarts; one that mounts it as a file sees the new value. The
 definition's vocabulary row says which consumption method the type expects, and the trait
-defaults to files for types whose credentials are expected to rotate.
+defaults to files for types whose credentials are expected to rotate. Dynamic credentials
+are the extreme case: they change on a schedule by design, so they are files only.
 
 **No credential at all.** A service with `credentialsSecret` absent renders only the
 connection keys, and the Phase 2 wait-for-keys waits only on those. A definition that
@@ -767,7 +854,9 @@ facts it knows at render time. No projection, no copy.
 5. **Follow-ups.** Cross-cluster consumers; a `users` component that works across
    databases; vocabulary rows for queues, object stores and APIs confirmed as the first
    definitions of each land; a `webservice` that follows the contract as a producer so
-   service-to-service calls use the same trait.
+   service-to-service calls use the same trait; dynamic credentials as a declared kind, with
+   one database definition creating its vault role and the `connect` trait mounting the
+   agent volume.
 
 ## Unresolved questions
 
@@ -791,6 +880,14 @@ facts it knows at render time. No projection, no copy.
    generated mode does not depend on External Secrets Operator or on the operator having
    its own generator. It is a few hundred lines, but it is also a new thing that holds
    secrets, and the project has so far kept that out of vela-core on purpose.
+7. For dynamic credentials, which delivery mechanism the `connect` trait should render by
+   default: a vault agent sidecar, the Secrets Store CSI driver, or the vault's own
+   Kubernetes operator writing a short-lived Secret. They differ in what the platform must
+   install and in whether the credential ever touches the API server. Likely answer: the
+   platform declares it once, like the secret store, and the trait reads that.
+8. Whether a definition in dynamic mode should create the vault role itself, which puts a
+   vault client in the component's reconcile path, or only reference a role the platform
+   created, which keeps the component thin but adds a step for every new database.
 
 ## References
 
@@ -804,3 +901,10 @@ facts it knows at render time. No projection, no copy.
   `-rw`/`-ro`/`-r`.
 - AWS Controllers for Kubernetes: `FieldExport`, RDS `DBCluster.spec.masterUserPassword`.
 - Crossplane: `writeConnectionSecretToRef`, `masterPasswordSecretRef` on the RDS Cluster.
+- External Secrets Operator: `ExternalSecret`, `ClusterSecretStore`, the `Password`
+  generator, `PushSecret`, and the Kubernetes provider.
+- OpenBao and Vault: the database secrets engine (dynamic credentials, leases, username
+  templates), the Kubernetes and AWS auth methods, audit devices.
+- Secrets Store CSI driver and the vault agent injector, as delivery mechanisms for
+  dynamic credentials.
+- Amazon RDS: IAM database authentication and the `rds-db:connect` action.
