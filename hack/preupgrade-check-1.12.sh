@@ -429,7 +429,7 @@ def first_version: {
     end;
 
 # Builtin definitions the 1.12 chart ships, by kind; it stamps definitionRestrictions on them.
-  {"ComponentDefinition": "addon cron-task daemon helmchart k8s-objects module raw ref-objects statefulset task webservice worker",
+  {"ComponentDefinition": "addon crate cron-task daemon helmchart k8s-objects raw ref-objects statefulset task webservice worker",
    "TraitDefinition": "affinity annotations command configmap container-image container-ports cpuscaler env expose gateway hostalias hpa ingress ingress-1-20 init-container json-merge-patch json-patch k8s-update-strategy labels lifecycle nocalhost node-affinity podsecuritycontext pure-ingress pvc resource scaler securitycontext service-account service-binding sidecar startup-probe storage topologyspreadconstraints volumes",
    "PolicyDefinition": "apply-once envbinding garbage-collect override read-only replication resource-update shared-resource take-over topology",
    "WorkflowStepDefinition": "apply-application apply-application-in-parallel apply-component apply-deployment apply-object apply-remaining apply-terraform-config apply-terraform-provider build-push-image check-metrics clean-jobs collect-service-endpoints create-config delete-config depends-on-app deploy deploy-cloud-resource deploy-components deploy2env deploy2runtime export-data export-service export2config export2secret generate-jdbc-connection list-config notification print-message-in-status read-config read-object request restart-workflow share-cloud-resource step-group suspend vela-cli webhook"}
