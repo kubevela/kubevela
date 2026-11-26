@@ -206,7 +206,7 @@ func NewCrateDeployCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 		},
 	}
 	cmd.Flags().StringVar(&o.registry, crateDeployRegistryFlag, "", "The crate registry to deploy from. Empty means the configured default.")
-	cmd.Flags().StringVar(&o.version, crateDeployVersionFlag, "", "The crate package version (OCI/ECR tag) to install. Empty installs the latest published version.")
+	cmd.Flags().StringVar(&o.version, crateDeployVersionFlag, "", "The crate package version (OCI/ECR tag) to install. Empty resolves to the highest published tag when the installer runs; a newer tag does not upgrade the install, so set it on each install and upgrade.")
 	cmd.Flags().BoolVar(&o.dryRun, crateDeployDryRunFlag, false, "Print the Application without applying it.")
 	cmd.Flags().StringSliceVar(&o.clusters, crateDeployClustersFlag, nil, "The clusters to put the crate's runtime objects on. Hub objects and definitions stay on the local cluster.")
 	cmd.Flags().StringToStringVar(&o.clusterSelector, crateDeployClusterSelectorFlag, nil, "Put the crate's runtime objects on the clusters with these labels, as k=v[,k=v]. Cannot be used with --clusters.")
