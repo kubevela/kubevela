@@ -32,10 +32,19 @@ import (
 // a consumer reads.
 var workloadKinds = map[string]bool{"Deployment": true, "StatefulSet": true, "DaemonSet": true, "Job": true, "CronJob": true}
 
-// consumedRef is one Secret or ConfigMap a pod template reads, through an
-// env value, an envFrom block or a volume.
+// How a pod template reads a Secret or ConfigMap. A value read through env
+// is fixed when the container starts; a mounted file updates in place.
+const (
+	viaEnv    = "env"
+	viaVolume = "volume"
+)
+
+// consumedRef is one Secret or ConfigMap a pod template reads. An optional
+// reference does not block the pod, so it is never a dependency.
 type consumedRef struct {
 	kind, name, key string
+	via             string
+	optional        bool
 }
 
 // producer is who fills a Secret or ConfigMap in this Application: an
@@ -53,7 +62,8 @@ func producerKey(cluster, namespace, kind, name string) string {
 // producersOf maps every Secret and ConfigMap this Application fills to the
 // component that fills it. A component that manages the object directly is
 // recorded first; an exporter writing into it takes precedence, because it
-// is the more specific fact.
+// is the more specific fact. An exporter's target lives in the namespace it
+// names, else the exporter's own.
 func producersOf(applied []querytypes.AppliedResource, resources []ResourceDiagnosis) map[string]producer {
 	producers := map[string]producer{}
 	for i := range applied {
@@ -68,20 +78,29 @@ func producersOf(applied []querytypes.AppliedResource, resources []ResourceDiagn
 		if r.Export == nil {
 			continue
 		}
-		producers[producerKey(r.Cluster, r.Namespace, r.Export.TargetKind, r.Export.TargetName)] = producer{component: r.Component, exporter: r}
+		ns := r.Export.TargetNamespace
+		if ns == "" {
+			ns = r.Namespace
+		}
+		producers[producerKey(r.Cluster, ns, r.Export.TargetKind, r.Export.TargetName)] = producer{component: r.Component, exporter: r}
 	}
 	return producers
 }
 
 // linkConsumers explains a plain workload that is not ready by what it reads
-// from another component: a key an exporter has not written yet, or an
-// object filled by a component whose own resources are still not ready. It
-// reads each such workload once, inside the diagnosis's live-read bound, and
-// only when the Application fills something a workload could read. The
-// dependsOn edge decides who owns the fix: the Application spec when the
-// edge is missing, the producer's definition when it is declared and the
-// producer still reported healthy too early.
-func (d *deps) linkConsumers(ctx context.Context, app *v1beta1.Application, applied []querytypes.AppliedResource, out *DiagnoseApplicationOutput, reads *int) {
+// from another component: a key an exporter says it has not written, or an
+// object filled by a component whose own resources are not ready. It reads
+// each such workload once, inside the diagnosis's live-read bound, and only
+// when the Application fills something a workload could read. A diagnosis
+// narrowed to one component holds no producers from the others, so it skips
+// the read and says so. The dependsOn edge decides who owns the fix: the
+// Application spec when the edge is missing, the producer's definition when
+// it is declared and the producer still reported healthy too early.
+func (d *deps) linkConsumers(ctx context.Context, app *v1beta1.Application, applied []querytypes.AppliedResource, out *DiagnoseApplicationOutput, reads *int, component string) {
+	if component != "" {
+		out.Unknowns = append(out.Unknowns, fmt.Sprintf("whether a workload of component %q waits on another component was not checked: the diagnosis was narrowed to that component; diagnose the whole Application to see it", component))
+		return
+	}
 	producers := producersOf(applied, out.Resources)
 	if len(producers) == 0 {
 		return
@@ -112,11 +131,14 @@ func (d *deps) linkConsumers(ctx context.Context, app *v1beta1.Application, appl
 		}
 		out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s, read for the Secrets and ConfigMaps its pod template consumes", r.Kind, r.Namespace, r.Name, r.Cluster, obj.GetResourceVersion()))
 		for _, ref := range consumedRefs(obj) {
+			if ref.optional {
+				continue
+			}
 			p, ok := producers[producerKey(r.Cluster, r.Namespace, ref.kind, ref.name)]
 			if !ok || p.component == r.Component {
 				continue
 			}
-			key := r.Component + "\x00" + p.component + "\x00" + ref.kind + "\x00" + ref.name
+			key := r.Cluster + "\x00" + r.Namespace + "\x00" + r.Component + "\x00" + p.component + "\x00" + ref.kind + "\x00" + ref.name
 			if seen[key] {
 				continue
 			}
@@ -141,8 +163,9 @@ func (d *deps) readLive(ctx context.Context, r *ResourceDiagnosis) (*unstructure
 }
 
 // consumerFinding states why a consumer that is not ready may be waiting on
-// its producer. It is empty when the producer has done its part: the
-// consumer's problem is then its own.
+// its producer. It is empty when the producer has done its part, or when
+// the producer's state is not known: the consumer's problem is then its
+// own, or cannot be settled from here.
 func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared bool, resources []ResourceDiagnosis) (Finding, bool) {
 	what := fmt.Sprintf("%s %s reads %s %q", r.Kind, r.Name, ref.kind, ref.name)
 	if ref.key != "" {
@@ -150,7 +173,7 @@ func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared
 	}
 	var why string
 	switch {
-	case p.exporter != nil && !p.exporter.Export.Written:
+	case p.exporter != nil && p.exporter.Export.Written != nil && !*p.exporter.Export.Written:
 		why = fmt.Sprintf("which %s %s of component %q has not written yet", p.exporter.Kind, p.exporter.Name, p.component)
 	default:
 		nr := notReadyOf(resources, p.component)
@@ -159,31 +182,41 @@ func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared
 		}
 		why = fmt.Sprintf("which component %q fills while its %s %s is %s", p.component, nr.Kind, nr.Name, nr.State)
 	}
+	consequence := "the consumer started before its provider was usable and fails until the provider is ready"
+	if ref.via == viaEnv {
+		consequence += " and, since a value read through env is fixed at container start, it restarts"
+	} else {
+		consequence += "; the mounted file updates in place once written"
+	}
 	ordering := fmt.Sprintf("%q declares no dependsOn on %q, so the workflow applied both at once; the fix is in the Application spec", r.Component, p.component)
 	if declared {
 		ordering = fmt.Sprintf("%q depends on %q, so the workflow released it when %q reported healthy; that component's health rule does not cover everything a consumer needs, and the fix is in its definition", r.Component, p.component, p.component)
 	}
 	return Finding{
 		Severity: SeverityWarning,
-		Message:  fmt.Sprintf("component %q: %s, %s; the consumer started before its provider was usable and fails until the provider is ready and it restarts. %s", r.Component, what, why, ordering),
+		Message:  fmt.Sprintf("component %q: %s, %s; %s. %s", r.Component, what, why, consequence, ordering),
 		Observed: text(r.Summary),
 		Evidence: fmt.Sprintf("%s %s/%s in cluster %s", r.Kind, r.Namespace, r.Name, r.Cluster),
 	}, true
 }
 
-// notReadyOf returns the first diagnosed resource of a component that is not
-// ready, or nil.
+// notReadyOf returns the first diagnosed resource of a component that is
+// known not to be ready, or nil. A resource whose state is unknown, after a
+// failed read or the read bound, is not evidence either way.
 func notReadyOf(resources []ResourceDiagnosis, component string) *ResourceDiagnosis {
 	for i := range resources {
-		if resources[i].Component == component && !resources[i].Ready {
-			return &resources[i]
+		r := &resources[i]
+		if r.Component == component && (r.State == stateNotReady || r.State == stateHalted) {
+			return r
 		}
 	}
 	return nil
 }
 
 // consumedRefs lists the Secrets and ConfigMaps a workload's pod template
-// reads, in the order they appear, without duplicates.
+// reads, in the order they appear, without duplicates: env values, envFrom
+// blocks, and Secret, ConfigMap and projected volumes, in init and regular
+// containers.
 func consumedRefs(obj *unstructured.Unstructured) []consumedRef {
 	podSpecPath := []string{"spec", "template", "spec"}
 	if obj.GetKind() == "CronJob" {
@@ -195,15 +228,19 @@ func consumedRefs(obj *unstructured.Unstructured) []consumedRef {
 	}
 	var refs []consumedRef
 	seen := map[consumedRef]bool{}
-	add := func(kind, name, key string) {
+	add := func(kind, name, key, via string, optional bool) {
 		if name == "" {
 			return
 		}
-		ref := consumedRef{kind: kind, name: name, key: key}
+		ref := consumedRef{kind: kind, name: name, key: key, via: via, optional: optional}
 		if !seen[ref] {
 			seen[ref] = true
 			refs = append(refs, ref)
 		}
+	}
+	isOptional := func(sel map[string]any) bool {
+		optional, _ := sel["optional"].(bool)
+		return optional
 	}
 	for _, field := range []string{"initContainers", "containers"} {
 		containers, _ := podSpec[field].([]any)
@@ -214,20 +251,20 @@ func consumedRefs(obj *unstructured.Unstructured) []consumedRef {
 				env, _ := e.(map[string]any)
 				from, _ := env["valueFrom"].(map[string]any)
 				if sel, ok := from["secretKeyRef"].(map[string]any); ok {
-					add(secretKind, stringAt(sel, "name"), stringAt(sel, "key"))
+					add(secretKind, stringAt(sel, "name"), stringAt(sel, "key"), viaEnv, isOptional(sel))
 				}
 				if sel, ok := from["configMapKeyRef"].(map[string]any); ok {
-					add("ConfigMap", stringAt(sel, "name"), stringAt(sel, "key"))
+					add("ConfigMap", stringAt(sel, "name"), stringAt(sel, "key"), viaEnv, isOptional(sel))
 				}
 			}
 			froms, _ := container["envFrom"].([]any)
 			for _, f := range froms {
 				from, _ := f.(map[string]any)
 				if sel, ok := from["secretRef"].(map[string]any); ok {
-					add(secretKind, stringAt(sel, "name"), "")
+					add(secretKind, stringAt(sel, "name"), "", viaEnv, isOptional(sel))
 				}
 				if sel, ok := from["configMapRef"].(map[string]any); ok {
-					add("ConfigMap", stringAt(sel, "name"), "")
+					add("ConfigMap", stringAt(sel, "name"), "", viaEnv, isOptional(sel))
 				}
 			}
 		}
@@ -236,10 +273,21 @@ func consumedRefs(obj *unstructured.Unstructured) []consumedRef {
 	for _, v := range volumes {
 		volume, _ := v.(map[string]any)
 		if sel, ok := volume["secret"].(map[string]any); ok {
-			add(secretKind, stringAt(sel, "secretName"), "")
+			add(secretKind, stringAt(sel, "secretName"), "", viaVolume, isOptional(sel))
 		}
 		if sel, ok := volume["configMap"].(map[string]any); ok {
-			add("ConfigMap", stringAt(sel, "name"), "")
+			add("ConfigMap", stringAt(sel, "name"), "", viaVolume, isOptional(sel))
+		}
+		projected, _ := volume["projected"].(map[string]any)
+		sources, _ := projected["sources"].([]any)
+		for _, s := range sources {
+			source, _ := s.(map[string]any)
+			if sel, ok := source["secret"].(map[string]any); ok {
+				add(secretKind, stringAt(sel, "name"), "", viaVolume, isOptional(sel))
+			}
+			if sel, ok := source["configMap"].(map[string]any); ok {
+				add("ConfigMap", stringAt(sel, "name"), "", viaVolume, isOptional(sel))
+			}
 		}
 	}
 	return refs

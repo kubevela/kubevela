@@ -213,7 +213,41 @@ var _ = Describe("diagnose_application consumers", func() {
 		Expect(consumerFindings(out)).To(BeEmpty(), toJSON(out.Findings))
 	})
 
-	It("reads the pod template of every workload kind and reports each reference once", func() {
+	It("blames the producer only when its state is known, never after a read-bound cutoff", func() {
+		// exporter unsynced but the DBInstance could not be read: the
+		// exporter's own verdict still says unwritten, so the finding stands
+		// on that and never on the instance
+		h = startHarness(Options{}, consumerObjects(consumerFixture{dependsOn: true, exportWritten: true, instanceSynced: "False"})...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(consumerFindings(out)).To(HaveLen(1))
+		Expect(consumerFindings(out)[0].Message).To(ContainSubstring("is NotReady"))
+	})
+
+	It("skips the consumer read and says so when the diagnosis reached its live-read bound", func() {
+		old := maxDiagnoseReads
+		maxDiagnoseReads = 3 // the DBCluster, the DBInstance and the FieldExport use it up
+		DeferCleanup(func() { maxDiagnoseReads = old })
+		h = startHarness(Options{}, consumerObjects(consumerFixture{exportWritten: false, instanceSynced: "False"})...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(consumerFindings(out)).To(BeEmpty(), toJSON(out.Findings))
+		Expect(out.Meta.Truncated).To(BeTrue())
+		Expect(out.Unknowns).To(ContainElement("Deployment team-a/petclinic was not read for what it consumes: the diagnosis reached its bound of 3 live reads; narrow by component"))
+	})
+
+	It("skips the cross-component check and says so when narrowed to one component", func() {
+		h = startHarness(Options{}, consumerObjects(consumerFixture{exportWritten: false, instanceSynced: "False"})...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", map[string]any{"name": "petclinic", "namespace": "team-a", "component": "petclinic"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		Expect(consumerFindings(out)).To(BeEmpty(), toJSON(out.Findings))
+		Expect(out.Unknowns).To(ContainElement(ContainSubstring(`whether a workload of component "petclinic" waits on another component was not checked: the diagnosis was narrowed to that component`)))
+	})
+
+	It("extracts consumed references from a CronJob pod template and reports each reference once", func() {
 		cj := &unstructured.Unstructured{Object: map[string]any{
 			"apiVersion": "batch/v1", "kind": "CronJob",
 			"spec": map[string]any{"jobTemplate": map[string]any{"spec": map[string]any{"template": map[string]any{"spec": map[string]any{
@@ -221,14 +255,41 @@ var _ = Describe("diagnose_application consumers", func() {
 				"containers": []any{map[string]any{"name": "job", "env": []any{
 					map[string]any{"name": "A", "valueFrom": map[string]any{"configMapKeyRef": map[string]any{"name": "settings", "key": "a"}}},
 					map[string]any{"name": "B", "valueFrom": map[string]any{"configMapKeyRef": map[string]any{"name": "settings", "key": "a"}}},
+					map[string]any{"name": "C", "valueFrom": map[string]any{"secretKeyRef": map[string]any{"name": "maybe", "key": "c", "optional": true}}},
 				}}},
-				"volumes": []any{map[string]any{"name": "v", "configMap": map[string]any{"name": "settings"}}},
+				"volumes": []any{
+					map[string]any{"name": "v", "configMap": map[string]any{"name": "settings"}},
+					map[string]any{"name": "p", "projected": map[string]any{"sources": []any{
+						map[string]any{"secret": map[string]any{"name": "tls"}},
+						map[string]any{"configMap": map[string]any{"name": "ca", "optional": true}},
+					}}},
+				},
 			}}}}},
 		}}
 		Expect(consumedRefs(cj)).To(Equal([]consumedRef{
-			{kind: "Secret", name: "creds"},
-			{kind: "ConfigMap", name: "settings", key: "a"},
-			{kind: "ConfigMap", name: "settings"},
+			{kind: "Secret", name: "creds", via: viaEnv},
+			{kind: "ConfigMap", name: "settings", key: "a", via: viaEnv},
+			{kind: "Secret", name: "maybe", key: "c", via: viaEnv, optional: true},
+			{kind: "ConfigMap", name: "settings", via: viaVolume},
+			{kind: "Secret", name: "tls", via: viaVolume},
+			{kind: "ConfigMap", name: "ca", via: viaVolume, optional: true},
 		}))
 	})
 })
+
+var _ = DescribeTable("consumedRefs finds the pod template of every workload kind",
+	func(apiVersion, kind string, cronJob bool) {
+		podSpec := map[string]any{"containers": []any{map[string]any{"name": "c", "envFrom": []any{map[string]any{"secretRef": map[string]any{"name": "creds"}}}}}}
+		spec := map[string]any{"template": map[string]any{"spec": podSpec}}
+		if cronJob {
+			spec = map[string]any{"jobTemplate": map[string]any{"spec": spec}}
+		}
+		obj := &unstructured.Unstructured{Object: map[string]any{"apiVersion": apiVersion, "kind": kind, "spec": spec}}
+		Expect(consumedRefs(obj)).To(Equal([]consumedRef{{kind: "Secret", name: "creds", via: viaEnv}}))
+	},
+	Entry("Deployment", "apps/v1", "Deployment", false),
+	Entry("StatefulSet", "apps/v1", "StatefulSet", false),
+	Entry("DaemonSet", "apps/v1", "DaemonSet", false),
+	Entry("Job", "batch/v1", "Job", false),
+	Entry("CronJob", "batch/v1", "CronJob", true),
+)
