@@ -58,7 +58,7 @@ matching the Makefile exactly:
 
 ```bash
 KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.37.0 -p path)" \
-  go test $(go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
+  go test -coverprofile=coverage.txt $(go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 
 KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.37.0 -p path)" \
   go test $(go list ./references/... | grep -v apiserver)
