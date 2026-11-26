@@ -125,7 +125,7 @@ template: {
 						operator: "\(k.operator)"
 					}
 					if k.operator == _|_ {
-						operator: "equal"
+						operator: "Equal"
 					}
 					if k.tolerationSeconds != _|_ {
 						tolerationSeconds: k.tolerationSeconds
@@ -381,7 +381,7 @@ template: {
 		// +usage=Standard Kubernetes tolerations; overlays any existing tolerations
 		tolerations?: [...{
 			key?:      string
-			operator?: *"equal" | "Exists"
+			operator?: *"Equal" | "Exists"
 			value?:    string
 			effect?:   "NoSchedule" | "PreferNoSchedule" | "NoExecute"
 			// +usage=Specify the period of time the toleration

@@ -22,7 +22,7 @@ output:
         tolerations:
         - effect: NoSchedule
           key: dedicated
-          operator: equal
+          operator: Equal
           value: shop
         - effect: NoExecute
           operator: Exists

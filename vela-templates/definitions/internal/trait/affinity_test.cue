@@ -126,7 +126,7 @@ _term: {labelSelector: matchLabels: app: "cache", topologyKey: "kubernetes.io/ho
 	]
 	expect: output: spec: template: spec: {
 		tolerations: [
-			{key: "dedicated", operator: "equal", value: "shop", effect: "NoSchedule", tolerationSeconds?: _|_},
+			{key: "dedicated", operator: "Equal", value: "shop", effect: "NoSchedule", tolerationSeconds?: _|_},
 			{operator: "Exists", effect: "NoExecute", tolerationSeconds: 300, key?: _|_, value?: _|_},
 		]
 		affinity?: _|_
