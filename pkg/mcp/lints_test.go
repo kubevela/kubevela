@@ -22,6 +22,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -169,7 +170,7 @@ var _ = Describe("definition and dry-run lints", func() {
 			Expect(res.IsError).To(BeFalse(), toJSON(res))
 			Expect(out.Findings).To(ConsistOf(SatisfyAll(
 				HaveField("Severity", SeverityWarning),
-				HaveField("Message", ContainSubstring("the health policy reads context.output only, so the component is healthy as soon as its primary resource is, before its 1 auxiliary outputs (instance (DBInstance)) are")),
+				HaveField("Message", ContainSubstring("the health policy reads context.output only, so the component is healthy before instance (DBInstance) is")),
 				HaveField("Evidence", "ComponentDefinition vela-system/aurora resourceVersion 5"),
 			)))
 		})
@@ -182,12 +183,22 @@ var _ = Describe("definition and dry-run lints", func() {
 			Expect(out.Findings).To(ConsistOf(HaveField("Message", ContainSubstring("declares no health policy, so health falls back to the built-in check on the primary resource; its 1 auxiliary outputs (instance (DBInstance)) are not judged"))))
 		})
 
-		It("says nothing when the policy reads context.outputs", func() {
+		It("says nothing when the policy reads every auxiliary output", func() {
 			h = startHarness(Options{}, append(platformFixtures(), clusterDefinition(`isHealth: context.output.status.ready && context.outputs.instance.status.ready`))...)
 			var out ExplainDefinitionOutput
 			res := h.call("explain_definition", map[string]any{"name": "aurora"}, &out)
 			Expect(res.IsError).To(BeFalse(), toJSON(res))
 			Expect(out.Findings).To(BeEmpty())
+		})
+
+		It("names the outputs a partial policy leaves unread", func() {
+			def := clusterDefinition(`isHealth: context.outputs.instance.status.ready`)
+			def.Spec.Schematic.CUE.Template = clusterWithInstanceTemplate + "outputs: subnets: {\n\tapiVersion: \"rds.services.k8s.aws/v1alpha1\"\n\tkind: \"DBSubnetGroup\"\n}\n"
+			h = startHarness(Options{}, append(platformFixtures(), def)...)
+			var out ExplainDefinitionOutput
+			res := h.call("explain_definition", map[string]any{"name": "aurora"}, &out)
+			Expect(res.IsError).To(BeFalse(), toJSON(res))
+			Expect(out.Findings).To(ConsistOf(HaveField("Message", ContainSubstring("leaves 1 of its 2 auxiliary outputs unread, so the component is healthy before subnets (DBSubnetGroup) is"))))
 		})
 
 		It("says nothing for a definition with a single output", func() {
@@ -228,5 +239,44 @@ var _ = Describe("definition and dry-run lints", func() {
 			Expect(res.IsError).To(BeFalse(), toJSON(res))
 			Expect(out.Findings).To(BeEmpty())
 		})
+
+		It("matches a producer only in the consumer's namespace", func() {
+			app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []oamcommon.ApplicationComponent{{Name: "db"}, {Name: "api"}}}}
+			secret := &unstructured.Unstructured{Object: map[string]any{"apiVersion": "v1", "kind": "Secret", "metadata": map[string]any{"name": "conn", "namespace": "other"}}}
+			deploy := &unstructured.Unstructured{Object: map[string]any{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]any{"name": "api", "namespace": "team-a"},
+				"spec": map[string]any{"template": map[string]any{"spec": map[string]any{"containers": []any{map[string]any{"name": "c", "envFrom": []any{map[string]any{"secretRef": map[string]any{"name": "conn"}}}}}}}}}}
+			resources := []RenderedResource{
+				{Component: "db", APIVersion: "v1", Kind: "Secret", Namespace: "other", Name: "conn"},
+				{Component: "api", APIVersion: "apps/v1", Kind: "Deployment", Namespace: "team-a", Name: "api"},
+			}
+			objects := map[string]*unstructured.Unstructured{
+				resourceKey("v1", "Secret", "other", "conn"):          secret,
+				resourceKey("apps/v1", "Deployment", "team-a", "api"): deploy,
+			}
+			Expect(dependencyFindings(app, resources, objects)).To(BeEmpty(), "a same-named Secret in another namespace is not what the workload reads")
+			resources[0].Namespace = "team-a"
+			objects[resourceKey("v1", "Secret", "team-a", "conn")] = secret
+			Expect(dependencyFindings(app, resources, objects)).To(HaveLen(1))
+		})
 	})
 })
+
+var _ = DescribeTable("outputsRead finds the auxiliary outputs a health policy reads",
+	func(policy string, wantNames []string, wantWhole bool) {
+		names, whole := outputsRead(policy)
+		got := make([]string, 0, len(names))
+		for n := range names {
+			got = append(got, n)
+		}
+		Expect(got).To(ConsistOf(wantNames))
+		Expect(whole).To(Equal(wantWhole))
+	},
+	Entry("dot notation", `isHealth: context.outputs.instance.status.ready`, []string{"instance"}, false),
+	Entry("bracket notation", `isHealth: context.outputs["conn-host"].status.ready`, []string{"conn-host"}, false),
+	Entry("two outputs, both notations", `isHealth: context.outputs.instance.ok && context.outputs["subnet-group"].ok`, []string{"instance", "subnet-group"}, false),
+	Entry("a comprehension over the whole map", `_items: [ for k, v in (*context.outputs | {}) if k =~ "^instance-" { v } ]`, []string{}, true),
+	Entry("the whole map by reference", `isHealth: len(context.outputs) > 0`, []string{}, true),
+	Entry("the primary output only", `isHealth: context.output.status.readyReplicas == context.output.spec.replicas`, []string{}, false),
+	Entry("a constant", `isHealth: true`, []string{}, false),
+	Entry("a name that merely starts with outputs", `isHealth: context.outputsCount > 0`, []string{}, false),
+)

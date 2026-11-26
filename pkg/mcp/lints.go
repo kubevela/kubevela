@@ -18,6 +18,7 @@ package mcp
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -25,44 +26,90 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
+// How a CUE health policy reads an auxiliary output: by name with dot or
+// bracket notation, or the whole map, as in a comprehension or a default
+// expression, which may select any output.
+var (
+	outputByDot     = regexp.MustCompile(`context\.outputs\.([A-Za-z_][A-Za-z0-9_]*)`)
+	outputByBracket = regexp.MustCompile(`context\.outputs\["((?:[^"\\]|\\.)*)"\]`)
+	outputsWhole    = regexp.MustCompile(`context\.outputs(?:[^.\["A-Za-z0-9_]|$)`)
+)
+
+// outputsRead returns the auxiliary outputs a health policy names, and
+// whether it reads the whole outputs map, which may reach any of them.
+func outputsRead(policy string) (names map[string]bool, whole bool) {
+	names = map[string]bool{}
+	for _, m := range outputByDot.FindAllStringSubmatch(policy, -1) {
+		names[m[1]] = true
+	}
+	for _, m := range outputByBracket.FindAllStringSubmatch(policy, -1) {
+		names[strings.ReplaceAll(m[1], `\"`, `"`)] = true
+	}
+	return names, outputsWhole.MatchString(policy)
+}
+
 // healthCoverageFindings reports a component definition whose health rule
-// judges only the primary output although the template emits auxiliary
-// outputs. Such a component is healthy as soon as its primary resource is,
-// before its members and the address a consumer needs exist, and every
-// component that depends on it is released at that moment. The check is
-// static: it reads the template's output paths and the health policy text.
+// leaves auxiliary outputs the template emits unjudged. Such a component is
+// healthy as soon as the outputs it does read are, before its members and
+// the address a consumer needs exist, and every component that depends on
+// it is released at that moment. The check is static: it reads the
+// template's output paths and the names the policy text reads; a policy
+// that reads the whole outputs map is taken to cover them all.
 func healthCoverageFindings(defType string, produces []ProducedResource, health HealthRules, evidence string) []Finding {
 	if defType != DefinitionTypeComponent {
 		return nil
 	}
 	var aux []string
+	kinds := map[string]string{}
 	for _, p := range produces {
 		if !strings.HasPrefix(p.Path, "outputs.") {
 			continue
 		}
 		name := strings.TrimPrefix(p.Path, "outputs.")
-		if p.Kind != "" {
-			name += " (" + p.Kind + ")"
-		}
 		aux = append(aux, name)
+		kinds[name] = p.Kind
 	}
 	if len(aux) == 0 {
 		return nil
 	}
+	describe := func(names []string) string {
+		parts := make([]string, 0, len(names))
+		for _, n := range names {
+			if kinds[n] != "" {
+				n += " (" + kinds[n] + ")"
+			}
+			parts = append(parts, n)
+		}
+		return strings.Join(parts, ", ")
+	}
 	policy := strings.TrimSpace(health.HealthPolicy)
-	switch {
-	case policy == "":
+	if policy == "" {
 		return []Finding{{
 			Severity: SeverityWarning,
-			Message:  fmt.Sprintf("the definition declares no health policy, so health falls back to the built-in check on the primary resource; its %d auxiliary outputs (%s) are not judged, and a component that depends on this one is released before they exist", len(aux), strings.Join(aux, ", ")),
+			Message:  fmt.Sprintf("the definition declares no health policy, so health falls back to the built-in check on the primary resource; its %d auxiliary outputs (%s) are not judged, and a component that depends on this one is released before they exist", len(aux), describe(aux)),
 			Evidence: evidence,
 		}}
-	case strings.Contains(policy, "context.outputs"):
+	}
+	read, whole := outputsRead(policy)
+	if whole {
 		return nil
+	}
+	var missing []string
+	for _, n := range aux {
+		if !read[n] {
+			missing = append(missing, n)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	what := "reads context.output only"
+	if len(read) > 0 {
+		what = fmt.Sprintf("leaves %d of its %d auxiliary outputs unread", len(missing), len(aux))
 	}
 	return []Finding{{
 		Severity: SeverityWarning,
-		Message:  fmt.Sprintf("the health policy reads context.output only, so the component is healthy as soon as its primary resource is, before its %d auxiliary outputs (%s) are; a component that depends on this one is released at that moment and can start before those exist", len(aux), strings.Join(aux, ", ")),
+		Message:  fmt.Sprintf("the health policy %s, so the component is healthy before %s is; a component that depends on this one is released at that moment and can start before those exist", what, describe(missing)),
 		Observed: text(policy),
 		Evidence: evidence,
 	}}
@@ -76,22 +123,29 @@ func healthCoverageFindings(defType string, produces []ProducedResource, health 
 // objects before redaction, which hides every secretKeyRef, and before any
 // cluster is touched; objects is the render's identity-keyed map.
 func dependencyFindings(app *v1beta1.Application, resources []RenderedResource, objects map[string]*unstructured.Unstructured) []Finding {
-	producers := map[string]string{} // kind/name -> component
+	// namespace/kind/name -> component; an exporter's target lives in the
+	// namespace it names, else the exporter's own
+	producers := map[string]string{}
+	key := func(ns, kind, name string) string { return ns + "\x00" + kind + "\x00" + name }
 	for i := range resources {
 		r := &resources[i]
 		obj := objects[resourceKey(r.APIVersion, r.Kind, r.Namespace, r.Name)]
 		switch {
 		case r.Kind == secretKind || r.Kind == "ConfigMap":
-			producers[r.Kind+"/"+r.Name] = r.Component
+			producers[key(r.Namespace, r.Kind, r.Name)] = r.Component
 		case obj != nil:
 			var e *ExportDetail
 			if r.Kind == fieldExportKind {
 				e = fieldExportOf(obj)
 			} else if groupOf(r.APIVersion) != "" && !builtinGroups[groupOf(r.APIVersion)] {
-				e = connectionSecretOf(&ResourceDiagnosis{Kind: r.Kind, Name: r.Name}, obj)
+				e = connectionSecretOf(&ResourceDiagnosis{APIVersion: r.APIVersion, Kind: r.Kind, Name: r.Name}, obj)
 			}
 			if e != nil {
-				producers[e.TargetKind+"/"+e.TargetName] = r.Component
+				ns := e.TargetNamespace
+				if ns == "" {
+					ns = r.Namespace
+				}
+				producers[key(ns, e.TargetKind, e.TargetName)] = r.Component
 			}
 		}
 	}
@@ -114,7 +168,7 @@ func dependencyFindings(app *v1beta1.Application, resources []RenderedResource, 
 			continue
 		}
 		for _, ref := range consumedRefs(obj) {
-			producer, ok := producers[ref.kind+"/"+ref.name]
+			producer, ok := producers[key(r.Namespace, ref.kind, ref.name)]
 			if ref.optional || !ok || producer == r.Component || declared[r.Component][producer] {
 				continue
 			}
