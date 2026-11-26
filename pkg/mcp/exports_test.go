@@ -255,3 +255,26 @@ var _ = Describe("diagnose_application exporters", func() {
 		Expect(r.Notes).To(ContainElement("connection Secret orders-db-conn is written when this resource is Ready"))
 	})
 })
+
+var _ = Describe("describeExport on an exporter whose readiness is unknown", func() {
+	It("leaves written unknown when the family's conditions are missing", func() {
+		h := startHarness(Options{}, diagnoseApp(fieldExportWithout("orders-db-conn-host"))...)
+		defer h.close()
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", map[string]any{"name": "orders", "namespace": "team-a"}, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		exp := resourceNamed(out, "FieldExport", "orders-db-conn-host")
+		Expect(exp.State).To(Equal(stateUnknown))
+		Expect(exp.Export.Written).To(BeNil())
+		Expect(exp.Summary).To(ContainSubstring("whether it was written is unknown, because the resource's readiness is unknown"))
+		Expect(out.Findings).NotTo(ContainElement(HaveField("Message", ContainSubstring("has not written"))))
+	})
+})
+
+// fieldExportWithout is a FieldExport the controller has not reconciled yet:
+// it has a spec and no conditions.
+func fieldExportWithout(name string) *unstructured.Unstructured {
+	fe := fieldExport(name, "True", "rds.services.k8s.aws")
+	_ = unstructured.SetNestedField(fe.Object, map[string]any{}, "status")
+	return fe
+}

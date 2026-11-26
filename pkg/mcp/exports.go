@@ -139,7 +139,13 @@ func describeExport(diag *ResourceDiagnosis) {
 		source = fmt.Sprintf("%s of %s %s ", e.SourcePath, e.SourceKind, e.SourceName)
 	}
 	state := "whether it was written is unknown, because the resource writes no conditions"
-	if diag.Provider != providerKubernetes {
+	switch {
+	case diag.Provider == providerKubernetes:
+		// settled from the tree, which cannot say
+	case diag.State == stateUnknown:
+		// the family's conditions are missing, so its verdict is not known
+		state = "whether it was written is unknown, because the resource's readiness is unknown"
+	default:
 		written := diag.Ready
 		e.Written = &written
 		state = "not written yet"
