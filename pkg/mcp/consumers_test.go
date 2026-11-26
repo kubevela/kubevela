@@ -341,8 +341,8 @@ var _ = Describe("diagnose_application consumers", func() {
 					}}},
 					// items select keys: only those are read, not the whole Secret
 					map[string]any{"name": "k", "secret": map[string]any{"secretName": "db", "items": []any{
-						map[string]any{"key": "host", "path": "host"},
-						map[string]any{"key": "port", "path": "port"},
+						map[string]any{"key": "host", "path": "db-host"},
+						map[string]any{"key": "port", "path": "db-port"},
 					}}},
 				},
 			}}}}},
