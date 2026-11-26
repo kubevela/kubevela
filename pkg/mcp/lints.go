@@ -115,7 +115,7 @@ func dependencyFindings(app *v1beta1.Application, resources []RenderedResource, 
 		}
 		for _, ref := range consumedRefs(obj) {
 			producer, ok := producers[ref.kind+"/"+ref.name]
-			if !ok || producer == r.Component || declared[r.Component][producer] {
+			if ref.optional || !ok || producer == r.Component || declared[r.Component][producer] {
 				continue
 			}
 			key := r.Component + "\x00" + producer
