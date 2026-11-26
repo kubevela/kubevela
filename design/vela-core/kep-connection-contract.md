@@ -23,14 +23,22 @@ wants to point a web service at a database has to know which operator sits behin
 component before they can write a single environment variable, and they have to remember
 to add `dependsOn` by hand or the web service starts before the database exists.
 
-This proposal gives every provisioned-service component the same contract, so an
-application developer connects to Aurora, CloudNativePG, Percona or anything else the
-same way:
+Databases are the example throughout because that is where we hit the problem, but the
+same question comes up for anything a workload connects to: a cache, a queue, an object
+store, a search cluster, a message broker, an in-cluster service another team runs, or an
+external API that needs a token. Each has an address and, usually, a credential, and each
+operator or provisioner hands them out in its own way.
+
+This proposal gives every such component the same contract, so an application developer
+connects to Aurora, CloudNativePG, Percona, Redis, Kafka, an S3 bucket or anything else
+the same way:
 
 - a `credentialsSecret` parameter naming a Secret the developer or platform owns, holding
-  the login the service is created with;
+  whatever is secret for that kind of service: a login, a token, an access key pair, a
+  client certificate;
 - a `<component>-connection` Secret the component emits, carrying the non-secret facts
-  (host, port, database, and so on) under one fixed set of key names;
+  (host, port, database, bucket, topic, and so on) under one fixed set of key names per
+  kind of service;
 - a `connect` trait on the consumer that takes a component name and renders the
   environment variables or files, and adds the ordering edge for you.
 
@@ -87,7 +95,8 @@ Each piece solves a slice. None of them says what a connection looks like.
 ### Goals
 
 1. An application developer connects a workload to a provisioned service by naming the
-   component, nothing else, and gets the same result whatever operator is behind it.
+   component, nothing else, and gets the same result whatever operator is behind it and
+   whatever kind of service it is.
 2. A component definition author follows one written contract and the tooling can check
    it: the dry run, `explain_definition`, `diagnose_application` and the real-cloud test
    suite described in the skills.
@@ -373,20 +382,36 @@ controller writes it; the `-connection` Secret, when the template emits it, may 
 ### Other kinds of service
 
 The vocabulary above is for relational databases. The same contract applies to anything a
-workload connects to; only the key table changes. Proposed starting rows, to be confirmed
-with the first definition of each kind:
+workload connects to; only the key table changes, and with it which keys live in the
+credentials Secret. Proposed starting rows, to be confirmed with the first definition of
+each kind:
 
-| `type` | Required keys | Optional keys |
-|---|---|---|
-| `postgresql`, `mysql` | `host`, `port`, `database`, `username`, `password` | `uri`, `ca.crt`, `options` |
-| `redis` | `host`, `port`, `password` | `username`, `uri`, `ca.crt`, `tls` |
-| `amqp`, `kafka` | `host`, `port`, `username`, `password` | `uri`, `vhost` or `topic`, `ca.crt` |
-| `s3` | `endpoint`, `bucket`, `region`, `accessKeyId`, `secretAccessKey` | `prefix`, `pathStyle` |
+| `type` | Connection keys (`-connection`) | Credential keys (`-credentials`) | Optional |
+|---|---|---|---|
+| `postgresql`, `mysql` | `host`, `port`, `database` | `username`, `password` | `uri`, `ca.crt`, `options` |
+| `redis` | `host`, `port` | `password` | `username`, `uri`, `ca.crt`, `tls` |
+| `amqp` | `host`, `port`, `vhost` | `username`, `password` | `uri`, `ca.crt` |
+| `kafka` | `bootstrapServers` | `username`, `password` or `tls.crt`, `tls.key` | `topic`, `ca.crt`, `saslMechanism` |
+| `s3` | `endpoint`, `bucket`, `region` | `accessKeyId`, `secretAccessKey` | `prefix`, `pathStyle`, `sessionToken` |
+| `http`, `grpc` | `url` | `token`, or `clientId`, `clientSecret`, or `tls.crt`, `tls.key`, or none | `ca.crt`, `audience` |
 
-An object store shows why the credentials half is not always `username` and `password`:
-the credentials Secret for `s3` carries `accessKeyId` and `secretAccessKey`. The contract
-is that the credentials Secret holds whatever is secret for that `type`, and the vocabulary
-table says which keys those are.
+Three things the table shows that the database case hides:
+
+- The credential is not always a username and a password. An object store has an access
+  key pair, an API has a bearer token or an OAuth client, a broker may want a client
+  certificate. The contract says the credentials Secret holds whatever is secret for that
+  `type`, and the table says which keys those are. The `connect` trait renders whichever
+  keys the type declares.
+- Some services have no credential at all: an in-cluster service with network policy as
+  its only guard, or a public read-only API. For those `credentialsSecret` is optional and
+  the trait renders only the connection keys. A definition says in its vocabulary row
+  whether a credential is required, optional or absent.
+- The producer need not be a cloud resource. A component another team delivers in the same
+  cluster, a `webservice` that exposes an API, can follow the contract too: its definition
+  emits `<component>-connection` with `type: http` and the Service URL, and takes an
+  optional `credentialsSecret` for the token its callers present. The consuming side is
+  then identical for a managed database and for a neighbouring microservice, which is the
+  point.
 
 ### Edge cases and how the contract handles them
 
@@ -462,6 +487,24 @@ Phase 1 and omits undeclared keys in Phase 2.
 **Several users and ordering.** A consumer connecting as `reporting` waits on the producer
 component; in Phase 2 it also waits for that user's credentials Secret to exist, so a user
 created by a Job after the cluster is up does not release the consumer early.
+
+**A credential that is a certificate, not a password.** Client-certificate authentication
+(Kafka mTLS, some HTTP APIs) puts `tls.crt` and `tls.key` in the credentials Secret, and
+the matching CA in `-connection` as `ca.crt`. The trait mounts them as files rather than
+injecting them as environment variables, because that is how TLS libraries read them, so
+for these types `mountPath` is the default and `prefix` injects only the paths.
+
+**A credential that expires.** Short-lived tokens and session credentials
+(`sessionToken` for S3, a bearer token minted by an identity provider) are refreshed by
+whatever issues them, usually External Secrets Operator or a workload identity mechanism,
+by rewriting the credentials Secret. A consumer that reads it through environment variables
+keeps the old value until it restarts; one that mounts it as a file sees the new value. The
+definition's vocabulary row says which consumption method the type expects, and the trait
+defaults to files for types whose credentials are expected to rotate.
+
+**No credential at all.** A service with `credentialsSecret` absent renders only the
+connection keys, and the Phase 2 wait-for-keys waits only on those. A definition that
+needs a credential and is given none fails at render with a clear message, not at runtime.
 
 **Revision and rollback.** The connection Secret is an ordinary output, so it is part of
 the ApplicationRevision and rolls back with the component. The credentials Secret is not
@@ -605,8 +648,9 @@ facts it knows at render time. No projection, no copy.
    diagnosis and dry-run tools reading the declaration. Behind a feature gate for one
    release.
 5. **Follow-ups.** Cross-cluster consumers; a `users` component that works across
-   databases; vocabulary rows for queues and object stores as the first definitions of each
-   land.
+   databases; vocabulary rows for queues, object stores and APIs confirmed as the first
+   definitions of each land; a `webservice` that follows the contract as a producer so
+   service-to-service calls use the same trait.
 
 ## Unresolved questions
 
