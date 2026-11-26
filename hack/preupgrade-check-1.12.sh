@@ -76,9 +76,15 @@ collect() {
 		echo "error: cannot list config Secrets: $(cat "$tmp/err")" >&2
 		exit 2
 	fi
-	if ! kubectl get deployments -n "$namespace" -l "app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=$release" \
+	# The release's cluster-gateway Deployment carries the same name label, so the controller's is
+	# told apart by its own.
+	if ! kubectl get deployments -n "$namespace" -l "app.kubernetes.io/instance=$release,controller.oam.dev/name=vela-core" \
 		-o json >"$tmp/deployment.json" 2>"$tmp/err"; then
 		echo "error: cannot read the vela-core Deployment: $(cat "$tmp/err")" >&2
+		exit 2
+	fi
+	if [ "$(jq '.items | length' "$tmp/deployment.json")" = 0 ]; then
+		echo "error: no vela-core Deployment of release $release in namespace $namespace (pass --release and --namespace)" >&2
 		exit 2
 	fi
 	if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
@@ -443,7 +449,7 @@ def stepurls:
   ( [items($secrets)[] | select(.metadata.labels["config.oam.dev/type"] != null)] as $configs
     | select(($configs | length) > 0)
     | ([$configs[].metadata.namespace] | unique) as $nss
-    | f("warn"; "configs"; "Configs (\($configs | length) in \($nss | length) namespaces)";
+    | f("warn"; "configs"; "Configs (\($configs | length) in \($nss | length) namespace\(if ($nss | length) == 1 then "" else "s" end))";
         "configs become Config resources; users who manage them need RBAC on configs and configtemplates, which edit and admin do not grant";
         "grant get, list, watch, create, update, patch, delete on configs.config.oam.dev and configtemplates.config.oam.dev to the users and service accounts that manage configs in \($nss | join(", "))";
         guide("config-templates-and-configs")) ),
