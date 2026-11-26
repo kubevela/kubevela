@@ -57,7 +57,9 @@ spec:
         	}
         }
 
-        if parameter.required && !_file.$returns.found {
+        // $returns is set only once the provider has run; the schema generator
+        // compiles the template without it, and CUE's && does not short-circuit.
+        if parameter.required if _file.$returns.found != _|_ if !_file.$returns.found {
         	errs: ["required file \"\(parameter.path)\" is not in registry \"\(parameter.registry)\"; set required: false to read it as an optional file"]
         }
 

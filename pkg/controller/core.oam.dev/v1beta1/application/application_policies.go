@@ -633,6 +633,7 @@ func newPolicyProcessContext(goCtx context.Context, app *v1beta1.Application, ap
 		AppRevisionName: appRevisionName,
 		AppLabels:       oam.FilterInternalMetadata(app.Labels),
 		AppAnnotations:  oam.FilterInternalMetadata(app.Annotations),
+		PublishVersion:  app.Annotations[oam.AnnotationPublishVersion],
 		Ctx:             goCtx,
 	})
 	pCtx.PushData(velaprocess.ContextAppComponents, app.Spec.Components)
@@ -1528,7 +1529,7 @@ func (h *AppHandler) renderPoliciesForNewRevision(ctx monitorContext.Context, ap
 		policiesToRender = append(policiesToRender, policyToRender{
 			policyDef: policyDef,
 			policyRef: policy,
-			priority:  0, // explicit policies run after all globals
+			priority:  0, // explicit policies sit at priority 0; appscope.Less orders them among the globals
 			specOrder: specIdx,
 			source:    PolicySourceExplicit,
 		})

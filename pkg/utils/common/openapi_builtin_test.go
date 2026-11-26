@@ -74,9 +74,7 @@ func compileTemplate(t *testing.T, path string) (cue.Value, bool) {
 // standaloneSkips are built-ins whose template does not compile without the
 // rest of their definition file; any other compile failure fails the test, so
 // coverage cannot shrink unnoticed.
-var standaloneSkips = map[string]bool{
-	"source/git-file.cue": true,
-}
+var standaloneSkips = map[string]bool{}
 
 // The fallback must never change a schema. For every built-in definition that
 // encodes today, a forced fallback either produces the same document or
