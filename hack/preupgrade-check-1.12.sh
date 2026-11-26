@@ -69,13 +69,16 @@ def appsteps($wfidx; $sysns):
      else [] end)
   | .[] | ., (.subSteps // [])[];
 
+# A step's definition name, without the revision a type such as notification@v1.2.0 pins.
+def steptype: (.type // "") | split("@")[0];
+
 # The URLs an HTTP step calls, with where each sits in its properties: a literal url, or the
 # Secret key a webhook or notification reads it from.
 def stepurls:
-  .properties as $p
-  | if .type == "request" then [{at: "url", url: $p.url}]
-    elif .type == "webhook" then [{at: "url", url: $p.url.value?, secret: $p.url.secretRef?}]
-    elif .type == "notification" then
+  .properties as $p | steptype as $t
+  | if $t == "request" then [{at: "url", url: $p.url}]
+    elif $t == "webhook" then [{at: "url", url: $p.url.value?, secret: $p.url.secretRef?}]
+    elif $t == "notification" then
       [("lark", "dingding", "slack") as $k | select($p[$k] != null)
         | {at: "\($k).url", url: $p[$k].url.value?, secret: $p[$k].url.secretRef?}]
     else [] end
@@ -555,12 +558,12 @@ def first_version: {
                 "create \($unset | join(", ")) in namespace \($appns) before upgrading";
                 guide("helm-components")) ) ) ),
   ( items($apps)[] as $a | $a.metadata.namespace as $appns
-    | $a | steps | select(.type | IN("read-config", "list-config", "create-config", "delete-config")) as $s
-    | ($s.properties // {}) as $p
+    | $a | steps | select(steptype | IN("read-config", "list-config", "create-config", "delete-config")) as $s
+    | ($s | steptype) as $st | ($s.properties // {}) as $p
     | ( select(($p.namespace // "") != "" and $p.namespace != $appns)
-        | ({"read-config": "get", "list-config": "list", "create-config": "create", "delete-config": "delete"}[$s.type]) as $verb
-        | select(($s.type == "read-config" and $p.namespace == "vela-system" and shared_config($p.name // "")) or
-                 ($s.type == "list-config" and $p.namespace == "vela-system" and shared_template($p.template // "")) | not)
+        | ({"read-config": "get", "list-config": "list", "create-config": "create", "delete-config": "delete"}[$st]) as $verb
+        | select(($st == "read-config" and $p.namespace == "vela-system" and shared_config($p.name // "")) or
+                 ($st == "list-config" and $p.namespace == "vela-system" and shared_template($p.template // "")) | not)
         | if $authn then
             f("warn"; "cross-namespace-credentials"; "Application \($a | nn)";
               "step \($s.name) (\($s.type)) reaches config \($p.namespace)/\($p.name // "*"); 1.12 allows it only if the Application's user may \($verb) configs there";
@@ -573,7 +576,7 @@ def first_version: {
               "move the config into namespace \($appns) and drop the step's namespace property (a shared config in vela-system made from a vela-system template stays readable)";
               guide("config-templates-and-configs"))
           end ),
-      ( select($s.type == "create-config" and (($p.template // "") | contains("/")))
+      ( select($st == "create-config" and (($p.template // "") | contains("/")))
         | ($p.template | split("/")[0]) as $tns
         | select($tns != "vela-system" and $tns != ($p.namespace // $appns))
         | f("error"; "cross-namespace-credentials"; "Application \($a | nn)";
@@ -633,7 +636,7 @@ def first_version: {
                   guide("workflow"))
               end
           end ),
-      ( $s | select(.type | IN("request", "webhook", "notification")) | .properties.timeout? // empty
+      ( $s | select(steptype | IN("request", "webhook", "notification")) | .properties.timeout? // empty
         | select(type == "string") as $t | ($t | duration) as $d
         | (if $d == null then "has timeout \"\($t)\", which is not a duration with a unit"
            elif $d <= 0 then "has timeout \"\($t)\", and a timeout must be greater than zero"
@@ -654,7 +657,7 @@ def first_version: {
 # 6. vela-cli outside the namespaces it is allowed in.
   ( select($after.RestrictDefinitionNamespaces)
     | items($apps)[] as $a | $a.metadata.namespace as $appns
-    | $a | steps | select(.type | split("@")[0] == "vela-cli") as $s
+    | $a | steps | select(steptype == "vela-cli") as $s
     | resolve("s"; $s.type; $appns) // {metadata: {namespace: $sysns, name: "vela-cli"}}
     | restrictionsOf("WorkflowStepDefinition"; .) as $r
     | select(allows($r; $appns) | not)
@@ -665,7 +668,7 @@ def first_version: {
   # Before 1.11.2 the step's Job ran in vela-system as vela-core's own service account by default.
   ( select("vela-cli-account" | since(.) | not)
     | items($apps)[] as $a
-    | $a | steps | select((.type | split("@")[0] == "vela-cli") and (.properties.serviceAccountName // "") == "") as $s
+    | $a | steps | select((steptype == "vela-cli") and (.properties.serviceAccountName // "") == "") as $s
     | f("warn"; "vela-cli-namespace"; "Application \($a | nn)";
         "step \($s.name) names no serviceAccountName: on \(vlabel) its Job runs as vela-core's service account, from 1.11.2 as default in \($a.metadata.namespace)";
         "set serviceAccountName to an account in \($a.metadata.namespace) with the permissions the command needs (kubevela-vela-core, in vela-system only)";
@@ -757,7 +760,7 @@ def first_version: {
           (select(.type == "override") | (.properties.components // [])[]
             | (select(.type != null) | {kind: "ComponentDefinition", k: "c", type: .type}),
               ((.traits // [])[] | {kind: "TraitDefinition", k: "t", type: .type})) ),
-        ( $a | steps | select(.type | split("@")[0] != "vela-cli") | {kind: "WorkflowStepDefinition", k: "s", type: .type} )
+        ( $a | steps | select(steptype != "vela-cli") | {kind: "WorkflowStepDefinition", k: "s", type: .type} )
       | select(.type != null) | . as $u
       | resolve($u.k; $u.type; $appns) // empty
       | . as $d | restrictionsOf($u.kind; $d) as $r
