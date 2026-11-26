@@ -28,12 +28,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stubHelm answers the helm calls the script makes in a dry run. `helm template` renders one builtin
-// definition under the chart layout named by STUB_LAYOUT: 1.11.0 kept them in templates/defwithtemplate,
-// 1.11.1 and later ship them as ConfigMaps a hook Job applies (templates/builtin-definitions).
+// stubHelm answers the helm calls the script makes in a dry run. `helm show chart` reports the version
+// asked for, or STUB_CHART_VERSION when set, as Helm does for a local chart whatever --version says;
+// STUB_CHART_VERSION=none leaves the version out.
+// `helm template` renders one builtin definition under the chart layout named by STUB_LAYOUT: 1.11.0 kept
+// them in templates/defwithtemplate, 1.11.1 and later ship them as ConfigMaps a hook Job applies
+// (templates/builtin-definitions).
 const stubHelm = `#!/usr/bin/env bash
 case "$1" in
-show) exit 0 ;;
+show)
+	version="$STUB_CHART_VERSION"
+	while [ $# -gt 0 ]; do [ "$1" = "--version" ] && [ -z "$version" ] && version="$2"; shift; done
+	echo "name: vela-core"
+	[ "$version" = none ] || echo "version: $version"
+	;;
 history) echo '[{"chart":"vela-core-1.12.0-alpha.2","status":"deployed"}]' ;;
 version) echo "v3.14.4+gabcdef" ;;
 get) echo "{}" ;;
@@ -59,13 +67,18 @@ esac
 
 func runDowngrade(t *testing.T, layout string, args ...string) (string, error) {
 	t.Helper()
+	return runDowngradeWithChart(t, layout, "", args...)
+}
+
+func runDowngradeWithChart(t *testing.T, layout, chartVersion string, args ...string) (string, error) {
+	t.Helper()
 	_, here, _, _ := runtime.Caller(0)
 	script := filepath.Join(filepath.Dir(here), "..", "downgrade-from-1.12.sh")
 	bin := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(bin, "helm"), []byte(stubHelm), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(bin, "kubectl"), []byte(stubKubectl), 0o755))
 	cmd := exec.Command("bash", append([]string{script, "--dry-run"}, args...)...)
-	cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "STUB_LAYOUT="+layout)
+	cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "STUB_LAYOUT="+layout, "STUB_CHART_VERSION="+chartVersion)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
@@ -104,4 +117,48 @@ func TestDowngradeRefusesChartWithoutBuiltins(t *testing.T) {
 	out, err := runDowngrade(t, "", "--version", "1.11.2")
 	require.Error(t, err)
 	require.Contains(t, out, "rendered no builtin definitions")
+}
+
+func TestDowngradeResolvesVersionConstraint(t *testing.T) {
+	// Helm resolves a constraint to a chart of the repo; the script carries on with that version, for
+	// the upgrade and the controller image tag alike.
+	out, err := runDowngradeWithChart(t, "builtin-definitions", "1.11.2", "--version", "1.11.x")
+	require.NoError(t, err, out)
+	require.Contains(t, out, "would: helm upgrade kubevela kubevela/vela-core --version 1.11.2 -n vela-system --reset-then-reuse-values --set image.tag=v1.11.2")
+}
+
+func TestDowngradeRefusesChartWithoutVersion(t *testing.T) {
+	// A chart whose metadata names no version leaves nothing to pin the upgrade to.
+	out, err := runDowngradeWithChart(t, "builtin-definitions", "none", "--version", "1.11.x")
+	require.Error(t, err)
+	require.Contains(t, out, "names no version")
+	require.NotContains(t, out, "would: helm upgrade")
+}
+
+func TestDowngradeChecksLocalChartVersion(t *testing.T) {
+	// Helm ignores --version for a local chart path, so the chart's own version must satisfy it.
+	for _, tc := range []struct {
+		name, chartVersion, version, refusal string
+	}{
+		{name: "exact", chartVersion: "1.11.2", version: "1.11.2"},
+		{name: "wildcard", chartVersion: "1.11.2", version: "1.11.x"},
+		{name: "another exact version", chartVersion: "1.11.2", version: "1.11.1", refusal: "is version 1.11.2, not 1.11.1"},
+		{name: "1.12 checkout", chartVersion: "1.12.0", version: "1.11.2", refusal: "is version 1.12.0, not 1.11.2"},
+		{name: "1.12 checkout under a wildcard", chartVersion: "1.12.0", version: "1.11.x", refusal: "is version 1.12.0, not 1.11.x"},
+		{name: "range", chartVersion: "1.11.2", version: "1.11.1 - 1.11.3", refusal: "needs --version as a 1.11 version or a 1.11.x wildcard"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			chart := t.TempDir()
+			out, err := runDowngradeWithChart(t, "builtin-definitions", tc.chartVersion, "--chart", chart, "--version", tc.version)
+			if tc.refusal != "" {
+				require.Error(t, err)
+				require.Contains(t, out, tc.refusal)
+				require.NotContains(t, out, "would: helm upgrade")
+				return
+			}
+			require.NoError(t, err, out)
+			require.Contains(t, out, "would: helm upgrade kubevela "+chart+" --version "+tc.chartVersion)
+			require.Contains(t, out, "--set image.tag=v"+tc.chartVersion)
+		})
+	}
 }

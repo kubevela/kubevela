@@ -15,7 +15,8 @@
 #     --namespace     release namespace (default vela-system)
 #     --version       1.11 chart version to downgrade to (default 1.11.2, the first that keeps pinned definition
 #                     revisions)
-#     --chart         chart reference (default kubevela/vela-core; a local path works too)
+#     --chart         chart reference (default kubevela/vela-core; a local path works too, if its
+#                     Chart.yaml version is --version or matches a 1.11.x wildcard)
 #     --image-repository  controller image repository, when a 1.12 value pinned another one
 #
 # The controller image tag is set to v<version>, whatever the release's values pinned: a tag
@@ -41,7 +42,7 @@ while [ $# -gt 0 ]; do
 	--version) version="$2"; shift ;;
 	--chart) chart="$2"; shift ;;
 	--image-repository) image_repository="$2"; shift ;;
-	-h | --help) sed -n '2,26p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,27p' "$0"; exit 0 ;;
 	*) echo "error: unknown argument $1" >&2; exit 2 ;;
 	esac
 	shift
@@ -68,10 +69,28 @@ case "$version" in
 1.11.*) ;;
 *) echo "error: --version must be a 1.11 chart version, got $version" >&2; exit 1 ;;
 esac
-if ! helm show chart "$chart" --version "$version" >/dev/null 2>&1; then
+if ! chart_meta="$(helm show chart "$chart" --version "$version" 2>/dev/null)"; then
 	echo "error: chart $chart version $version not found (helm repo add kubevela https://kubevela.github.io/charts && helm repo update, if the repo is missing)" >&2
 	exit 1
 fi
+chart_version="$(echo "$chart_meta" | sed -n 's/^version: *//p' | tr -d "\"'")"
+[ -n "$chart_version" ] || { echo "error: chart $chart names no version in its Chart.yaml, so there is nothing to pin the upgrade to" >&2; exit 1; }
+# Helm ignores --version for a local chart path, so the chart's own version must satisfy it: equal to
+# an exact version, or matching a 1.11.x wildcard. A repo chart is the one Helm resolved it to.
+if [ -e "$chart" ]; then
+	case "$version" in
+	*[!0-9.xX*]*) echo "error: a local chart path needs --version as a 1.11 version or a 1.11.x wildcard, got $version" >&2; exit 1 ;;
+	esac
+	pattern="$(echo "$version" | sed 's/[xX*]/*/g')"
+	# shellcheck disable=SC2254 # the pattern is meant to glob
+	case "$chart_version" in
+	$pattern) ;;
+	*) echo "error: chart $chart is version $chart_version, not $version (a local chart path is used as it is, whatever --version says)" >&2; exit 1 ;;
+	esac
+fi
+# The resolved version from here on: the upgrade installs exactly the chart checked above, and the
+# controller image tag names a real release.
+version="$chart_version"
 latest="$(helm history "$release" -n "$namespace" --max 1 -o json 2>/dev/null || true)"
 current="$(echo "$latest" | sed -n 's/.*"chart":"vela-core-\([^"]*\)".*/\1/p')"
 status="$(echo "$latest" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')"
