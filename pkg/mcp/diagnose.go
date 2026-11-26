@@ -217,7 +217,7 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 		out.Findings = append(out.Findings, diagnosisFindings(diag)...)
 		out.Resources = append(out.Resources, diag)
 	}
-	linkExports(&out)
+	linkExports(&out, in.Component)
 
 	events, eventNotes, eventsCut := d.applicationEvents(ctx, cli, app, applied)
 	out.Events = events
@@ -351,7 +351,11 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 	}
 	service := ackService(diag, obj)
 	var ep ackEndpointResult
-	if diag.Provider == providerACK {
+	if diag.Provider == providerACK && service == "" {
+		// a common-group kind whose controller cannot be derived: say so
+		// instead of looking up a controller for an invented service name
+		diag.Notes = append(diag.Notes, "endpoint provenance unknown: "+diag.Kind+" is served by every ACK controller and names no service, so its controller was not looked up")
+	} else if diag.Provider == providerACK {
 		// key by cluster and service: the lookup is cluster-scoped through
 		// cctx, so the same service in another cluster must not reuse it
 		epKey := diag.Cluster + "\x00" + service
@@ -370,7 +374,7 @@ func (d *deps) diagnoseLive(ctx context.Context, diag *ResourceDiagnosis, out *D
 	}
 	switch diag.Provider {
 	case providerACK:
-		diagnoseACK(diag, obj, out)
+		diagnoseACK(diag, obj, out, service)
 	case providerConfigConnector:
 		diagnoseConfigConnector(diag, out)
 	case providerCrossplane:
@@ -483,12 +487,17 @@ func cloudOf(apiVersion string) string {
 // resource as fine. A resource the provider says exists that stays unsynced
 // past the drift window is the signature of a field the service computes
 // differently from the spec, which keeps the controller's update loop running.
-func diagnoseACK(diag *ResourceDiagnosis, obj *unstructured.Unstructured, out *DiagnoseApplicationOutput) {
+// service names the controller that serves the resource, as ackService
+// resolved it; empty when none could be derived.
+func diagnoseACK(diag *ResourceDiagnosis, obj *unstructured.Unstructured, out *DiagnoseApplicationOutput, service string) {
 	synced := conditionOf(diag.Conditions, "ACK.ResourceSynced")
 	terminal := conditionOf(diag.Conditions, "ACK.Terminal")
 	refs := conditionOf(diag.Conditions, "ACK.ReferencesResolved")
 	arn, _, _ := unstructured.NestedString(obj.Object, "status", "ackResourceMetadata", "arn")
-	service := strings.TrimSuffix(groupOf(diag.APIVersion), ".services.k8s.aws")
+	controller := "ACK " + service + " controller"
+	if service == "" {
+		controller = "ACK controller that serves " + diag.Kind
+	}
 	switch {
 	case terminal != nil && terminal.Status == string(corev1.ConditionTrue):
 		diag.State = stateHalted
@@ -508,7 +517,7 @@ func diagnoseACK(diag *ResourceDiagnosis, obj *unstructured.Unstructured, out *D
 		}
 	case synced == nil:
 		diag.State = stateUnknown
-		diag.Summary = "no ACK.ResourceSynced condition yet: the controller has not reconciled this resource; check that the ACK " + service + " controller is running"
+		diag.Summary = "no ACK.ResourceSynced condition yet: the controller has not reconciled this resource; check that the " + controller + " is running"
 	case synced.Status == string(corev1.ConditionTrue):
 		diag.Ready, diag.State = true, stateReady
 		diag.Summary = "ACK.ResourceSynced is True and no Terminal condition is set"
@@ -520,7 +529,7 @@ func diagnoseACK(diag *ResourceDiagnosis, obj *unstructured.Unstructured, out *D
 		diag.Summary = "ACK.ResourceSynced is " + synced.Status
 		if arn != "" && synced.LastTransition != nil && time.Since(*synced.LastTransition) > driftWindow {
 			diag.Summary += fmt.Sprintf("; the provider reports the resource exists (%s) but the controller has not converged for %s — often a spec field the service computes differently keeping the update loop running, though a persistent access or validation error looks the same; the condition message and the controller's logs name the actual error", arn, time.Since(*synced.LastTransition).Round(time.Second))
-			out.NextChecks = append(out.NextChecks, fmt.Sprintf("the ACK %s controller's logs record the desired-vs-latest diff for %s %s/%s on every reconcile; the drifting field is named there", service, diag.Kind, diag.Namespace, diag.Name))
+			out.NextChecks = append(out.NextChecks, fmt.Sprintf("the %s's logs record the desired-vs-latest diff for %s %s/%s on every reconcile; the drifting field is named there", controller, diag.Kind, diag.Namespace, diag.Name))
 		}
 	}
 }

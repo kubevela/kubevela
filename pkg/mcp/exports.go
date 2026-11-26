@@ -35,15 +35,19 @@ const (
 // FieldExport, or any custom resource that writes a connection Secret the
 // way Crossplane managed resources and Terraform Configurations do. The
 // target's content is never read; whether the value landed is taken from
-// the exporter's own verdict.
+// the exporter's own conditions, and is unknown when it writes none.
 type ExportDetail struct {
-	SourceKind string `json:"sourceKind,omitempty" jsonschema:"Kind of the resource the value is read from."`
-	SourceName string `json:"sourceName,omitempty" jsonschema:"Name of the resource the value is read from, in the exporter's namespace."`
-	SourcePath string `json:"sourcePath,omitempty" jsonschema:"Field path copied, as the exporter spells it; empty when the exporter writes a whole set of connection details."`
-	TargetKind string `json:"targetKind" jsonschema:"Secret or ConfigMap."`
-	TargetName string `json:"targetName" jsonschema:"Name of the Secret or ConfigMap written."`
-	TargetKey  string `json:"targetKey,omitempty" jsonschema:"Key written in the target; empty when the exporter writes several keys, such as a Crossplane connection Secret."`
-	Written    bool   `json:"written" jsonschema:"True when the exporter's own conditions say the target has been written. The target is never read, so a key a workload reads is present only when this is true."`
+	SourceGroup     string `json:"sourceGroup,omitempty" jsonschema:"API group of the resource the value is read from."`
+	SourceKind      string `json:"sourceKind,omitempty" jsonschema:"Kind of the resource the value is read from."`
+	SourceName      string `json:"sourceName,omitempty" jsonschema:"Name of the resource the value is read from, in the exporter's namespace."`
+	SourcePath      string `json:"sourcePath,omitempty" jsonschema:"Field path copied, as the exporter spells it; empty when the exporter writes a whole set of connection details."`
+	TargetKind      string `json:"targetKind" jsonschema:"Secret or ConfigMap."`
+	TargetName      string `json:"targetName" jsonschema:"Name of the Secret or ConfigMap written."`
+	TargetNamespace string `json:"targetNamespace,omitempty" jsonschema:"Namespace of the target when the exporter names one; otherwise the exporter's own namespace."`
+	TargetKey       string `json:"targetKey,omitempty" jsonschema:"Key written in the target; empty when the exporter writes several keys, such as a connection Secret."`
+	// Written is nil when the exporter writes no conditions, so its
+	// verdict came from the resource tree, which cannot say.
+	Written *bool `json:"written,omitempty" jsonschema:"True when the exporter's own conditions say the target has been written, false when they say it has not. Absent when the resource writes no conditions and was judged from the resource tree, which cannot tell. The target is never read."`
 }
 
 // exportOf reads what a resource exports for workloads, or nil when it is not
@@ -74,52 +78,70 @@ func fieldExportOf(obj *unstructured.Unstructured) *ExportDetail {
 		toKind = "ConfigMap"
 	}
 	e := &ExportDetail{TargetKind: toKind, TargetName: toName}
+	e.TargetNamespace, _, _ = unstructured.NestedString(obj.Object, "spec", "to", "namespace")
 	e.TargetKey, _, _ = unstructured.NestedString(obj.Object, "spec", "to", "key")
 	e.SourcePath, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "path")
+	e.SourceGroup, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "resource", "group")
 	e.SourceKind, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "resource", "kind")
 	e.SourceName, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "resource", "name")
 	return e
 }
 
-// connectionSecretOf reads the connection Secret a custom resource writes,
-// under either of the two field names in use: writeConnectionSecretToRef
-// (Crossplane managed resources, Terraform Configurations) and
-// publishConnectionDetailsTo (Crossplane composites).
+// connectionSecretOf reads the connection Secret a custom resource writes:
+// writeConnectionSecretToRef on Crossplane managed resources and Terraform
+// Configurations, publishConnectionDetailsTo on Crossplane composites. The
+// resource is its own source.
 func connectionSecretOf(diag *ResourceDiagnosis, obj *unstructured.Unstructured) *ExportDetail {
-	for _, path := range [][]string{{"spec", "writeConnectionSecretToRef", "name"}, {"spec", "publishConnectionDetailsTo", "name"}} {
-		if name, found, _ := unstructured.NestedString(obj.Object, path...); found && name != "" {
-			return &ExportDetail{SourceKind: diag.Kind, SourceName: diag.Name, TargetKind: secretKind, TargetName: name}
+	for _, field := range []string{"writeConnectionSecretToRef", "publishConnectionDetailsTo"} {
+		name, found, _ := unstructured.NestedString(obj.Object, "spec", field, "name")
+		if !found || name == "" {
+			continue
 		}
+		e := &ExportDetail{SourceGroup: groupOf(diag.APIVersion), SourceKind: diag.Kind, SourceName: diag.Name, TargetKind: secretKind, TargetName: name}
+		e.TargetNamespace, _, _ = unstructured.NestedString(obj.Object, "spec", field, "namespace")
+		return e
 	}
 	return nil
 }
 
 // ackService names the ACK service whose controller reconciles a resource:
-// the prefix of its API group, except for a FieldExport, which lives in the
-// common group and is reconciled by the controller of its source resource's
-// service.
+// the prefix of its API group. A FieldExport lives in the common group and
+// is reconciled by the controller of its source resource's service, read
+// from its spec. For any other common-group kind, or a FieldExport that
+// names no source group, there is no service to derive, and the result is
+// empty rather than an invented name.
 func ackService(diag *ResourceDiagnosis, obj *unstructured.Unstructured) string {
 	group := groupOf(diag.APIVersion)
-	if diag.Kind == fieldExportKind && group == ackCommonGroup {
-		if src, _, _ := unstructured.NestedString(obj.Object, "spec", "from", "resource", "group"); src != "" {
-			group = src
+	if group == ackCommonGroup {
+		if diag.Kind != fieldExportKind {
+			return ""
+		}
+		group, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "resource", "group")
+		if group == "" || group == ackCommonGroup {
+			return ""
 		}
 	}
 	return strings.TrimSuffix(group, "."+ackCommonGroup)
 }
 
-// describeExport settles from the exporter's own verdict whether the target
-// has been written and says so in the summary.
+// describeExport settles whether the target has been written from the
+// exporter's own verdict and says so in the summary. A resource judged from
+// the resource tree, which defaults unknown kinds to Healthy, gets no
+// verdict: the tree cannot say whether anything was written.
 func describeExport(diag *ResourceDiagnosis) {
 	e := diag.Export
-	e.Written = diag.Ready
 	source := ""
 	if e.SourcePath != "" {
 		source = fmt.Sprintf("%s of %s %s ", e.SourcePath, e.SourceKind, e.SourceName)
 	}
-	state := "not written yet"
-	if e.Written {
-		state = "written"
+	state := "whether it was written is unknown, because the resource writes no conditions"
+	if diag.Provider != providerKubernetes {
+		written := diag.Ready
+		e.Written = &written
+		state = "not written yet"
+		if written {
+			state = "written"
+		}
 	}
 	diag.Summary = joinParts(diag.Summary, fmt.Sprintf("exports %sinto %s: %s", source, exportTarget(e), state))
 }
@@ -132,34 +154,37 @@ func exportTarget(e *ExportDetail) string {
 	return target
 }
 
-// linkExports ties each unwritten export to the state of its source resource,
-// which is where a workload's missing key usually comes from. It runs after
-// every resource has its verdict, because the source may follow the exporter
-// in the inventory.
-func linkExports(out *DiagnoseApplicationOutput) {
+// linkExports ties each export its exporter says is unwritten to the state
+// of its source resource, which is where a workload's missing key usually
+// comes from. It runs after every resource has its verdict, because the
+// source may follow the exporter in the inventory. component is the
+// component the diagnosis was narrowed to, empty for the whole Application.
+func linkExports(out *DiagnoseApplicationOutput, component string) {
 	for i := range out.Resources {
 		r := &out.Resources[i]
-		if r.Export == nil || r.Export.Written {
+		if r.Export == nil || r.Export.Written == nil || *r.Export.Written {
 			continue
 		}
 		e := r.Export
 		ref := fmt.Sprintf("%s %s/%s in cluster %s", r.Kind, r.Namespace, r.Name, r.Cluster)
 		if e.SourceKind == r.Kind && e.SourceName == r.Name {
-			// a Crossplane resource is its own source: the Secret appears
-			// with readiness, and the resource's own finding already says
-			// why it is not ready
+			// a resource that is its own source: the Secret appears with
+			// readiness, and the resource's own finding already says why it
+			// is not ready
 			r.Notes = append(r.Notes, fmt.Sprintf("connection %s %s is written when this resource is Ready", e.TargetKind, e.TargetName))
 			continue
 		}
 		src := sourceOf(out.Resources, r)
 		switch {
+		case src == nil && component != "":
+			r.Notes = append(r.Notes, fmt.Sprintf("source %s %s was not read: the diagnosis was narrowed to component %q; diagnose the whole Application to see it", e.SourceKind, e.SourceName, component))
 		case src == nil:
 			out.Findings = append(out.Findings, Finding{
 				Severity: SeverityWarning,
-				Message:  fmt.Sprintf("component %q: %s %s has not written %s; its source %s %s is not among this Application's resources, so its state was not read", r.Component, r.Kind, r.Name, exportTarget(e), e.SourceKind, e.SourceName),
+				Message:  fmt.Sprintf("component %q: %s %s has not written %s; its source %s %s was not among the diagnosed resources, so its state was not read", r.Component, r.Kind, r.Name, exportTarget(e), e.SourceKind, e.SourceName),
 				Evidence: ref,
 			})
-		case !src.Ready:
+		case src.State == stateNotReady || src.State == stateHalted:
 			r.Notes = append(r.Notes, fmt.Sprintf("source %s %s is %s; the export cannot complete until the source field exists", src.Kind, src.Name, src.State))
 			out.Findings = append(out.Findings, Finding{
 				Severity: SeverityWarning,
@@ -167,20 +192,28 @@ func linkExports(out *DiagnoseApplicationOutput) {
 				Observed: text(src.Summary),
 				Evidence: ref,
 			})
-		default:
+		case src.Ready:
 			r.Notes = append(r.Notes, fmt.Sprintf("source %s %s is Ready; the exporter's own conditions name the problem, often a source path that is unset and never converges", src.Kind, src.Name))
+		default:
+			r.Notes = append(r.Notes, fmt.Sprintf("source %s %s is %s, so whether it is the reason the export is unwritten could not be read", src.Kind, src.Name, src.State))
 		}
 	}
 }
 
 // sourceOf finds the diagnosed resource an export reads from: same cluster
-// and namespace, the kind and name the exporter names.
+// and namespace, the kind and name the exporter names, and the API group
+// when the exporter names one.
 func sourceOf(resources []ResourceDiagnosis, r *ResourceDiagnosis) *ResourceDiagnosis {
+	e := r.Export
 	for i := range resources {
 		s := &resources[i]
-		if s.Cluster == r.Cluster && s.Namespace == r.Namespace && s.Kind == r.Export.SourceKind && s.Name == r.Export.SourceName {
-			return s
+		if s.Cluster != r.Cluster || s.Namespace != r.Namespace || s.Kind != e.SourceKind || s.Name != e.SourceName {
+			continue
 		}
+		if e.SourceGroup != "" && groupOf(s.APIVersion) != e.SourceGroup {
+			continue
+		}
+		return s
 	}
 	return nil
 }
