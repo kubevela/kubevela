@@ -379,7 +379,9 @@ func injectSchedulingArgs(addonArgs map[string]interface{}) error {
 	file := addonSchedulingFile
 	ns := addonNodeSelector
 	addonSchedulingFile = ""
-	addonNodeSelector = nil
+	// An empty map, not nil: pflag writes into this map when the flag is
+	// parsed again on a reused command, and writing to a nil map panics.
+	addonNodeSelector = map[string]string{}
 	props, err := pkgaddon.LoadSchedulingFile(file)
 	if err != nil {
 		return err

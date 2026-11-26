@@ -4,8 +4,10 @@ Install a crate from an Application and choose which clusters receive the
 objects marked runtime. Definitions, and anything marked hub, stay on the hub
 cluster. The hub is the cluster where KubeVela itself runs.
 
-`vela crate deploy` does not send a placement. Apply an Application of
-`type: crate`, as in `application.yaml`.
+You can set the placement in two ways. Apply an Application of
+`type: crate`, as in `application.yaml`, or pass `--clusters` or
+`--cluster-selector` to `vela crate deploy`. Without either flag,
+`vela crate deploy` sends no placement.
 
 ## Enabling the feature
 
