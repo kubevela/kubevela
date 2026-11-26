@@ -105,18 +105,22 @@ func connectionSecretOf(diag *ResourceDiagnosis, obj *unstructured.Unstructured)
 }
 
 // ackService names the ACK service whose controller reconciles a resource:
-// the prefix of its API group. A FieldExport lives in the common group and
-// is reconciled by the controller of its source resource's service, read
-// from its spec. For any other common-group kind, or a FieldExport that
-// names no source group, there is no service to derive, and the result is
-// empty rather than an invented name.
+// the prefix of its API group. The common-group kinds are reconciled by the
+// controller of the service their spec points at: a FieldExport's source
+// resource group, an AdoptedResource's target group. For any other
+// common-group kind, or one that names no group, there is no service to
+// derive, and the result is empty rather than an invented name.
 func ackService(diag *ResourceDiagnosis, obj *unstructured.Unstructured) string {
 	group := groupOf(diag.APIVersion)
 	if group == ackCommonGroup {
-		if diag.Kind != fieldExportKind {
+		switch diag.Kind {
+		case fieldExportKind:
+			group, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "resource", "group")
+		case "AdoptedResource":
+			group, _, _ = unstructured.NestedString(obj.Object, "spec", "kubernetes", "group")
+		default:
 			return ""
 		}
-		group, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "resource", "group")
 		if group == "" || group == ackCommonGroup {
 			return ""
 		}

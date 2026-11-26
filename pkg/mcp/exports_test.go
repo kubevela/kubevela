@@ -165,7 +165,29 @@ var _ = Describe("diagnose_application exporters", func() {
 		Expect(out.Findings).NotTo(ContainElement(HaveField("Message", ContainSubstring("not among the diagnosed resources"))))
 	})
 
+	It("attributes an AdoptedResource to the controller of the group it adopts into", func() {
+		adopted := cloudResource("services.k8s.aws/v1alpha1", "AdoptedResource", "legacy-db", 1,
+			[]map[string]any{{"type": "ACK.ResourceSynced", "status": "True"}}, nil)
+		_ = unstructured.SetNestedMap(adopted.Object, map[string]any{
+			"aws":        map[string]any{"arn": "arn:aws:rds:us-east-1:000000000000:cluster:legacy-db"},
+			"kubernetes": map[string]any{"group": "rds.services.k8s.aws", "kind": "DBCluster"},
+		}, "spec")
+		ctrl := ackControllerDeployment("rds", "http://aws-emulator.floci.svc.cluster.local:4566")
+		h = startHarness(Options{}, append(diagnoseApp(adopted), ctrl)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+
+		r := resourceNamed(out, "AdoptedResource", "legacy-db")
+		Expect(r.Provider).To(Equal(providerACK))
+		Expect(r.Ready).To(BeTrue())
+		Expect(r.EndpointOverride).To(Equal("http://aws-emulator.floci.svc.cluster.local:4566"))
+		Expect(r.Export).To(BeNil())
+	})
+
 	It("does not invent a controller for a common-group kind that names no service", func() {
+		// an AdoptedResource without its target group, the shape a partial
+		// read or an unfamiliar common-group kind leaves
 		adopted := cloudResource("services.k8s.aws/v1alpha1", "AdoptedResource", "legacy-db", 1,
 			[]map[string]any{{"type": "ACK.ResourceSynced", "status": "True"}}, nil)
 		h = startHarness(Options{}, diagnoseApp(adopted)...)
@@ -175,10 +197,8 @@ var _ = Describe("diagnose_application exporters", func() {
 
 		r := resourceNamed(out, "AdoptedResource", "legacy-db")
 		Expect(r.Provider).To(Equal(providerACK))
-		Expect(r.Ready).To(BeTrue())
 		Expect(r.Notes).To(ContainElement(ContainSubstring("AdoptedResource is served by every ACK controller and names no service, so its controller was not looked up")))
 		Expect(toJSON(r)).NotTo(ContainSubstring("services.k8s.aws controller"))
-		Expect(r.Export).To(BeNil())
 	})
 
 	It("reports a Crossplane connection Secret as an export written when the resource is Ready", func() {
