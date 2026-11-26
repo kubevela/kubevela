@@ -74,6 +74,7 @@ if ! chart_meta="$(helm show chart "$chart" --version "$version" 2>/dev/null)"; 
 	exit 1
 fi
 chart_version="$(echo "$chart_meta" | sed -n 's/^version: *//p' | tr -d "\"'")"
+[ -n "$chart_version" ] || { echo "error: chart $chart names no version in its Chart.yaml, so there is nothing to pin the upgrade to" >&2; exit 1; }
 # Helm ignores --version for a local chart path, so the chart's own version must satisfy it: equal to
 # an exact version, or matching a 1.11.x wildcard. A repo chart is the one Helm resolved it to.
 if [ -e "$chart" ]; then
