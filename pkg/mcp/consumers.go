@@ -19,6 +19,8 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -59,13 +61,35 @@ type producer struct {
 	exporters          map[string]*ResourceDiagnosis
 }
 
-// exporterFor returns the exporter that writes the given key, or the one
-// that writes the whole object, or nil.
-func (p producer) exporterFor(key string) *ResourceDiagnosis {
-	if e := p.exporters[key]; e != nil {
-		return e
+// unwrittenExporterFor returns an exporter of this producer whose own
+// conditions say it has not written what the consumer reads: for one key,
+// the exporter writing that key or the one writing the whole object; for a
+// whole-object read (envFrom, a mounted Secret or ConfigMap), any exporter
+// that writes into the object. Nil when none says so.
+func (p producer) unwrittenExporterFor(key string) *ResourceDiagnosis {
+	unwritten := func(e *ResourceDiagnosis) bool {
+		return e != nil && e.Export != nil && e.Export.Written != nil && !*e.Export.Written
 	}
-	return p.exporters[""]
+	if key != "" {
+		if e := p.exporters[key]; unwritten(e) {
+			return e
+		}
+		if e := p.exporters[""]; unwritten(e) {
+			return e
+		}
+		return nil
+	}
+	keys := make([]string, 0, len(p.exporters))
+	for k := range p.exporters {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if unwritten(p.exporters[k]) {
+			return p.exporters[k]
+		}
+	}
+	return nil
 }
 
 func producerKey(cluster, namespace, kind, name string) string {
@@ -131,7 +155,6 @@ func (d *deps) linkConsumers(ctx context.Context, app *v1beta1.Application, appl
 			declared[c.Name][dep] = true
 		}
 	}
-	seen := map[string]bool{}
 	for i := range out.Resources {
 		r := &out.Resources[i]
 		if r.Provider != providerKubernetes || !workloadKinds[r.Kind] || r.Ready {
@@ -149,6 +172,16 @@ func (d *deps) linkConsumers(ctx context.Context, app *v1beta1.Application, appl
 			continue
 		}
 		out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s, read for the Secrets and ConfigMaps its pod template consumes", r.Kind, r.Namespace, r.Name, r.Cluster, obj.GetResourceVersion()))
+		// one finding per consumer, producer and object, covering every key
+		// the workload reads from it and whether it reads the whole object,
+		// so a written host export cannot hide an unwritten port export
+		type consumed struct {
+			p          producer
+			kind, name string
+			refs       []consumedRef
+		}
+		groups := map[string]*consumed{}
+		var order []string
 		for _, ref := range consumedRefs(obj) {
 			if ref.optional {
 				continue
@@ -157,12 +190,18 @@ func (d *deps) linkConsumers(ctx context.Context, app *v1beta1.Application, appl
 			if !ok || p.component == r.Component {
 				continue
 			}
-			key := r.Cluster + "\x00" + r.Namespace + "\x00" + r.Component + "\x00" + p.component + "\x00" + ref.kind + "\x00" + ref.name
-			if seen[key] {
-				continue
+			key := p.component + "\x00" + ref.kind + "\x00" + ref.name
+			g := groups[key]
+			if g == nil {
+				g = &consumed{p: p, kind: ref.kind, name: ref.name}
+				groups[key] = g
+				order = append(order, key)
 			}
-			seen[key] = true
-			if f, ok := consumerFinding(r, ref, p, declared[r.Component][p.component], out.Resources); ok {
+			g.refs = append(g.refs, ref)
+		}
+		for _, key := range order {
+			g := groups[key]
+			if f, ok := consumerFinding(r, g.kind, g.name, g.refs, g.p, declared[r.Component][g.p.component], out.Resources); ok {
 				out.Findings = append(out.Findings, f)
 			}
 		}
@@ -182,19 +221,57 @@ func (d *deps) readLive(ctx context.Context, r *ResourceDiagnosis) (*unstructure
 }
 
 // consumerFinding states why a consumer that is not ready may be waiting on
-// its producer. It is empty when the producer has done its part, or when
-// the producer's state is not known: the consumer's problem is then its
-// own, or cannot be settled from here.
-func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared bool, resources []ResourceDiagnosis) (Finding, bool) {
-	what := fmt.Sprintf("%s %s reads %s %q", r.Kind, r.Name, ref.kind, ref.name)
-	if ref.key != "" {
-		what += fmt.Sprintf(" key %q", ref.key)
+// its producer, for everything it reads from one object: each key, and the
+// whole object through envFrom or a mount. It is empty when the producer has
+// done its part, or when the producer's state is not known: the consumer's
+// problem is then its own, or cannot be settled from here.
+func consumerFinding(r *ResourceDiagnosis, kind, name string, refs []consumedRef, p producer, declared bool, resources []ResourceDiagnosis) (Finding, bool) {
+	var keys []string
+	whole, anyEnv := false, false
+	seenKey := map[string]bool{}
+	for _, ref := range refs {
+		if ref.via == viaEnv {
+			anyEnv = true
+		}
+		if ref.key == "" {
+			whole = true
+			continue
+		}
+		if !seenKey[ref.key] {
+			seenKey[ref.key] = true
+			keys = append(keys, fmt.Sprintf("%q", ref.key))
+		}
+	}
+	what := fmt.Sprintf("%s %s reads %s %q", r.Kind, r.Name, kind, name)
+	switch {
+	case len(keys) == 1 && !whole:
+		what += " key " + keys[0]
+	case len(keys) > 0 && !whole:
+		what += " keys " + joinAnd(keys)
+	case len(keys) > 0:
+		what += " keys " + joinAnd(keys) + " and the whole object"
+	default:
+		what += " as a whole"
+	}
+	// an unwritten exporter for any key read, or for any key when the whole
+	// object is read, is the most specific reason
+	var unwritten []string
+	seenExporter := map[string]bool{}
+	note := func(e *ResourceDiagnosis) {
+		if e != nil && !seenExporter[e.Name] {
+			seenExporter[e.Name] = true
+			unwritten = append(unwritten, fmt.Sprintf("%s %s", e.Kind, e.Name))
+		}
+	}
+	for _, ref := range refs {
+		note(p.unwrittenExporterFor(ref.key))
 	}
 	var why string
-	exporter := p.exporterFor(ref.key)
 	switch {
-	case exporter != nil && exporter.Export.Written != nil && !*exporter.Export.Written:
-		why = fmt.Sprintf("which %s %s of component %q has not written yet", exporter.Kind, exporter.Name, p.component)
+	case len(unwritten) == 1:
+		why = fmt.Sprintf("which %s of component %q has not written yet", unwritten[0], p.component)
+	case len(unwritten) > 1:
+		why = fmt.Sprintf("which %s of component %q have not written yet", joinAnd(unwritten), p.component)
 	default:
 		nr := notReadyOf(resources, p)
 		if nr == nil {
@@ -203,7 +280,7 @@ func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared
 		why = fmt.Sprintf("which component %q fills while its %s %s is %s", p.component, nr.Kind, nr.Name, nr.State)
 	}
 	consequence := "the consumer started before its provider was usable and fails until the provider is ready"
-	if ref.via == viaEnv {
+	if anyEnv {
 		consequence += " and, since a value read through env is fixed at container start, it restarts"
 	} else {
 		consequence += "; the mounted file updates in place once written"
@@ -218,6 +295,14 @@ func consumerFinding(r *ResourceDiagnosis, ref consumedRef, p producer, declared
 		Observed: text(r.Summary),
 		Evidence: fmt.Sprintf("%s %s/%s in cluster %s", r.Kind, r.Namespace, r.Name, r.Cluster),
 	}, true
+}
+
+// joinAnd joins items as "a, b and c".
+func joinAnd(items []string) string {
+	if len(items) <= 1 {
+		return strings.Join(items, "")
+	}
+	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
 }
 
 // notReadyOf returns the first diagnosed resource of the producer's

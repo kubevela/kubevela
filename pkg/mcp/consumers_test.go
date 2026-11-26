@@ -185,7 +185,7 @@ var _ = Describe("diagnose_application consumers", func() {
 
 		found := consumerFindings(out)
 		Expect(found).To(HaveLen(1), toJSON(out.Findings))
-		Expect(found[0].Message).To(ContainSubstring(`component "petclinic": Deployment petclinic reads Secret "petclinic-db" key "host", which FieldExport petclinic-db-conn-host of component "petclinic-db" has not written yet`))
+		Expect(found[0].Message).To(ContainSubstring(`component "petclinic": Deployment petclinic reads Secret "petclinic-db" keys "host" and "port" and the whole object, which FieldExport petclinic-db-conn-host of component "petclinic-db" has not written yet`))
 		Expect(found[0].Message).To(ContainSubstring(`"petclinic" declares no dependsOn on "petclinic-db", so the workflow applied both at once; owner: application-spec, the Application`))
 		Expect(found[0].Observed).To(ContainSubstring("resource tree health"))
 		Expect(out.Evidence).To(ContainElement(ContainSubstring("Deployment team-a/petclinic in cluster local resourceVersion 9, read for the Secrets and ConfigMaps")))
@@ -199,7 +199,7 @@ var _ = Describe("diagnose_application consumers", func() {
 
 		found := consumerFindings(out)
 		Expect(found).To(HaveLen(1), toJSON(out.Findings))
-		Expect(found[0].Message).To(ContainSubstring(`reads Secret "petclinic-db" key "host", which component "petclinic-db" fills while its DBInstance petclinic-db-instance-1 is NotReady`))
+		Expect(found[0].Message).To(ContainSubstring(`reads Secret "petclinic-db" keys "host" and "port" and the whole object, which component "petclinic-db" fills while its DBInstance petclinic-db-instance-1 is NotReady`))
 		Expect(found[0].Message).To(ContainSubstring(`"petclinic" depends on "petclinic-db", so the workflow released it when "petclinic-db" reported healthy; that component's health rule does not cover everything a consumer needs; owner: platform, its definition`))
 	})
 
@@ -240,11 +240,9 @@ var _ = Describe("diagnose_application consumers", func() {
 		Expect(consumerFindings(out)).To(BeEmpty(), toJSON(out.Findings))
 	})
 
-	It("judges the key the consumer reads by the exporter that writes it", func() {
-		// a second FieldExport for key port is written; the host one is not,
-		// and the Deployment reads host
-		objs := consumerObjects(consumerFixture{exportWritten: false, instanceSynced: "True"})
-		port := fieldExport("petclinic-db-conn-port", "True", "rds.services.k8s.aws")
+	// withPortExport adds a second FieldExport for key port to the fixture.
+	withPortExport := func(objs []client.Object, synced string) []client.Object {
+		port := fieldExport("petclinic-db-conn-port", synced, "rds.services.k8s.aws")
 		port.SetNamespace("team-a")
 		_ = unstructured.SetNestedField(port.Object, "petclinic-db", "spec", "to", "name")
 		_ = unstructured.SetNestedField(port.Object, "port", "spec", "to", "key")
@@ -257,13 +255,50 @@ var _ = Describe("diagnose_application consumers", func() {
 				})
 			}
 		}
-		h = startHarness(Options{}, append(objs, port)...)
+		return append(objs, port)
+	}
+
+	It("names only the exporter of the key that is unwritten", func() {
+		// host unwritten, port written: one finding, naming host's exporter
+		h = startHarness(Options{}, withPortExport(consumerObjects(consumerFixture{exportWritten: false, instanceSynced: "True"}), "True")...)
 		var out DiagnoseApplicationOutput
 		res := h.call("diagnose_application", args, &out)
 		Expect(res.IsError).To(BeFalse(), toJSON(res))
 		found := consumerFindings(out)
 		Expect(found).To(HaveLen(1), toJSON(out.Findings))
-		Expect(found[0].Message).To(ContainSubstring(`key "host", which FieldExport petclinic-db-conn-host of component "petclinic-db" has not written yet`))
+		Expect(found[0].Message).To(ContainSubstring(`which FieldExport petclinic-db-conn-host of component "petclinic-db" has not written yet`))
+		Expect(found[0].Message).NotTo(ContainSubstring("conn-port"))
+	})
+
+	It("does not let a written key hide an unwritten one the same workload reads", func() {
+		// host written, port unwritten: the finding names port's exporter
+		h = startHarness(Options{}, withPortExport(consumerObjects(consumerFixture{exportWritten: true, instanceSynced: "True"}), "False")...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		found := consumerFindings(out)
+		Expect(found).To(HaveLen(1), toJSON(out.Findings))
+		Expect(found[0].Message).To(ContainSubstring(`which FieldExport petclinic-db-conn-port of component "petclinic-db" has not written yet`))
+		Expect(found[0].Message).NotTo(ContainSubstring("conn-host of"))
+	})
+
+	It("blames any unwritten exporter when the workload reads the whole object", func() {
+		// only a volume mount, no env: a per-key exporter that is unwritten
+		// still leaves the mounted file without that key
+		objs := consumerObjects(consumerFixture{exportWritten: false, instanceSynced: "True"})
+		for _, o := range objs {
+			if d, ok := o.(*appsv1.Deployment); ok {
+				d.Spec.Template.Spec.Containers[0].Env = nil
+			}
+		}
+		h = startHarness(Options{}, objs...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		found := consumerFindings(out)
+		Expect(found).To(HaveLen(1), toJSON(out.Findings))
+		Expect(found[0].Message).To(ContainSubstring(`reads Secret "petclinic-db" as a whole, which FieldExport petclinic-db-conn-host of component "petclinic-db" has not written yet`))
+		Expect(found[0].Message).To(ContainSubstring("the mounted file updates in place once written"))
 	})
 
 	It("skips the consumer read and says so when the diagnosis reached its live-read bound", func() {
