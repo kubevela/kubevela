@@ -32,7 +32,7 @@ while [ $# -gt 0 ]; do
 	-v | --verbose) verbosity=verbose ;;
 	-q | --quiet) verbosity=quiet ;;
 	--from-dir) from_dir="$2"; shift ;;
-	-h | --help) sed -n '2,19p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,18p' "$0"; exit 0 ;;
 	*) echo "error: unknown argument $1" >&2; exit 2 ;;
 	esac
 	shift
