@@ -29,7 +29,8 @@ import (
 )
 
 // stubHelm answers the helm calls the script makes in a dry run. `helm show chart` reports the version
-// asked for, or STUB_CHART_VERSION when set, as Helm does for a local chart whatever --version says.
+// asked for, or STUB_CHART_VERSION when set, as Helm does for a local chart whatever --version says;
+// STUB_CHART_VERSION=none leaves the version out.
 // `helm template` renders one builtin definition under the chart layout named by STUB_LAYOUT: 1.11.0 kept
 // them in templates/defwithtemplate, 1.11.1 and later ship them as ConfigMaps a hook Job applies
 // (templates/builtin-definitions).
@@ -39,7 +40,7 @@ show)
 	version="$STUB_CHART_VERSION"
 	while [ $# -gt 0 ]; do [ "$1" = "--version" ] && [ -z "$version" ] && version="$2"; shift; done
 	echo "name: vela-core"
-	echo "version: $version"
+	[ "$version" = none ] || echo "version: $version"
 	;;
 history) echo '[{"chart":"vela-core-1.12.0-alpha.2","status":"deployed"}]' ;;
 version) echo "v3.14.4+gabcdef" ;;
@@ -124,6 +125,14 @@ func TestDowngradeResolvesVersionConstraint(t *testing.T) {
 	out, err := runDowngradeWithChart(t, "builtin-definitions", "1.11.2", "--version", "1.11.x")
 	require.NoError(t, err, out)
 	require.Contains(t, out, "would: helm upgrade kubevela kubevela/vela-core --version 1.11.2 -n vela-system --reset-then-reuse-values --set image.tag=v1.11.2")
+}
+
+func TestDowngradeRefusesChartWithoutVersion(t *testing.T) {
+	// A chart whose metadata names no version leaves nothing to pin the upgrade to.
+	out, err := runDowngradeWithChart(t, "builtin-definitions", "none", "--version", "1.11.x")
+	require.Error(t, err)
+	require.Contains(t, out, "names no version")
+	require.NotContains(t, out, "would: helm upgrade")
 }
 
 func TestDowngradeChecksLocalChartVersion(t *testing.T) {
