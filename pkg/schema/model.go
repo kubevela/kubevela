@@ -552,10 +552,31 @@ func markForbidden(f *Field, v cue.Value) {
 // forbiddenMessage reports whether v is declared as error(...) or _|_, and
 // the message that declaration carries. The evaluated expression is what an
 // if body still has: every field of the if shares the comprehension as its
-// source, so the declaration alone cannot tell them apart.
+// source, so the declaration alone cannot tell them apart. A conjunction is
+// forbidden when one of its terms is; a conflict such as int & "x" has none.
 func forbiddenMessage(v cue.Value) (string, bool) {
+	msg, ok := forbiddenTerm(v)
+	if !ok {
+		return "", false
+	}
+	if msg == "" {
+		msg = cueMessage(v.Err())
+	}
+	return msg, true
+}
+
+func forbiddenTerm(v cue.Value) (string, bool) {
 	if isErrorCall(v) || isBottomLiteral(v) || isForbiddenExpr(declaredExpr(v.Source())) {
 		return cueMessage(v.Err()), true
+	}
+	op, args := unwrap(v)
+	if op != cue.AndOp {
+		return "", false
+	}
+	for _, a := range flattenAnd(args) {
+		if isErrorCall(a) || isBottomLiteral(a) || isForbiddenExpr(declaredExpr(a.Source())) {
+			return cueMessage(a.Err()), true
+		}
 	}
 	return "", false
 }

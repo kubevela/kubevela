@@ -195,6 +195,32 @@ parameter: {
 	assert.Equal(t, []string{"kept"}, uiKeys(ps.UI))
 }
 
+func TestGenerateForbiddenConjunction(t *testing.T) {
+	ps := generate(t, `
+parameter: {
+	nameOverride?: error("nameOverride is not supported") & string
+	fullnameOverride?: _|_ & string
+	kept?: string & =~"^[a-z]+$"
+	type: "a" | "b"
+	if type == "a" {
+		hidden?: (error("hidden") & string)
+	}
+}`)
+	name := ps.OpenAPI.Properties["nameOverride"].Value
+	require.NotNil(t, name.Not)
+	assert.True(t, name.Not.Value.IsEmpty())
+	assert.Equal(t, "nameOverride is not supported", name.Description)
+	full := ps.OpenAPI.Properties["fullnameOverride"].Value
+	require.NotNil(t, full.Not)
+	assert.True(t, full.Not.Value.IsEmpty())
+	hidden := ps.OpenAPI.Properties["hidden"].Value
+	require.NotNil(t, hidden.Not)
+	assert.Equal(t, "hidden", hidden.Description)
+	assert.Nil(t, ps.OpenAPI.Properties["kept"].Value.Not)
+	keys := uiKeys(ps.UI)
+	assert.Equal(t, []string{"kept", "type"}, keys)
+}
+
 func TestGenerateConflictIsNotForbidden(t *testing.T) {
 	_, err := GenerateParameterSchemas(context.Background(), `parameter: {ns: int & "x"}`)
 	require.Error(t, err)
