@@ -1,0 +1,13 @@
+# A type: crate component used directly, without an addon.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: crate-direct
+  namespace: default
+spec:
+  components:
+    - name: gadget-kit
+      type: crate
+      properties:
+        registry: e2e-crates
+        version: "1.0.0"

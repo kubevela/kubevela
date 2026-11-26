@@ -30,14 +30,14 @@ type ComponentDefinitionSpec struct {
 	// +optional
 	Version string `json:"version,omitempty"`
 
-	// Module names the module this definition was published in, for example
+	// Crate names the crate this definition was published in, for example
 	// "s3". It identifies a versioned definition on the spec itself, not only
 	// through labels. Set it together with apiVersion, or leave both empty.
 	// +optional
-	Module string `json:"module,omitempty"`
+	Crate string `json:"crate,omitempty"`
 
-	// APIVersion is the API line of the module this definition belongs to, for
-	// example "v1" or "v1beta2". Set it together with module, or leave both empty.
+	// APIVersion is the API line of the crate this definition belongs to, for
+	// example "v1" or "v1beta2". Set it together with crate, or leave both empty.
 	// +kubebuilder:validation:Pattern=`^v\d+(alpha\d+|beta\d+)?$`
 	// +optional
 	APIVersion string `json:"apiVersion,omitempty"`
@@ -146,11 +146,11 @@ func (cd *ComponentDefinition) GetCondition(conditionType condition.ConditionTyp
 	return cd.Status.GetCondition(conditionType)
 }
 
-// GetModule returns the module this definition was published in, or "" for a
-// legacy, non-module definition. One accessor per X-Definition kind, so a
-// caller that only needs the module identity (e.g. Form 1 resolution) does
+// GetCrate returns the crate this definition was published in, or "" for a
+// legacy, non-crate definition. One accessor per X-Definition kind, so a
+// caller that only needs the crate identity (e.g. Form 1 resolution) does
 // not need a type switch over every kind that carries one.
-func (cd *ComponentDefinition) GetModule() string { return cd.Spec.Module }
+func (cd *ComponentDefinition) GetCrate() string { return cd.Spec.Crate }
 
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

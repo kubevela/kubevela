@@ -18,7 +18,7 @@ limitations under the License.
 // evaluating an Application for admission rather than rendering it for real.
 //
 // It sits beside the providers rather than inside any one of them because the
-// marker is not about addons or modules: the addon provider, the module
+// marker is not about addons or crates: the addon provider, the crate
 // provider and the appfile validation path all need the same signal, and
 // keeping it here means shared appfile code does not import a package it has no
 // other business with.
@@ -39,7 +39,7 @@ type validationOnlyKey struct{}
 // and an Application resolves each of its components separately. The apiserver
 // caps an admission request at admissionWebhookTimeout (10s by default) and the
 // Application webhook runs with failurePolicy: Fail, so an Application with a
-// handful of addon or module components cannot fit in the budget, and every
+// handful of addon or crate components cannot fit in the budget, and every
 // apply in the cluster would depend on the registry being reachable and on the
 // rate-limit budget of whoever hosts it.
 //

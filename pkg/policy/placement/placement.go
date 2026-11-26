@@ -16,7 +16,7 @@ limitations under the License.
 
 // Package placement classifies objects as hub or runtime and builds the
 // topology policies, override policies, and deploy steps that install each
-// class. It does not know what a module is. Callers name the tiers and pass
+// class. It does not know what a crate is. Callers name the tiers and pass
 // the objects.
 package placement
 
@@ -82,7 +82,7 @@ func Validate(p *v1alpha1.Placement) error {
 }
 
 // Class reads oam.AnnotationPlacement on obj, then the first non-empty inherited default.
-// The caller passes defaults in precedence order (line, then module). An
+// The caller passes defaults in precedence order (line, then crate). An
 // absent marker with no default is hub. Any other value is an error.
 func Class(obj map[string]interface{}, inherited ...string) (string, error) {
 	v, ok, err := annotation(obj)
@@ -270,7 +270,7 @@ func annotation(obj map[string]interface{}) (string, bool, error) {
 	return s, true, nil
 }
 
-// Normalize checks a placement value from a module or line default.
+// Normalize checks a placement value from a crate or line default.
 // Hub and runtime are accepted. An empty value and any other value are errors.
 func Normalize(v string) (string, error) {
 	if err := oam.ValidatePlacement(v); err != nil {

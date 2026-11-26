@@ -60,24 +60,24 @@ const (
 	// makes every workflow run apply its components again, as
 	// app.oam.dev/autoUpdate does for a whole Application. It is for definitions
 	// whose output can change while the component's properties stay the same,
-	// such as addon and module, which fetch from a registry when they render.
+	// such as addon and crate, which fetch from a registry when they render.
 	AnnoDefinitionRedispatchOnWorkflowRun = "definition.oam.dev/redispatch-on-workflow-run"
 	// LabelDefinition is the label for definition
 	LabelDefinition = "definition.oam.dev"
 	// LabelDefinitionName is the label for definition name
 	LabelDefinitionName = "definition.oam.dev/name"
-	// LabelDefinitionModule is the module a definition came from.
-	LabelDefinitionModule = "definition.oam.dev/module"
-	// LabelDefinitionModuleAPIVersion is the module API line a definition belongs to.
-	LabelDefinitionModuleAPIVersion = "definition.oam.dev/module-api-version"
-	// AnnoDefinitionModuleFullName carries the untruncated {module}-{apiVersion}-{name}
+	// LabelDefinitionCrate is the crate a definition came from.
+	LabelDefinitionCrate = "definition.oam.dev/crate"
+	// LabelDefinitionCrateAPIVersion is the crate API line a definition belongs to.
+	LabelDefinitionCrateAPIVersion = "definition.oam.dev/crate-api-version"
+	// AnnoDefinitionCrateFullName carries the untruncated {crate}-{apiVersion}-{name}
 	// identity, for definitions whose full name exceeds the 253-char object-name
 	// limit and therefore had to be truncated and hashed.
-	AnnoDefinitionModuleFullName = "definition.oam.dev/module-full-name"
-	// AnnoDefinitionModuleVersion carries the concrete module package version
-	// (the OCI/ECR tag) that was fetched and installed, on the module's owned
+	AnnoDefinitionCrateFullName = "definition.oam.dev/crate-full-name"
+	// AnnoDefinitionCrateVersion carries the concrete crate package version
+	// (the OCI/ECR tag) that was fetched and installed, on the crate's owned
 	// Application.
-	AnnoDefinitionModuleVersion = "definition.oam.dev/module-version"
+	AnnoDefinitionCrateVersion = "definition.oam.dev/crate-version"
 	// LabelDefinitionDeprecated is the label which describe whether the capability is deprecated
 	LabelDefinitionDeprecated = "custom.definition.oam.dev/deprecated"
 	// LabelDefinitionHidden is the label which describe whether the capability is hidden by UI

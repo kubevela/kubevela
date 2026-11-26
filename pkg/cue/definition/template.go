@@ -332,7 +332,7 @@ func (wd *workloadDef) GetTemplateContext(ctx process.Context, cli client.Client
 type traitDef struct {
 	def
 	// typeLabel is the trait.oam.dev/type value put on the objects the trait
-	// emits through outputs. It is the name, except for a module definition,
+	// emits through outputs. It is the name, except for a crate definition,
 	// where it is the installed name (see NewTraitAbstractEngineWithTypeLabel).
 	typeLabel string
 }
@@ -347,7 +347,7 @@ func NewTraitAbstractEngine(name string, ancestors ...inherit.Level) AbstractEng
 }
 
 // NewTraitAbstractEngineWithTypeLabel is NewTraitAbstractEngine for a trait
-// whose outputs are labelled with something other than its name. A module
+// whose outputs are labelled with something other than its name. A crate
 // trait referenced as "note" or "widget-kit/v1/note" is labelled with its
 // installed name "widget-kit-v1-note": the slashes of the long forms are not
 // valid in a label value, and the dispatcher looks the label up among the
@@ -493,12 +493,31 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	outputsPatcher := val.LookupPath(value.FieldPath(PatchOutputsFieldName))
 	if outputsPatcher.Exists() {
+		// Honor +patchStrategy on patchOutputs (nearest parent declaration, then
+		// fall back to the patch field) so overlays like affinity nodeSelector
+		// can win over chart values.
+		outOpts := sets.CreateUnifyOptionsForPatcher(outputsPatcher)
+		if len(outOpts) == 0 {
+			for i := len(levels) - 1; i >= 0; i-- {
+				p := levels[i].LookupPath(value.FieldPath(PatchOutputsFieldName))
+				if !p.Exists() {
+					continue
+				}
+				if opts := sets.CreateUnifyOptionsForPatcher(p); len(opts) > 0 {
+					outOpts = opts
+					break
+				}
+			}
+		}
+		if len(outOpts) == 0 && patcher.Exists() {
+			outOpts = patchOptionsFromLevels(levels, patcher)
+		}
 		for i, auxiliary := range auxiliaries {
 			target := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
 			if !target.Exists() {
 				continue
 			}
-			if err = auxiliary.Ins.Unify(target); err != nil {
+			if err = auxiliary.Ins.Unify(marshalablePatch(ctx, target, outOpts), outOpts...); err != nil {
 				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
 			if err = repruneAuxiliary(ctx, auxiliaries, i); err != nil {

@@ -845,7 +845,7 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 }
 
 // traitTypeLabel returns the trait.oam.dev/type value for a trait's outputs.
-// A module trait is labelled with its installed name whichever form it was
+// A crate trait is labelled with its installed name whichever form it was
 // referenced by, so that the label is valid and matches the key the revision
 // stores the definition under. Every other trait keeps its name, so legacy and
 // revisioned traits ("scaler", "scaler-v1") are labelled as before.
@@ -853,7 +853,7 @@ func traitTypeLabel(traitName string, templ *Template) string {
 	if templ == nil || templ.TraitDefinition == nil || templ.TraitDefinition.Name == "" {
 		return traitName
 	}
-	if templ.TraitDefinition.Labels[types.LabelDefinitionModule] == "" {
+	if templ.TraitDefinition.Labels[types.LabelDefinitionCrate] == "" {
 		return traitName
 	}
 	return templ.TraitDefinition.Name

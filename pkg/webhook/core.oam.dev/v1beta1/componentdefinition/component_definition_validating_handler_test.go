@@ -44,9 +44,9 @@ import (
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/crate"
+	craterender "github.com/oam-dev/kubevela/pkg/crate/service"
 	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/module"
-	modulerender "github.com/oam-dev/kubevela/pkg/module/service"
 )
 
 var handler ValidatingHandler
@@ -748,7 +748,7 @@ func TestExtendingWithATemplateInheritsTheWorkload(t *testing.T) {
 	require.NoError(t, ValidateWorkload(nil, cd))
 }
 
-// The identity fields only make sense as a pair: a module without an apiVersion
+// The identity fields only make sense as a pair: a crate without an apiVersion
 // (or the reverse) cannot name a versioned definition, so the handler rejects it.
 func TestHandleValidatesIdentityFields(t *testing.T) {
 	sc := runtime.NewScheme()
@@ -758,11 +758,11 @@ func TestHandleValidatesIdentityFields(t *testing.T) {
 		Client:  fake.NewClientBuilder().WithScheme(sc).Build(),
 	}
 
-	build := func(module, apiVersion string) admission.Request {
+	build := func(crateName, apiVersion string) admission.Request {
 		def := &v1beta1.ComponentDefinition{
 			TypeMeta:   metav1.TypeMeta{Kind: "ComponentDefinition", APIVersion: "core.oam.dev/v1beta1"},
 			ObjectMeta: metav1.ObjectMeta{Name: "identity-comp", Namespace: "vela-system"},
-			Spec:       v1beta1.ComponentDefinitionSpec{Workload: common.WorkloadTypeDescriptor{Type: "deployments.apps"}, Module: module, APIVersion: apiVersion},
+			Spec:       v1beta1.ComponentDefinitionSpec{Workload: common.WorkloadTypeDescriptor{Type: "deployments.apps"}, Crate: crateName, APIVersion: apiVersion},
 		}
 		raw, err := json.Marshal(def)
 		require.NoError(t, err)
@@ -776,7 +776,7 @@ func TestHandleValidatesIdentityFields(t *testing.T) {
 		}}
 	}
 
-	t.Run("module and apiVersion together are admitted", func(t *testing.T) {
+	t.Run("crate and apiVersion together are admitted", func(t *testing.T) {
 		resp := h.Handle(context.Background(), build("s3", "v1"))
 		require.True(t, resp.Allowed, "%v", resp.Result)
 	})
@@ -786,16 +786,16 @@ func TestHandleValidatesIdentityFields(t *testing.T) {
 		require.True(t, resp.Allowed, "%v", resp.Result)
 	})
 
-	t.Run("module without apiVersion is denied", func(t *testing.T) {
+	t.Run("crate without apiVersion is denied", func(t *testing.T) {
 		resp := h.Handle(context.Background(), build("s3", ""))
 		require.False(t, resp.Allowed)
 		require.Contains(t, resp.Result.Message, "spec.apiVersion is empty")
 	})
 
-	t.Run("apiVersion without module is denied", func(t *testing.T) {
+	t.Run("apiVersion without crate is denied", func(t *testing.T) {
 		resp := h.Handle(context.Background(), build("", "v1"))
 		require.False(t, resp.Allowed)
-		require.Contains(t, resp.Result.Message, "spec.module is empty")
+		require.Contains(t, resp.Result.Message, "spec.crate is empty")
 	})
 
 	t.Run("an update is validated too", func(t *testing.T) {
@@ -812,7 +812,7 @@ func TestHandleValidatesIdentityFields(t *testing.T) {
 // check, nothing about whether the apiserver actually persists the fields.
 // These specs go through testEnv's real envtest apiserver instead, loaded
 // with the real shipped CRDs (charts/vela-core/crds), so they are the only
-// place that proves declaring module/apiVersion as schema properties is what
+// place that proves declaring crate/apiVersion as schema properties is what
 // stops the apiserver from pruning them.
 var _ = Describe("Identity fields survive a real apiserver apply", func() {
 	var identityCli client.Client
@@ -830,12 +830,12 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 		Expect(err == nil || apierrors.IsAlreadyExists(err)).Should(BeTrue(), "%v", err)
 	})
 
-	It("persists spec.module and spec.apiVersion on a hand-authored definition", func() {
+	It("persists spec.crate and spec.apiVersion on a hand-authored definition", func() {
 		def := &v1beta1.ComponentDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: "identity-persist", Namespace: "vela-system"},
 			Spec: v1beta1.ComponentDefinitionSpec{
 				Workload:   common.WorkloadTypeDescriptor{Type: "deployments.apps"},
-				Module:     "s3",
+				Crate:      "s3",
 				APIVersion: "v1",
 			},
 		}
@@ -844,7 +844,7 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 
 		got := &v1beta1.ComponentDefinition{}
 		Expect(identityCli.Get(context.Background(), client.ObjectKeyFromObject(def), got)).Should(Succeed())
-		Expect(got.Spec.Module).Should(Equal("s3"), "the apiserver pruned spec.module")
+		Expect(got.Spec.Crate).Should(Equal("s3"), "the apiserver pruned spec.crate")
 		Expect(got.Spec.APIVersion).Should(Equal("v1"), "the apiserver pruned spec.apiVersion")
 	})
 
@@ -858,7 +858,7 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 
 		got := &v1beta1.ComponentDefinition{}
 		Expect(identityCli.Get(context.Background(), client.ObjectKeyFromObject(def), got)).Should(Succeed())
-		Expect(got.Spec.Module).Should(BeEmpty())
+		Expect(got.Spec.Crate).Should(BeEmpty())
 		Expect(got.Spec.APIVersion).Should(BeEmpty())
 	})
 
@@ -867,7 +867,7 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "identity-bad-pattern", Namespace: "vela-system"},
 			Spec: v1beta1.ComponentDefinitionSpec{
 				Workload:   common.WorkloadTypeDescriptor{Type: "deployments.apps"},
-				Module:     "s3",
+				Crate:      "s3",
 				APIVersion: "1.0",
 			},
 		}
@@ -876,11 +876,11 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 		Expect(err.Error()).Should(ContainSubstring("apiVersion"))
 	})
 
-	It("persists the identity the real module render path stamps, through RenderApplication/stampIdentity", func() {
-		mod := &module.Module{
+	It("persists the identity the real crate render path stamps, through RenderApplication/stampIdentity", func() {
+		parsed := &crate.Crate{
 			Name:    "identity-render",
 			Version: "1.0.0",
-			Lines: map[string]module.Line{
+			Lines: map[string]crate.Line{
 				"v1": {
 					APIVersion: "v1",
 					Enabled:    true,
@@ -894,14 +894,14 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 			},
 		}
 
-		app, err := modulerender.RenderApplication(mod, "vela-system", nil)
+		app, err := craterender.RenderApplication(parsed, "vela-system", nil)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		spec, ok := app["spec"].(map[string]interface{})
 		Expect(ok).Should(BeTrue(), "owned Application has no spec")
 		comps, ok := spec["components"].([]interface{})
 		Expect(ok).Should(BeTrue(), "owned Application has no spec.components")
-		Expect(comps).Should(HaveLen(1), "one line, no module/line auxiliary: only the defs tier renders")
+		Expect(comps).Should(HaveLen(1), "one line, no crate/line auxiliary: only the defs tier renders")
 		defsComp, ok := comps[0].(map[string]interface{})
 		Expect(ok).Should(BeTrue())
 		props, ok := defsComp["properties"].(map[string]interface{})
@@ -918,7 +918,7 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 		Expect(json.Unmarshal(raw, rendered)).Should(Succeed())
 
 		// stampIdentity's own output, before this ever reaches the apiserver.
-		Expect(rendered.Spec.Module).Should(Equal("identity-render"))
+		Expect(rendered.Spec.Crate).Should(Equal("identity-render"))
 		Expect(rendered.Spec.APIVersion).Should(Equal("v1"))
 
 		Expect(identityCli.Create(context.Background(), rendered)).Should(Succeed())
@@ -926,7 +926,7 @@ var _ = Describe("Identity fields survive a real apiserver apply", func() {
 
 		got := &v1beta1.ComponentDefinition{}
 		Expect(identityCli.Get(context.Background(), client.ObjectKeyFromObject(rendered), got)).Should(Succeed())
-		Expect(got.Spec.Module).Should(Equal("identity-render"), "the apiserver pruned the render path's spec.module")
+		Expect(got.Spec.Crate).Should(Equal("identity-render"), "the apiserver pruned the render path's spec.crate")
 		Expect(got.Spec.APIVersion).Should(Equal("v1"), "the apiserver pruned the render path's spec.apiVersion")
 	})
 })

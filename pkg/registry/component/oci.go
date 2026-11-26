@@ -218,7 +218,7 @@ func NewOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) 
 		// this one back to them. See oci_credentials.go. Without a credential
 		// the client keeps its default file, which is what lets a caller that
 		// supplied none fall back to the ambient docker credential chain, as
-		// `vela module publish --username ""` documents.
+		// `vela crate publish --username ""` documents.
 		var credFile string
 		if username != "" || password != "" {
 			path, err := writeOCICredentialsFile(key, host, username, password)
@@ -361,7 +361,7 @@ func IsOCIRepositoryAbsentError(err error) bool {
 //
 // It lives with the generic OCI primitives rather than in pkg/addon because
 // which hosts are Docker Hub is a property of the registry, not of addons:
-// the module publish and fetch paths reach the same registries.
+// the crate publish and fetch paths reach the same registries.
 func IsDockerHubHost(host string) bool {
 	h := strings.ToLower(host)
 	if i := strings.IndexByte(h, ':'); i >= 0 {

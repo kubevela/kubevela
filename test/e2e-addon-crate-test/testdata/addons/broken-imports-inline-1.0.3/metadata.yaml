@@ -1,0 +1,7 @@
+name: broken-imports-inline
+version: 1.0.3
+description: "Deliberately broken addon: an inline crate named \"widget-kit\" collides with the same crate name imported via crates/_imports.cue."
+tags:
+  - test
+  - crate-inline
+dependencies: []

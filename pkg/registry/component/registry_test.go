@@ -657,33 +657,33 @@ func TestRegistryDataStoreForCustomConfigMap(t *testing.T) {
 	assert.NoError(t, v1.AddToScheme(scheme))
 	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	ds := NewRegistryDataStoreFor(cli, "vela-module-registry", "module-registry-")
+	ds := NewRegistryDataStoreFor(cli, "vela-crate-registry", "crate-registry-")
 	assert.NoError(t, ds.AddRegistry(ctx, Registry{
 		Name: "catalog",
 		Git: &GitAddonSource{
 			URL:   "https://github.com/kubevela/catalog",
-			Path:  "module",
+			Path:  "crate",
 			Token: "t0ken",
 		},
 	}))
 
-	// The entry lands in the module ConfigMap.
+	// The entry lands in the crate ConfigMap.
 	var cm v1.ConfigMap
 	assert.NoError(t, cli.Get(ctx, types.NamespacedName{
-		Name: "vela-module-registry", Namespace: velatypes.DefaultKubeVelaNS,
+		Name: "vela-crate-registry", Namespace: velatypes.DefaultKubeVelaNS,
 	}, &cm))
 	registries := map[string]Registry{}
 	assert.NoError(t, json.Unmarshal([]byte(cm.Data[registriesKey]), &registries))
 	assert.Equal(t, 1, len(registries))
 	assert.Equal(t, "https://github.com/kubevela/catalog", registries["catalog"].Git.URL)
-	assert.Equal(t, "module", registries["catalog"].Git.Path)
+	assert.Equal(t, "crate", registries["catalog"].Git.Path)
 
-	// The token is not in the ConfigMap body; it is in a module-prefixed secret.
+	// The token is not in the ConfigMap body; it is in a crate-prefixed secret.
 	assert.Equal(t, "", registries["catalog"].Git.Token)
-	assert.Equal(t, "module-registry-catalog", registries["catalog"].Git.TokenSecretRef)
+	assert.Equal(t, "crate-registry-catalog", registries["catalog"].Git.TokenSecretRef)
 	var secret v1.Secret
 	assert.NoError(t, cli.Get(ctx, types.NamespacedName{
-		Name: "module-registry-catalog", Namespace: velatypes.DefaultKubeVelaNS,
+		Name: "crate-registry-catalog", Namespace: velatypes.DefaultKubeVelaNS,
 	}, &secret))
 	assert.Equal(t, "t0ken", string(secret.Data["token"]))
 

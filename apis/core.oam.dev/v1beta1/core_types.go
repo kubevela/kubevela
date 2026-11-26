@@ -210,14 +210,14 @@ type TraitDefinitionSpec struct {
 	// +optional
 	Version string `json:"version,omitempty"`
 
-	// Module names the module this definition was published in, for example
+	// Crate names the crate this definition was published in, for example
 	// "s3". It identifies a versioned definition on the spec itself, not only
 	// through labels. Set it together with apiVersion, or leave both empty.
 	// +optional
-	Module string `json:"module,omitempty"`
+	Crate string `json:"crate,omitempty"`
 
-	// APIVersion is the API line of the module this definition belongs to, for
-	// example "v1" or "v1beta2". Set it together with module, or leave both empty.
+	// APIVersion is the API line of the crate this definition belongs to, for
+	// example "v1" or "v1beta2". Set it together with crate, or leave both empty.
 	// +kubebuilder:validation:Pattern=`^v\d+(alpha\d+|beta\d+)?$`
 	// +optional
 	APIVersion string `json:"apiVersion,omitempty"`
@@ -286,9 +286,9 @@ func (td *TraitDefinition) GetCondition(conditionType condition.ConditionType) c
 	return td.Status.GetCondition(conditionType)
 }
 
-// GetModule returns the module this definition was published in, or "" for a
-// legacy, non-module definition.
-func (td *TraitDefinition) GetModule() string { return td.Spec.Module }
+// GetCrate returns the crate this definition was published in, or "" for a
+// legacy, non-crate definition.
+func (td *TraitDefinition) GetCrate() string { return td.Spec.Crate }
 
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -21,8 +21,10 @@ import (
 	"encoding/json"
 
 	wfv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -34,18 +36,18 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
+	"github.com/oam-dev/kubevela/pkg/crate"
+	cratesvc "github.com/oam-dev/kubevela/pkg/crate/service"
 	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/module"
-	modulesvc "github.com/oam-dev/kubevela/pkg/module/service"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-// placedInlineModule has one runtime object and one hub object, so its owned
+// placedInlineCrate has one runtime object and one hub object, so its owned
 // Application splits into hub and runtime parts when it gets a placement.
-func placedInlineModule() *module.Module {
-	mod, err := module.ParseModule(modulesvc.MapFS{
-		"_module.cue":     []byte("module: \"edge-kit\"\nversion: \"0.1.0\"\nplacement: \"runtime\""),
+func placedInlineCrate() *crate.Crate {
+	parsed, err := crate.ParseCrate(cratesvc.MapFS{
+		"_crate.cue":      []byte("crate: \"edge-kit\"\nversion: \"0.1.0\"\nplacement: \"runtime\""),
 		"v1/_version.cue": []byte(`apiVersion: "v1"`),
 		"auxiliary/defaults.yaml": []byte(
 			"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: edge-defaults\n"),
@@ -54,15 +56,15 @@ func placedInlineModule() *module.Module {
 		"v1/definitions/bucket.yaml": []byte(inlineBucketDefinition),
 	})
 	Expect(err).NotTo(HaveOccurred())
-	return mod
+	return parsed
 }
 
 // renderInlineAddon renders an addon that bundles edge-kit inline, as a
 // type: addon component with the given placement would ask for it.
 func renderInlineAddon(place *v1alpha1.Placement) map[string]interface{} {
 	return renderAddon(pkgaddon.InstallPackage{
-		AppTemplate:   &v1beta1.Application{},
-		InlineModules: []*module.Module{placedInlineModule()},
+		AppTemplate:  &v1beta1.Application{},
+		InlineCrates: []*crate.Crate{placedInlineCrate()},
 	}, place)
 }
 
@@ -82,9 +84,9 @@ func renderAddon(pkg pkgaddon.InstallPackage, place *v1alpha1.Placement) map[str
 	return res.Application
 }
 
-// ownedModulePolicies returns the policies of the owned Application that the
-// inline module's k8s-objects component carries, keyed by policy name.
-func ownedModulePolicies(app map[string]interface{}, componentName string) map[string]map[string]interface{} {
+// ownedCratePolicies returns the policies of the owned Application that the
+// inline crate's k8s-objects component carries, keyed by policy name.
+func ownedCratePolicies(app map[string]interface{}, componentName string) map[string]map[string]interface{} {
 	spec, ok := app["spec"].(map[string]interface{})
 	Expect(ok).To(BeTrue())
 	comps, ok := spec["components"].([]interface{})
@@ -117,33 +119,33 @@ func ownedModulePolicies(app map[string]interface{}, componentName string) map[s
 	return nil
 }
 
-var _ = Describe("inline module placement", func() {
+var _ = Describe("inline crate placement", func() {
 	BeforeEach(func() {
-		prev := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableModuleComponent)
-		Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.EnableModuleComponent): true})).To(Succeed())
+		prev := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCrateComponent)
+		Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.EnableCrateComponent): true})).To(Succeed())
 		DeferCleanup(func() {
-			Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.EnableModuleComponent): prev})).To(Succeed())
+			Expect(utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{string(features.EnableCrateComponent): prev})).To(Succeed())
 		})
 	})
 
 	It("sends the runtime objects to the clusters of the addon's placement", func() {
 		app := renderInlineAddon(&v1alpha1.Placement{Clusters: []string{"spoke-1"}})
-		policies := ownedModulePolicies(app, "edge-kit")
-		Expect(policies).To(HaveKey("module-runtime"))
-		Expect(policies["module-runtime"]["type"]).To(Equal(v1alpha1.TopologyPolicyType))
-		Expect(policies["module-runtime"]["properties"]).To(HaveKeyWithValue("clusters", ConsistOf("spoke-1")))
+		policies := ownedCratePolicies(app, "edge-kit")
+		Expect(policies).To(HaveKey("crate-runtime"))
+		Expect(policies["crate-runtime"]["type"]).To(Equal(v1alpha1.TopologyPolicyType))
+		Expect(policies["crate-runtime"]["properties"]).To(HaveKeyWithValue("clusters", ConsistOf("spoke-1")))
 	})
 
 	It("forwards a label selector and allowEmpty too", func() {
 		app := renderInlineAddon(&v1alpha1.Placement{ClusterLabelSelector: map[string]string{"tier": "runtime"}, AllowEmpty: true})
-		props := ownedModulePolicies(app, "edge-kit")["module-runtime"]["properties"]
+		props := ownedCratePolicies(app, "edge-kit")["crate-runtime"]["properties"]
 		Expect(props).To(HaveKeyWithValue("clusterLabelSelector", HaveKeyWithValue("tier", "runtime")))
 		Expect(props).To(HaveKeyWithValue("allowEmpty", true))
 	})
 
 	It("keeps everything on the hub without a placement", func() {
 		app := renderInlineAddon(nil)
-		Expect(ownedModulePolicies(app, "edge-kit")).NotTo(HaveKey("module-runtime"))
+		Expect(ownedCratePolicies(app, "edge-kit")).NotTo(HaveKey("crate-runtime"))
 	})
 
 	// The dispatcher patches the addon Application with no last-applied
@@ -163,7 +165,7 @@ var _ = Describe("inline module placement", func() {
 		applyRender(&v1alpha1.Placement{Clusters: []string{"spoke-1"}})
 		placed := &v1beta1.Application{}
 		Expect(cli.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: "addon-inline-addon"}, placed)).To(Succeed())
-		Expect(placed.Spec.Workflow).NotTo(BeNil(), "a placed addon with modules gets a generated workflow")
+		Expect(placed.Spec.Workflow).NotTo(BeNil(), "a placed addon with crates gets a generated workflow")
 		Expect(placed.Spec.Workflow.Steps).NotTo(BeEmpty())
 
 		applyRender(nil)
@@ -184,7 +186,7 @@ var _ = Describe("inline module placement", func() {
 		Expect(names).To(ConsistOf(components), "one apply-component step per component")
 	})
 
-	It("leaves no stale workflow when a new addon version drops its modules", func() {
+	It("leaves no stale workflow when a new addon version drops its crates", func() {
 		ctx := context.Background()
 		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 		applicator := apply.NewAPIApplicator(cli)
@@ -208,7 +210,7 @@ var _ = Describe("inline module placement", func() {
 			for _, s := range app.Spec.Workflow.Steps {
 				names = append(names, s.Name)
 			}
-			Expect(names).To(ConsistOf("marker"), "placement %v: no step names the dropped module", place)
+			Expect(names).To(ConsistOf("marker"), "placement %v: no step names the dropped crate", place)
 			Expect(cli.Delete(ctx, app)).To(Succeed())
 		}
 	})
@@ -228,10 +230,107 @@ var _ = Describe("inline module placement", func() {
 		Expect(wf["steps"]).To(HaveLen(1))
 	})
 
+	Describe("an addon upgrade that changes the workflow", func() {
+		var (
+			ctx     context.Context
+			cli     client.Client
+			upgrade func(templates ...*v1beta1.Application) *v1beta1.Application
+		)
+		marker := common2.ApplicationComponent{Name: "marker", Type: "k8s-objects", Properties: rawJSON(map[string]interface{}{"objects": []interface{}{}})}
+		applyMarker := wfv1alpha1.WorkflowStep{
+			WorkflowStepBase: wfv1alpha1.WorkflowStepBase{Name: "apply", Type: "apply-component", Properties: rawJSON(map[string]interface{}{"component": "marker"})},
+		}
+		template := func(wf *v1beta1.Workflow, components ...common2.ApplicationComponent) *v1beta1.Application {
+			return &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: components, Workflow: wf}}
+		}
+
+		BeforeEach(func() {
+			ctx = context.Background()
+			cli = fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+			applicator := apply.NewAPIApplicator(cli)
+			// upgrade applies each template in turn as the next version of the
+			// addon, the way the dispatcher does, and returns the Application.
+			upgrade = func(templates ...*v1beta1.Application) *v1beta1.Application {
+				for _, tmpl := range templates {
+					obj := &unstructured.Unstructured{Object: renderAddon(pkgaddon.InstallPackage{AppTemplate: tmpl}, nil)}
+					obj.SetName("addon-inline-addon")
+					Expect(applicator.Apply(ctx, obj)).To(Succeed())
+				}
+				app := &v1beta1.Application{}
+				Expect(cli.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: "addon-inline-addon"}, app)).To(Succeed())
+				return app
+			}
+		})
+
+		It("fills in the mode keys the addon's own workflow leaves out", func() {
+			app := upgrade(
+				template(nil, marker),
+				template(&v1beta1.Workflow{
+					Mode:  &wfv1alpha1.WorkflowExecuteMode{SubSteps: workflowv1alpha1.WorkflowModeStep},
+					Steps: []wfv1alpha1.WorkflowStep{applyMarker},
+				}, marker),
+			)
+			Expect(app.Spec.Workflow.Mode).To(Equal(&wfv1alpha1.WorkflowExecuteMode{
+				Steps:    workflowv1alpha1.WorkflowModeStep,
+				SubSteps: workflowv1alpha1.WorkflowModeStep,
+			}), "steps written in spec run one by one, not as the DAG the earlier render wrote")
+		})
+
+		It("removes a workflow ref the next version drops", func() {
+			app := upgrade(
+				template(&v1beta1.Workflow{Ref: "my-wf"}, marker),
+				template(nil, marker),
+			)
+			Expect(app.Spec.Workflow.Ref).To(BeEmpty())
+			Expect(app.Spec.Workflow.Steps).To(HaveLen(1))
+		})
+
+		It("removes generated steps and their mode when the next version names a workflow by ref", func() {
+			app := upgrade(
+				template(nil, marker),
+				template(&v1beta1.Workflow{Ref: "my-wf"}, marker),
+			)
+			Expect(app.Spec.Workflow.Ref).To(Equal("my-wf"))
+			Expect(app.Spec.Workflow.Steps).To(BeEmpty())
+			Expect(app.Spec.Workflow.Mode).To(BeNil(), "the mode comes from the referenced Workflow")
+		})
+
+		It("keeps the mode an addon sets next to its workflow ref", func() {
+			app := upgrade(template(&v1beta1.Workflow{
+				Ref:  "my-wf",
+				Mode: &wfv1alpha1.WorkflowExecuteMode{Steps: workflowv1alpha1.WorkflowModeDAG},
+			}, marker))
+			Expect(app.Spec.Workflow.Mode).To(Equal(&wfv1alpha1.WorkflowExecuteMode{Steps: workflowv1alpha1.WorkflowModeDAG}))
+		})
+
+		It("removes the workflow when the next version has no component", func() {
+			app := upgrade(
+				template(nil, marker),
+				template(nil),
+			)
+			Expect(app.Spec.Workflow).To(BeNil(), "no step may name the component that is gone")
+		})
+
+		It("changes nothing when the same version is applied again", func() {
+			for _, tmpl := range []*v1beta1.Application{
+				template(nil, marker),
+				template(nil),
+				template(&v1beta1.Workflow{Ref: "my-wf"}, marker),
+				template(&v1beta1.Workflow{Steps: []wfv1alpha1.WorkflowStep{applyMarker}}, marker),
+			} {
+				first := upgrade(tmpl).Spec
+				Expect(upgrade(tmpl).Spec).To(Equal(first))
+				Expect(cli.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: "addon-inline-addon"}})).To(Succeed())
+			}
+		})
+	})
+
 	// Anything that updates the addon Application through the typed struct (the
 	// controller adding its finalizer, for one) drops omitempty fields. A
 	// workflow that changes on that round trip is patched back by the next
-	// dispatch, so the spec would flip on every pass.
+	// dispatch, so the spec would flip on every pass. A null is the exception:
+	// it removes its field, the typed struct has no such field, and writing the
+	// null again changes nothing.
 	It("writes workflows that survive a round trip through the typed Application", func() {
 		for _, place := range []*v1alpha1.Placement{nil, {Clusters: []string{"spoke-1"}}} {
 			rendered := renderInlineAddon(place)
@@ -239,7 +338,13 @@ var _ = Describe("inline module placement", func() {
 			Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(rendered, typed)).To(Succeed())
 			back, err := runtime.DefaultUnstructuredConverter.ToUnstructured(typed)
 			Expect(err).NotTo(HaveOccurred())
-			want, err := json.Marshal(rendered["spec"].(map[string]interface{})["workflow"])
+			written := map[string]interface{}{}
+			for key, value := range rendered["spec"].(map[string]interface{})["workflow"].(map[string]interface{}) {
+				if value != nil {
+					written[key] = value
+				}
+			}
+			want, err := json.Marshal(written)
 			Expect(err).NotTo(HaveOccurred())
 			got, err := json.Marshal(back["spec"].(map[string]interface{})["workflow"])
 			Expect(err).NotTo(HaveOccurred())

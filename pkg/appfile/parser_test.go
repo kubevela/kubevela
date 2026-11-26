@@ -203,7 +203,7 @@ func TestParsePolicies(t *testing.T) {
 					}
 					return nil
 				},
-				// Type resolution searches by module label when a bare name is not a
+				// Type resolution searches by crate label when a bare name is not a
 				// legacy definition, so the mock has to answer List as well as Get.
 				MockList: test.NewMockListFn(nil),
 			},

@@ -28,7 +28,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/module/naming"
+	"github.com/oam-dev/kubevela/pkg/crate/naming"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -37,8 +37,8 @@ import (
 // and identity fields. Two-segment strings are always invalid.
 //
 // Form 1: "bucket"         → form=1, name="bucket"
-// Form 3: "s3/v1/bucket"   → form=3, module="s3", apiVersion="v1", name="bucket"
-func parseTypeRef(typeName string) (form int, module, apiVersion, name string, err error) {
+// Form 3: "s3/v1/bucket"   → form=3, crate="s3", apiVersion="v1", name="bucket"
+func parseTypeRef(typeName string) (form int, crate, apiVersion, name string, err error) {
 	parts := strings.Split(typeName, "/")
 	switch len(parts) {
 	case 1:
@@ -46,7 +46,7 @@ func parseTypeRef(typeName string) (form int, module, apiVersion, name string, e
 	case 2:
 		return 0, "", "", "", fmt.Errorf(
 			"invalid type reference %q: two-segment references are not supported; "+
-				"expected either 1 segment (name, Form 1) or 3 segments (module/v<N>/name, Form 3)",
+				"expected either 1 segment (name, Form 1) or 3 segments (crate/v<N>/name, Form 3)",
 			typeName)
 	case 3:
 		if !naming.IsValidAPIVersion(parts[1]) {
@@ -59,48 +59,48 @@ func parseTypeRef(typeName string) (form int, module, apiVersion, name string, e
 	default:
 		return 0, "", "", "", fmt.Errorf(
 			"invalid type reference %q: expected either 1 segment (name, Form 1) "+
-				"or 3 segments (module/v<N>/name, Form 3)",
+				"or 3 segments (crate/v<N>/name, Form 3)",
 			typeName)
 	}
 }
 
-// ResolveModuleType translates a KEP-2.20 Form 1/3 type string to the
+// ResolveCrateType translates a KEP-2.20 Form 1/3 type string to the
 // installed Kubernetes definition name. Form 1 names that already exist as
 // legacy definitions are returned unchanged so the existing
 // GetCapabilityDefinition path handles them as before.
-func ResolveModuleType(ctx context.Context, cli client.Reader, typeName string, capType types.CapType) (string, error) {
-	form, mod, apiVersion, name, err := parseTypeRef(typeName)
+func ResolveCrateType(ctx context.Context, cli client.Reader, typeName string, capType types.CapType) (string, error) {
+	form, crateName, apiVersion, name, err := parseTypeRef(typeName)
 	if err != nil {
 		return "", err
 	}
 	switch form {
 	case 3:
-		return resolveForm3(mod, apiVersion, name), nil
+		return resolveForm3(crateName, apiVersion, name), nil
 	default:
 		return resolveForm1(ctx, cli, typeName, name, capType)
 	}
 }
 
 // resolveForm3 derives the installed name from the three segments. The
-// derivation is shared with the render service through pkg/module/naming, so
+// derivation is shared with the render service through pkg/crate/naming, so
 // this requires no cluster call and cannot drift from what was installed.
-func resolveForm3(module, apiVersion, name string) string {
-	return naming.DefinitionName(module, apiVersion, name)
+func resolveForm3(crate, apiVersion, name string) string {
+	return naming.DefinitionName(crate, apiVersion, name)
 }
 
 // resolveForm1 first tries a plain GET (legacy path). On not-found it falls
 // back to a label-selector search across the app namespace and vela-system.
-// Design 01 never infers the module from a bare name, so every match this
+// Design 01 never infers the crate from a bare name, so every match this
 // function finds, by the exact GET or by the label fallback, is rejected
-// toward Form 3 -- a bare name is only ever accepted for a legacy, non-module
+// toward Form 3 -- a bare name is only ever accepted for a legacy, non-crate
 // definition.
 func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string, capType types.CapType) (string, error) {
 	obj := definitionObjectFor(capType)
 	if err := oamutil.GetDefinition(ctx, cli, obj, name); err == nil {
-		if mod := definitionModule(obj); mod != "" {
+		if crateName := definitionCrate(obj); crateName != "" {
 			return "", fmt.Errorf(
-				"type %q resolves to module-backed definition %q (spec.module=%q); use {module}/{apiVersion}/{name} (Form 3)",
-				typeName, name, mod)
+				"type %q resolves to crate-backed definition %q (spec.crate=%q); use {crate}/{apiVersion}/{name} (Form 3)",
+				typeName, name, crateName)
 		}
 		// Found as a legacy definition; return unchanged so the caller's
 		// GetCapabilityDefinition path (which handles revisions etc.) runs normally.
@@ -109,16 +109,16 @@ func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string,
 		return "", err
 	}
 
-	// Not a legacy definition; try the module label fallback. The search is
-	// best-effort: a bare name resolved fine before modules existed, so a failed
+	// Not a legacy definition; try the crate label fallback. The search is
+	// best-effort: a bare name resolved fine before crates existed, so a failed
 	// search must not turn a plain "definition not found" into a different error.
 	// Return the name unchanged and let the caller's own lookup report the
 	// authoritative result, exactly as the no-matches case below does.
-	matches, err := listModuleDefinitions(ctx, cli, capType, map[string]string{
+	matches, err := listCrateDefinitions(ctx, cli, capType, map[string]string{
 		types.LabelDefinitionName: name,
 	})
 	if err != nil {
-		klog.V(4).InfoS("module label search failed, falling back to the plain definition lookup",
+		klog.V(4).InfoS("crate label search failed, falling back to the plain definition lookup",
 			"type", typeName, "err", err)
 		return typeName, nil
 	}
@@ -128,27 +128,27 @@ func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string,
 		return typeName, nil
 	case 1:
 		// The search only filters on LabelDefinitionName, not
-		// LabelDefinitionModule, so a hit is not automatically module-backed:
+		// LabelDefinitionCrate, so a hit is not automatically crate-backed:
 		// nothing stops a legacy definition from carrying the name label
-		// without the module label (hand-labeled, or copied from elsewhere).
-		// Only reject when the module label is actually present; otherwise
+		// without the crate label (hand-labeled, or copied from elsewhere).
+		// Only reject when the crate label is actually present; otherwise
 		// this is a legacy definition the fallback search happened to find,
 		// and it resolves like any other unique match.
-		mod := matches[0].GetLabels()[types.LabelDefinitionModule]
-		if mod == "" {
+		crateName := matches[0].GetLabels()[types.LabelDefinitionCrate]
+		if crateName == "" {
 			return matches[0].GetName(), nil
 		}
 		return "", fmt.Errorf(
-			"type %q resolves to module-backed definition %q (module=%q); use {module}/{apiVersion}/{name} (Form 3)",
-			typeName, matches[0].GetName(), mod)
+			"type %q resolves to crate-backed definition %q (crate=%q); use {crate}/{apiVersion}/{name} (Form 3)",
+			typeName, matches[0].GetName(), crateName)
 	default:
-		return resolveUnique(typeName, matches, "use {module}/{apiVersion}/{name} (Form 3) to disambiguate")
+		return resolveUnique(typeName, matches, "use {crate}/{apiVersion}/{name} (Form 3) to disambiguate")
 	}
 }
 
-// listModuleDefinitions lists definitions matching the label selector across the
+// listCrateDefinitions lists definitions matching the label selector across the
 // app namespace and vela-system, deduplicating when the two are the same.
-func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types.CapType, matchLabels map[string]string) ([]client.Object, error) {
+func listCrateDefinitions(ctx context.Context, cli client.Reader, capType types.CapType, matchLabels map[string]string) ([]client.Object, error) {
 	appNs := oamutil.GetDefinitionNamespaceWithCtx(ctx)
 	systemNs := oam.SystemDefinitionNamespace
 	namespaces := []string{appNs}
@@ -208,7 +208,7 @@ func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types
 				all = append(all, &l.Items[i])
 			}
 		default:
-			return nil, fmt.Errorf("unsupported capType %q for module type resolution", capType)
+			return nil, fmt.Errorf("unsupported capType %q for crate type resolution", capType)
 		}
 		return all, nil
 	}
@@ -222,7 +222,7 @@ func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types
 		all = append(all, inNS...)
 	}
 	if len(all) == 0 {
-		// Module definitions can be installed into an operator-chosen namespace
+		// Crate definitions can be installed into an operator-chosen namespace
 		// that differs from both the app namespace and vela-system.
 		clusterWide, err := listWithOpts(client.MatchingLabels(matchLabels))
 		if err != nil {
@@ -233,7 +233,7 @@ func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types
 	return all, nil
 }
 
-// ErrNoDefinition is wrapped by the error ResolveModuleType returns when no
+// ErrNoDefinition is wrapped by the error ResolveCrateType returns when no
 // definition matches. It lets a caller tell a confirmed absence apart from a
 // failed lookup: the webhook's abstract check may wave the first through,
 // since a type that does not exist is not abstract, but must not take the
@@ -249,21 +249,21 @@ func resolveUnique(typeName string, matches []client.Object, disambiguateHint st
 	case 0:
 		return "", fmt.Errorf("%w for type %q", ErrNoDefinition, typeName)
 	default:
-		mods := make([]string, 0, len(matches))
+		crateNames := make([]string, 0, len(matches))
 		seen := map[string]bool{}
 		for _, m := range matches {
-			mod := m.GetLabels()[types.LabelDefinitionModule]
-			if mod == "" {
-				mod = m.GetName()
+			crateName := m.GetLabels()[types.LabelDefinitionCrate]
+			if crateName == "" {
+				crateName = m.GetName()
 			}
-			if !seen[mod] {
-				mods = append(mods, mod)
-				seen[mod] = true
+			if !seen[crateName] {
+				crateNames = append(crateNames, crateName)
+				seen[crateName] = true
 			}
 		}
 		return "", fmt.Errorf(
-			"type %q is ambiguous: definitions from modules [%s] all match; %s",
-			typeName, strings.Join(mods, ", "), disambiguateHint)
+			"type %q is ambiguous: definitions from crates [%s] all match; %s",
+			typeName, strings.Join(crateNames, ", "), disambiguateHint)
 	}
 }
 
@@ -286,16 +286,16 @@ func definitionObjectFor(capType types.CapType) client.Object {
 	}
 }
 
-// moduleGetter is implemented by every X-Definition kind that carries a
-// module identity (apis/core.oam.dev/v1beta1/module_identity.go), so a new
-// kind only needs its own GetModule method there, not a new case here.
-type moduleGetter interface {
-	GetModule() string
+// crateGetter is implemented by every X-Definition kind that carries a
+// crate identity, through its own GetCrate method. A new kind only needs
+// that accessor, not a new case here.
+type crateGetter interface {
+	GetCrate() string
 }
 
-func definitionModule(obj client.Object) string {
-	if m, ok := obj.(moduleGetter); ok {
-		return m.GetModule()
+func definitionCrate(obj client.Object) string {
+	if m, ok := obj.(crateGetter); ok {
+		return m.GetCrate()
 	}
 	return ""
 }
@@ -307,7 +307,7 @@ func DefinitionExists(ctx context.Context, cli client.Reader, name string, capTy
 	obj := definitionObjectFor(capType)
 	if err := oamutil.GetDefinition(ctx, cli, obj, name); err != nil {
 		if apierrors.IsNotFound(err) {
-			return fmt.Errorf("definition %q not found: ensure the module is installed", name)
+			return fmt.Errorf("definition %q not found: ensure the crate is installed", name)
 		}
 		return err
 	}

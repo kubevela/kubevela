@@ -38,7 +38,7 @@ func traitTemplateNamed(name string, labels map[string]string, cue string) *Temp
 	}
 }
 
-var moduleLabels = map[string]string{types.LabelDefinitionModule: "widget-kit"}
+var crateLabels = map[string]string{types.LabelDefinitionCrate: "widget-kit"}
 
 func TestTraitTypeLabel(t *testing.T) {
 	cases := map[string]struct {
@@ -46,19 +46,19 @@ func TestTraitTypeLabel(t *testing.T) {
 		templ     *Template
 		want      string
 	}{
-		"module trait written as Form 1": {
+		"crate trait written as Form 1": {
 			traitName: "note",
-			templ:     traitTemplateNamed("widget-kit-v1-note", moduleLabels, ""),
+			templ:     traitTemplateNamed("widget-kit-v1-note", crateLabels, ""),
 			want:      "widget-kit-v1-note",
 		},
-		"module trait written as Form 3": {
+		"crate trait written as Form 3": {
 			traitName: "widget-kit/v1/note",
-			templ:     traitTemplateNamed("widget-kit-v1-note", moduleLabels, ""),
+			templ:     traitTemplateNamed("widget-kit-v1-note", crateLabels, ""),
 			want:      "widget-kit-v1-note",
 		},
-		"module trait written as the installed name": {
+		"crate trait written as the installed name": {
 			traitName: "widget-kit-v1-note",
-			templ:     traitTemplateNamed("widget-kit-v1-note", moduleLabels, ""),
+			templ:     traitTemplateNamed("widget-kit-v1-note", crateLabels, ""),
 			want:      "widget-kit-v1-note",
 		},
 		"legacy trait": {
@@ -73,7 +73,7 @@ func TestTraitTypeLabel(t *testing.T) {
 		},
 		"definition with no metadata.name, as loaded from a file": {
 			traitName: "note",
-			templ:     traitTemplateNamed("", moduleLabels, ""),
+			templ:     traitTemplateNamed("", crateLabels, ""),
 			want:      "note",
 		},
 		"template without a TraitDefinition": {
@@ -89,12 +89,12 @@ func TestTraitTypeLabel(t *testing.T) {
 	}
 }
 
-// A Form 1 module trait keeps its written name as the trait type, but the
+// A Form 1 crate trait keeps its written name as the trait type, but the
 // objects it emits through outputs are labelled with the installed name.
-func TestModuleTraitOutputsAreLabelledWithInstalledName(t *testing.T) {
+func TestCrateTraitOutputsAreLabelledWithInstalledName(t *testing.T) {
 	r := require.New(t)
 	p := &Parser{}
-	trait, err := p.convertTemplate2Trait("note", map[string]interface{}{"text": "hi"}, traitTemplateNamed("widget-kit-v1-note", moduleLabels, `
+	trait, err := p.convertTemplate2Trait("note", map[string]interface{}{"text": "hi"}, traitTemplateNamed("widget-kit-v1-note", crateLabels, `
 outputs: note: {
 	apiVersion: "v1"
 	kind:       "ConfigMap"

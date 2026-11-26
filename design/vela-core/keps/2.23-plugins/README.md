@@ -715,7 +715,7 @@ it installed is not a packaging unit. `Retain` stays available for the cautious 
 definitions is coupled to that addon's API line, so a semver range means an addon upgrade
 can break a plugin with no change to either CR. Whether a plugin should be able to
 express a constraint at all, and how it would declare the API line it depends on, belongs
-to [KEP-2.20](../2.20-module-versioning/README.md) rather than being solved here.
+to [KEP-2.20](../2.20-crate-versioning/README.md) rather than being solved here.
 
 ## Activation
 

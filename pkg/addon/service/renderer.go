@@ -247,7 +247,7 @@ func (r *rendererImpl) restConfig() *rest.Config {
 // the rendered output, including SkipVersionValidate so a validated request and
 // a skipped request never alias to the same cached result, Namespace, which
 // the render records on the owned Application, and Placement, which adds a
-// topology to it and is copied onto its imported modules.
+// topology to it and is copied onto its imported crates.
 //
 // It reports false when the properties cannot be hashed, in which case the
 // request must not participate in the cache at all: any placeholder key would be
@@ -380,67 +380,71 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		return nil, fmt.Errorf("render resources for addon %q: %w", req.Name, err)
 	}
 	dependsOn := componentNames(resourceComps)
-	moduleComps, err := pkgaddon.RenderModuleComponents(installPkg, app.Spec.Components, dependsOn, app.Spec.Policies)
+	crateComps, err := pkgaddon.RenderCrateComponents(installPkg, app.Spec.Components, dependsOn, app.Spec.Policies)
 	if err != nil {
-		return nil, fmt.Errorf("render module components for addon %q: %w", req.Name, err)
+		return nil, fmt.Errorf("render crate components for addon %q: %w", req.Name, err)
 	}
-	if err := applyAddonPlacement(app, req.Name, req.Placement, moduleComps); err != nil {
+	if err := applyAddonPlacement(app, req.Name, req.Placement, crateComps); err != nil {
 		return nil, err
 	}
-	// Seed inline naming with moduleComps' names too, not just
-	// app.Spec.Components: RenderModuleComponents may have already claimed a
-	// collision-avoiding name (e.g. "foo-2") that RenderInlineModuleComponents
+	// Seed inline naming with crateComps' names too, not just
+	// app.Spec.Components: RenderCrateComponents may have already claimed a
+	// collision-avoiding name (e.g. "foo-2") that RenderInlineCrateComponents
 	// would otherwise pick again independently, since each only sees
 	// app.Spec.Components on its own. The reserved entries carry no Type, so
-	// moduleDeclaredBy's hand-written-component check (which only looks at
-	// Type == "module") skips them -- moduleComps are already accounted for
-	// there via addon.Imports directly, and re-adding them as type: module
+	// crateDeclaredBy's hand-written-component check (which only looks at
+	// Type == "crate") skips them -- crateComps are already accounted for
+	// there via addon.Imports directly, and re-adding them as type: crate
 	// would double-count the same import as a second, independent
-	// declaration of the same module.
+	// declaration of the same crate.
 	existingForInline := append([]common2.ApplicationComponent{}, app.Spec.Components...)
-	for _, c := range moduleComps {
+	for _, c := range crateComps {
 		existingForInline = append(existingForInline, common2.ApplicationComponent{Name: c.Name})
 	}
-	// Unlike the external-import path (module.cue's _namespace, resolved from
-	// the install-namespace annotation when the type: module component's own
-	// CueX render runs later), an inline module renders eagerly, right here,
+	// Unlike the external-import path (crate.cue's _namespace, resolved from
+	// the install-namespace annotation when the type: crate component's own
+	// CueX render runs later), an inline crate renders eagerly, right here,
 	// so req.Namespace -- the addon's own installing namespace -- is already
 	// in hand and can be passed straight through with no annotation needed.
-	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn, req.Namespace, req.Placement)
+	inlineCrateComps, err := pkgaddon.RenderInlineCrateComponents(installPkg, existingForInline, dependsOn, req.Namespace, req.Placement)
 	if err != nil {
-		return nil, fmt.Errorf("render inline module components for addon %q: %w", req.Name, err)
+		return nil, fmt.Errorf("render inline crate components for addon %q: %w", req.Name, err)
 	}
 	if len(aux) > 0 {
 		// The addon template's own outputs: block (wrapped into addon-auxiliaries
 		// below) can carry arbitrary objects -- including operators/CRDs a
-		// module's Compositions rely on just as much as anything under
-		// resources/ -- so a module component must wait for it too. Its name
+		// crate's Compositions rely on just as much as anything under
+		// resources/ -- so a crate component must wait for it too. Its name
 		// has to be predicted here, before appendAuxComponents actually creates
 		// it: reserve the same name that call will end up choosing, against
-		// every component already in app.Spec.Components plus every module
+		// every component already in app.Spec.Components plus every crate
 		// component actually emitted (which already excludes skipped imports and
-		// may include collision-avoiding suffixes). Inline module components
+		// may include collision-avoiding suffixes). Inline crate components
 		// need the exact same wait, for the exact same reason.
-		used := make(map[string]bool, len(app.Spec.Components)+len(moduleComps)+len(inlineModuleComps))
+		used := make(map[string]bool, len(app.Spec.Components)+len(crateComps)+len(inlineCrateComps))
 		for _, c := range app.Spec.Components {
 			used[c.Name] = true
 		}
-		for _, c := range moduleComps {
+		for _, c := range crateComps {
 			used[c.Name] = true
 		}
-		for _, c := range inlineModuleComps {
+		for _, c := range inlineCrateComps {
 			used[c.Name] = true
 		}
 		auxName := uniqueComponentName(addonAuxiliariesComponentName, used)
-		for i := range moduleComps {
-			moduleComps[i].DependsOn = append(moduleComps[i].DependsOn, auxName)
+		for i := range crateComps {
+			crateComps[i].DependsOn = append(crateComps[i].DependsOn, auxName)
 		}
-		for i := range inlineModuleComps {
-			inlineModuleComps[i].DependsOn = append(inlineModuleComps[i].DependsOn, auxName)
+		for i := range inlineCrateComps {
+			inlineCrateComps[i].DependsOn = append(inlineCrateComps[i].DependsOn, auxName)
 		}
 	}
-	app.Spec.Components = append(app.Spec.Components, moduleComps...)
-	app.Spec.Components = append(app.Spec.Components, inlineModuleComps...)
+	app.Spec.Components = append(app.Spec.Components, crateComps...)
+	app.Spec.Components = append(app.Spec.Components, inlineCrateComps...)
+
+	// Pod scheduling for type: addon is the outer affinity trait on the
+	// installing Application (universal trait). Imperative CLI still uses
+	// AttachSchedulingTrait via the Installer.
 
 	groups, err := r.auxComponents(ctx, installPkg, req.Properties)
 	if err != nil {
@@ -451,7 +455,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	groups = append(groups, auxComponent{name: addonAuxiliariesComponentName, objects: aux})
 
 	setAddonRegistryLabel(app, registryName)
-	setModuleInstallNamespace(app, req.Namespace)
+	setCrateInstallNamespace(app, req.Namespace)
 
 	appMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(app)
 	if err != nil {
@@ -462,7 +466,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 
 	appendAuxComponents(appMap, groups)
 	ensureAddonComponentStateKeepPolicy(appMap)
-	pinModuleComponentsToHub(appMap, append(componentNames(moduleComps), componentNames(inlineModuleComps)...))
+	pinCrateComponentsToHub(appMap, append(componentNames(crateComps), componentNames(inlineCrateComps)...))
 	if err := writeExplicitWorkflow(appMap); err != nil {
 		return nil, fmt.Errorf("render addon %q: %w", req.Name, err)
 	}
@@ -485,12 +489,12 @@ func setAddonRegistryLabel(app metav1.Object, registryName string) {
 	app.SetLabels(labels)
 }
 
-// setModuleInstallNamespace records the installing Application's namespace on
+// setCrateInstallNamespace records the installing Application's namespace on
 // the owned addon Application. That Application always lives in vela-system, so
-// a type: module component inside it reads its namespace from here instead of
+// a type: crate component inside it reads its namespace from here instead of
 // from its own context. Nothing is recorded when the namespace is unknown, and
-// the modules then install into vela-system.
-func setModuleInstallNamespace(app metav1.Object, namespace string) {
+// the crates then install into vela-system.
+func setCrateInstallNamespace(app metav1.Object, namespace string) {
 	if namespace == "" {
 		return
 	}
@@ -498,7 +502,7 @@ func setModuleInstallNamespace(app metav1.Object, namespace string) {
 	if annotations == nil {
 		annotations = map[string]string{}
 	}
-	annotations[oam.AnnotationModuleInstallNamespace] = namespace
+	annotations[oam.AnnotationCrateInstallNamespace] = namespace
 	app.SetAnnotations(annotations)
 }
 
@@ -719,7 +723,7 @@ func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
 
 // componentNames returns the Name of each component, in order. Used to turn
 // the addon's rendered resource-tier components into the dependsOn list for
-// its auto-generated type: module components.
+// its auto-generated type: crate components.
 func componentNames(comps []common2.ApplicationComponent) []string {
 	names := make([]string, 0, len(comps))
 	for _, c := range comps {

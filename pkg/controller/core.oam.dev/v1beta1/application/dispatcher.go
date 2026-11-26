@@ -323,7 +323,7 @@ func getTraitDispatchStage(client client.Client, traitType string, appRev *v1bet
 // Returns true if properties have changed.
 // definitionRequestsRedispatch reports whether the component's
 // ComponentDefinition asks for its components to be applied on every workflow
-// run (types.AnnoDefinitionRedispatchOnWorkflowRun). The addon and module
+// run (types.AnnoDefinitionRedispatchOnWorkflowRun). The addon and crate
 // definitions do: what they render comes from a registry and can change while
 // their properties do not, when a tag is published or re-pushed.
 func definitionRequestsRedispatch(comp *appfile.Component) bool {

@@ -31,18 +31,18 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
+	"github.com/oam-dev/kubevela/pkg/crate"
+	cratesvc "github.com/oam-dev/kubevela/pkg/crate/service"
 	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/module"
-	modulesvc "github.com/oam-dev/kubevela/pkg/module/service"
 )
 
-// enableModuleComponentForInlineTest turns EnableModuleComponent on; inline
-// module rendering refuses outright when the gate is off, the same way the
+// enableCrateComponentForInlineTest turns EnableCrateComponent on; inline
+// crate rendering refuses outright when the gate is off, the same way the
 // external path's own CueX gate check does.
-func enableModuleComponentForInlineTest(t *testing.T) {
+func enableCrateComponentForInlineTest(t *testing.T) {
 	t.Helper()
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate,
-		features.EnableModuleComponent, true)
+		features.EnableCrateComponent, true)
 }
 
 const inlineBucketDefinition = `apiVersion: core.oam.dev/v1beta1
@@ -66,15 +66,15 @@ spec:
         parameter: {}
 `
 
-func parsedInlineModule(t *testing.T, name string) *module.Module {
+func parsedInlineCrate(t *testing.T, name string) *crate.Crate {
 	t.Helper()
-	mod, err := module.ParseModule(modulesvc.MapFS{
-		"_module.cue":                []byte(`module: "` + name + `"` + "\nversion: \"0.1.0\""),
+	parsed, err := crate.ParseCrate(cratesvc.MapFS{
+		"_crate.cue":                 []byte(`crate: "` + name + `"` + "\nversion: \"0.1.0\""),
 		"v1/_version.cue":            []byte(`apiVersion: "v1"`),
 		"v1/definitions/bucket.yaml": []byte(inlineBucketDefinition),
 	})
 	require.NoError(t, err)
-	return mod
+	return parsed
 }
 
 func renderWith(t *testing.T, pkg pkgaddon.InstallPackage) (map[string]interface{}, error) {
@@ -115,18 +115,18 @@ func componentsByName(t *testing.T, app map[string]interface{}) map[string]map[s
 	return out
 }
 
-func TestResolveAndRenderEmitsInlineModuleAsK8sObjectsComponent(t *testing.T) {
-	enableModuleComponentForInlineTest(t)
+func TestResolveAndRenderEmitsInlineCrateAsK8sObjectsComponent(t *testing.T) {
+	enableCrateComponentForInlineTest(t)
 	app, err := renderWith(t, pkgaddon.InstallPackage{
 		AppTemplate:   &v1beta1.Application{},
 		YAMLTemplates: []pkgaddon.ElementFile{{Name: "crd.yaml", Data: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: crd-stand-in\n"}},
-		InlineModules: []*module.Module{parsedInlineModule(t, "aws-s3")},
+		InlineCrates:  []*crate.Crate{parsedInlineCrate(t, "aws-s3")},
 	})
 	require.NoError(t, err)
 
 	comps := componentsByName(t, app)
 	c, ok := comps["aws-s3"]
-	require.True(t, ok, "inline module component must be present")
+	require.True(t, ok, "inline crate component must be present")
 	assert.Equal(t, "k8s-objects", c["type"])
 	assert.Contains(t, c["dependsOn"], "inline-addon-resources")
 
@@ -134,12 +134,12 @@ func TestResolveAndRenderEmitsInlineModuleAsK8sObjectsComponent(t *testing.T) {
 	require.Len(t, objs, 1)
 	owned := objs[0].(map[string]interface{})
 	assert.Equal(t, "Application", owned["kind"])
-	assert.Equal(t, "module-aws-s3", owned["metadata"].(map[string]interface{})["name"])
+	assert.Equal(t, "crate-aws-s3", owned["metadata"].(map[string]interface{})["name"])
 	assert.Equal(t, "vela-system", owned["metadata"].(map[string]interface{})["namespace"])
 }
 
-func TestResolveAndRenderInlineModuleDependsOnAddonAuxiliaries(t *testing.T) {
-	enableModuleComponentForInlineTest(t)
+func TestResolveAndRenderInlineCrateDependsOnAddonAuxiliaries(t *testing.T) {
+	enableCrateComponentForInlineTest(t)
 	cueTemplate := `output: {
 	apiVersion: "core.oam.dev/v1beta1"
 	kind:       "Application"
@@ -159,7 +159,7 @@ outputs: crossplaneProvider: {
 }`
 	app, err := renderWith(t, pkgaddon.InstallPackage{
 		AppCueTemplate: pkgaddon.ElementFile{Data: cueTemplate},
-		InlineModules:  []*module.Module{parsedInlineModule(t, "aws-s3")},
+		InlineCrates:   []*crate.Crate{parsedInlineCrate(t, "aws-s3")},
 	})
 	require.NoError(t, err)
 
@@ -169,25 +169,25 @@ outputs: crossplaneProvider: {
 	assert.Contains(t, comps["aws-s3"]["dependsOn"], "addon-auxiliaries")
 }
 
-func TestResolveAndRenderInlineAndImportedModulesCoexist(t *testing.T) {
-	enableModuleComponentForInlineTest(t)
+func TestResolveAndRenderInlineAndImportedCratesCoexist(t *testing.T) {
+	enableCrateComponentForInlineTest(t)
 	app, err := renderWith(t, pkgaddon.InstallPackage{
-		AppTemplate:   &v1beta1.Application{},
-		InlineModules: []*module.Module{parsedInlineModule(t, "aws-s3")},
-		Imports:       []pkgaddon.ModuleImport{{Module: "aws-efs", Enabled: true, Registry: "oam-modules"}},
+		AppTemplate:  &v1beta1.Application{},
+		InlineCrates: []*crate.Crate{parsedInlineCrate(t, "aws-s3")},
+		Imports:      []pkgaddon.CrateImport{{Crate: "aws-efs", Enabled: true, Registry: "oam-crates"}},
 	})
 	require.NoError(t, err)
 
 	comps := componentsByName(t, app)
 	assert.Equal(t, "k8s-objects", comps["aws-s3"]["type"])
-	assert.Equal(t, "module", comps["aws-efs"]["type"])
+	assert.Equal(t, "crate", comps["aws-efs"]["type"])
 }
 
-func TestResolveAndRenderInlineModuleCollisions(t *testing.T) {
-	enableModuleComponentForInlineTest(t)
+func TestResolveAndRenderInlineCrateCollisions(t *testing.T) {
+	enableCrateComponentForInlineTest(t)
 	handWritten := common2.ApplicationComponent{
 		Name:       "aws-s3",
-		Type:       "module",
+		Type:       "crate",
 		Properties: &runtime.RawExtension{Raw: []byte(`{}`)},
 	}
 	tests := map[string]struct {
@@ -196,25 +196,25 @@ func TestResolveAndRenderInlineModuleCollisions(t *testing.T) {
 	}{
 		"inline vs import": {
 			pkg: pkgaddon.InstallPackage{
-				AppTemplate:   &v1beta1.Application{},
-				InlineModules: []*module.Module{parsedInlineModule(t, "aws-s3")},
-				Imports:       []pkgaddon.ModuleImport{{Module: "aws-s3", Enabled: true}},
+				AppTemplate:  &v1beta1.Application{},
+				InlineCrates: []*crate.Crate{parsedInlineCrate(t, "aws-s3")},
+				Imports:      []pkgaddon.CrateImport{{Crate: "aws-s3", Enabled: true}},
 			},
-			want: []string{`"aws-s3"`, "modules/_imports.cue", "modules/aws-s3"},
+			want: []string{`"aws-s3"`, "crates/_imports.cue", "crates/aws-s3"},
 		},
 		"inline vs hand-written": {
 			pkg: pkgaddon.InstallPackage{
-				AppTemplate:   &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{handWritten}}},
-				InlineModules: []*module.Module{parsedInlineModule(t, "aws-s3")},
+				AppTemplate:  &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{handWritten}}},
+				InlineCrates: []*crate.Crate{parsedInlineCrate(t, "aws-s3")},
 			},
-			want: []string{`"aws-s3"`, "hand-written", "modules/aws-s3"},
+			want: []string{`"aws-s3"`, "hand-written", "crates/aws-s3"},
 		},
 		"hand-written vs import": {
 			pkg: pkgaddon.InstallPackage{
 				AppTemplate: &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{handWritten}}},
-				Imports:     []pkgaddon.ModuleImport{{Module: "aws-s3", Enabled: true}},
+				Imports:     []pkgaddon.CrateImport{{Crate: "aws-s3", Enabled: true}},
 			},
-			want: []string{`"aws-s3"`, "hand-written", "modules/_imports.cue"},
+			want: []string{`"aws-s3"`, "hand-written", "crates/_imports.cue"},
 		},
 	}
 	for name, tc := range tests {
@@ -228,20 +228,20 @@ func TestResolveAndRenderInlineModuleCollisions(t *testing.T) {
 	}
 }
 
-func TestResolveAndRenderWithoutInlineModulesAddsNoModuleComponents(t *testing.T) {
+func TestResolveAndRenderWithoutInlineCratesAddsNoCrateComponents(t *testing.T) {
 	app, err := renderWith(t, pkgaddon.InstallPackage{
 		AppTemplate:   &v1beta1.Application{},
 		YAMLTemplates: []pkgaddon.ElementFile{{Name: "crd.yaml", Data: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: crd-stand-in\n"}},
 	})
 	require.NoError(t, err)
 	for name, c := range componentsByName(t, app) {
-		assert.NotEqual(t, "module", c["type"], name)
+		assert.NotEqual(t, "crate", c["type"], name)
 		assert.NotContains(t, name, "aws-")
 	}
 }
 
 // definitionNamespaces returns the namespace of every ComponentDefinition the
-// owned module Application rendered for an inline module component carries.
+// owned crate Application rendered for an inline crate component carries.
 func definitionNamespaces(t *testing.T, comp map[string]interface{}) []string {
 	t.Helper()
 	objs := comp["properties"].(map[string]interface{})["objects"].([]interface{})
@@ -264,28 +264,28 @@ func definitionNamespaces(t *testing.T, comp map[string]interface{}) []string {
 	return namespaces
 }
 
-func TestResolveAndRenderInlineModuleDefinitionsFollowTheInstallingNamespace(t *testing.T) {
-	enableModuleComponentForInlineTest(t)
+func TestResolveAndRenderInlineCrateDefinitionsFollowTheInstallingNamespace(t *testing.T) {
+	enableCrateComponentForInlineTest(t)
 	app, err := renderInNamespace(t, pkgaddon.InstallPackage{
-		AppTemplate:   &v1beta1.Application{},
-		InlineModules: []*module.Module{parsedInlineModule(t, "aws-s3")},
+		AppTemplate:  &v1beta1.Application{},
+		InlineCrates: []*crate.Crate{parsedInlineCrate(t, "aws-s3")},
 	}, "kit-tenant")
 	require.NoError(t, err)
 
 	c := componentsByName(t, app)["aws-s3"]
-	require.NotNil(t, c, "inline module component must be present")
+	require.NotNil(t, c, "inline crate component must be present")
 	assert.Equal(t, []string{"kit-tenant"}, definitionNamespaces(t, c),
-		"an inline module's definitions install into the addon's own installing namespace, the same as an external import")
+		"an inline crate's definitions install into the addon's own installing namespace, the same as an external import")
 	owned := c["properties"].(map[string]interface{})["objects"].([]interface{})[0].(map[string]interface{})
 	assert.Equal(t, "vela-system", owned["metadata"].(map[string]interface{})["namespace"],
-		"the owned module Application itself still always stays in vela-system, independent of where its definitions install")
+		"the owned crate Application itself still always stays in vela-system, independent of where its definitions install")
 }
 
-func TestResolveAndRenderInlineModuleWithoutANamespaceUsesVelaSystem(t *testing.T) {
-	enableModuleComponentForInlineTest(t)
+func TestResolveAndRenderInlineCrateWithoutANamespaceUsesVelaSystem(t *testing.T) {
+	enableCrateComponentForInlineTest(t)
 	app, err := renderWith(t, pkgaddon.InstallPackage{
-		AppTemplate:   &v1beta1.Application{},
-		InlineModules: []*module.Module{parsedInlineModule(t, "aws-s3")},
+		AppTemplate:  &v1beta1.Application{},
+		InlineCrates: []*crate.Crate{parsedInlineCrate(t, "aws-s3")},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"vela-system"}, definitionNamespaces(t, componentsByName(t, app)["aws-s3"]))

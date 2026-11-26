@@ -61,20 +61,20 @@ func TestSetAddonRegistryLabel(t *testing.T) {
 	assert.Equal(t, "true", app.Labels["preserved"])
 }
 
-func TestSetModuleInstallNamespace(t *testing.T) {
+func TestSetCrateInstallNamespace(t *testing.T) {
 	t.Run("records installing namespace when present", func(t *testing.T) {
 		app := &v1beta1.Application{}
-		setModuleInstallNamespace(app, "kit-tenant")
-		assert.Equal(t, "kit-tenant", app.GetAnnotations()[oam.AnnotationModuleInstallNamespace])
+		setCrateInstallNamespace(app, "kit-tenant")
+		assert.Equal(t, "kit-tenant", app.GetAnnotations()[oam.AnnotationCrateInstallNamespace])
 	})
 
 	t.Run("keeps existing marker when namespace is empty", func(t *testing.T) {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
-			oam.AnnotationModuleInstallNamespace: "stale",
-			"kept":                               "yes",
+			oam.AnnotationCrateInstallNamespace: "stale",
+			"kept":                              "yes",
 		}}}
-		setModuleInstallNamespace(app, "")
-		assert.Equal(t, "stale", app.GetAnnotations()[oam.AnnotationModuleInstallNamespace])
+		setCrateInstallNamespace(app, "")
+		assert.Equal(t, "stale", app.GetAnnotations()[oam.AnnotationCrateInstallNamespace])
 		assert.Equal(t, "yes", app.GetAnnotations()["kept"])
 	})
 }
@@ -755,10 +755,10 @@ func TestResolveAndRenderRecordsTheInstallingNamespace(t *testing.T) {
 	}
 
 	t.Run("an installing namespace is recorded on the owned Application", func(t *testing.T) {
-		assert.Equal(t, "kit-tenant", render(t, "kit-tenant")[oam.AnnotationModuleInstallNamespace])
+		assert.Equal(t, "kit-tenant", render(t, "kit-tenant")[oam.AnnotationCrateInstallNamespace])
 	})
 	t.Run("no installing namespace records nothing", func(t *testing.T) {
-		assert.NotContains(t, render(t, ""), oam.AnnotationModuleInstallNamespace)
+		assert.NotContains(t, render(t, ""), oam.AnnotationCrateInstallNamespace)
 	})
 }
 
@@ -977,7 +977,7 @@ func TestClientAndRestConfigFallBackToSingleton(t *testing.T) {
 	assert.Same(t, cfg, r.restConfig())
 }
 
-func TestResolveAndRenderAddsModuleComponentForEnabledImport(t *testing.T) {
+func TestResolveAndRenderAddsCrateComponentForEnabledImport(t *testing.T) {
 	r := &rendererImpl{
 		cli: fakeClientWithRegistry(t),
 		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
@@ -988,8 +988,8 @@ func TestResolveAndRenderAddsModuleComponentForEnabledImport(t *testing.T) {
 					YAMLTemplates: []pkgaddon.ElementFile{
 						{Name: "crd.yaml", Data: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: crd-stand-in\n"},
 					},
-					Imports: []pkgaddon.ModuleImport{
-						{Module: "aws-s3", Enabled: true, Registry: "oam-modules", Version: "1.0.0"},
+					Imports: []pkgaddon.CrateImport{
+						{Crate: "aws-s3", Enabled: true, Registry: "oam-crates", Version: "1.0.0"},
 					},
 				},
 				RegistryName: "fixture",
@@ -1008,39 +1008,39 @@ func TestResolveAndRenderAddsModuleComponentForEnabledImport(t *testing.T) {
 	comps, ok := spec["components"].([]interface{})
 	require.True(t, ok, "spec.components must be a []interface{}")
 
-	var moduleComp map[string]interface{}
+	var crateComp map[string]interface{}
 	var resourcesCompName string
 	for _, item := range comps {
 		comp, isMap := item.(map[string]interface{})
 		require.True(t, isMap, "each component must be a map[string]interface{}")
-		if comp["type"] == "module" {
-			moduleComp = comp
+		if comp["type"] == "crate" {
+			crateComp = comp
 		}
 		if name, _ := comp["name"].(string); name == "platform-storage-resources" {
 			resourcesCompName = name
 		}
 	}
 	require.NotEmpty(t, resourcesCompName, "the YAML resources component must be present")
-	require.NotNil(t, moduleComp, "a type: module component must be present")
-	assert.Equal(t, "aws-s3", moduleComp["name"])
+	require.NotNil(t, crateComp, "a type: crate component must be present")
+	assert.Equal(t, "aws-s3", crateComp["name"])
 
-	props, ok := moduleComp["properties"].(map[string]interface{})
-	require.True(t, ok, "module component properties must be a map[string]interface{}")
-	assert.Equal(t, "aws-s3", props["module"])
-	assert.Equal(t, "oam-modules", props["registry"])
+	props, ok := crateComp["properties"].(map[string]interface{})
+	require.True(t, ok, "crate component properties must be a map[string]interface{}")
+	assert.Equal(t, "aws-s3", props["crate"])
+	assert.Equal(t, "oam-crates", props["registry"])
 	assert.Equal(t, "1.0.0", props["version"])
 
-	dependsOn, ok := moduleComp["dependsOn"].([]interface{})
-	require.True(t, ok, "module component dependsOn must be a []interface{}")
+	dependsOn, ok := crateComp["dependsOn"].([]interface{})
+	require.True(t, ok, "crate component dependsOn must be a []interface{}")
 	assert.Contains(t, dependsOn, resourcesCompName)
 }
 
-// TestResolveAndRenderModuleDependsOnAddonAuxiliaries pins that a module
+// TestResolveAndRenderCrateDependsOnAddonAuxiliaries pins that a crate
 // component also waits on the addon's outputs: block (wrapped into the
 // addon-auxiliaries component), not just its resources/ tier -- outputs: can
-// carry arbitrary objects, including operators/CRDs a module's Compositions
+// carry arbitrary objects, including operators/CRDs a crate's Compositions
 // rely on just as much as anything under resources/.
-func TestResolveAndRenderModuleDependsOnAddonAuxiliaries(t *testing.T) {
+func TestResolveAndRenderCrateDependsOnAddonAuxiliaries(t *testing.T) {
 	cueTemplate := `output: {
 	apiVersion: "core.oam.dev/v1beta1"
 	kind:       "Application"
@@ -1065,8 +1065,8 @@ outputs: crossplaneProvider: {
 				InstallPackage: pkgaddon.InstallPackage{
 					Meta:           pkgaddon.Meta{Name: "platform-storage", Version: "1.0.0"},
 					AppCueTemplate: pkgaddon.ElementFile{Data: cueTemplate},
-					Imports: []pkgaddon.ModuleImport{
-						{Module: "aws-s3", Enabled: true},
+					Imports: []pkgaddon.CrateImport{
+						{Crate: "aws-s3", Enabled: true},
 					},
 				},
 				RegistryName: "fixture",
@@ -1085,23 +1085,23 @@ outputs: crossplaneProvider: {
 	comps, ok := spec["components"].([]interface{})
 	require.True(t, ok, "spec.components must be a []interface{}")
 
-	var moduleComp map[string]interface{}
+	var crateComp map[string]interface{}
 	var sawAddonAuxiliaries bool
 	for _, item := range comps {
 		comp, isMap := item.(map[string]interface{})
 		require.True(t, isMap, "each component must be a map[string]interface{}")
-		if comp["type"] == "module" {
-			moduleComp = comp
+		if comp["type"] == "crate" {
+			crateComp = comp
 		}
 		if name, _ := comp["name"].(string); name == "addon-auxiliaries" {
 			sawAddonAuxiliaries = true
 		}
 	}
 	require.True(t, sawAddonAuxiliaries, "the outputs: block must render as an addon-auxiliaries component")
-	require.NotNil(t, moduleComp, "a type: module component must be present")
+	require.NotNil(t, crateComp, "a type: crate component must be present")
 
-	dependsOn, ok := moduleComp["dependsOn"].([]interface{})
-	require.True(t, ok, "module component dependsOn must be a []interface{}")
+	dependsOn, ok := crateComp["dependsOn"].([]interface{})
+	require.True(t, ok, "crate component dependsOn must be a []interface{}")
 	assert.Contains(t, dependsOn, "addon-auxiliaries")
 }
 
@@ -1113,8 +1113,8 @@ func TestResolveAndRenderSkipsDisabledImport(t *testing.T) {
 				InstallPackage: pkgaddon.InstallPackage{
 					Meta:        pkgaddon.Meta{Name: "example", Version: "1.0.0"},
 					AppTemplate: &v1beta1.Application{},
-					Imports: []pkgaddon.ModuleImport{
-						{Module: "aws-s3", Enabled: false, Registry: "oam-modules"},
+					Imports: []pkgaddon.CrateImport{
+						{Crate: "aws-s3", Enabled: false, Registry: "oam-crates"},
 					},
 				},
 				RegistryName: "fixture",
@@ -1132,17 +1132,17 @@ func TestResolveAndRenderSkipsDisabledImport(t *testing.T) {
 	comps, _ := spec["components"].([]interface{})
 	for _, item := range comps {
 		comp := item.(map[string]interface{})
-		assert.NotEqual(t, "module", comp["type"], "a disabled import must not produce a component")
+		assert.NotEqual(t, "crate", comp["type"], "a disabled import must not produce a component")
 	}
 }
 
-func TestResolveAndRenderErrorsWhenAuthorDeclaredModuleComponentCollidesWithImport(t *testing.T) {
-	// No source silently wins over another: an author's own type: module
-	// component and an import claiming the same module name fails the whole
+func TestResolveAndRenderErrorsWhenAuthorDeclaredCrateComponentCollidesWithImport(t *testing.T) {
+	// No source silently wins over another: an author's own type: crate
+	// component and an import claiming the same crate name fails the whole
 	// render, rather than silently deduping to the author's version.
 	authorComponent := common2.ApplicationComponent{
 		Name: "aws-s3",
-		Type: "module",
+		Type: "crate",
 	}
 	r := &rendererImpl{
 		cli: fakeClientWithRegistry(t),
@@ -1153,8 +1153,8 @@ func TestResolveAndRenderErrorsWhenAuthorDeclaredModuleComponentCollidesWithImpo
 					AppTemplate: &v1beta1.Application{
 						Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{authorComponent}},
 					},
-					Imports: []pkgaddon.ModuleImport{
-						{Module: "aws-s3", Enabled: true, Registry: "oam-modules"},
+					Imports: []pkgaddon.CrateImport{
+						{Crate: "aws-s3", Enabled: true, Registry: "oam-crates"},
 					},
 				},
 				RegistryName: "fixture",
@@ -1194,6 +1194,6 @@ func TestResolveAndRenderWithoutImportsIsUnchanged(t *testing.T) {
 	comps, _ := spec["components"].([]interface{})
 	for _, item := range comps {
 		comp := item.(map[string]interface{})
-		assert.NotEqual(t, "module", comp["type"], "an addon with no _imports.cue must not gain a module component")
+		assert.NotEqual(t, "crate", comp["type"], "an addon with no _imports.cue must not gain a crate component")
 	}
 }

@@ -36,8 +36,8 @@ func rawJSON(v interface{}) *runtime.RawExtension {
 	return &runtime.RawExtension{Raw: b}
 }
 
-func moduleComponent(name string, props map[string]interface{}) common2.ApplicationComponent {
-	return common2.ApplicationComponent{Name: name, Type: "module", Properties: rawJSON(props)}
+func crateComponent(name string, props map[string]interface{}) common2.ApplicationComponent {
+	return common2.ApplicationComponent{Name: name, Type: "crate", Properties: rawJSON(props)}
 }
 
 func topologyPolicy(name string, clusters ...string) v1beta1.AppPolicy {
@@ -60,15 +60,15 @@ var _ = Describe("applyAddonPlacement", func() {
 	It("gives imports without a placement of their own the addon's placement", func() {
 		app := &v1beta1.Application{}
 		comps := []common2.ApplicationComponent{
-			moduleComponent("store", map[string]interface{}{"module": "store"}),
-			moduleComponent("cache", map[string]interface{}{"module": "cache", "placement": map[string]interface{}{"clusters": []interface{}{"spoke-c"}}}),
+			crateComponent("store", map[string]interface{}{"crate": "store"}),
+			crateComponent("cache", map[string]interface{}{"crate": "cache", "placement": map[string]interface{}{"clusters": []interface{}{"spoke-c"}}}),
 		}
 
 		Expect(applyAddonPlacement(app, "platform", &v1alpha1.Placement{Clusters: []string{"spoke-a", "spoke-b"}}, comps)).To(Succeed())
 
-		Expect(string(comps[0].Properties.Raw)).To(MatchJSON(`{"module":"store","placement":{"clusters":["spoke-a","spoke-b"]}}`),
+		Expect(string(comps[0].Properties.Raw)).To(MatchJSON(`{"crate":"store","placement":{"clusters":["spoke-a","spoke-b"]}}`),
 			"an import that sets no placement follows the addon")
-		Expect(string(comps[1].Properties.Raw)).To(MatchJSON(`{"module":"cache","placement":{"clusters":["spoke-c"]}}`),
+		Expect(string(comps[1].Properties.Raw)).To(MatchJSON(`{"crate":"cache","placement":{"clusters":["spoke-c"]}}`),
 			"an import's own placement is kept")
 	})
 
@@ -105,7 +105,7 @@ var _ = Describe("applyAddonPlacement", func() {
 
 	It("changes nothing without a request", func() {
 		app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{topologyPolicy("deploy-fluxcd", "spoke-a")}}}
-		comps := []common2.ApplicationComponent{moduleComponent("store", map[string]interface{}{"module": "store"})}
+		comps := []common2.ApplicationComponent{crateComponent("store", map[string]interface{}{"crate": "store"})}
 		snapshot := func() string {
 			b, err := json.Marshal(struct {
 				App   *v1beta1.Application
@@ -124,7 +124,7 @@ var _ = Describe("applyAddonPlacement", func() {
 
 // Two requests that differ only in placement never share a cached render: the
 // placement adds a topology to the rendered addon Application and is copied
-// onto its imported modules.
+// onto its imported crates.
 var _ = Describe("cacheKey and placement", func() {
 	It("gives each placement its own key", func() {
 		base := api.AddonRequest{Name: "platform", Version: "1.0.0", Registry: "addons"}

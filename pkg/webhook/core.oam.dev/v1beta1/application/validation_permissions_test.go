@@ -58,7 +58,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 		userInfo            authenticationv1.UserInfo
 		allowedDefinitions  map[string]bool // resource/namespace/name -> allowed
 		existingDefinitions map[string]bool // namespace/name -> exists
-		moduleBackedDefs    map[string]string
+		crateBackedDefs     map[string]string
 		expectedErrorCount  int
 		expectedErrorFields []string
 		expectedErrorMsgs   []string
@@ -153,7 +153,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			expectedErrorCount: 0,
 		},
 		{
-			name: "form1 module-backed component type is rejected with guidance",
+			name: "form1 crate-backed component type is rejected with guidance",
 			app: &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-app",
@@ -178,12 +178,12 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 			existingDefinitions: map[string]bool{
 				"vela-system/bucket": true,
 			},
-			moduleBackedDefs: map[string]string{
+			crateBackedDefs: map[string]string{
 				"vela-system/bucket": "s3",
 			},
 			expectedErrorCount:  1,
 			expectedErrorFields: []string{"spec.components[0].type"},
-			expectedErrorMsgs:   []string{"use {module}/{apiVersion}/{name} (Form 3)"},
+			expectedErrorMsgs:   []string{"use {crate}/{apiVersion}/{name} (Form 3)"},
 		},
 		{
 			name: "user lacks ComponentDefinition permission",
@@ -785,7 +785,7 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				Client:              fake.NewClientBuilder().WithScheme(scheme).Build(),
 				allowedDefinitions:  tc.allowedDefinitions,
 				existingDefinitions: tc.existingDefinitions,
-				moduleBackedDefs:    tc.moduleBackedDefs,
+				crateBackedDefs:     tc.crateBackedDefs,
 			}
 
 			handler := &ValidatingHandler{
@@ -1091,7 +1091,7 @@ type mockSARClient struct {
 	client.Client
 	allowedDefinitions  map[string]bool
 	existingDefinitions map[string]bool // namespace/name -> exists
-	moduleBackedDefs    map[string]string
+	crateBackedDefs     map[string]string
 }
 
 func (m *mockSARClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
@@ -1141,7 +1141,7 @@ func (m *mockSARClient) Get(ctx context.Context, key client.ObjectKey, obj clien
 	defKey := fmt.Sprintf("%s/%s", key.Namespace, key.Name)
 	if m.existingDefinitions != nil {
 		if exists, ok := m.existingDefinitions[defKey]; ok && exists {
-			setModuleField(obj, m.moduleBackedDefs[defKey])
+			setCrateField(obj, m.crateBackedDefs[defKey])
 			return nil
 		}
 	}
@@ -1149,18 +1149,18 @@ func (m *mockSARClient) Get(ctx context.Context, key client.ObjectKey, obj clien
 	return errors.NewNotFound(v1beta1.SchemeGroupVersion.WithResource(resource).GroupResource(), key.Name)
 }
 
-func setModuleField(obj client.Object, module string) {
-	if module == "" {
+func setCrateField(obj client.Object, crate string) {
+	if crate == "" {
 		return
 	}
 	switch d := obj.(type) {
 	case *v1beta1.ComponentDefinition:
-		d.Spec.Module = module
+		d.Spec.Crate = crate
 	case *v1beta1.TraitDefinition:
-		d.Spec.Module = module
+		d.Spec.Crate = crate
 	case *v1beta1.PolicyDefinition:
-		d.Spec.Module = module
+		d.Spec.Crate = crate
 	case *v1beta1.WorkflowStepDefinition:
-		d.Spec.Module = module
+		d.Spec.Crate = crate
 	}
 }

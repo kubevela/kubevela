@@ -32,10 +32,10 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/addon"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/crate"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/guardedhttp"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/kuberead"
-	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/module"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/registry"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
@@ -116,7 +116,7 @@ func WorkloadPackages() []cuexruntime.Package {
 		// of a Config the platform has created.
 		registry.Package,
 		velaconfig.Package,
-		module.Package,
+		crate.Package,
 	}
 }
 

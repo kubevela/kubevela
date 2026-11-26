@@ -1,0 +1,31 @@
+# Crate-level auxiliary resources live in <crate-root>/auxiliary/.
+#
+# They are crate-wide: they install once, before every API line, and every
+# line depends on them. The renderer emits them as a single k8s-objects
+# component named "<crate>-aux".
+#
+# Ordering: files are read in sorted filename order, and documents within one
+# file in document order, which is why these files are numbered. Everything in
+# this tier lands in ONE component, so the objects here are applied together
+# without waiting on each other -- the numbering controls the order they are
+# written into the component, not a dependency chain between them.
+#
+# Namespace: an object that names its own metadata.namespace keeps it. One
+# that does not gets the namespace the crate's definitions install into
+# (the `namespace` parameter on the type: crate component, defaulting to
+# vela-system). These deliberately omit it to show that defaulting.
+#
+# A .yaml auxiliary file may hold several documents separated by "---".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-store-shared
+data:
+  # Proves the crate-level tier applied before any line-level tier.
+  tier: "crate"
+  owner: "demo-store"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo-store-runner

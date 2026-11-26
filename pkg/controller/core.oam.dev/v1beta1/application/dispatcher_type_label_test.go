@@ -34,10 +34,10 @@ func outputLabelled(typeLabel string) *unstructured.Unstructured {
 	return u
 }
 
-// A module trait referenced as "note" labels its outputs with the installed
+// A crate trait referenced as "note" labels its outputs with the installed
 // name. The revision stores the definition under that name too, so the stage
 // lookup finds it without going to the cluster (a nil client would panic).
-func TestGetTraitDispatchStageFindsModuleTraitByInstalledName(t *testing.T) {
+func TestGetTraitDispatchStageFindsCrateTraitByInstalledName(t *testing.T) {
 	appRev := &v1beta1.ApplicationRevision{}
 	appRev.Spec.TraitDefinitions = map[string]*v1beta1.TraitDefinition{
 		"widget-kit-v1-note": {
@@ -53,14 +53,14 @@ func TestGetTraitDispatchStageFindsModuleTraitByInstalledName(t *testing.T) {
 func TestByTraitTypeMatchesOnTypeLabel(t *testing.T) {
 	ready := []*unstructured.Unstructured{outputLabelled("widget-kit-v1-note"), outputLabelled("scaler")}
 
-	moduleTrait := appfile.Trait{Name: "note", TypeLabel: "widget-kit-v1-note"}
+	crateTrait := appfile.Trait{Name: "note", TypeLabel: "widget-kit-v1-note"}
 	legacyTrait := appfile.Trait{Name: "scaler"}
 
 	filter := ByTraitType(ready, nil)
-	require.True(t, filter(moduleTrait), "a module trait is matched by its installed name, not the name it was written as")
+	require.True(t, filter(crateTrait), "a crate trait is matched by its installed name, not the name it was written as")
 	require.True(t, filter(legacyTrait), "a trait without a TypeLabel is matched by its name")
 
 	filter = ByTraitType(ready, []*unstructured.Unstructured{outputLabelled("widget-kit-v1-note")})
-	require.False(t, filter(moduleTrait), "a trait in the stage being checked is excluded")
+	require.False(t, filter(crateTrait), "a trait in the stage being checked is excluded")
 	require.True(t, filter(legacyTrait))
 }

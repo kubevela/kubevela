@@ -24,25 +24,25 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/oam-dev/kubevela/pkg/module/naming"
+	"github.com/oam-dev/kubevela/pkg/crate/naming"
 )
 
 // --- parseTypeRef ---
 
 func TestParseTypeRef_Form1(t *testing.T) {
-	form, mod, av, name, err := parseTypeRef("bucket")
+	form, crateName, av, name, err := parseTypeRef("bucket")
 	require.NoError(t, err)
 	assert.Equal(t, 1, form)
-	assert.Equal(t, "", mod)
+	assert.Equal(t, "", crateName)
 	assert.Equal(t, "", av)
 	assert.Equal(t, "bucket", name)
 }
 
 func TestParseTypeRef_Form3(t *testing.T) {
-	form, mod, av, name, err := parseTypeRef("s3/v1/bucket")
+	form, crateName, av, name, err := parseTypeRef("s3/v1/bucket")
 	require.NoError(t, err)
 	assert.Equal(t, 3, form)
-	assert.Equal(t, "s3", mod)
+	assert.Equal(t, "s3", crateName)
 	assert.Equal(t, "v1", av)
 	assert.Equal(t, "bucket", name)
 }
@@ -74,10 +74,10 @@ func TestParseTypeRef_SingleChar(t *testing.T) {
 }
 
 func TestParseTypeRef_HyphensInName(t *testing.T) {
-	form, mod, av, name, err := parseTypeRef("aws-s3/v2/my-bucket")
+	form, crateName, av, name, err := parseTypeRef("aws-s3/v2/my-bucket")
 	require.NoError(t, err)
 	assert.Equal(t, 3, form)
-	assert.Equal(t, "aws-s3", mod)
+	assert.Equal(t, "aws-s3", crateName)
 	assert.Equal(t, "v2", av)
 	assert.Equal(t, "my-bucket", name)
 }
@@ -115,10 +115,10 @@ func TestResolveForm3_Simple(t *testing.T) {
 }
 
 func TestResolveForm3_LongName_Truncated(t *testing.T) {
-	mod := strings.Repeat("m", 100)
+	crateName := strings.Repeat("m", 100)
 	av := strings.Repeat("a", 100)
 	name := strings.Repeat("n", 100)
-	got := resolveForm3(mod, av, name)
+	got := resolveForm3(crateName, av, name)
 	assert.LessOrEqual(t, len(got), naming.MaxObjectNameLen)
 	assert.Equal(t, '-', rune(got[len(got)-9]))
 }
