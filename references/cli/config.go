@@ -511,7 +511,7 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			// the Config controller publishes its content. A cluster without the CRD
 			// gets the upgrade error rather than a legacy Secret it did not ask for.
 			if !kindServed(f, configv1alpha1.ConfigGroupVersionKind) {
-				return errConfigCRDMissing
+				return errConfigCreateCRDMissing
 			}
 			cfg, properties, err := config.BuildConfigCR(config.ConfigCRSpec{
 				Name: options.Name, Namespace: options.Namespace,
