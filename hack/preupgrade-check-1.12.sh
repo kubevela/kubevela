@@ -22,7 +22,8 @@
 #
 # Findings are judged for the controller version running now. A change that was backported to the
 # running version already applies, so an object it refuses is reported as a warning that it fails
-# today, with the same fix; before the backport it is an error the upgrade introduces.
+# today, with the same fix; before the backport it is an error the upgrade introduces. A controller
+# already on 1.12 gets one line saying so (an info finding with --json) and exit 0.
 set -euo pipefail
 
 release=kubevela
@@ -41,7 +42,7 @@ while [ $# -gt 0 ]; do
 	-q | --quiet) verbosity=quiet ;;
 	--resolve) resolve=true ;;
 	--from-dir) from_dir="$2"; shift ;;
-	-h | --help) sed -n '2,25p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,26p' "$0"; exit 0 ;;
 	*) echo "error: unknown argument $1" >&2; exit 2 ;;
 	esac
 	shift
@@ -494,7 +495,13 @@ def first_version: {
     | $t != "" and ($tmpls["vela-system/config-template-" + $t] != null);
   def shared_template($template): ($template | split("/") | last) as $t | $tmpls["vela-system/config-template-" + $t] != null;
 
-[
+# On 1.12 already, the upgrade's findings describe changes that have happened: report only that.
+(if $running != null and $running >= [1, 12, 0, 0] then
+  [f("info"; "version"; "Deployment \(items($deploy)[0] | nn)";
+     "vela-core is already on \(vlabel); this check is for the upgrade from 1.11, so there is nothing to check";
+     "nothing to do here; run the check against a 1.11 cluster before it upgrades";
+     guide("check-your-cluster-first"))]
+else [
 # 1. Trait conflicts.
   ( items($apps)[] as $a | $a.metadata.namespace as $appns
     | ($a.spec.components // [])[] as $c
@@ -883,7 +890,7 @@ def first_version: {
                   (select($p.affinity != null or $p.topologySpreadConstraints != null) | "that the affinity and spread rules fit the nodes")] | join(", ")); remove \($new | join(", ")) to keep the 1.11 placement";
           guide("changes-to-built-in-definitions"))
       end )
-]
+] end)
 | map(select(. != null))
 | unique_by([.level, .check, .object, .problem])
 | sort_by([(.level as $l | ["error", "warn", "info"] | index($l)), .check, .object])
@@ -911,6 +918,10 @@ if [ "$format" = json ]; then
 	echo "$findings" | jq --argjson e "$errors" --argjson w "$warnings" --argjson i "$infos" \
 		'{findings: ., summary: {errors: $e, warnings: $w, info: $i}}'
 else
+	if [ "$(echo "$findings" | jq -r 'map(.check) | join(",")')" = version ]; then
+		echo "$findings" | jq -r '.[0].problem'
+		exit 0
+	fi
 	if [ "$verbosity" = verbose ]; then
 		for check in trait-conflicts helm-values crds cross-namespace-credentials http-guard vela-cli-namespace \
 			global-policies resource-trait configs definition-restrictions cert-manager gitops images step-definitions \

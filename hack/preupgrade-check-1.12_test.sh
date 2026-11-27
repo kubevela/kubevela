@@ -7,6 +7,7 @@
 # expected beyond base's, one `level check object` per line, plus optional lines:
 #   exit N          the expected exit code (default 0)
 #   match REGEX     a line the text output must contain
+#   alone           base's findings are not expected, only the scenario's
 #
 # Usage: hack/preupgrade-check-1.12_test.sh [-v] [scenario...]
 set -euo pipefail
@@ -42,7 +43,10 @@ run_scenario() {
 	local want_exit=0 got_exit=0
 	want_exit="$(sed -n 's/^exit //p' "$dir/expect")"
 	want_exit="${want_exit:-0}"
-	{ grep -v '^exit \|^match ' "$data/base/expect"; grep -v '^exit \|^match ' "$dir/expect" || true; } |
+	{
+		grep -qx alone "$dir/expect" || grep -v '^exit \|^match ' "$data/base/expect"
+		grep -v '^exit \|^match \|^alone$' "$dir/expect" || true
+	} |
 		sed '/^$/d' | sort >"$work/want"
 
 	"$check" --from-dir "$work" --json >"$work/out.json" 2>"$work/err" || got_exit=$?
