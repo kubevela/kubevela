@@ -151,6 +151,9 @@ collect() {
 		echo "error: no vela-core Deployment of release $release in namespace $namespace (pass --release and --namespace)" >&2
 		exit 2
 	fi
+	# Node labels, for the affinity trait's nodeSelector. Without permission to list nodes the check
+	# runs without them.
+	kubectl get nodes -o json >"$tmp/nodes.json" 2>/dev/null || rm -f "$tmp/nodes.json"
 	if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
 		kubectl get applications.argoproj.io -A -o json >"$tmp/argocd-applications.json" 2>"$tmp/err" ||
 			echo '{"items":[]}' >"$tmp/argocd-applications.json"
@@ -235,6 +238,11 @@ if $resolve; then
 	collect_resolved
 fi
 [ -s "$tmp/resolved.json" ] || echo '{}' >"$tmp/resolved.json"
+nodes_read=true
+if [ ! -s "$tmp/nodes.json" ]; then
+	nodes_read=false
+	echo '{"items":[]}' >"$tmp/nodes.json"
+fi
 helm_read=true
 if [ ! -f "$tmp/helm-values.json" ]; then
 	helm_read=false
@@ -842,7 +850,39 @@ def first_version: {
     | f("error"; "task-probes"; "Application \($a | nn)";
         "component \($c.name) (task) sets \($probes | join(" and ")), which 1.11 left out of the Job; 1.12 adds \($it) to the existing Job's pod template, the API server refuses that (field is immutable) and the workflow fails";
         "remove \($probes | join(" and ")) from component \($c.name) before upgrading, as 1.11 never applied \($it); to keep \($it), delete the component's Job after the upgrade so 1.12 creates it again, which runs the task again";
-        guide("changes-to-built-in-definitions")) )
+        guide("changes-to-built-in-definitions")) ),
+
+# 16. The affinity trait: 1.11's accepted nodeSelector, affinity, schedulerName, priorityClassName and
+# topologySpreadConstraints and set none of them; 1.12 sets each on the Pods, which restart with them.
+# A nodeSelector no node carries leaves them Pending, which the node labels show when they could be read.
+  ( items($apps)[] as $a | $a.metadata.namespace as $appns
+    | ($a.spec.components // [])[] as $c
+    | ($c.traits // [])[] as $t
+    | select(($t.type // "") | split("@")[0] == "affinity")
+    | (resolve("t"; $t.type; $appns) // {metadata: {namespace: $sysns}}) as $d
+    | select($d._revision == null and $d.metadata.namespace == $sysns)
+    | ($t.properties // {}) as $p
+    | [("nodeSelector", "affinity", "schedulerName", "priorityClassName", "topologySpreadConstraints") as $k
+        | select($p[$k] != null) | $k] as $new
+    | select(($new | length) > 0)
+    | ($p.nodeSelector // {} | to_entries | map("\(.key)=\(.value)") | join(",")) as $sel
+    | [items($nodes)[] | (.metadata.labels // {}) as $l | select(all($p.nodeSelector // {} | to_entries[]; $l[.key] == .value))] as $fit
+    | ($sel != "" and $nodesRead and ($fit | length) == 0) as $nowhere
+    | "component \($c.name): the affinity trait sets \($new | join(", ")), which 1.11 ignored; 1.12 applies \(if ($new | length) == 1 then "it" else "them" end) and the Pods restart" as $what
+    | if $nowhere then
+        f("error"; "affinity-trait"; "Application \($a | nn)";
+          "\($what), but no node has the labels \($sel), so they stay Pending";
+          "label the nodes the workload should run on with \($sel), or remove nodeSelector from the trait to keep the 1.11 placement";
+          guide("changes-to-built-in-definitions"))
+      else
+        f("warn"; "affinity-trait"; "Application \($a | nn)";
+          "\($what)\(if $sel == "" then "" elif $nodesRead then "; \($fit | length) of \(items($nodes) | length) nodes have the labels \($sel)" else " (the nodes were not read, so whether any has the labels \($sel) is unknown)" end)";
+          "check \([(select($sel != "") | if $nodesRead then "that the nodes with \($sel) are where it should run" else "that nodes have the labels \($sel)" end),
+                  (select($p.schedulerName != null) | "that scheduler \($p.schedulerName) runs"),
+                  (select($p.priorityClassName != null) | "that PriorityClass \($p.priorityClassName) exists"),
+                  (select($p.affinity != null or $p.topologySpreadConstraints != null) | "that the affinity and spread rules fit the nodes")] | join(", ")); remove \($new | join(", ")) to keep the 1.11 placement";
+          guide("changes-to-built-in-definitions"))
+      end )
 ]
 | map(select(. != null))
 | unique_by([.level, .check, .object, .problem])
@@ -850,14 +890,14 @@ def first_version: {
 JQ
 
 findings="$(jq -n \
-	--arg ns "$namespace" --arg rel "$release" --argjson helmRead "$helm_read" \
+	--arg ns "$namespace" --arg rel "$release" --argjson helmRead "$helm_read" --argjson nodesRead "$nodes_read" \
 	--slurpfile apps "$tmp/applications.json" --slurpfile wfs "$tmp/workflows.json" \
 	--slurpfile cdefs "$tmp/componentdefinitions.json" --slurpfile tdefs "$tmp/traitdefinitions.json" \
 	--slurpfile pdefs "$tmp/policydefinitions.json" --slurpfile sdefs "$tmp/workflowstepdefinitions.json" \
 	--slurpfile cms "$tmp/configmaps.json" --slurpfile secrets "$tmp/secrets.json" \
 	--slurpfile crd "$tmp/crd-applications.json" --slurpfile deploy "$tmp/deployment.json" \
 	--slurpfile argo "$tmp/argocd-applications.json" --slurpfile revs "$tmp/definitionrevisions.json" \
-	--slurpfile nss "$tmp/namespaces.json" --slurpfile deny "$tmp/deny-configmaps.json" \
+	--slurpfile nss "$tmp/namespaces.json" --slurpfile deny "$tmp/deny-configmaps.json" --slurpfile nodes "$tmp/nodes.json" \
 	--slurpfile shosts "$tmp/secret-hosts.json" --slurpfile resolved "$tmp/resolved.json" \
 	--slurpfile values "$tmp/helm-values.json" --slurpfile release "$tmp/helm-release.json" \
 	"$lib$analysis")" || { echo "error: the analysis failed (see jq's message above)" >&2; exit 2; }
@@ -874,7 +914,7 @@ else
 	if [ "$verbosity" = verbose ]; then
 		for check in trait-conflicts helm-values crds cross-namespace-credentials http-guard vela-cli-namespace \
 			global-policies resource-trait configs definition-restrictions cert-manager gitops images step-definitions \
-			task-probes; do
+			task-probes affinity-trait; do
 			echo "check $check: $(echo "$findings" | jq --arg c "$check" '[.[] | select(.check == $c)] | length') findings"
 		done
 	fi

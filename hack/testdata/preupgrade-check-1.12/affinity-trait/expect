@@ -1,0 +1,6 @@
+exit 1
+error affinity-trait Application default/nowhere
+warn affinity-trait Application default/linux
+warn affinity-trait Application default/scheduler
+match no node has the labels disktype=nvme-nowhere
+match 2 of 2 nodes have the labels kubernetes.io/os=linux
