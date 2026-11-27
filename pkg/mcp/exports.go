@@ -28,6 +28,14 @@ const (
 	// ackCommonGroup is the API group of ACK's kinds that every service
 	// controller serves, FieldExport among them.
 	ackCommonGroup = "services.k8s.aws"
+
+	// exportWritesKey marks an exporter that copies one value under one key
+	// of the target; exportWritesSet one that writes a set of keys it does
+	// not name, the way a connection Secret is written. The shape is stated
+	// rather than inferred from an empty key, so an exporter whose key fell
+	// back to its controller's default is never mistaken for a set writer.
+	exportWritesKey = "key"
+	exportWritesSet = "set"
 )
 
 // ExportDetail describes a resource whose job is to hand a value from a
@@ -45,7 +53,8 @@ type ExportDetail struct {
 	TargetKind      string `json:"targetKind" jsonschema:"Secret or ConfigMap."`
 	TargetName      string `json:"targetName" jsonschema:"Name of the Secret or ConfigMap written."`
 	TargetNamespace string `json:"targetNamespace,omitempty" jsonschema:"Namespace of the target when the exporter names one; otherwise the exporter's own namespace."`
-	TargetKey       string `json:"targetKey,omitempty" jsonschema:"Key written in the target; empty when the exporter writes several keys, such as a connection Secret."`
+	TargetKey       string `json:"targetKey,omitempty" jsonschema:"Key written in the target when writes is key. An exporter that names no key is reported under the key its controller writes by default, such as the exporter's own namespace.name for an ACK FieldExport. Empty when the exporter writes a set of keys, or when its default key is not known here."`
+	Writes          string `json:"writes" jsonschema:"key when the exporter copies one value under targetKey; set when it writes several keys it does not name, such as a connection Secret."`
 	// Written is nil when the exporter writes no conditions, so its
 	// verdict came from the resource tree, which cannot say, and when its
 	// readiness is unknown because the family's conditions are missing.
@@ -67,6 +76,11 @@ func exportOf(diag *ResourceDiagnosis, obj *unstructured.Unstructured) *ExportDe
 }
 
 // fieldExportOf reads an ACK FieldExport's source and target from its spec.
+// A FieldExport copies one value, so it always reports a key: the one its
+// spec names, else the one the ACK runtime writes when spec.to.key is empty
+// or blank, "<namespace>.<name>" of the FieldExport itself. Each single-key
+// exporter family states its own default here, beside its reader, so that an
+// exporter that left the key to its controller is never read as a set writer.
 func fieldExportOf(obj *unstructured.Unstructured) *ExportDetail {
 	toKind, _, _ := unstructured.NestedString(obj.Object, "spec", "to", "kind")
 	toName, _, _ := unstructured.NestedString(obj.Object, "spec", "to", "name")
@@ -79,9 +93,12 @@ func fieldExportOf(obj *unstructured.Unstructured) *ExportDetail {
 	case "configmap":
 		toKind = "ConfigMap"
 	}
-	e := &ExportDetail{TargetKind: toKind, TargetName: toName}
+	e := &ExportDetail{TargetKind: toKind, TargetName: toName, Writes: exportWritesKey}
 	e.TargetNamespace, _, _ = unstructured.NestedString(obj.Object, "spec", "to", "namespace")
 	e.TargetKey, _, _ = unstructured.NestedString(obj.Object, "spec", "to", "key")
+	if strings.TrimSpace(e.TargetKey) == "" {
+		e.TargetKey = obj.GetNamespace() + "." + obj.GetName()
+	}
 	e.SourcePath, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "path")
 	e.SourceGroup, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "resource", "group")
 	e.SourceKind, _, _ = unstructured.NestedString(obj.Object, "spec", "from", "resource", "kind")
@@ -99,7 +116,7 @@ func connectionSecretOf(diag *ResourceDiagnosis, obj *unstructured.Unstructured)
 		if !found || name == "" {
 			continue
 		}
-		e := &ExportDetail{SourceGroup: groupOf(diag.APIVersion), SourceKind: diag.Kind, SourceName: diag.Name, TargetKind: secretKind, TargetName: name}
+		e := &ExportDetail{SourceGroup: groupOf(diag.APIVersion), SourceKind: diag.Kind, SourceName: diag.Name, TargetKind: secretKind, TargetName: name, Writes: exportWritesSet}
 		e.TargetNamespace, _, _ = unstructured.NestedString(obj.Object, "spec", field, "namespace")
 		return e
 	}
@@ -164,6 +181,20 @@ func exportTarget(e *ExportDetail) string {
 		target += " key " + e.TargetKey
 	}
 	return target
+}
+
+// covers says whether this export writes what a consumer reads: everything
+// an exporter writes is part of a whole-object read (an empty key); a set
+// writer writes every key; a single-key exporter writes only its key, and
+// one whose key is not known here is matched to whole-object reads alone, so
+// that it is never blamed for a key it may not write.
+func (e *ExportDetail) covers(key string) bool {
+	switch {
+	case key == "", e.Writes == exportWritesSet:
+		return true
+	default:
+		return e.TargetKey != "" && e.TargetKey == key
+	}
 }
 
 // linkExports ties each export its exporter says is unwritten to the state

@@ -301,6 +301,50 @@ var _ = Describe("diagnose_application consumers", func() {
 		Expect(found[0].Message).To(ContainSubstring("the mounted file updates in place once written"))
 	})
 
+	// withoutExportKey drops spec.to.key from the host FieldExport, so it
+	// writes under the ACK default "team-a.petclinic-db-conn-host", and makes
+	// the Deployment read one env key from the Secret and nothing else.
+	withoutExportKey := func(objs []client.Object, envKey string) []client.Object {
+		for _, o := range objs {
+			switch obj := o.(type) {
+			case *unstructured.Unstructured:
+				if obj.GetKind() == "FieldExport" {
+					unstructured.RemoveNestedField(obj.Object, "spec", "to", "key")
+				}
+			case *appsv1.Deployment:
+				c := &obj.Spec.Template.Spec.Containers[0]
+				c.Env = []corev1.EnvVar{{Name: "DB_VALUE", ValueFrom: &corev1.EnvVarSource{SecretKeyRef: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "petclinic-db"}, Key: envKey}}}}
+				c.EnvFrom, c.VolumeMounts = nil, nil
+				obj.Spec.Template.Spec.Volumes = nil
+			}
+		}
+		return objs
+	}
+
+	It("does not say an exporter that names no key has not written a key it does not write", func() {
+		// the exporter writes team-a.petclinic-db-conn-host; the workload
+		// reads host, which no exporter writes, so the finding falls back to
+		// the producer's state instead of blaming the exporter for that key
+		h = startHarness(Options{}, withoutExportKey(consumerObjects(consumerFixture{exportWritten: false, instanceSynced: "True"}), "host")...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		found := consumerFindings(out)
+		Expect(found).To(HaveLen(1), toJSON(out.Findings))
+		Expect(found[0].Message).To(ContainSubstring(`key "host", which component "petclinic-db" fills while its FieldExport petclinic-db-conn-host is NotReady`))
+		Expect(found[0].Message).NotTo(ContainSubstring("has not written"))
+	})
+
+	It("blames an exporter that names no key for the key its controller writes by default", func() {
+		h = startHarness(Options{}, withoutExportKey(consumerObjects(consumerFixture{exportWritten: false, instanceSynced: "True"}), "team-a.petclinic-db-conn-host")...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+		found := consumerFindings(out)
+		Expect(found).To(HaveLen(1), toJSON(out.Findings))
+		Expect(found[0].Message).To(ContainSubstring(`key "team-a.petclinic-db-conn-host", which FieldExport petclinic-db-conn-host of component "petclinic-db" has not written yet`))
+	})
+
 	It("skips the consumer read and says so when the diagnosis reached its live-read bound", func() {
 		old := maxDiagnoseReads
 		maxDiagnoseReads = 3 // the DBCluster, the DBInstance and the FieldExport use it up

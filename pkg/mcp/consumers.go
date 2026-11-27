@@ -51,42 +51,25 @@ type consumedRef struct {
 
 // producer is who fills a Secret or ConfigMap in this Application: a
 // component that manages the object itself, or one or more exporter
-// resources of a component, in one cluster and namespace. Exporters are kept
-// per target key, so the key a consumer reads is judged by the exporter that
-// writes it; a connection-Secret writer, which writes every key, is kept
-// under the empty key.
+// resources of a component, in one cluster and namespace. Each exporter
+// states what it writes, one key or a set, so the key a consumer reads is
+// judged by the exporter that writes it, whichever provisioner it belongs to.
 type producer struct {
 	component          string
 	cluster, namespace string
-	exporters          map[string]*ResourceDiagnosis
+	exporters          []*ResourceDiagnosis
 }
 
 // unwrittenExporterFor returns an exporter of this producer whose own
 // conditions say it has not written what the consumer reads: for one key,
-// the exporter writing that key or the one writing the whole object; for a
-// whole-object read (envFrom, a mounted Secret or ConfigMap), any exporter
-// that writes into the object. Nil when none says so.
+// an exporter whose export covers that key; for a whole-object read (envFrom,
+// a mounted Secret or ConfigMap), any exporter that writes into the object.
+// Exporters are kept sorted by kind and name, so the one named is stable.
+// Nil when none says so.
 func (p producer) unwrittenExporterFor(key string) *ResourceDiagnosis {
-	unwritten := func(e *ResourceDiagnosis) bool {
-		return e != nil && e.Export != nil && e.Export.Written != nil && !*e.Export.Written
-	}
-	if key != "" {
-		if e := p.exporters[key]; unwritten(e) {
+	for _, e := range p.exporters {
+		if e.Export.Written != nil && !*e.Export.Written && e.Export.covers(key) {
 			return e
-		}
-		if e := p.exporters[""]; unwritten(e) {
-			return e
-		}
-		return nil
-	}
-	keys := make([]string, 0, len(p.exporters))
-	for k := range p.exporters {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		if unwritten(p.exporters[k]) {
-			return p.exporters[k]
 		}
 	}
 	return nil
@@ -99,8 +82,8 @@ func producerKey(cluster, namespace, kind, name string) string {
 // producersOf maps every Secret and ConfigMap this Application fills to the
 // component that fills it. A component that manages the object directly is
 // recorded first; exporters writing into it take precedence, because they
-// are the more specific fact, and are kept per target key. An exporter's
-// target lives in the namespace it names, else the exporter's own.
+// are the more specific fact, and are kept with what each one writes. An
+// exporter's target lives in the namespace it names, else the exporter's own.
 func producersOf(applied []querytypes.AppliedResource, resources []ResourceDiagnosis) map[string]producer {
 	producers := map[string]producer{}
 	for i := range applied {
@@ -122,10 +105,19 @@ func producersOf(applied []querytypes.AppliedResource, resources []ResourceDiagn
 		key := producerKey(r.Cluster, ns, r.Export.TargetKind, r.Export.TargetName)
 		p, ok := producers[key]
 		if !ok || p.component != r.Component || p.exporters == nil {
-			p = producer{component: r.Component, cluster: r.Cluster, namespace: r.Namespace, exporters: map[string]*ResourceDiagnosis{}}
+			p = producer{component: r.Component, cluster: r.Cluster, namespace: r.Namespace, exporters: []*ResourceDiagnosis{}}
 		}
-		p.exporters[r.Export.TargetKey] = r
+		p.exporters = append(p.exporters, r)
 		producers[key] = p
+	}
+	for _, p := range producers {
+		sort.Slice(p.exporters, func(i, j int) bool {
+			a, b := p.exporters[i], p.exporters[j]
+			if a.Kind != b.Kind {
+				return a.Kind < b.Kind
+			}
+			return a.Name < b.Name
+		})
 	}
 	return producers
 }
