@@ -739,9 +739,10 @@ else [
         "grant get, list, watch, create, update, patch, delete on configs.config.oam.dev and configtemplates.config.oam.dev to the users and service accounts that manage configs in \($nss | join(", "))";
         guide("config-templates-and-configs")) ),
   ( $tmpls[] | select(.metadata.namespace != "vela-system" and .metadata.labels["config.oam.dev/scope"] == "system")
+    | (.metadata.name | ltrimstr("config-template-")) as $tn
     | f("warn"; "configs"; "ConfigMap \(nn)";
-        "template \(.metadata.name | ltrimstr("config-template-")) is labelled scope system outside vela-system; 1.12 treats it as namespace-scoped, so new configs elsewhere cannot use it";
-        "apply the template in vela-system if other namespaces use it, or label it config.oam.dev/scope=namespace";
+        "template \($tn) is labelled scope system outside vela-system; 1.12 ignores the label and treats it as namespace-scoped, so a new config in another namespace may use it only if its author can get the template (configs bound to it when it migrates keep working)";
+        "apply the template in vela-system if every namespace should use it, or grant get on configtemplates.config.oam.dev \($tn) in namespace \(.metadata.namespace) to the users who create configs from it elsewhere";
         guide("config-templates-and-configs")) ),
   ( items($secrets)[] as $s
     | ($s.data["objects-reference"] // "" | if . == "" then [] else (@base64d | try fromjson catch []) end) as $refs
