@@ -464,10 +464,11 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	appMap["apiVersion"] = "core.oam.dev/v1beta1"
 	appMap["kind"] = "Application"
 
-	appendAuxComponents(appMap, groups)
+	auxNames := appendAuxComponents(appMap, groups)
 	ensureAddonComponentStateKeepPolicy(appMap)
-	pinCrateComponentsToHub(appMap, append(componentNames(crateComps), componentNames(inlineCrateComps)...))
-	if err := writeExplicitWorkflow(appMap); err != nil {
+	crateNames := append(componentNames(crateComps), componentNames(inlineCrateComps)...)
+	pinCrateComponentsToHub(appMap, crateNames)
+	if err := writeExplicitWorkflow(appMap, auxNames, crateNames); err != nil {
 		return nil, fmt.Errorf("render addon %q: %w", req.Name, err)
 	}
 	sanitizeManifest(appMap)
@@ -671,11 +672,12 @@ func (r *rendererImpl) auxComponents(ctx context.Context, installPkg *pkgaddon.I
 	}, nil
 }
 
-// appendAuxComponents wraps each non-empty group as a k8s-objects component and
-// appends it to the Application's spec.components. Each auxiliary object is
-// sanitized (status + creationTimestamp) before nesting so the manifest
-// completes cleanly as CUE.
-func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
+// appendAuxComponents wraps each non-empty group as a k8s-objects component,
+// appends it to the Application's spec.components and returns the names it
+// gave them. Each auxiliary object is sanitized (status + creationTimestamp)
+// before nesting so the manifest completes cleanly as CUE.
+func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) []string {
+	var names []string
 	spec, ok := appMap["spec"].(map[string]interface{})
 	if !ok {
 		spec = map[string]interface{}{}
@@ -712,6 +714,7 @@ func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
 		}
 		name := uniqueComponentName(g.name, used)
 		used[name] = true
+		names = append(names, name)
 		comps = append(comps, map[string]interface{}{
 			"name":       name,
 			"type":       "k8s-objects",
@@ -719,6 +722,7 @@ func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
 		})
 	}
 	spec["components"] = comps
+	return names
 }
 
 // componentNames returns the Name of each component, in order. Used to turn
