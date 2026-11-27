@@ -118,7 +118,8 @@ if [ "$quiet" = "0 errors, 0 warnings, 3 info" ]; then passed=$((passed + 1)); e
 mkdir -p "$tmp/stub" "$tmp/resolve"
 printf '#!/bin/sh\necho "169.254.169.254 STREAM $2"\n' >"$tmp/stub/getent"
 chmod +x "$tmp/stub/getent"
-cp "$data/base/"*.json "$data/resolve-secret/"*.json "$tmp/resolve/"
+cp "$data/base/"*.json "$tmp/resolve/"
+cp "$data/resolve-secret/"*.json "$tmp/resolve/"
 PATH="$tmp/stub:$PATH" "$check" --from-dir "$tmp/resolve" --resolve --json 2>/dev/null >"$tmp/resolve/out.json" || true
 for app in hook-resolves-to-metadata call-resolves-to-metadata; do
 	if jq -e --arg o "Application default/$app" \
