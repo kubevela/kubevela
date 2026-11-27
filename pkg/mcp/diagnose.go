@@ -218,6 +218,7 @@ func (d *deps) diagnoseApplication(ctx context.Context, _ *sdk.CallToolRequest, 
 		out.Resources = append(out.Resources, diag)
 	}
 	linkExports(&out, in.Component)
+	d.linkConsumers(ctx, app, applied, &out, &reads, in.Component)
 
 	events, eventNotes, eventsCut := d.applicationEvents(ctx, cli, app, applied)
 	out.Events = events
