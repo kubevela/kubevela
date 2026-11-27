@@ -112,13 +112,16 @@ collect() {
 		fi
 		helm list -n "$namespace" --filter "^${release}\$" -o json >"$tmp/helm-release.json"
 	fi
-	local kind file
+	local kind file fields
 	for kind in applications.core.oam.dev:applications workflows.core.oam.dev:workflows \
 		componentdefinitions.core.oam.dev:componentdefinitions traitdefinitions.core.oam.dev:traitdefinitions \
 		policydefinitions.core.oam.dev:policydefinitions workflowstepdefinitions.core.oam.dev:workflowstepdefinitions \
 		definitionrevisions.core.oam.dev:definitionrevisions namespaces:namespaces; do
 		file="${kind#*:}"
-		if ! kubectl get "${kind%%:*}" -A -o json >"$tmp/$file.json" 2>"$tmp/err"; then
+		# Definitions keep their managedFields, which show an in-place edit of a builtin.
+		fields=""
+		case "$file" in *definitions) fields=--show-managed-fields ;; esac
+		if ! kubectl get "${kind%%:*}" -A -o json $fields >"$tmp/$file.json" 2>"$tmp/err"; then
 			echo "error: cannot list ${kind%%:*}: $(cat "$tmp/err")" >&2
 			exit 2
 		fi
@@ -889,7 +892,28 @@ else [
                   (select($p.priorityClassName != null) | "that PriorityClass \($p.priorityClassName) exists"),
                   (select($p.affinity != null or $p.topologySpreadConstraints != null) | "that the affinity and spread rules fit the nodes")] | join(", ")); remove \($new | join(", ")) to keep the 1.11 placement";
           guide("changes-to-built-in-definitions"))
-      end )
+      end ),
+
+# 17. Builtin definitions edited in place. The 1.12 chart's hook Job applies every builtin with
+# --force-conflicts, which overwrites spec.schematic whoever changed it. The chart's own managers are
+# helm (charts before 1.11.2) and the hook's vela-core-builtin-definitions; an edit is another manager
+# holding spec.schematic with a time from the chart's last write on (the edit takes the field from the
+# chart's entry, which keeps its time). A definition with no chart entry was installed by another
+# manager (vela install, Argo CD), so it is not counted as edited.
+  ( (items($cdefs)[] | {kind: "ComponentDefinition", d: .}), (items($tdefs)[] | {kind: "TraitDefinition", d: .}),
+    (items($pdefs)[] | {kind: "PolicyDefinition", d: .}), (items($sdefs)[] | {kind: "WorkflowStepDefinition", d: .})
+    | .kind as $kind | .d as $d
+    | select($d.metadata.namespace == $sysns and (($builtins[$kind] // []) | index($d.metadata.name)) != null)
+    | [($d.metadata.managedFields // [])[] | select(.subresource == null)] as $mf
+    | ([$mf[] | select(.manager | IN("helm", "vela-core-builtin-definitions")) | .time // ""] | max) as $chartAt
+    | select($chartAt != null)
+    | [$mf[] | select((.manager | IN("helm", "vela-core-builtin-definitions") | not)
+        and .fieldsV1["f:spec"]["f:schematic"] != null and (.time // "") >= $chartAt) | .manager] | unique
+    | select(length > 0)
+    | f("warn"; "builtin-edits"; "\($kind) \($d | nn)";
+        "builtin \($d.metadata.name) was changed in place by \(join(", ")) after the chart applied it; the 1.12 chart applies its builtins again on upgrade and the edit is lost without a warning";
+        "copy the edited definition to a new name and point the Applications that need the edit at it, or carry it with extends, before upgrading";
+        guide("5-do-not-edit-built-in-definitions-in-place")) )
 ] end)
 | map(select(. != null))
 | unique_by([.level, .check, .object, .problem])
@@ -925,7 +949,7 @@ else
 	if [ "$verbosity" = verbose ]; then
 		for check in trait-conflicts helm-values crds cross-namespace-credentials http-guard vela-cli-namespace \
 			global-policies resource-trait configs definition-restrictions cert-manager gitops images step-definitions \
-			task-probes affinity-trait; do
+			task-probes affinity-trait builtin-edits; do
 			echo "check $check: $(echo "$findings" | jq --arg c "$check" '[.[] | select(.check == $c)] | length') findings"
 		done
 	fi
