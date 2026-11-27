@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Checks a running KubeVela 1.11 cluster for what the 1.12 upgrade refuses or changes, and prints a
-# fix for each finding. It only reads: kubectl get and list, helm get values and helm list.
+# fix for each finding. It only reads: kubectl get and list, helm get values, helm get manifest and
+# helm list, and renders the release manifest with kubectl create --dry-run=client.
 #
 # Usage:
 #   hack/preupgrade-check-1.12.sh [--release NAME] [--namespace NS] [--json] [-v | -q] [--resolve] [--from-dir DIR]
@@ -42,7 +43,7 @@ while [ $# -gt 0 ]; do
 	-q | --quiet) verbosity=quiet ;;
 	--resolve) resolve=true ;;
 	--from-dir) from_dir="$2"; shift ;;
-	-h | --help) sed -n '2,26p' "$0"; exit 0 ;;
+	-h | --help) sed -n '2,27p' "$0"; exit 0 ;;
 	*) echo "error: unknown argument $1" >&2; exit 2 ;;
 	esac
 	shift
@@ -111,6 +112,7 @@ collect() {
 			exit 2
 		fi
 		helm list -n "$namespace" --filter "^${release}\$" -o json >"$tmp/helm-release.json"
+		collect_chart_objects
 	fi
 	local kind file fields
 	for kind in applications.core.oam.dev:applications workflows.core.oam.dev:workflows \
@@ -164,6 +166,24 @@ collect() {
 			echo '{"items":[]}' >"$tmp/argocd-applications.json"
 	fi
 	collect_secret_hosts
+}
+
+# collect_chart_objects reads the release's objects with their managedFields, and the manifest they
+# were rendered from, to find fields changed outside Helm. ConfigMap and Secret data keep their keys
+# only. A
+# failure is recorded as {"error": ...} in helm-objects.json, and the check reports it as info.
+collect_chart_objects() {
+	local strip='del(.status) | (.data, .stringData, .binaryData) |= (if type == "object" then map_values("") else . end)'
+	if helm get manifest "$release" -n "$namespace" >"$tmp/manifest.yaml" 2>"$tmp/err" &&
+		kubectl create --dry-run=client -o json -f "$tmp/manifest.yaml" 2>"$tmp/err" |
+		jq -s "{items: [.[] | if .kind == \"List\" then .items[] else . end | $strip]}" >"$tmp/helm-manifest.json" &&
+		kubectl get -f "$tmp/manifest.yaml" -o json --show-managed-fields --ignore-not-found 2>"$tmp/err" |
+		jq -s "{items: [.[] | if .kind == \"List\" then .items[] else . end | $strip]}" >"$tmp/helm-objects.json"; then
+		:
+	else
+		head -n 1 "$tmp/err" | jq -Rs '{error: (. | rtrimstr("\n"))}' >"$tmp/helm-objects.json"
+	fi
+	rm -f "$tmp/manifest.yaml"
 }
 
 # steps_query lists, one per line, what jq program $1 derives from every step the Applications run.
@@ -260,6 +280,8 @@ if [ ! -f "$tmp/helm-values.json" ]; then
 	echo '[]' >"$tmp/helm-release.json"
 fi
 [ -f "$tmp/helm-release.json" ] || echo '[]' >"$tmp/helm-release.json"
+[ -s "$tmp/helm-objects.json" ] || echo '{"error":"not read"}' >"$tmp/helm-objects.json"
+[ -s "$tmp/helm-manifest.json" ] || echo '{"items":[]}' >"$tmp/helm-manifest.json"
 
 # The analysis: one finding per object and problem, as {level, check, object, problem, fix, link}.
 read -r -d '' analysis <<'JQ' || true
@@ -402,6 +424,25 @@ def first_version: {
       and ($terms == null or any($terms[];
         (((.matchExpressions // []) + (.matchFields // [])) | length) > 0
         and all((.matchExpressions // [])[]; nodereq(.; $l)) and all((.matchFields // [])[]; nodereq(.; $fields))));
+
+# managedFields paths (FieldsV1 keys): whether the chart's manifest object sets one, a readable
+# form of it, and the fields vela-core itself sets at runtime.
+  def chartsets($pth):
+    reduce $pth[] as $e (.;
+      if . == null then null
+      elif ($e | startswith("f:")) then (if type == "object" then .[$e[2:]] else null end)
+      elif ($e | startswith("k:")) then ($e[2:] | fromjson) as $k
+        | (if type == "array" then ([.[] | . as $i | select(all($k | to_entries[]; $i[.key] == .value))] | first) else null end)
+      elif ($e | startswith("v:")) then ($e[2:] | fromjson) as $v | (if type == "array" and (index([$v]) != null) then $v else null end)
+      else null end)
+    | . != null;
+  def fieldpath:
+    map(if startswith("f:") then "." + .[2:]
+        elif startswith("k:") then "[" + (.[2:] | fromjson | to_entries | map("\(.key)=\(.value | tojson)") | join(",")) + "]"
+        elif startswith("v:") then "[=\(.[2:])]" else . end) | join("");
+  def runtimefield($pth):
+    $pth[-1] == "f:caBundle" or ($pth[0] == "f:webhooks" and $pth[-1] == "f:failurePolicy")
+    or $pth == ["f:metadata", "f:annotations", "f:deployment.kubernetes.io/revision"];
 
 # traitConflictRuleMatches in pkg/webhook/core.oam.dev/v1beta1/application/validation.go.
   def rulematch($rule; $t):
@@ -968,7 +1009,33 @@ else [
     | f("error"; "helmchart-release"; "Application \($a | nn)";
         "component \($c.name) (helmchart) sets release without release.name: 1.11 installs a Helm release named release in namespace \($relns), 1.12 one named \($c.name), so two copies of the chart run";
         "set release.name: release on component \($c.name) to keep the 1.11 release, or after the upgrade remove the old one with helm uninstall release -n \($relns)";
-        guide("helm-components")) )
+        guide("helm-components")) ),
+
+# 19. Chart objects changed outside Helm. Helm 4 upgrades server side, so a field the chart sets that
+# another manager now holds is a conflict: the upgrade is refused, and --force-conflicts (or Helm 3's
+# merge) puts the chart's value back. Fields vela-core sets at runtime (the webhooks' and the
+# APIService's caBundle, the webhooks' failurePolicy) and the Deployment revision annotation are a
+# stock install's, and status and scale writes are subresources, so none of those count.
+  ( if $hobjs[0].error != null then
+      f("info"; "chart-edits"; "Release \($ns)/\($rel)";
+        "the release's objects were not read (\(if $helmRead then $hobjs[0].error else "no helm" end)), so fields changed on them outside Helm were not checked";
+        "if you changed any of the chart's objects with kubectl, expect helm upgrade (Helm 4) to refuse it until you pass --force-conflicts, which puts the chart's values back";
+        guide("3-upgrade-the-chart"))
+    else
+      (reduce items($hman)[] as $m ({}; .["\($m.kind)/\($m.metadata.namespace // "")/\($m.metadata.name)"] = $m)) as $midx
+      | items($hobjs)[] as $o
+      | ($midx["\($o.kind)/\($o.metadata.namespace // "")/\($o.metadata.name)"] // $midx["\($o.kind)//\($o.metadata.name)"]) as $m
+      | select($m != null)
+      | [ ($o.metadata.managedFields // [])[] | select(.subresource == null and .manager != "helm") as $e
+          | $e.fieldsV1 | paths(type == "object" and length == 0) as $pth
+          | select($pth[-1] != "." and (runtimefield($pth) | not) and ($m | chartsets($pth)))
+          | "\($pth | fieldpath) (\($e.manager))" ] | unique
+      | select(length > 0)
+      | f("warn"; "chart-edits"; "\($o.kind) \(if ($o.metadata.namespace // "") != "" then "\($o.metadata.namespace)/" else "" end)\($o.metadata.name)";
+          "fields the chart sets were changed outside Helm: \(join(", ")); helm upgrade with Helm 4 applies server side and refuses the upgrade over them, and with --force-conflicts (or with Helm 3) puts the chart's values back";
+          "carry the change in your values file where the chart has a value for it, then upgrade with --force-conflicts on Helm 4; otherwise expect the change to be undone";
+          guide("3-upgrade-the-chart"))
+    end )
 ] end)
 | map(select(. != null))
 | unique_by([.level, .check, .object, .problem])
@@ -984,7 +1051,8 @@ findings="$(jq -n \
 	--slurpfile crd "$tmp/crd-applications.json" --slurpfile deploy "$tmp/deployment.json" \
 	--slurpfile argo "$tmp/argocd-applications.json" --slurpfile revs "$tmp/definitionrevisions.json" \
 	--slurpfile nss "$tmp/namespaces.json" --slurpfile deny "$tmp/deny-configmaps.json" --slurpfile nodes "$tmp/nodes.json" \
-	--slurpfile pcs "$tmp/priorityclasses.json" \
+	--slurpfile pcs "$tmp/priorityclasses.json" --slurpfile hobjs "$tmp/helm-objects.json" \
+	--slurpfile hman "$tmp/helm-manifest.json" \
 	--slurpfile shosts "$tmp/secret-hosts.json" --slurpfile resolved "$tmp/resolved.json" \
 	--slurpfile values "$tmp/helm-values.json" --slurpfile release "$tmp/helm-release.json" \
 	"$lib$analysis")" || { echo "error: the analysis failed (see jq's message above)" >&2; exit 2; }
@@ -1009,7 +1077,7 @@ else
 	if [ "$verbosity" = verbose ]; then
 		for check in trait-conflicts helm-values crds cross-namespace-credentials http-guard vela-cli-namespace \
 			global-policies resource-trait configs definition-restrictions cert-manager gitops images step-definitions \
-			task-probes affinity-trait builtin-edits helmchart-release; do
+			task-probes affinity-trait builtin-edits helmchart-release chart-edits; do
 			echo "check $check: $(count "$(echo "$findings" | jq --arg c "$check" '[.[] | select(.check == $c)] | length')" finding)"
 		done
 	fi
