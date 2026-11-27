@@ -116,6 +116,18 @@ mkdir -p "$tmp/quiet"
 cp "$data/base/"*.json "$tmp/quiet/"
 quiet="$("$check" --from-dir "$tmp/quiet" -q)"
 if [ "$quiet" = "0 errors, 0 warnings, 3 info" ]; then passed=$((passed + 1)); else fail "cli" "-q printed: $quiet"; fi
+# Counts of one are singular, in the summary and in -v's per-check lines.
+mkdir -p "$tmp/one"
+cp "$data/base/"*.json "$tmp/one/"
+cp "$data/affinity-trait/"*.json "$tmp/one/"
+quiet="$("$check" --from-dir "$tmp/one" -q || true)"
+if [ "$quiet" = "1 error, 2 warnings, 3 info" ]; then passed=$((passed + 1)); else fail "cli" "-q printed: $quiet"; fi
+verbose_out="$("$check" --from-dir "$tmp/quiet" -v)"
+if echo "$verbose_out" | grep -qx 'check helm-values: 1 finding' && echo "$verbose_out" | grep -qx 'check trait-conflicts: 0 findings'; then
+	passed=$((passed + 1))
+else
+	fail "cli" "-v does not count one finding as 1 finding: $(echo "$verbose_out" | grep '^check helm-values')"
+fi
 
 # --resolve with --from-dir resolves the captured hosts afresh, a Secret's host as well as a literal
 # one. A stub getent answers every name with the metadata address.

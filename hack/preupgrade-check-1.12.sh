@@ -936,7 +936,11 @@ findings="$(jq -n \
 errors="$(echo "$findings" | jq '[.[] | select(.level == "error")] | length')"
 warnings="$(echo "$findings" | jq '[.[] | select(.level == "warn")] | length')"
 infos="$(echo "$findings" | jq '[.[] | select(.level == "info")] | length')"
-summary="$errors errors, $warnings warnings, $infos info"
+# count N WORD prints "N WORD", with an s unless N is 1.
+count() {
+	if [ "$1" = 1 ]; then echo "$1 $2"; else echo "$1 ${2}s"; fi
+}
+summary="$(count "$errors" error), $(count "$warnings" warning), $infos info"
 
 if [ "$format" = json ]; then
 	echo "$findings" | jq --argjson e "$errors" --argjson w "$warnings" --argjson i "$infos" \
@@ -950,7 +954,7 @@ else
 		for check in trait-conflicts helm-values crds cross-namespace-credentials http-guard vela-cli-namespace \
 			global-policies resource-trait configs definition-restrictions cert-manager gitops images step-definitions \
 			task-probes affinity-trait builtin-edits; do
-			echo "check $check: $(echo "$findings" | jq --arg c "$check" '[.[] | select(.check == $c)] | length') findings"
+			echo "check $check: $(count "$(echo "$findings" | jq --arg c "$check" '[.[] | select(.check == $c)] | length')" finding)"
 		done
 	fi
 	if [ "$verbosity" != quiet ]; then
