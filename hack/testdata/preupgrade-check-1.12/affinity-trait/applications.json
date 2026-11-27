@@ -349,6 +349,126 @@
      }
     ]
    }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "wrapped-and-selector"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "nodeSelector": {
+          "kubernetes.io/os": "linux"
+         },
+         "nodeAffinity": {
+          "required": {
+           "nodeSelectorTerms": [
+            {
+             "matchExpressions": [
+              {
+               "key": "disktype",
+               "operator": "In",
+               "values": [
+                "nvme"
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "raw-over-wrapped"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "nodeSelector": {
+          "kubernetes.io/hostname": "node-b"
+         },
+         "affinity": {
+          "podAntiAffinity": {}
+         },
+         "nodeAffinity": {
+          "required": {
+           "nodeSelectorTerms": [
+            {
+             "matchExpressions": [
+              {
+               "key": "disktype",
+               "operator": "In",
+               "values": [
+                "nvme"
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "empty-class"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "nodeSelector": {
+          "kubernetes.io/os": "linux"
+         },
+         "priorityClassName": "",
+         "schedulerName": ""
+        }
+       }
+      ]
+     }
+    ]
+   }
   }
  ]
 }

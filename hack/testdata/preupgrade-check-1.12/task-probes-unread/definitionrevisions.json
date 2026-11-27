@@ -1,0 +1,3 @@
+{"items":[
+ {"metadata":{"namespace":"vela-system","name":"task-v2"},"spec":{"definitionType":"Component","revision":2,"componentDefinition":{"metadata":{"name":"task","namespace":"vela-system"},"spec":{}}}}
+]}

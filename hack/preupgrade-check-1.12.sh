@@ -161,6 +161,11 @@ collect() {
 	# check runs without them.
 	kubectl get nodes -o json >"$tmp/nodes.json" 2>/dev/null || rm -f "$tmp/nodes.json"
 	kubectl get priorityclasses -o json >"$tmp/priorityclasses.json" 2>/dev/null || rm -f "$tmp/priorityclasses.json"
+	# The Jobs KubeVela applied, by name and labels only, for the task check. Without permission to
+	# list them the check runs without them.
+	kubectl get jobs -A -l app.oam.dev/component -o json 2>/dev/null |
+		jq '{items: [.items[] | {metadata: {namespace: .metadata.namespace, name: .metadata.name, labels: .metadata.labels}}]}' \
+			>"$tmp/jobs.json" 2>/dev/null || rm -f "$tmp/jobs.json"
 	if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
 		kubectl get applications.argoproj.io -A -o json >"$tmp/argocd-applications.json" 2>"$tmp/err" ||
 			echo '{"items":[]}' >"$tmp/argocd-applications.json"
@@ -267,6 +272,11 @@ nodes_read=true
 if [ ! -s "$tmp/nodes.json" ]; then
 	nodes_read=false
 	echo '{"items":[]}' >"$tmp/nodes.json"
+fi
+jobs_read=true
+if [ ! -s "$tmp/jobs.json" ]; then
+	jobs_read=false
+	echo '{"items":[]}' >"$tmp/jobs.json"
 fi
 pcs_read=true
 if [ ! -s "$tmp/priorityclasses.json" ]; then
@@ -788,7 +798,7 @@ else [
   ( items($apps)[] as $a
     | ($a.spec.components // [])[] as $c
     | (($c.traits // [])[] | select(.type | split("@")[0] == "resource")) as $t
-    | ($t.properties // {}) as $p
+    | ($t.properties // {} | with_entries(select(.value != ""))) as $p
     | select((($p.cpu != null) != ($p.memory != null)) and $p.requests == null and $p.limits == null)
     | (if $p.cpu != null then ["cpu", "memory"] else ["memory", "cpu"] end) as [$set, $other]
     | f("warn"; "resource-trait"; "Application \($a | nn)";
@@ -915,7 +925,9 @@ else [
 # 15. task components with probes: 1.11's task accepted livenessProbe and readinessProbe and left
 # them out of the Job; 1.12 renders them into the Job's pod template, which a Job never lets change.
 # A task resolving to a definition of the Application's namespace or to a pinned revision is not
-# the builtin, so it keeps its template.
+# the builtin, so it keeps its template. Only a Job the component already has is refused; one the
+# workflow has not created yet is created with the probes, so that is a warning, as is a component
+# whose Job cannot be seen (the Jobs not read, or the Job on a managed cluster).
   ( items($apps)[] as $a | $a.metadata.namespace as $appns
     | ($a.spec.components // [])[] as $c
     | select(($c.type // "") | split("@")[0] == "task")
@@ -924,30 +936,45 @@ else [
     | [("livenessProbe", "readinessProbe") as $k | select(($c.properties // {})[$k] != null) | $k] as $probes
     | select(($probes | length) > 0)
     | (if ($probes | length) == 1 then "it" else "them" end) as $it
-    | f("error"; "task-probes"; "Application \($a | nn)";
-        "component \($c.name) (task) sets \($probes | join(" and ")), which 1.11 left out of the Job; 1.12 adds \($it) to the existing Job's pod template, the API server refuses that (field is immutable) and the workflow fails";
-        "remove \($probes | join(" and ")) from component \($c.name) before upgrading, as 1.11 never applied \($it); to keep \($it), delete the component's Job after the upgrade so 1.12 creates it again, which runs the task again";
-        guide("changes-to-built-in-definitions")) ),
+    | any(items($jobs)[]; .metadata.labels["app.oam.dev/component"] == $c.name
+        and .metadata.labels["app.oam.dev/name"] == $a.metadata.name
+        and (.metadata.labels["app.oam.dev/namespace"] // .metadata.namespace) == $appns) as $hasJob
+    | "component \($c.name) (task) sets \($probes | join(" and ")), which 1.11 left out of the Job" as $what
+    | if $hasJob then
+        f("error"; "task-probes"; "Application \($a | nn)";
+          "\($what); 1.12 adds \($it) to the existing Job's pod template, the API server refuses that (field is immutable) and the workflow fails";
+          "remove \($probes | join(" and ")) from component \($c.name) before upgrading, as 1.11 never applied \($it); to keep \($it), delete the component's Job after the upgrade so 1.12 creates it again, which runs the task again";
+          guide("changes-to-built-in-definitions"))
+      else
+        ($probes | join(" and ")) as $names
+        | f("warn"; "task-probes"; "Application \($a | nn)";
+          "\($what); \(if $jobsRead then "no Job of component \($c.name) exists on this cluster yet, so 1.12 creates one with \($names)" else "the Jobs were not read, so whether component \($c.name) has one is unknown" end); a Job that already exists, here or on a managed cluster, refuses the change (field is immutable) and the workflow fails";
+          "check that the task runs with \($names); if component \($c.name) has a Job \(if $jobsRead then "on a managed cluster" else "already" end), remove \($names) before upgrading, or delete that Job after the upgrade so 1.12 creates it again, which runs the task again";
+          guide("changes-to-built-in-definitions"))
+      end ),
 
 # 16. The affinity trait: 1.11's accepted nodeSelector, affinity, schedulerName, priorityClassName and
 # topologySpreadConstraints and set none of them; 1.12 sets each on the Pods, which restart with them.
 # Where the cluster lets it be seen, a new Pod that cannot start is an error: no node fits the
-# nodeSelector and the raw affinity's required node terms, or the PriorityClass does not exist. A
-# scheduler cannot be seen, so a schedulerName other than default-scheduler stays a warning.
+# nodeSelector and the required node terms, or the PriorityClass does not exist. The required node
+# terms are the raw affinity's, or without it the wrapped nodeAffinity's, which 1.11 applied
+# already. A scheduler cannot be seen, so a schedulerName other than default-scheduler stays a
+# warning. An empty schedulerName or priorityClassName is the same as none.
   ( items($apps)[] as $a | $a.metadata.namespace as $appns
     | ($a.spec.components // [])[] as $c
     | ($c.traits // [])[] as $t
     | select(($t.type // "") | split("@")[0] == "affinity")
     | (resolve("t"; $t.type; $appns) // {metadata: {namespace: $sysns}}) as $d
     | select($d._revision == null and $d.metadata.namespace == $sysns)
-    | ($t.properties // {}) as $p
+    | ($t.properties // {} | with_entries(select(.value != ""))) as $p
     | [("nodeSelector", "affinity", "schedulerName", "priorityClassName", "topologySpreadConstraints") as $k
         | select($p[$k] != null) | $k] as $new
     | select(($new | length) > 0)
     | ($p.nodeSelector // {} | to_entries | map("\(.key)=\(.value)") | join(",")) as $sel
-    | ($p.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms? // null) as $terms
+    | ($p.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms? // null) as $rawTerms
+    | (if $p.affinity != null then $rawTerms else ($p.nodeAffinity.required.nodeSelectorTerms? // null) end) as $terms
     | [items($nodes)[] | select(nodefits($p.nodeSelector // {}; $terms))] as $fit
-    | ($sel != "" or $terms != null) as $placed
+    | ($sel != "" or $rawTerms != null) as $placed
     | ([(select($nodesRead and $placed and ($fit | length) == 0)
           | if $terms == null then "no node has the labels \($sel)"
             elif $sel == "" then "no node matches the required nodeAffinity terms"
@@ -1044,6 +1071,7 @@ JQ
 
 findings="$(jq -n \
 	--arg ns "$namespace" --arg rel "$release" --argjson helmRead "$helm_read" --argjson nodesRead "$nodes_read" --argjson pcsRead "$pcs_read" \
+	--argjson jobsRead "$jobs_read" --slurpfile jobs "$tmp/jobs.json" \
 	--slurpfile apps "$tmp/applications.json" --slurpfile wfs "$tmp/workflows.json" \
 	--slurpfile cdefs "$tmp/componentdefinitions.json" --slurpfile tdefs "$tmp/traitdefinitions.json" \
 	--slurpfile pdefs "$tmp/policydefinitions.json" --slurpfile sdefs "$tmp/workflowstepdefinitions.json" \
