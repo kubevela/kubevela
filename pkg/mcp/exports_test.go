@@ -78,7 +78,7 @@ var _ = Describe("diagnose_application exporters", func() {
 		Expect(exp.Export).NotTo(BeNil())
 		Expect(*exp.Export).To(Equal(ExportDetail{
 			SourceGroup: rdsGroup, SourceKind: "DBCluster", SourceName: "orders-db", SourcePath: ".status.endpoint",
-			TargetKind: "Secret", TargetName: "orders-db", TargetKey: "host", Written: ptr.To(true),
+			TargetKind: "Secret", TargetName: "orders-db", TargetKey: "host", Writes: "key", Written: ptr.To(true),
 		}))
 		Expect(exp.Summary).To(ContainSubstring("exports .status.endpoint of DBCluster orders-db into Secret orders-db key host: written"))
 		// the FieldExport lives in the common group; its controller is the
@@ -87,6 +87,24 @@ var _ = Describe("diagnose_application exporters", func() {
 		Expect(exp.Notes).NotTo(ContainElement(ContainSubstring("endpoint provenance unknown")))
 		// the DBCluster is not an exporter
 		Expect(resourceNamed(out, "DBCluster", "orders-db").Export).To(BeNil())
+	})
+
+	It("reports a FieldExport that names no key under the key its controller writes by default", func() {
+		// the ACK runtime writes "<namespace>.<name>" of the FieldExport when
+		// spec.to.key is missing or blank; the export still copies one value
+		fe := fieldExport("orders-db-conn", "True", rdsGroup)
+		_ = unstructured.SetNestedField(fe.Object, "  ", "spec", "to", "key")
+		h = startHarness(Options{}, diagnoseApp(fe)...)
+		var out DiagnoseApplicationOutput
+		res := h.call("diagnose_application", args, &out)
+		Expect(res.IsError).To(BeFalse(), toJSON(res))
+
+		exp := resourceNamed(out, "FieldExport", "orders-db-conn")
+		Expect(exp).NotTo(BeNil())
+		Expect(exp.Export).NotTo(BeNil())
+		Expect(exp.Export.Writes).To(Equal("key"))
+		Expect(exp.Export.TargetKey).To(Equal("team-a.orders-db-conn"))
+		Expect(exp.Summary).To(ContainSubstring("into Secret orders-db key team-a.orders-db-conn: written"))
 	})
 
 	It("ties an unwritten FieldExport to a source that is not ready", func() {
@@ -214,7 +232,7 @@ var _ = Describe("diagnose_application exporters", func() {
 
 		r := resourceNamed(out, "Cluster", "orders-db")
 		Expect(r.Export).NotTo(BeNil())
-		Expect(*r.Export).To(Equal(ExportDetail{SourceGroup: "rds.aws.upbound.io", SourceKind: "Cluster", SourceName: "orders-db", TargetKind: "Secret", TargetName: "orders-db-conn", TargetNamespace: "apps", Written: ptr.To(true)}))
+		Expect(*r.Export).To(Equal(ExportDetail{SourceGroup: "rds.aws.upbound.io", SourceKind: "Cluster", SourceName: "orders-db", TargetKind: "Secret", TargetName: "orders-db-conn", TargetNamespace: "apps", Writes: "set", Written: ptr.To(true)}))
 		Expect(r.Summary).To(ContainSubstring("exports into Secret orders-db-conn: written"))
 	})
 
