@@ -476,6 +476,11 @@ def first_version: {
 | (reduce items($secrets)[] as $s ({}; .[$s | nn] = $s)) as $sidxs
 | (reduce (items($cms)[] | select(.metadata.name | startswith("config-template-"))) as $c ({}; .[$c | nn] = $c)) as $tmpls
 | (reduce items($shosts)[] as $h ({}; .["\($h.namespace)/\($h.name)/\($h.key)"] = $h)) as $hostOf
+# The template ConfigMaps config Secrets were made from, by the type label and the template's
+# namespace annotation (vela-system when unset).
+| ([items($secrets)[] | select((.metadata.labels["config.oam.dev/type"] // "") != "")
+    | "\(.metadata.annotations["config.oam.dev/template-namespace"] // "vela-system")/config-template-\(.metadata.labels["config.oam.dev/type"])"]
+   | unique) as $usedTmpls
 | def shared_config($name):
     ($sidxs["vela-system/" + $name].metadata.labels["config.oam.dev/type"] // "") as $t
     | $t != "" and ($tmpls["vela-system/config-template-" + $t] != null);
@@ -727,8 +732,10 @@ def first_version: {
         "config outputs \($out | join(", ")) are outside its namespace; 1.12 writes outputs into the config's namespace and migration reports it as conflict";
         "keep it as a legacy config, or recreate it in the namespace its outputs belong in";
         guide("config-templates-and-configs")) ),
+  # Nacos templates some config was made from; the stock nacos-config template alone changes nothing.
   ( $tmpls[] as $t | ($t.data.template // "") as $cue
     | select($cue | test("\\bnacos\\s*:"))
+    | select(($usedTmpls | index($t | nn)) != null)
     | (($cue | capture("endpoint\\s*:\\s*\\{[^}]*\\bname\\s*:\\s*\"(?<n>[^\"]+)\"") // ($cue | capture("endpoint\\s*:\\s*name\\s*:\\s*\"(?<n>[^\"]+)\"")) // {n: null}).n) as $ep
     | (($cue | capture("endpoint\\s*:\\s*\\{[^}]*\\bnamespace\\s*:\\s*\"(?<n>[^\"]+)\"") // {n: "vela-system"}).n) as $epns
     | ( f("warn"; "configs"; "ConfigMap \($t | nn)";

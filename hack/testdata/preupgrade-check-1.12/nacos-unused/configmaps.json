@@ -1,0 +1,67 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "namespace": "vela-system",
+        "name": "config-template-image-registry",
+        "labels": {
+          "config.oam.dev/catalog": "velacore-config",
+          "config.oam.dev/scope": "project",
+          "oam.dev/render-hash": "2461c40e3e5f00f0"
+        },
+        "annotations": {
+          "config.oam.dev/alias": "Image Registry",
+          "config.oam.dev/description": "",
+          "config.oam.dev/sensitive": "false"
+        }
+      },
+      "data": {
+        "expanded-writer": "nacos: null\n",
+        "schema": "properties:\n  auth:\n    description: Authenticate the image registry\n    properties:\n      email:\n        description: Private Image registry email\n        title: email\n        type: string\n      password:\n        description: Private Image registry password\n        title: password\n        type: string\n      username:\n        description: Private Image registry username\n        title: username\n        type: string\n    required:\n    - username\n    - password\n    title: auth\n    type: object\n  insecure:\n    description: For the registry server that uses the self-signed certificate\n    title: insecure\n    type: boolean\n  registry:\n    default: index.docker.io\n    description: 'Image registry FQDN, such as: index.docker.io'\n    title: registry\n    type: string\n  useHTTP:\n    description: For the registry server that uses the HTTP protocol\n    title: useHTTP\n    type: boolean\nrequired:\n- registry\ntype: object\n",
+        "template": "import (\n\t\"encoding/base64\"\n\t\"encoding/json\"\n\t\"strconv\"\n)\n\nmetadata: {\n\tname:        \"image-registry\"\n\talias:       \"Image Registry\"\n\tscope:       \"project\"\n\tdescription: \"Config information to authenticate image registry\"\n\tsensitive:   false\n}\n\ntemplate: {\n\toutput: {\n\t\tapiVersion: \"v1\"\n\t\tkind:       \"Secret\"\n\t\tmetadata: {\n\t\t\tname:      context.name\n\t\t\tnamespace: context.namespace\n\t\t\tlabels: {\n\t\t\t\t\"config.oam.dev/catalog\": \"velacore-config\"\n\t\t\t\t\"config.oam.dev/type\":    \"image-registry\"\n\t\t\t}\n\t\t}\n\t\tif parameter.auth != _|_ {\n\t\t\ttype: \"kubernetes.io/dockerconfigjson\"\n\t\t}\n\t\tif parameter.auth == _|_ {\n\t\t\ttype: \"Opaque\"\n\t\t}\n\t\tstringData: {\n\t\t\tif parameter.auth != _|_ && parameter.auth.username != _|_ {\n\t\t\t\t\".dockerconfigjson\": json.Marshal({\n\t\t\t\t\t\"auths\": (parameter.registry): {\n\t\t\t\t\t\t\"username\": parameter.auth.username\n\t\t\t\t\t\t\"password\": parameter.auth.password\n\t\t\t\t\t\tif parameter.auth.email != _|_ {\n\t\t\t\t\t\t\t\"email\": parameter.auth.email\n\t\t\t\t\t\t}\n\t\t\t\t\t\t\"auth\": base64.Encode(null, (parameter.auth.username + \":\" + parameter.auth.password))\n\t\t\t\t\t}\n\t\t\t\t})\n\t\t\t}\n\t\t\tif parameter.insecure != _|_ {\n\t\t\t\t\"insecure-skip-verify\": strconv.FormatBool(parameter.insecure)\n\t\t\t}\n\t\t\tif parameter.useHTTP != _|_ {\n\t\t\t\t\"protocol-use-http\": strconv.FormatBool(parameter.useHTTP)\n\t\t\t}\n\t\t}\n\t}\n\n\tparameter: {\n\t\t// +usage=Image registry FQDN, such as: index.docker.io\n\t\tregistry: *\"index.docker.io\" | string\n\t\t// +usage=Authenticate the image registry\n\t\tauth?: {\n\t\t\t// +usage=Private Image registry username\n\t\t\tusername: string\n\t\t\t// +usage=Private Image registry password\n\t\t\tpassword: string\n\t\t\t// +usage=Private Image registry email\n\t\t\temail?: string\n\t\t}\n\t\t// +usage=For the registry server that uses the self-signed certificate\n\t\tinsecure?: bool\n\t\t// +usage=For the registry server that uses the HTTP protocol\n\t\tuseHTTP?: bool\n\t}\n}\n\n\n\tcontext: {\n\t\tname: string\n\t\tnamespace: string\n\t}\n"
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "vela-system",
+        "name": "config-template-nacos-config",
+        "labels": {
+          "config.oam.dev/catalog": "velacore-config",
+          "config.oam.dev/scope": "system",
+          "oam.dev/render-hash": "ece0e4d8e29354b8"
+        },
+        "annotations": {
+          "config.oam.dev/alias": "Nacos Configuration",
+          "config.oam.dev/description": "",
+          "config.oam.dev/sensitive": "false"
+        }
+      },
+      "data": {
+        "expanded-writer": "nacos:\n  endpoint:\n    name: nacos\n    namespace: \"\"\n  format: json\n  metadata:\n    dataId: \"\"\n    group: DEFAULT_GROUP\n    namespaceId: \"\"\n",
+        "schema": "properties:\n  appName:\n    description: The app name of the configuration\n    title: appName\n    type: string\n  content:\n    additionalProperties: {}\n    description: The configuration content.\n    title: content\n    type: object\n  contentType:\n    default: json\n    enum:\n    - json\n    - yaml\n    - properties\n    - toml\n    title: contentType\n    type: string\n  dataId:\n    description: Configuration ID\n    title: dataId\n    type: string\n  group:\n    default: DEFAULT_GROUP\n    description: Configuration group\n    title: group\n    type: string\n  namespaceId:\n    description: The namespaceId of the configuration\n    title: namespaceId\n    type: string\n  tag:\n    description: The tag of the configuration\n    title: tag\n    type: string\n  tenant:\n    description: The tenant, corresponding to the namespace ID field of Nacos\n    title: tenant\n    type: string\nrequired:\n- dataId\n- group\n- content\n- contentType\ntype: object\n",
+        "template": "metadata: {\n\tname:        \"nacos-config\"\n\talias:       \"Nacos Configuration\"\n\tdescription: \"Write the configuration to the nacos\"\n\tsensitive:   false\n\tscope:       \"system\"\n}\n\ntemplate: {\n\tnacos: {\n\t\t// The endpoint can not references the parameter.\n\t\tendpoint: {\n\t\t\t// Users must create a config base the nacos-server template firstly.\n\t\t\tname: \"nacos\"\n\t\t}\n\t\tformat: parameter.contentType\n\n\t\t// could references the parameter\n\t\tmetadata: {\n\t\t\tdataId: parameter.dataId\n\t\t\tgroup:  parameter.group\n\t\t\tif parameter.appName != _|_ {\n\t\t\t\tappName: parameter.appName\n\t\t\t}\n\t\t\tif parameter.namespaceId != _|_ {\n\t\t\t\tnamespaceId: parameter.namespaceId\n\t\t\t}\n\t\t\tif parameter.tenant != _|_ {\n\t\t\t\ttenant: parameter.tenant\n\t\t\t}\n\t\t\tif parameter.tag != _|_ {\n\t\t\t\ttag: parameter.tag\n\t\t\t}\n\t\t}\n\t\tcontent: parameter.content\n\t}\n\tparameter: {\n\t\t// +usage=Configuration ID\n\t\tdataId: string\n\t\t// +usage=Configuration group\n\t\tgroup: *\"DEFAULT_GROUP\" | string\n\t\t// +usage=The configuration content.\n\t\tcontent: {\n\t\t\t...\n\t\t}\n\t\tcontentType: *\"json\" | \"yaml\" | \"properties\" | \"toml\"\n\t\t// +usage=The app name of the configuration\n\t\tappName?: string\n\t\t// +usage=The namespaceId of the configuration\n\t\tnamespaceId?: string\n\t\t// +usage=The tenant, corresponding to the namespace ID field of Nacos\n\t\ttenant?: string\n\t\t// +usage=The tag of the configuration\n\t\ttag?: string\n\t}\n}\n\n\n\tcontext: {\n\t\tname: string\n\t\tnamespace: string\n\t}\n"
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "vela-system",
+        "name": "config-template-nacos-server",
+        "labels": {
+          "config.oam.dev/catalog": "velacore-config",
+          "config.oam.dev/scope": "system",
+          "oam.dev/render-hash": "f59dcf8d7d7ed0f5"
+        },
+        "annotations": {
+          "config.oam.dev/alias": "Nacos Server",
+          "config.oam.dev/description": "",
+          "config.oam.dev/sensitive": "false"
+        }
+      },
+      "data": {
+        "expanded-writer": "nacos: null\n",
+        "schema": "properties:\n  client:\n    description: Discover the Nacos servers by the client.\n    properties:\n      accessKey:\n        description: the AccessKey for kms\n        title: accessKey\n        type: string\n      endpoint:\n        description: the endpoint for get Nacos server addresses\n        title: endpoint\n        type: string\n      openKMS:\n        description: it's to open kms,default is false. https://help.aliyun.com/product/28933.html\n        title: openKMS\n        type: boolean\n      password:\n        description: the password for nacos auth\n        title: password\n        type: string\n      regionId:\n        description: the regionId for kms\n        title: regionId\n        type: string\n      secretKey:\n        description: the SecretKey for kms\n        title: secretKey\n        type: string\n      username:\n        description: the username for nacos auth\n        title: username\n        type: string\n    required:\n    - endpoint\n    title: client\n    type: object\n  servers:\n    description: Directly configure the Nacos server address\n    items:\n      properties:\n        grpcPort:\n          description: nacos server grpc port, default=server port + 1000, this is\n            not required\n          title: grpcPort\n          type: integer\n        ipAddr:\n          description: the nacos server address\n          title: ipAddr\n          type: string\n        port:\n          default: 8849\n          description: nacos server port\n          title: port\n          type: integer\n      required:\n      - ipAddr\n      - port\n      type: object\n    title: servers\n    type: array\ntype: object\n",
+        "template": "metadata: {\n\tname:        \"nacos-server\"\n\talias:       \"Nacos Server\"\n\tdescription: \"Config the Nacos server connectors\"\n\tsensitive:   false\n\tscope:       \"system\"\n}\n\ntemplate: {\n\tparameter: {\n\t\t// +usage=Directly configure the Nacos server address\n\t\tservers?: [...{\n\t\t\t// +usage=the nacos server address\n\t\t\tipAddr: string\n\t\t\t// +usage=nacos server port\n\t\t\tport: *8849 | int\n\t\t\t// +usage=nacos server grpc port, default=server port + 1000, this is not required\n\t\t\tgrpcPort?: int\n\t\t}]\n\t\t// +usage=Discover the Nacos servers by the client.\n\t\tclient?: {\n\t\t\t// +usage=the endpoint for get Nacos server addresses\n\t\t\tendpoint: string\n\t\t\t// +usage=the AccessKey for kms\n\t\t\taccessKey?: string\n\t\t\t// +usage=the SecretKey for kms\n\t\t\tsecretKey?: string\n\t\t\t// +usage=the regionId for kms\n\t\t\tregionId?: string\n\t\t\t// +usage=the username for nacos auth\n\t\t\tusername?: string\n\t\t\t// +usage=the password for nacos auth\n\t\t\tpassword?: string\n\t\t\t// +usage=it's to open kms,default is false. https://help.aliyun.com/product/28933.html\n\t\t\topenKMS?: bool\n\t\t}\n\t}\n}\n\n\n\tcontext: {\n\t\tname: string\n\t\tnamespace: string\n\t}\n"
+      }
+    }
+  ]
+}

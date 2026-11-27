@@ -1,4 +1,4 @@
-warn configs Configs (5 in 2 namespaces)
+warn configs Configs (7 in 2 namespaces)
 warn configs ConfigMap team-a/config-template-team-sys
 warn configs Secret team-a/out-cfg
 warn configs ConfigMap vela-system/config-template-nacos-app
