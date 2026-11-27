@@ -684,17 +684,18 @@ def first_version: {
         "set serviceAccountName to an account in \($a.metadata.namespace) with the permissions the command needs (kubevela-vela-core, in vela-system only)";
         guide("workflow")) ),
 
-# 7. Global policy defaults. Global policies run only with both gates on.
+# 7. Global policy defaults. Global policies run only with both gates on. Nothing is refused: the
+# policy stops applying, or the annotation is ignored.
   ( select($after.EnableGlobalPolicies and $after.EnableApplicationScopedPolicies)
     | ( select($after.allowNamespaceGlobalPolicies | not)
         | items($pdefs)[] | select(.spec.global == true and .metadata.namespace != $sysns)
-        | f("error"; "global-policies"; "PolicyDefinition \(nn)";
+        | f("warn"; "global-policies"; "PolicyDefinition \(nn)";
             "a global policy outside \($sysns): with controllerArgs.allowNamespaceGlobalPolicies defaulting to false in 1.12 it stops applying";
             "set controllerArgs.allowNamespaceGlobalPolicies: true in your values file, or move the policy to \($sysns)";
             guide("3-upgrade-the-chart")) ),
       ( select($after.allowSkipGlobalPolicies | not)
         | items($apps)[] | select(.metadata.annotations["policy.oam.dev/skip-global"] == "true")
-        | f("error"; "global-policies"; "Application \(nn)";
+        | f("warn"; "global-policies"; "Application \(nn)";
             "has policy.oam.dev/skip-global: with controllerArgs.allowSkipGlobalPolicies defaulting to false in 1.12 the annotation is ignored and global policies apply";
             "set controllerArgs.allowSkipGlobalPolicies: true in your values file, or remove the annotation";
             guide("3-upgrade-the-chart")) ) ),
