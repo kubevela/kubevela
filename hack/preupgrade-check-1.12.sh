@@ -914,7 +914,23 @@ else [
     | f("warn"; "builtin-edits"; "\($kind) \($d | nn)";
         "builtin \($d.metadata.name) was changed in place by \(join(", ")) after the chart applied it; the 1.12 chart applies its builtins again on upgrade and the edit is lost without a warning";
         "copy the edited definition to a new name and point the Applications that need the edit at it, or carry it with extends, before upgrading";
-        guide("5-do-not-edit-built-in-definitions-in-place")) )
+        guide("5-do-not-edit-built-in-definitions-in-place")) ),
+
+# 18. helmchart with release but no release.name: 1.11's definition leaves the name unset and the
+# provider installs a release named release (the step still fails, on the output ConfigMap's name);
+# 1.12 names it after the component, so a second copy installs beside the first.
+  ( items($apps)[] as $a | $a.metadata.namespace as $appns
+    | ($a.spec.components // [])[] as $c
+    | select(($c.type // "") | split("@")[0] == "helmchart")
+    | (resolve("c"; $c.type; $appns) // {metadata: {namespace: $sysns}}) as $d
+    | select($d._revision == null and $d.metadata.namespace == $sysns)
+    | ($c.properties.release? // null) as $r
+    | select($r != null and (($r.name // "") == ""))
+    | ($r.namespace // "" | if . == "" then $appns else . end) as $relns
+    | f("error"; "helmchart-release"; "Application \($a | nn)";
+        "component \($c.name) (helmchart) sets release without release.name: 1.11 installs a Helm release named release in namespace \($relns), 1.12 one named \($c.name), so two copies of the chart run";
+        "set release.name: release on component \($c.name) to keep the 1.11 release, or after the upgrade remove the old one with helm uninstall release -n \($relns)";
+        guide("helm-components")) )
 ] end)
 | map(select(. != null))
 | unique_by([.level, .check, .object, .problem])
@@ -954,7 +970,7 @@ else
 	if [ "$verbosity" = verbose ]; then
 		for check in trait-conflicts helm-values crds cross-namespace-credentials http-guard vela-cli-namespace \
 			global-policies resource-trait configs definition-restrictions cert-manager gitops images step-definitions \
-			task-probes affinity-trait builtin-edits; do
+			task-probes affinity-trait builtin-edits helmchart-release; do
 			echo "check $check: $(count "$(echo "$findings" | jq --arg c "$check" '[.[] | select(.check == $c)] | length')" finding)"
 		done
 	fi
