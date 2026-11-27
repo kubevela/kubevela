@@ -116,6 +116,7 @@ type DryRunOutput struct {
 	Components  []ComponentRef     `json:"components" jsonschema:"Components in the document, with their types."`
 	Resources   []RenderedResource `json:"resources" jsonschema:"Every object the components and traits would create."`
 	Policies    []RenderedPolicy   `json:"policies" jsonschema:"Objects rendered by policies."`
+	Findings    []Finding          `json:"findings" jsonschema:"Observations about the rendered objects that a render alone cannot settle, such as a workload reading a Secret another component produces without dependsOn on it. Each cites the rendered object."`
 	Evidence    []string           `json:"evidence" jsonschema:"What was rendered and with which definitions."`
 	// ServerCheck is set when the caller asked for the API server dry run.
 	ServerCheck *ServerCheckResult `json:"serverCheck,omitempty" jsonschema:"The API server's verdict on each rendered object, when serverCheck was requested. Acceptance means the checked API server accepted the dry-run request; it is strong evidence the shape is right, not a promise that a later apply succeeds."`
@@ -142,7 +143,7 @@ type rendered struct {
 }
 
 func (d *deps) dryRunApplication(ctx context.Context, _ *sdk.CallToolRequest, in DryRunInput) (*sdk.CallToolResult, DryRunOutput, error) {
-	out := DryRunOutput{Components: []ComponentRef{}, Resources: []RenderedResource{}, Policies: []RenderedPolicy{}}
+	out := DryRunOutput{Components: []ComponentRef{}, Resources: []RenderedResource{}, Policies: []RenderedPolicy{}, Findings: []Finding{}}
 	app, defs, err := d.parsePlanInput(in.PlanInput)
 	if err != nil {
 		return nil, out, err
@@ -157,6 +158,8 @@ func (d *deps) dryRunApplication(ctx context.Context, _ *sdk.CallToolRequest, in
 	}
 	out.Resources = r.resources
 	out.Policies = r.policies
+	// on the objects before redaction: the listing hides every secretKeyRef
+	out.Findings = append(out.Findings, dependencyFindings(app, r.resources, r.objects)...)
 	out.Meta = d.meta(ctx)
 	out.Meta.Source = SourceRendered
 	out.Evidence = []string{

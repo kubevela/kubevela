@@ -126,9 +126,10 @@ type ExplainDefinitionOutput struct {
 	Consumers            ConsumerSummary    `json:"consumers" jsonschema:"Applications that use this definition, within the namespaces the server may read."`
 	// InspectionError is set when the template could not be parsed; the
 	// schema and metadata above are still valid.
-	InspectionError string   `json:"inspectionError,omitempty" jsonschema:"Set when the template could not be parsed; the schema and metadata are still valid."`
-	Evidence        []string `json:"evidence" jsonschema:"Objects this answer was derived from."`
-	Meta            Meta     `json:"meta"`
+	InspectionError string    `json:"inspectionError,omitempty" jsonschema:"Set when the template could not be parsed; the schema and metadata are still valid."`
+	Findings        []Finding `json:"findings" jsonschema:"Observations about the definition's own rules, such as a health policy that ignores the auxiliary outputs the template emits. Each cites the definition object."`
+	Evidence        []string  `json:"evidence" jsonschema:"Objects this answer was derived from."`
+	Meta            Meta      `json:"meta"`
 }
 
 // definitionFacts is the type-independent view of one definition object.
@@ -151,7 +152,7 @@ type definitionFacts struct {
 }
 
 func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in ExplainDefinitionInput) (*sdk.CallToolResult, ExplainDefinitionOutput, error) {
-	out := ExplainDefinitionOutput{Produces: []ProducedResource{}, ParameterUsage: []ParameterUsage{}, Revisions: []RevisionSummary{}}
+	out := ExplainDefinitionOutput{Produces: []ProducedResource{}, ParameterUsage: []ParameterUsage{}, Revisions: []RevisionSummary{}, Findings: []Finding{}}
 	if in.Name == "" {
 		return nil, out, fmt.Errorf("name is required")
 	}
@@ -191,6 +192,7 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 		out.ParameterUsage = inspected.Usage
 	}
 	out.InspectionError = inspected.Err
+	out.Findings = append(out.Findings, healthCoverageFindings(facts.summary.Type, out.Produces, out.Health, out.Evidence[0])...)
 	if inspected.Dynamic {
 		out.Meta.Warnings = append(out.Meta.Warnings, "the template computes top-level fields, so it may emit or patch objects that produces does not list; render it with dryrun_application to see them")
 	}
