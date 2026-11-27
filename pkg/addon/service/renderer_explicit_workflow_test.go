@@ -144,6 +144,20 @@ spec:
 		Expect(steps[1]["dependsOn"]).To(ConsistOf("addon-definitions"))
 	})
 
+	It("adds no steps to the workflow written for an addon that places itself", func() {
+		app := renderAddon(pkgaddon.InstallPackage{
+			AppTemplate: &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
+				Components: []common2.ApplicationComponent{marker},
+				Policies:   []v1beta1.AppPolicy{{Name: "topo-runtime", Type: "topology", Properties: rawJSON(map[string]interface{}{"clusters": []interface{}{"local"}})}},
+			}},
+			Definitions: []pkgaddon.ElementFile{definition},
+			Imports:     []pkgaddon.CrateImport{{Crate: "aws-s3", Enabled: true}},
+		}, nil)
+
+		Expect(stepNames(workflowSteps(app))).To(Equal([]string{"deploy-topo-runtime", "deploy-addon-crates"}),
+			"its deploy steps already cover every component the render adds")
+	})
+
 	It("is refused when its workflow is a ref and it ships definitions", func() {
 		pkg := pkgaddon.InstallPackage{
 			Meta:        pkgaddon.Meta{Name: "ref-addon", Version: "1.0.0"},

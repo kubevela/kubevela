@@ -467,8 +467,14 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	auxNames := appendAuxComponents(appMap, groups)
 	ensureAddonComponentStateKeepPolicy(appMap)
 	crateNames := append(componentNames(crateComps), componentNames(inlineCrateComps)...)
+	// Only a workflow the addon wrote needs steps for the components the
+	// render adds; the one pinCrateComponentsToHub writes deploys them all.
+	addedBefore, addedAfter := auxNames, crateNames
+	if !hasWorkflow(appMap) {
+		addedBefore, addedAfter = nil, nil
+	}
 	pinCrateComponentsToHub(appMap, crateNames)
-	if err := writeExplicitWorkflow(appMap, auxNames, crateNames); err != nil {
+	if err := writeExplicitWorkflow(appMap, addedBefore, addedAfter); err != nil {
 		return nil, fmt.Errorf("render addon %q: %w", req.Name, err)
 	}
 	sanitizeManifest(appMap)
@@ -791,4 +797,11 @@ func (r *rendererImpl) resolvePinnedVersion(ctx context.Context, addonName, vers
 	}
 	return nil, "", fmt.Errorf("addon %q version %q not found in registries %v%s: %w",
 		addonName, version, candidates, skippedGitNote(excludedGit), errors.Join(errs...))
+}
+
+// hasWorkflow reports whether the addon Application has a workflow.
+func hasWorkflow(app map[string]interface{}) bool {
+	spec, _ := app["spec"].(map[string]interface{})
+	_, ok := spec["workflow"]
+	return ok
 }

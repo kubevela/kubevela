@@ -162,6 +162,8 @@ func completeMode(mode interface{}) map[string]interface{} {
 //     components the render adds, so each of those gets an apply-component
 //     step of its own: before is applied ahead of the addon's steps, after
 //     behind them. Run as a DAG, the steps carry the same order as dependsOn.
+//     The caller passes neither for the workflow pinCrateComponentsToHub
+//     writes, whose deploy steps already cover every component.
 //   - A ref gets no steps. A mode the addon wrote next to it stays. With none,
 //     the mode is removed, because it comes from the Workflow the ref names.
 //     A ref cannot apply the components the render adds, so an addon that
