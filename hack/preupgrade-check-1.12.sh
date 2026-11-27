@@ -825,7 +825,24 @@ def first_version: {
     | f("info"; "step-definitions"; "WorkflowStepDefinitions";
         "custom step definitions (\(join(", "))): 1.12 refuses one whose template does not compile at its next spec change, and fails its steps, which 1.11 marked Succeeded without running";
         "run vela def vet with the 1.12 CLI on each, fix any that do not compile, and re-run the workflows using them on a staging cluster";
-        guide("2-check-applications-and-step-definitions-against-the-new-admission-rules")) )
+        guide("2-check-applications-and-step-definitions-against-the-new-admission-rules")) ),
+
+# 15. task components with probes: 1.11's task accepted livenessProbe and readinessProbe and left
+# them out of the Job; 1.12 renders them into the Job's pod template, which a Job never lets change.
+# A task resolving to a definition of the Application's namespace or to a pinned revision is not
+# the builtin, so it keeps its template.
+  ( items($apps)[] as $a | $a.metadata.namespace as $appns
+    | ($a.spec.components // [])[] as $c
+    | select(($c.type // "") | split("@")[0] == "task")
+    | (resolve("c"; $c.type; $appns) // {metadata: {namespace: $sysns}}) as $d
+    | select($d._revision == null and $d.metadata.namespace == $sysns)
+    | [("livenessProbe", "readinessProbe") as $k | select(($c.properties // {})[$k] != null) | $k] as $probes
+    | select(($probes | length) > 0)
+    | (if ($probes | length) == 1 then "it" else "them" end) as $it
+    | f("error"; "task-probes"; "Application \($a | nn)";
+        "component \($c.name) (task) sets \($probes | join(" and ")), which 1.11 left out of the Job; 1.12 adds \($it) to the existing Job's pod template, the API server refuses that (field is immutable) and the workflow fails";
+        "remove \($probes | join(" and ")) from component \($c.name) before upgrading, as 1.11 never applied \($it); to keep \($it), delete the component's Job after the upgrade so 1.12 creates it again, which runs the task again";
+        guide("changes-to-built-in-definitions")) )
 ]
 | map(select(. != null))
 | unique_by([.level, .check, .object, .problem])
@@ -856,7 +873,8 @@ if [ "$format" = json ]; then
 else
 	if [ "$verbosity" = verbose ]; then
 		for check in trait-conflicts helm-values crds cross-namespace-credentials http-guard vela-cli-namespace \
-			global-policies resource-trait configs definition-restrictions cert-manager gitops images step-definitions; do
+			global-policies resource-trait configs definition-restrictions cert-manager gitops images step-definitions \
+			task-probes; do
 			echo "check $check: $(echo "$findings" | jq --arg c "$check" '[.[] | select(.check == $c)] | length') findings"
 		done
 	fi
