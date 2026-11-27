@@ -119,9 +119,9 @@ if [ "$quiet" = "0 errors, 0 warnings, 3 info" ]; then passed=$((passed + 1)); e
 # Counts of one are singular, in the summary and in -v's per-check lines.
 mkdir -p "$tmp/one"
 cp "$data/base/"*.json "$tmp/one/"
-cp "$data/affinity-trait/"*.json "$tmp/one/"
+cp "$data/pinned-revisions/"*.json "$tmp/one/"
 quiet="$("$check" --from-dir "$tmp/one" -q || true)"
-if [ "$quiet" = "1 error, 2 warnings, 3 info" ]; then passed=$((passed + 1)); else fail "cli" "-q printed: $quiet"; fi
+if [ "$quiet" = "1 error, 1 warning, 3 info" ]; then passed=$((passed + 1)); else fail "cli" "-q printed: $quiet"; fi
 verbose_out="$("$check" --from-dir "$tmp/quiet" -v)"
 if echo "$verbose_out" | grep -qx 'check helm-values: 1 finding' && echo "$verbose_out" | grep -qx 'check trait-conflicts: 0 findings'; then
 	passed=$((passed + 1))

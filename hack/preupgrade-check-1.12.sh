@@ -155,9 +155,10 @@ collect() {
 		echo "error: no vela-core Deployment of release $release in namespace $namespace (pass --release and --namespace)" >&2
 		exit 2
 	fi
-	# Node labels, for the affinity trait's nodeSelector. Without permission to list nodes the check
-	# runs without them.
+	# Node labels and PriorityClasses, for the affinity trait. Without permission to list them the
+	# check runs without them.
 	kubectl get nodes -o json >"$tmp/nodes.json" 2>/dev/null || rm -f "$tmp/nodes.json"
+	kubectl get priorityclasses -o json >"$tmp/priorityclasses.json" 2>/dev/null || rm -f "$tmp/priorityclasses.json"
 	if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
 		kubectl get applications.argoproj.io -A -o json >"$tmp/argocd-applications.json" 2>"$tmp/err" ||
 			echo '{"items":[]}' >"$tmp/argocd-applications.json"
@@ -246,6 +247,11 @@ nodes_read=true
 if [ ! -s "$tmp/nodes.json" ]; then
 	nodes_read=false
 	echo '{"items":[]}' >"$tmp/nodes.json"
+fi
+pcs_read=true
+if [ ! -s "$tmp/priorityclasses.json" ]; then
+	pcs_read=false
+	echo '{"items":[]}' >"$tmp/priorityclasses.json"
 fi
 helm_read=true
 if [ ! -f "$tmp/helm-values.json" ]; then
@@ -377,6 +383,25 @@ def first_version: {
         elif $e.operator == "Exists" then $has
         elif $e.operator == "DoesNotExist" then ($has | not)
         else false end);
+
+# A node against a nodeSelector map and required NodeSelectorTerms (ORed; an empty term matches
+# nothing), as the scheduler reads them.
+  def nodereq($r; $l):
+    ($l | has($r.key)) as $has | ($l[$r.key] // "") as $v | ($r.values // []) as $vs
+    | if $r.operator == "In" then $has and ($vs | index($v)) != null
+      elif $r.operator == "NotIn" then ($has | not) or ($vs | index($v)) == null
+      elif $r.operator == "Exists" then $has
+      elif $r.operator == "DoesNotExist" then ($has | not)
+      elif $r.operator == "Gt" or $r.operator == "Lt" then
+        $has and ($v | test("^-?[0-9]+$")) and (($vs[0] // "") | test("^-?[0-9]+$"))
+        and (if $r.operator == "Gt" then ($v | tonumber) > ($vs[0] | tonumber) else ($v | tonumber) < ($vs[0] | tonumber) end)
+      else false end;
+  def nodefits($sel; $terms):
+    (.metadata.labels // {}) as $l | {"metadata.name": .metadata.name} as $fields
+    | all($sel | to_entries[]; $l[.key] == .value)
+      and ($terms == null or any($terms[];
+        (((.matchExpressions // []) + (.matchFields // [])) | length) > 0
+        and all((.matchExpressions // [])[]; nodereq(.; $l)) and all((.matchFields // [])[]; nodereq(.; $fields))));
 
 # traitConflictRuleMatches in pkg/webhook/core.oam.dev/v1beta1/application/validation.go.
   def rulematch($rule; $t):
@@ -865,7 +890,9 @@ else [
 
 # 16. The affinity trait: 1.11's accepted nodeSelector, affinity, schedulerName, priorityClassName and
 # topologySpreadConstraints and set none of them; 1.12 sets each on the Pods, which restart with them.
-# A nodeSelector no node carries leaves them Pending, which the node labels show when they could be read.
+# Where the cluster lets it be seen, a new Pod that cannot start is an error: no node fits the
+# nodeSelector and the raw affinity's required node terms, or the PriorityClass does not exist. A
+# scheduler cannot be seen, so a schedulerName other than default-scheduler stays a warning.
   ( items($apps)[] as $a | $a.metadata.namespace as $appns
     | ($a.spec.components // [])[] as $c
     | ($c.traits // [])[] as $t
@@ -877,23 +904,34 @@ else [
         | select($p[$k] != null) | $k] as $new
     | select(($new | length) > 0)
     | ($p.nodeSelector // {} | to_entries | map("\(.key)=\(.value)") | join(",")) as $sel
-    | [items($nodes)[] | (.metadata.labels // {}) as $l | select(all($p.nodeSelector // {} | to_entries[]; $l[.key] == .value))] as $fit
-    | ($sel != "" and $nodesRead and ($fit | length) == 0) as $nowhere
+    | ($p.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms? // null) as $terms
+    | [items($nodes)[] | select(nodefits($p.nodeSelector // {}; $terms))] as $fit
+    | ($sel != "" or $terms != null) as $placed
+    | ([(select($nodesRead and $placed and ($fit | length) == 0)
+          | if $terms == null then "no node has the labels \($sel)"
+            elif $sel == "" then "no node matches the required nodeAffinity terms"
+            else "no node has the labels \($sel) and matches the required nodeAffinity terms" end
+          | . + ", so the new Pods stay Pending"),
+        (select($p.priorityClassName != null and $pcsRead
+            and ([items($pcs)[] | select(.metadata.name == $p.priorityClassName)] | length) == 0)
+          | "no PriorityClass \($p.priorityClassName) exists, so the new Pods are refused")]) as $stuck
+    | ([(select($placed) | if $nodesRead then (select(($fit | length) > 0) | "\($fit | length) of \(items($nodes) | length) nodes fit its placement")
+                           else "the nodes were not read, so whether any fits its placement is unknown" end),
+        (select($p.priorityClassName != null and ($pcsRead | not)) | "the PriorityClasses were not read, so whether \($p.priorityClassName) exists is unknown"),
+        (select(($p.schedulerName // "default-scheduler") != "default-scheduler") | "the new Pods stay Pending unless scheduler \($p.schedulerName) runs")]) as $notes
     | "component \($c.name): the affinity trait sets \($new | join(", ")), which 1.11 ignored; 1.12 applies \(if ($new | length) == 1 then "it" else "them" end) and the Pods restart" as $what
-    | if $nowhere then
-        f("error"; "affinity-trait"; "Application \($a | nn)";
-          "\($what), but no node has the labels \($sel), so they stay Pending";
-          "label the nodes the workload should run on with \($sel), or remove nodeSelector from the trait to keep the 1.11 placement";
-          guide("changes-to-built-in-definitions"))
-      else
-        f("warn"; "affinity-trait"; "Application \($a | nn)";
-          "\($what)\(if $sel == "" then "" elif $nodesRead then "; \($fit | length) of \(items($nodes) | length) nodes have the labels \($sel)" else " (the nodes were not read, so whether any has the labels \($sel) is unknown)" end)";
-          "check \([(select($sel != "") | if $nodesRead then "that the nodes with \($sel) are where it should run" else "that nodes have the labels \($sel)" end),
-                  (select($p.schedulerName != null) | "that scheduler \($p.schedulerName) runs"),
-                  (select($p.priorityClassName != null) | "that PriorityClass \($p.priorityClassName) exists"),
-                  (select($p.affinity != null or $p.topologySpreadConstraints != null) | "that the affinity and spread rules fit the nodes")] | join(", ")); remove \($new | join(", ")) to keep the 1.11 placement";
-          guide("changes-to-built-in-definitions"))
-      end ),
+    | ([(select($placed) | "that the nodes the workload should run on fit \([(select($sel != "") | "nodeSelector \($sel)"), (select($terms != null) | "the required nodeAffinity terms")] | join(" and "))"),
+        (select(($p.schedulerName // "default-scheduler") != "default-scheduler") | "that scheduler \($p.schedulerName) runs"),
+        (select($p.priorityClassName != null and ($pcsRead | not)) | "that PriorityClass \($p.priorityClassName) exists"),
+        (select($p.topologySpreadConstraints != null) | "that the spread constraints fit the nodes")] | join(", ")) as $checks
+    | ([(select($p.priorityClassName != null and $pcsRead
+             and ([items($pcs)[] | select(.metadata.name == $p.priorityClassName)] | length) == 0)
+           | "create PriorityClass \($p.priorityClassName)"),
+          (select($checks != "") | "check \($checks)")] | join(" and ")) as $todo
+    | f(if ($stuck | length) > 0 then "error" else "warn" end; "affinity-trait"; "Application \($a | nn)";
+        ([$what] + $stuck + $notes | join("; "));
+        "\(if $todo == "" then "check that the new placement is what the workload should get" else $todo end), or remove \($new | join(", ")) to keep the 1.11 placement";
+        guide("changes-to-built-in-definitions")) ),
 
 # 17. Builtin definitions edited in place. The 1.12 chart's hook Job applies every builtin with
 # --force-conflicts, which overwrites spec.schematic whoever changed it. The chart's own managers are
@@ -938,7 +976,7 @@ else [
 JQ
 
 findings="$(jq -n \
-	--arg ns "$namespace" --arg rel "$release" --argjson helmRead "$helm_read" --argjson nodesRead "$nodes_read" \
+	--arg ns "$namespace" --arg rel "$release" --argjson helmRead "$helm_read" --argjson nodesRead "$nodes_read" --argjson pcsRead "$pcs_read" \
 	--slurpfile apps "$tmp/applications.json" --slurpfile wfs "$tmp/workflows.json" \
 	--slurpfile cdefs "$tmp/componentdefinitions.json" --slurpfile tdefs "$tmp/traitdefinitions.json" \
 	--slurpfile pdefs "$tmp/policydefinitions.json" --slurpfile sdefs "$tmp/workflowstepdefinitions.json" \
@@ -946,6 +984,7 @@ findings="$(jq -n \
 	--slurpfile crd "$tmp/crd-applications.json" --slurpfile deploy "$tmp/deployment.json" \
 	--slurpfile argo "$tmp/argocd-applications.json" --slurpfile revs "$tmp/definitionrevisions.json" \
 	--slurpfile nss "$tmp/namespaces.json" --slurpfile deny "$tmp/deny-configmaps.json" --slurpfile nodes "$tmp/nodes.json" \
+	--slurpfile pcs "$tmp/priorityclasses.json" \
 	--slurpfile shosts "$tmp/secret-hosts.json" --slurpfile resolved "$tmp/resolved.json" \
 	--slurpfile values "$tmp/helm-values.json" --slurpfile release "$tmp/helm-release.json" \
 	"$lib$analysis")" || { echo "error: the analysis failed (see jq's message above)" >&2; exit 2; }
