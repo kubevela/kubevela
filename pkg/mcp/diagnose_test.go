@@ -698,6 +698,7 @@ var _ = DescribeTable("providerOf maps an API group to the family that interpret
 		Expect(providerOf(apiVersion)).To(Equal(want))
 	},
 	Entry("ACK", "rds.services.k8s.aws/v1alpha1", providerACK),
+	Entry("ACK common group, where FieldExport lives", "services.k8s.aws/v1alpha1", providerACK),
 	Entry("Config Connector", "sql.cnrm.cloud.google.com/v1beta1", providerConfigConnector),
 	Entry("Crossplane v2 namespaced", "dynamodb.aws.m.upbound.io/v1beta1", providerCrossplane),
 	Entry("Crossplane community", "database.aws.crossplane.io/v1beta1", providerCrossplane),
