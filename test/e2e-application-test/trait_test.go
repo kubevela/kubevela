@@ -18,6 +18,7 @@ package application_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -101,6 +102,41 @@ var _ = Describe("Trait tests", Label("core-application"), func() {
 				g.Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox:1.34"))
 				g.Expect(deploy.Spec.Template.Spec.Containers[0].Command).Should(Equal([]string{"sleep", "864000"}))
 			}, 60*time.Second).Should(Succeed())
+		})
+	})
+
+	// The built-in scaler lists deployments.apps and statefulsets.apps.
+	Context("Test trait appliesToWorkloads", func() {
+		scaledApp := func(compType string) *v1beta1.Application {
+			app := &v1beta1.Application{}
+			Expect(yaml.Unmarshal([]byte(fmt.Sprintf(`
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: scaled-%s
+spec:
+  components:
+    - name: busybox
+      type: %s
+      properties:
+        image: busybox
+      traits:
+        - type: scaler
+          properties:
+            replicas: 2
+`, compType, compType)), app)).Should(Succeed())
+			app.SetNamespace(namespace)
+			return app
+		}
+
+		It("rejects a trait whose appliesToWorkloads does not list the workload", func() {
+			err := k8sClient.Create(ctx, scaledApp("daemon"))
+			Expect(err).Should(MatchError(ContainSubstring(
+				`trait "scaler" cannot apply to component "busybox" of type "daemon" (workload "daemonsets.apps")`)))
+		})
+
+		It("admits a trait whose appliesToWorkloads lists the workload", func() {
+			Expect(k8sClient.Create(ctx, scaledApp("webservice"))).Should(Succeed())
 		})
 	})
 })

@@ -886,6 +886,9 @@ func (h *ValidatingHandler) validateContent(ctx context.Context, app, oldApp *v1
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
 	errs = append(errs, h.ValidateComponentNames(ctx, app)...)
 	errs = append(errs, h.ValidateTraitConflicts(ctx, app)...)
+	appliesToErrs, appliesToWarnings := h.ValidateTraitAppliesTo(ctx, app, oldApp)
+	errs = append(errs, appliesToErrs...)
+	warnings = append(warnings, appliesToWarnings...)
 	return errs, warnings
 }
 
