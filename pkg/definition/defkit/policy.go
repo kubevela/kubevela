@@ -306,22 +306,15 @@ func (g *PolicyCUEGenerator) WithImports(imports ...string) *PolicyCUEGenerator 
 	return g
 }
 
-// addImportIfMissing adds an import if it's not already present.
-func (g *PolicyCUEGenerator) addImportIfMissing(imp string) {
-	for _, existing := range g.imports {
-		if existing == imp {
-			return
-		}
-	}
-	g.imports = append(g.imports, imp)
-}
-
-// detectRequiredImports adds the CUE standard library imports the policy's
+// detectRequiredImports returns the CUE standard library imports the policy's
 // values declare via the ImportRequirer interface, so that a parameter or
 // context schema field such as String("team").MinLen(3) (strings.MinRunes)
 // pulls "strings" without the policy author calling WithImports. Computed
 // fields are scanned in name order, so the import block is stable.
-func (g *PolicyCUEGenerator) detectRequiredImports(p *PolicyDefinition) {
+//
+// The detected imports are returned rather than added to g.imports, so a
+// reused generator does not carry one policy's imports into the next.
+func (g *PolicyCUEGenerator) detectRequiredImports(p *PolicyDefinition) []string {
 	scan := NewCUEGenerator()
 	for _, param := range append(append([]Param{}, p.GetParams()...), p.ctxSchema...) {
 		scan.collectImportsFromValue(param)
@@ -339,22 +332,28 @@ func (g *PolicyCUEGenerator) detectRequiredImports(p *PolicyDefinition) {
 			scan.collectImportsFromResource(pt.output.res)
 		}
 	}
-	for _, imp := range scan.imports {
-		g.addImportIfMissing(imp)
-	}
+	return scan.imports
+}
+
+// mergedImports returns the imports to emit for p: the WithImports set first,
+// then the ones detected for p that are not already present. g is left
+// untouched.
+func (g *PolicyCUEGenerator) mergedImports(p *PolicyDefinition) []string {
+	return mergeImports(g.imports, g.detectRequiredImports(p))
 }
 
 // GenerateFullDefinition generates the complete CUE definition for a policy.
 func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string {
-	// Auto-detect imports needed by parameters and template values.
-	g.detectRequiredImports(p)
+	// Explicit imports plus the ones auto-detected from this policy's
+	// parameters and template. Kept in a local so nothing leaks into the next call.
+	imports := g.mergedImports(p)
 
 	var sb strings.Builder
 
 	// Write imports if any
-	if len(g.imports) > 0 {
+	if len(imports) > 0 {
 		sb.WriteString("import (\n")
-		for _, imp := range g.imports {
+		for _, imp := range imports {
 			sb.WriteString(fmt.Sprintf("\t%q\n", imp))
 		}
 		sb.WriteString(")\n\n")

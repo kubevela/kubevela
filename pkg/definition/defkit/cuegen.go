@@ -151,10 +151,8 @@ func (g *CUEGenerator) WithImports(imports ...string) *CUEGenerator {
 // returned instead of being appended to g.imports, so detection is scoped to a
 // single definition: one generator can be reused for any number of definitions
 // without the first definition's imports leaking into the next, and g.imports
-// keeps holding only what WithImports was given. The scratch-generator scan is
-// the same one PolicyCUEGenerator, TraitCUEGenerator and
-// WorkflowStepCUEGenerator use, but those still merge the result onto their own
-// receiver and so leak the same way when reused, tracked in #7574.
+// keeps holding only what WithImports was given. PolicyCUEGenerator,
+// TraitCUEGenerator and WorkflowStepCUEGenerator follow the same pattern.
 func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) []string {
 	scan := NewCUEGenerator()
 
@@ -226,8 +224,15 @@ func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) []string {
 // when it is already present. g is left untouched, so repeated Generate* calls
 // on one generator all see the same explicit set.
 func (g *CUEGenerator) mergedImports(c *ComponentDefinition) []string {
-	merged := append([]string{}, g.imports...)
-	for _, imp := range g.detectRequiredImports(c) {
+	return mergeImports(g.imports, g.detectRequiredImports(c))
+}
+
+// mergeImports returns a new slice holding explicit followed by each detected
+// import not already present. Neither argument is modified, so a generator can
+// pass its WithImports set without it picking up the detected imports.
+func mergeImports(explicit, detected []string) []string {
+	merged := append([]string{}, explicit...)
+	for _, imp := range detected {
 		if !slices.Contains(merged, imp) {
 			merged = append(merged, imp)
 		}
