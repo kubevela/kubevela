@@ -463,11 +463,19 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	}
 	appMap["apiVersion"] = "core.oam.dev/v1beta1"
 	appMap["kind"] = "Application"
+	dropEmptyWorkflow(appMap)
 
-	appendAuxComponents(appMap, groups)
+	auxNames := appendAuxComponents(appMap, groups)
 	ensureAddonComponentStateKeepPolicy(appMap)
-	pinCrateComponentsToHub(appMap, append(componentNames(crateComps), componentNames(inlineCrateComps)...))
-	if err := writeExplicitWorkflow(appMap); err != nil {
+	crateNames := append(componentNames(crateComps), componentNames(inlineCrateComps)...)
+	// Only a workflow the addon wrote needs steps for the components the
+	// render adds; the one pinCrateComponentsToHub writes deploys them all.
+	addedBefore, addedAfter := auxNames, crateNames
+	if !hasWorkflow(appMap) {
+		addedBefore, addedAfter = nil, nil
+	}
+	pinCrateComponentsToHub(appMap, crateNames)
+	if err := writeExplicitWorkflow(appMap, addedBefore, addedAfter); err != nil {
 		return nil, fmt.Errorf("render addon %q: %w", req.Name, err)
 	}
 	sanitizeManifest(appMap)
@@ -671,11 +679,12 @@ func (r *rendererImpl) auxComponents(ctx context.Context, installPkg *pkgaddon.I
 	}, nil
 }
 
-// appendAuxComponents wraps each non-empty group as a k8s-objects component and
-// appends it to the Application's spec.components. Each auxiliary object is
-// sanitized (status + creationTimestamp) before nesting so the manifest
-// completes cleanly as CUE.
-func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
+// appendAuxComponents wraps each non-empty group as a k8s-objects component,
+// appends it to the Application's spec.components and returns the names it
+// gave them. Each auxiliary object is sanitized (status + creationTimestamp)
+// before nesting so the manifest completes cleanly as CUE.
+func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) []string {
+	var names []string
 	spec, ok := appMap["spec"].(map[string]interface{})
 	if !ok {
 		spec = map[string]interface{}{}
@@ -712,6 +721,7 @@ func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
 		}
 		name := uniqueComponentName(g.name, used)
 		used[name] = true
+		names = append(names, name)
 		comps = append(comps, map[string]interface{}{
 			"name":       name,
 			"type":       "k8s-objects",
@@ -719,6 +729,7 @@ func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
 		})
 	}
 	spec["components"] = comps
+	return names
 }
 
 // componentNames returns the Name of each component, in order. Used to turn
@@ -787,4 +798,29 @@ func (r *rendererImpl) resolvePinnedVersion(ctx context.Context, addonName, vers
 	}
 	return nil, "", fmt.Errorf("addon %q version %q not found in registries %v%s: %w",
 		addonName, version, candidates, skippedGitNote(excludedGit), errors.Join(errs...))
+}
+
+// hasWorkflow reports whether the addon Application has a workflow.
+func hasWorkflow(app map[string]interface{}) bool {
+	spec, _ := app["spec"].(map[string]interface{})
+	_, ok := spec["workflow"]
+	return ok
+}
+
+// dropEmptyWorkflow removes a workflow with no steps and no ref, so the render
+// treats it as no workflow: crates are kept on the hub and the steps it writes
+// apply the components it adds in order. The controller generates every step
+// for such a workflow anyway. A mode goes with it, since the only steps left to
+// order are the ones the render writes.
+func dropEmptyWorkflow(app map[string]interface{}) {
+	spec, _ := app["spec"].(map[string]interface{})
+	wf, ok := spec["workflow"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	steps, _ := wf["steps"].([]interface{})
+	ref, _ := wf["ref"].(string)
+	if len(steps) == 0 && ref == "" {
+		delete(spec, "workflow")
+	}
 }

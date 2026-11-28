@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
@@ -157,16 +158,23 @@ func completeMode(mode interface{}) map[string]interface{} {
 //     generators give no step, it removes the workflow.
 //   - Steps the addon wrote get no ref and a complete mode. A mode key the
 //     addon leaves out is the one the controller uses for steps written in
-//     spec, not one an earlier render wrote.
+//     spec, not one an earlier render wrote. Its steps never name the
+//     components the render adds, so each of those gets an apply-component
+//     step of its own: before is applied ahead of the addon's steps, after
+//     behind them. Run as a DAG, the steps carry the same order as dependsOn.
+//     The caller passes neither for the workflow pinCrateComponentsToHub
+//     writes, whose deploy steps already cover every component.
 //   - A ref gets no steps. A mode the addon wrote next to it stays. With none,
 //     the mode is removed, because it comes from the Workflow the ref names.
+//     A ref cannot apply the components the render adds, so an addon that
+//     adds any is refused.
 //
 // A null removes its field from the patched Application and reads as no field
 // in the typed Application, so writing it again changes nothing. Every other
 // value written here survives a round trip through the typed Application
 // unchanged; one that does not (an empty step list, for one) would flip on
 // every pass.
-func writeExplicitWorkflow(app map[string]interface{}) error {
+func writeExplicitWorkflow(app map[string]interface{}, before, after []string) error {
 	spec, _ := app["spec"].(map[string]interface{})
 	if spec == nil {
 		return nil
@@ -176,13 +184,18 @@ func writeExplicitWorkflow(app map[string]interface{}) error {
 		ref, _ := wf["ref"].(string)
 		switch {
 		case ref != "":
+			if added := append(append([]string{}, before...), after...); len(added) > 0 {
+				return fmt.Errorf("the workflow is the ref %q, so it cannot apply the components the addon adds (%s); write the workflow as steps instead", ref, strings.Join(added, ", "))
+			}
 			wf["steps"] = nil
 			if _, hasMode := wf["mode"]; !hasMode {
 				wf["mode"] = nil
 			}
 		case len(steps) > 0:
 			wf["ref"] = nil
-			wf["mode"] = completeMode(wf["mode"])
+			mode := completeMode(wf["mode"])
+			wf["mode"] = mode
+			wf["steps"] = applyAddedComponents(steps, before, after, mode["steps"] == string(workflowv1alpha1.WorkflowModeDAG))
 		}
 		return nil
 	}
@@ -245,6 +258,63 @@ func workflowInputs(spec map[string]interface{}) *v1beta1.Application {
 		app.Spec.Policies = append(app.Spec.Policies, item)
 	}
 	return app
+}
+
+// applyAddedComponents returns the addon's own steps with an apply-component
+// step for each component in before ahead of them and each in after behind
+// them, named apart from the addon's steps. In a DAG the addon's steps depend
+// on the steps for before, and the steps for after on every other step.
+func applyAddedComponents(steps []interface{}, before, after []string, dag bool) []interface{} {
+	used := map[string]bool{}
+	for _, raw := range steps {
+		if s, ok := raw.(map[string]interface{}); ok {
+			name, _ := s["name"].(string)
+			used[name] = true
+		}
+	}
+	out := make([]interface{}, 0, len(before)+len(steps)+len(after))
+	var earlier []string
+	for _, comp := range before {
+		name := claimName(comp, used)
+		out = append(out, applyComponentStepMap(name, comp))
+		earlier = append(earlier, name)
+	}
+	firstAdded := slices.Clone(earlier)
+	for _, raw := range steps {
+		s, ok := raw.(map[string]interface{})
+		if ok {
+			name, _ := s["name"].(string)
+			earlier = append(earlier, name)
+			if dag && len(firstAdded) > 0 {
+				s["dependsOn"] = appendMissing(s["dependsOn"], firstAdded)
+			}
+		}
+		out = append(out, raw)
+	}
+	for _, comp := range after {
+		s := applyComponentStepMap(claimName(comp, used), comp)
+		if dag {
+			s["dependsOn"] = stringsToList(earlier)
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// appendMissing returns list with each of names it lacks appended.
+func appendMissing(list interface{}, names []string) []interface{} {
+	out, _ := list.([]interface{})
+	for _, n := range names {
+		if !slices.Contains(out, interface{}(n)) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// applyComponentStepMap is a step applying component, named name.
+func applyComponentStepMap(name, component string) map[string]interface{} {
+	return map[string]interface{}{"name": name, "type": "apply-component", "properties": map[string]interface{}{"component": component}}
 }
 
 // claimName returns a name from base that used does not hold yet, and marks it
