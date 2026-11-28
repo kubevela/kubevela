@@ -1,0 +1,1836 @@
+go: downloading go1.27.1 (windows/amd64)
+go: downloading k8s.io/api v0.37.1
+go: downloading github.com/crossplane/crossplane-runtime/v2 v2.5.0-rc.0.0.20260928191606-9420ba2f1717
+go: downloading k8s.io/apimachinery v0.37.1
+go: downloading k8s.io/client-go v0.37.1
+go: downloading cuelang.org/go v0.14.1
+go: downloading k8s.io/klog/v2 v2.140.0
+go: downloading sigs.k8s.io/controller-runtime v0.25.1-0.20261003005320-02048c9ac9b1
+go: downloading k8s.io/klog v1.0.0
+go: downloading github.com/nacos-group/nacos-sdk-go/v2 v2.2.2
+go: downloading github.com/onsi/ginkgo/v2 v2.32.1
+go: downloading github.com/onsi/gomega v1.43.0
+go: downloading github.com/stretchr/testify v1.12.1
+go: downloading github.com/oam-dev/cluster-gateway v1.10.0-alpha.1
+go: downloading github.com/kubevela/workflow v0.8.0-alpha.3
+go: downloading github.com/magiconair/properties v1.8.7
+go: downloading github.com/pelletier/go-toml v1.9.5
+go: downloading go.yaml.in/yaml/v3 v3.0.5
+go: downloading github.com/mitchellh/hashstructure/v2 v2.0.2
+go: downloading github.com/pkg/errors v0.9.1
+go: downloading k8s.io/apiextensions-apiserver v0.37.1
+go: downloading k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
+go: downloading github.com/getkin/kin-openapi v0.153.0
+go: downloading k8s.io/apiserver v0.37.1
+go: downloading sigs.k8s.io/yaml v1.6.0
+go: downloading sigs.k8s.io/randfill v1.0.0
+go: downloading k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad
+go: downloading sigs.k8s.io/structured-merge-diff/v6 v6.4.2
+go: downloading github.com/kubevela/pkg v1.11.1-0.20261126171820-6b8007f3ec60
+go: downloading github.com/go-logr/logr v1.4.4
+go: downloading github.com/aliyun/alibaba-cloud-sdk-go v1.61.1704
+go: downloading golang.org/x/time v0.16.0
+go: downloading github.com/google/go-cmp v0.7.0
+go: downloading github.com/evanphx/json-patch/v5 v5.9.11
+go: downloading github.com/prometheus/client_golang v1.24.1
+go: downloading github.com/evanphx/json-patch v5.9.11+incompatible
+go: downloading gomodules.xyz/jsonpatch/v2 v2.5.0
+go: downloading dario.cat/mergo v1.0.2
+go: downloading gopkg.in/evanphx/json-patch.v4 v4.13.0
+go: downloading github.com/oam-dev/terraform-controller v0.9.1
+go: downloading github.com/form3tech-oss/jwt-go v3.2.5+incompatible
+go: downloading github.com/gosuri/uitable v0.0.4
+go: downloading github.com/xlab/treeprint v1.2.0
+go: downloading k8s.io/component-base v0.37.1
+go: downloading github.com/Masterminds/semver v1.5.0
+go: downloading github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
+go: downloading github.com/google/cel-go v0.30.0
+go: downloading google.golang.org/grpc v1.84.0
+go: downloading github.com/spf13/pflag v1.0.10
+go: downloading open-cluster-management.io/api v0.11.0
+go: downloading sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
+go: downloading sigs.k8s.io/apiserver-network-proxy v0.31.4
+go: downloading gopkg.in/inf.v0 v0.9.1
+go: downloading sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730
+go: downloading go.yaml.in/yaml/v2 v2.4.4
+go: downloading github.com/json-iterator/go v1.1.12
+go: downloading github.com/AlecAivazis/survey/v2 v2.1.1
+go: downloading github.com/hashicorp/hcl/v2 v2.18.0
+go: downloading github.com/oam-dev/terraform-config-inspect v0.0.0-20261007155724-d8a4743f5ad5
+go: downloading github.com/openkruise/kruise-api v1.4.0
+go: downloading github.com/openkruise/rollouts v0.3.0
+go: downloading k8s.io/kube-aggregator v0.37.1
+go: downloading k8s.io/metrics v0.37.1
+go: downloading go.opentelemetry.io/otel v1.47.0
+go: downloading sigs.k8s.io/gateway-api v0.7.1
+go: downloading github.com/hashicorp/hcl v1.0.0
+go: downloading go.opentelemetry.io/otel/sdk v1.47.0
+go: downloading go.opentelemetry.io/otel/trace v1.47.0
+go: downloading github.com/jeremywohl/flatten/v2 v2.0.0-20211013061545-07e4a09fb8e4
+go: downloading go.uber.org/zap v1.28.0
+go: downloading gopkg.in/natefinch/lumberjack.v2 v2.2.1
+go: downloading github.com/golang/protobuf v1.5.4
+go: downloading github.com/go-openapi/jsonpointer v1.0.1
+go: downloading github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
+go: downloading go.yaml.in/yaml/v4 v4.0.0
+go: downloading golang.org/x/net v0.63.0
+go: downloading github.com/beorn7/perks v1.0.1
+go: downloading github.com/cespare/xxhash/v2 v2.3.0
+go: downloading golang.org/x/sys v0.50.0
+go: downloading github.com/prometheus/common v0.72.0
+go: downloading github.com/prometheus/client_model v0.6.3
+go: downloading google.golang.org/protobuf v1.36.12
+go: downloading golang.org/x/sync v0.25.0
+go: downloading github.com/fsnotify/fsnotify v1.10.1
+go: downloading github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
+go: downloading github.com/crossplane/crossplane/apis/v2 v2.4.2
+go: downloading github.com/klauspost/compress v1.20.5
+go: downloading go.uber.org/automaxprocs v1.6.0
+go: downloading github.com/google/gnostic-models v0.7.1
+go: downloading github.com/go-openapi/jsonreference v1.0.2
+go: downloading github.com/go-openapi/swag v0.29.2
+go: downloading golang.org/x/term v0.48.0
+go: downloading golang.org/x/oauth2 v0.37.0
+go: downloading github.com/briandowns/spinner v1.23.0
+go: downloading github.com/oam-dev/cluster-register v1.1.0-alpha.1
+go: downloading k8s.io/kubectl v0.37.1
+go: downloading github.com/fatih/color v1.19.0
+go: downloading github.com/tidwall/gjson v1.18.0
+go: downloading github.com/oam-dev/stern v1.13.3-0.20261007155744-2c166cd8b945
+go: downloading k8s.io/cli-runtime v0.37.1
+go: downloading github.com/jellydator/ttlcache/v3 v3.4.1
+go: downloading github.com/cockroachdb/apd/v3 v3.2.1
+go: downloading github.com/Masterminds/semver/v3 v3.5.0
+go: downloading github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f
+go: downloading k8s.io/streaming v0.37.1
+go: downloading github.com/coreos/go-systemd/v22 v22.7.0
+go: downloading github.com/emicklei/go-restful/v3 v3.13.0
+go: downloading github.com/google/uuid v1.6.0
+go: downloading golang.org/x/crypto v0.59.0
+go: downloading github.com/fxamacker/cbor/v2 v2.9.2
+go: downloading github.com/go-stack/stack v1.8.1
+go: downloading cel.dev/expr v0.25.2
+go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc
+go: downloading helm.sh/helm/v3 v3.22.1
+go: downloading github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee
+go: downloading github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+go: downloading github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
+go: downloading github.com/zclconf/go-cty v1.13.0
+go: downloading go.uber.org/multierr v1.11.0
+go: downloading golang.org/x/text v0.44.0
+go: downloading github.com/buger/jsonparser v1.1.2
+go: downloading github.com/golang/mock v1.6.0
+go: downloading go.opentelemetry.io/otel/log v1.47.0
+go: downloading go.opentelemetry.io/otel/metric v1.47.0
+go: downloading github.com/go-openapi/swag/cmdutils v0.29.2
+go: downloading github.com/go-openapi/swag/conv v0.29.2
+go: downloading github.com/go-openapi/swag/fileutils v0.29.2
+go: downloading github.com/go-openapi/swag/jsonutils v0.29.2
+go: downloading github.com/go-openapi/swag/loading v0.29.2
+go: downloading github.com/mattn/go-isatty v0.0.23
+go: downloading github.com/tidwall/pretty v1.2.1
+go: downloading github.com/go-openapi/swag/mangling v0.29.2
+go: downloading github.com/mattn/go-colorable v0.1.15
+go: downloading github.com/tidwall/match v1.1.1
+go: downloading github.com/go-openapi/swag/netutils v0.29.2
+go: downloading github.com/go-openapi/swag/stringutils v0.29.2
+go: downloading github.com/go-openapi/swag/yamlutils v0.29.2
+go: downloading github.com/go-openapi/swag/typeutils v0.29.2
+go: downloading github.com/peterbourgon/diskv v2.0.1+incompatible
+go: downloading github.com/blang/semver/v4 v4.0.0
+go: downloading github.com/ghodss/yaml v1.0.0
+go: downloading golang.org/x/tools v0.52.0
+go: downloading github.com/Masterminds/sprig v2.22.0+incompatible
+go: downloading github.com/openshift/library-go v0.0.0-20261008081759-c51f6ebeb7cb
+go: downloading github.com/hashicorp/go-version v1.6.0
+go: downloading go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.47.0
+go: downloading github.com/spf13/cobra v1.10.2
+go: downloading github.com/mattn/go-runewidth v0.0.15
+go: downloading github.com/NYTimes/gziphandler v1.1.1
+go: downloading github.com/antlr4-go/antlr/v4 v4.13.1
+go: downloading github.com/google/go-containerregistry v0.22.1
+go: downloading github.com/hashicorp/golang-lru/v2 v2.0.7
+go: downloading go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.47.0
+go: downloading github.com/go-resty/resty/v2 v2.8.0
+go: downloading oras.land/oras-go/v2 v2.6.2
+go: downloading github.com/x448/float16 v0.8.4
+go: downloading sigs.k8s.io/kustomize/api v0.21.1
+go: downloading sigs.k8s.io/kustomize/kyaml v0.21.1
+go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc
+go: downloading github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
+go: downloading github.com/agext/levenshtein v1.2.3
+go: downloading github.com/apparentlymart/go-textseg/v15 v15.0.0
+go: downloading github.com/mitchellh/go-wordwrap v1.0.1
+go: downloading github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
+go: downloading github.com/go-logr/stdr v1.2.2
+go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+go: downloading github.com/Masterminds/sprig/v3 v3.3.0
+go: downloading github.com/cyphar/filepath-securejoin v0.7.0
+go: downloading github.com/mitchellh/copystructure v1.2.0
+go: downloading gopkg.in/yaml.v3 v3.0.1
+go: downloading github.com/opencontainers/image-spec v1.1.1
+go: downloading github.com/Masterminds/squirrel v1.5.4
+go: downloading github.com/jmoiron/sqlx v1.4.0
+go: downloading github.com/rubenv/sql-migrate v1.8.1
+go: downloading github.com/lib/pq v1.12.3
+go: downloading github.com/google/btree v1.1.3
+go: downloading github.com/Masterminds/goutils v1.1.1
+go: downloading github.com/huandu/xstrings v1.5.0
+go: downloading github.com/imdario/mergo v0.3.16
+go: downloading gopkg.in/yaml.v2 v2.4.0
+go: downloading github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0
+go: downloading go.etcd.io/etcd/client/pkg/v3 v3.7.1
+go: downloading go.etcd.io/etcd/client/v3 v3.7.1
+go: downloading go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.71.0
+go: downloading github.com/hashicorp/go-multierror v1.1.1
+go: downloading github.com/felixge/httpsnoop v1.1.0
+go: downloading github.com/rivo/uniseg v0.4.3
+go: downloading github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
+go: downloading github.com/moby/term v0.5.2
+go: downloading github.com/inconshreveable/mousetrap v1.1.0
+go: downloading golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
+go: downloading go.opentelemetry.io/proto/otlp v1.11.1
+go: downloading github.com/apparentlymart/go-textseg/v13 v13.0.0
+go: downloading github.com/mitchellh/reflectwalk v1.0.2
+go: downloading github.com/BurntSushi/toml v1.6.0
+go: downloading github.com/gobwas/glob v0.2.3
+go: downloading github.com/ProtonMail/go-crypto v1.4.1
+go: downloading github.com/shopspring/decimal v1.4.0
+go: downloading github.com/spf13/cast v1.7.0
+go: downloading github.com/opencontainers/go-digest v1.0.0
+go: downloading github.com/docker/cli v29.8.0+incompatible
+go: downloading github.com/emicklei/proto v1.14.3
+go: downloading github.com/pelletier/go-toml/v2 v2.2.4
+go: downloading github.com/protocolbuffers/txtpbfmt v0.0.0-20260217160748-a481f6a22f94
+go: downloading go.etcd.io/etcd/api/v3 v3.7.1
+go: downloading github.com/lann/builder v0.0.0-20180802200727-47ae307949d0
+go: downloading github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f
+go: downloading github.com/russross/blackfriday/v2 v2.1.0
+go: downloading github.com/MakeNowJust/heredoc v1.0.0
+go: downloading github.com/chai2010/gettext-go v1.0.2
+go: downloading github.com/go-gorp/gorp/v3 v3.1.0
+go: downloading github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
+go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+go: downloading github.com/hashicorp/errwrap v1.1.0
+go: downloading github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
+go: downloading github.com/go-errors/errors v1.5.1
+go: downloading github.com/openshift/api v0.0.0-20261002101753-2d7b24ada488
+go: downloading github.com/coreos/go-semver v0.3.1
+go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0
+go: downloading github.com/go-openapi/swag/pools v0.29.2
+go: downloading github.com/kylelemons/godebug v1.1.0
+go: downloading github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0
+go: downloading github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c
+go: downloading github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00
+go: downloading sigs.k8s.io/kind v0.20.0
+go: downloading github.com/cloudflare/circl v1.6.3
+go: downloading golang.org/x/mod v0.42.0
+go: downloading github.com/alessio/shellescape v1.4.1
+go: downloading github.com/google/safetext v0.0.0-20220905092116-b49f7bc46da2
+go: downloading github.com/sirupsen/logrus v1.10.2
+go: downloading github.com/docker/docker-credential-helpers v0.7.0
+go: downloading github.com/jmespath/go-jmespath v0.4.0
+go: downloading gopkg.in/ini.v1 v1.67.0
+internal/cpu: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\asm.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\asm.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+internal/syscall/windows/sysdll: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+internal/trace/tracev2: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+internal/asan: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+internal/goexperiment: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+internal/runtime/pprof/label: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+unicode/utf16: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+cmp: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+unicode/utf8: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+unicode: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+crypto/internal/fips140/alias: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+# internal/unsafeheader
+fatal error: runtime: cannot allocate memory
+
+goroutine 1 gp=0x2e769901e000 m=0 mp=0x7ff665587fc0 [running, locked to thread]:
+runtime.throw({0x7ff66492b1b3?, 0x2e7698fda000?})
+	runtime/panic.go:1243 +0x4d fp=0x2e7699025970 sp=0x2e7699025940 pc=0x7ff663cfaf2d
+runtime.stkbucket(...)
+	runtime/mprof.go:280
+runtime.mProf_Malloc(0x7ff665587fc0, 0x2e7698fbf100, 0x80)
+	runtime/mprof.go:446 +0x4b7 fp=0x2e7699025a10 sp=0x2e7699025970 pc=0x7ff663cb1077
+runtime.profilealloc(0x7ff665587fc0?, 0x2e7698fbf100?, 0x80?)
+	runtime/malloc.go:2229 +0x9b fp=0x2e7699025a40 sp=0x2e7699025a10 pc=0x7ff663c8353b
+runtime.mallocgcSmallNoscan(...)
+	runtime/malloc.go:1447
+runtime.mallocgc(0x80, 0x0, 0x0)
+	runtime/malloc.go:1125 +0x10ac fp=0x2e7699025b48 sp=0x2e7699025a40 pc=0x7ff663cf79ec
+runtime.growslice(0x2e7698fb6840, 0x7ff665587fc0?, 0x24d86bb0108?, 0x2e7699025c58?, 0x7ff663cfb25f?)
+	runtime/slice.go:265 +0x63b fp=0x2e7699025c18 sp=0x2e7699025b48 pc=0x7ff663cfcdbb
+os.readNextArg({0x2e769904e499?, 0x2e7698f9c160?})
+	os/exec_windows.go:147 +0x13c fp=0x2e7699025ca8 sp=0x2e7699025c18 pc=0x7ff663d7f5fc
+os.commandLineToArgv({0x2e769904e400?, 0x7ff6652feca0?})
+	os/exec_windows.go:163 +0x7b fp=0x2e7699025d58 sp=0x2e7699025ca8 pc=0x7ff663d7f8bb
+os.init.0()
+	os/exec_windows.go:100 +0xa7 fp=0x2e7699025d98 sp=0x2e7699025d58 pc=0x7ff663d7f467
+runtime.doInit1(0x7ff665370900)
+	runtime/proc.go:8154 +0xda fp=0x2e7699025eb8 sp=0x2e7699025d98 pc=0x7ff663ccdbba
+runtime.doInit(...)
+	runtime/proc.go:8121
+runtime.main()
+	runtime/proc.go:269 +0x385 fp=0x2e7699025fe0 sp=0x2e7699025eb8 pc=0x7ff663cbf625
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2e7699025fe8 sp=0x2e7699025fe0 pc=0x7ff663d01d41
+
+goroutine 2 gp=0x2e769901e780 m=nil [force gc (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x2e7699021fa8 sp=0x2e7699021f88 pc=0x7ff663cfb04a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.forcegchelper()
+	runtime/proc.go:387 +0xb8 fp=0x2e7699021fe0 sp=0x2e7699021fa8 pc=0x7ff663cbf938
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2e7699021fe8 sp=0x2e7699021fe0 pc=0x7ff663d01d41
+created by runtime.init.7 in goroutine 1
+	runtime/proc.go:375 +0x1a
+
+goroutine 3 gp=0x2e769901eb40 m=nil [GC sweep wait]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x2e7699023f50 sp=0x2e7699023f30 pc=0x7ff663cfb04a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.bgsweep(0x2e7698fbe100)
+	runtime/mgcsweep.go:279 +0x94 fp=0x2e7699023fc8 sp=0x2e7699023f50 pc=0x7ff663ca3114
+runtime.gcenable.gowrap1()
+	runtime/mgc.go:214 +0x17 fp=0x2e7699023fe0 sp=0x2e7699023fc8 pc=0x7ff663cee217
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2e7699023fe8 sp=0x2e7699023fe0 pc=0x7ff663d01d41
+created by runtime.gcenable in goroutine 1
+	runtime/mgc.go:214 +0x66
+
+goroutine 4 gp=0x2e769901ed20 m=nil [GC scavenge wait]:
+runtime.gopark(0x2e7698fbe100?, 0x7ff664955b80?, 0x1?, 0x0?, 0x2e769901ed20?)
+	runtime/proc.go:474 +0xca fp=0x2e7699033f78 sp=0x2e7699033f58 pc=0x7ff663cfb04a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.(*scavengerState).park(0x7ff665584de0)
+	runtime/mgcscavenge.go:425 +0x49 fp=0x2e7699033fa8 sp=0x2e7699033f78 pc=0x7ff663ca0b49
+runtime.bgscavenge(0x2e7698fbe100)
+	runtime/mgcscavenge.go:653 +0x3c fp=0x2e7699033fc8 sp=0x2e7699033fa8 pc=0x7ff663ca109c
+runtime.gcenable.gowrap2()
+	runtime/mgc.go:215 +0x17 fp=0x2e7699033fe0 sp=0x2e7699033fc8 pc=0x7ff663cee1d7
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2e7699033fe8 sp=0x2e7699033fe0 pc=0x7ff663d01d41
+created by runtime.gcenable in goroutine 1
+	runtime/mgc.go:215 +0xa5
+
+goroutine 5 gp=0x2e769901f0e0 m=nil [runnable]:
+runtime.updateMaxProcsGoroutine()
+	runtime/proc.go:7137 fp=0x2e7699035fe0 sp=0x2e7699035fd8 pc=0x7ff663ccca80
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2e7699035fe8 sp=0x2e7699035fe0 pc=0x7ff663d01d41
+created by runtime.defaultGOMAXPROCSUpdateEnable in goroutine 1
+	runtime/proc.go:7134 +0x37
+
+goroutine 6 gp=0x2e769901f2c0 m=nil [runnable]:
+runtime.runFinalizers()
+	runtime/mfinal.go:193 fp=0x2e769902ffe0 sp=0x2e769902ffd8 pc=0x7ff663c920e0
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2e769902ffe8 sp=0x2e769902ffe0 pc=0x7ff663d01d41
+created by runtime.createfing in goroutine 1
+	runtime/mfinal.go:172 +0x3d
+# structs
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0xc0139ff838?})
+	runtime/panic.go:1243 +0x4d fp=0xc0139ff7b0 sp=0xc0139ff780 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0xc0139ff888 sp=0xc0139ff7b0 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xc0139ff910 sp=0xc0139ff888 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0xc0139ff9f8 sp=0xc0139ff910 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xc0139ffa40 sp=0xc0139ff9f8 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0xc0139ffa98 sp=0xc0139ffa40 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0xc0139ffbd8 sp=0xc0139ffa98 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x25c61800108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0xc0139ffc30 sp=0xc0139ffbd8 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xc0139ffd38 sp=0xc0139ffc30 pc=0x7ff663cf72a5
+runtime.newobject(0xc0139ffd90?)
+	runtime/malloc.go:2141 +0x25 fp=0xc0139ffd60 sp=0xc0139ffd38 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xc0139ffdc8 sp=0xc0139ffd60 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xc0139ffde8 sp=0xc0139ffdc8 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xc0139ffe40 sp=0xc0139ffde8 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xc0139ffe48 sp=0xc0139ffe40 pc=0x7ff663d0007d
+# internal/msan
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0xa0637ff2c8?})
+	runtime/panic.go:1243 +0x4d fp=0xa0637ff240 sp=0xa0637ff210 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0xa0637ff318 sp=0xa0637ff240 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xa0637ff3a0 sp=0xa0637ff318 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0xa0637ff488 sp=0xa0637ff3a0 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xa0637ff4d0 sp=0xa0637ff488 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0xa0637ff528 sp=0xa0637ff4d0 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0xa0637ff668 sp=0xa0637ff528 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x1a200ff0108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0xa0637ff6c0 sp=0xa0637ff668 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xa0637ff7c8 sp=0xa0637ff6c0 pc=0x7ff663cf72a5
+runtime.newobject(0xa0637ff820?)
+	runtime/malloc.go:2141 +0x25 fp=0xa0637ff7f0 sp=0xa0637ff7c8 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xa0637ff858 sp=0xa0637ff7f0 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xa0637ff878 sp=0xa0637ff858 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xa0637ff8d0 sp=0xa0637ff878 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xa0637ff8d8 sp=0xa0637ff8d0 pc=0x7ff663d0007d
+google.golang.org/protobuf/internal/flags: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+# internal/byteorder
+fatal error: runtime: cannot allocate memory
+
+runtime stack:
+runtime.throw({0x7ff66492b1b3?, 0x6bbcc07000?})
+	runtime/panic.go:1243 +0x4d fp=0x6bbcfff848 sp=0x6bbcfff818 pc=0x7ff663cfaf2d
+runtime.persistentalloc1(0x100, 0x43f37f00000001?, 0x7ff6655f8260)
+	runtime/malloc.go:2363 +0x2ba fp=0x6bbcfff8a8 sp=0x6bbcfff848 pc=0x7ff663c839da
+runtime.persistentalloc.func1()
+	runtime/malloc.go:2316 +0x28 fp=0x6bbcfff8d8 sp=0x6bbcfff8a8 pc=0x7ff663cedca8
+runtime.persistentalloc(0x7ff663c61000?, 0x7ff665587fc0?, 0x7ff6655853e0?)
+	runtime/malloc.go:2315 +0x45 fp=0x6bbcfff920 sp=0x6bbcfff8d8 pc=0x7ff663c836e5
+runtime.(*addrRanges).init(0x7ff6655c15f8, 0x7ff6655f8260)
+	runtime/mranges.go:258 +0x3a fp=0x6bbcfff948 sp=0x6bbcfff920 pc=0x7ff663cb3bda
+runtime.(*pageAlloc).init(0x7ff6655b1568, 0x7ff6655b1560, 0x7ff6655f8260, 0x0)
+	runtime/mpagealloc.go:324 +0x71 fp=0x6bbcfff978 sp=0x6bbcfff948 pc=0x7ff663caad51
+runtime.(*mheap).init(0x7ff6655b1560)
+	runtime/mheap.go:812 +0x225 fp=0x6bbcfff9b0 sp=0x6bbcfff978 pc=0x7ff663ca6705
+runtime.mallocinit()
+	runtime/malloc.go:493 +0xfd fp=0x6bbcfff9f8 sp=0x6bbcfff9b0 pc=0x7ff663c81e3d
+runtime.schedinit()
+	runtime/proc.go:890 +0xf2 fp=0x6bbcfffa50 sp=0x6bbcfff9f8 pc=0x7ff663cc0492
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x6bbcfffa58 sp=0x6bbcfffa50 pc=0x7ff663d0007d
+# internal/coverage/rtcov
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0xd80b3ff618?})
+	runtime/panic.go:1243 +0x4d fp=0xd80b3ff590 sp=0xd80b3ff560 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0xd80b3ff668 sp=0xd80b3ff590 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xd80b3ff6f0 sp=0xd80b3ff668 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0xd80b3ff7d8 sp=0xd80b3ff6f0 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xd80b3ff820 sp=0xd80b3ff7d8 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0xd80b3ff878 sp=0xd80b3ff820 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0xd80b3ff9b8 sp=0xd80b3ff878 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x2036e010108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0xd80b3ffa10 sp=0xd80b3ff9b8 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xd80b3ffb18 sp=0xd80b3ffa10 pc=0x7ff663cf72a5
+runtime.newobject(0xd80b3ffb70?)
+	runtime/malloc.go:2141 +0x25 fp=0xd80b3ffb40 sp=0xd80b3ffb18 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xd80b3ffba8 sp=0xd80b3ffb40 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xd80b3ffbc8 sp=0xd80b3ffba8 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xd80b3ffc20 sp=0xd80b3ffbc8 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xd80b3ffc28 sp=0xd80b3ffc20 pc=0x7ff663d0007d
+# internal/goos
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0xdab15ff3d8?})
+	runtime/panic.go:1243 +0x4d fp=0xdab15ff350 sp=0xdab15ff320 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0xdab15ff428 sp=0xdab15ff350 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xdab15ff4b0 sp=0xdab15ff428 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0xdab15ff598 sp=0xdab15ff4b0 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xdab15ff5e0 sp=0xdab15ff598 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0xdab15ff638 sp=0xdab15ff5e0 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0xdab15ff778 sp=0xdab15ff638 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x22763dc0108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0xdab15ff7d0 sp=0xdab15ff778 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xdab15ff8d8 sp=0xdab15ff7d0 pc=0x7ff663cf72a5
+runtime.newobject(0xdab15ff930?)
+	runtime/malloc.go:2141 +0x25 fp=0xdab15ff900 sp=0xdab15ff8d8 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xdab15ff968 sp=0xdab15ff900 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xdab15ff988 sp=0xdab15ff968 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xdab15ff9e0 sp=0xdab15ff988 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xdab15ff9e8 sp=0xdab15ff9e0 pc=0x7ff663d0007d
+log/slog/internal: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+# internal/goarch
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0xeb407ff298?})
+	runtime/panic.go:1243 +0x4d fp=0xeb407ff210 sp=0xeb407ff1e0 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0xeb407ff2e8 sp=0xeb407ff210 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xeb407ff370 sp=0xeb407ff2e8 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0xeb407ff458 sp=0xeb407ff370 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xeb407ff4a0 sp=0xeb407ff458 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0xeb407ff4f8 sp=0xeb407ff4a0 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0xeb407ff638 sp=0xeb407ff4f8 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x24e813d0108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0xeb407ff690 sp=0xeb407ff638 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xeb407ff798 sp=0xeb407ff690 pc=0x7ff663cf72a5
+runtime.newobject(0xeb407ff7f0?)
+	runtime/malloc.go:2141 +0x25 fp=0xeb407ff7c0 sp=0xeb407ff798 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xeb407ff828 sp=0xeb407ff7c0 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xeb407ff848 sp=0xeb407ff828 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xeb407ff8a0 sp=0xeb407ff848 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xeb407ff8a8 sp=0xeb407ff8a0 pc=0x7ff663d0007d
+# math/bits
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0xb3991ff4f8?})
+	runtime/panic.go:1243 +0x4d fp=0xb3991ff470 sp=0xb3991ff440 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0xb3991ff548 sp=0xb3991ff470 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xb3991ff5d0 sp=0xb3991ff548 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0xb3991ff6b8 sp=0xb3991ff5d0 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xb3991ff700 sp=0xb3991ff6b8 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0xb3991ff758 sp=0xb3991ff700 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0xb3991ff898 sp=0xb3991ff758 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x26333400108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0xb3991ff8f0 sp=0xb3991ff898 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xb3991ff9f8 sp=0xb3991ff8f0 pc=0x7ff663cf72a5
+runtime.newobject(0xb3991ffa50?)
+	runtime/malloc.go:2141 +0x25 fp=0xb3991ffa20 sp=0xb3991ff9f8 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xb3991ffa88 sp=0xb3991ffa20 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xb3991ffaa8 sp=0xb3991ffa88 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xb3991ffb00 sp=0xb3991ffaa8 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xb3991ffb08 sp=0xb3991ffb00 pc=0x7ff663d0007d
+k8s.io/apimachinery/pkg/api/validate/constraints: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+k8s.io/apimachinery/pkg/api/safe: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/google/cel-go/common/overloads: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+k8s.io/apiserver/pkg/apis/cel: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+go.opentelemetry.io/otel/log/embedded: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+k8s.io/apiserver/pkg/authentication/user: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+go.opentelemetry.io/otel/propagation/internal/hextable: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/oam-dev/cluster-gateway/pkg/options: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+go.opentelemetry.io/otel/metric/embedded: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+# google.golang.org/grpc/internal/transport/internal
+fatal error: runtime: cannot allocate memory
+
+runtime stack:
+runtime.throw({0x7ff66492b1b3?, 0x0?})
+	runtime/panic.go:1243 +0x4d fp=0x86ed9ff7a8 sp=0x86ed9ff778 pc=0x7ff663cfaf2d
+runtime.persistentalloc1(0x3fc0, 0xf000000000000000?, 0x7ff6655f8248)
+	runtime/malloc.go:2363 +0x2ba fp=0x86ed9ff808 sp=0x86ed9ff7a8 pc=0x7ff663c839da
+runtime.persistentalloc.func1()
+	runtime/malloc.go:2316 +0x28 fp=0x86ed9ff838 sp=0x86ed9ff808 pc=0x7ff663cedca8
+runtime.persistentalloc(0xad85b2480000?, 0x3?, 0x186?)
+	runtime/malloc.go:2315 +0x45 fp=0x86ed9ff880 sp=0x86ed9ff838 pc=0x7ff663c836e5
+runtime.(*fixalloc).alloc(...)
+	runtime/mfixalloc.go:90
+runtime.(*mheap).allocMSpanLocked(0x7ff6655b1560)
+	runtime/mheap.go:1163 +0x11d fp=0x86ed9ff8c8 sp=0x86ed9ff880 pc=0x7ff663ca739d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x32)
+	runtime/mheap.go:1304 +0x405 fp=0x86ed9ff9b0 sp=0x86ed9ff8c8 pc=0x7ff663ca7885
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x86ed9ff9f8 sp=0x86ed9ff9b0 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x1200?)
+	runtime/mcentral.go:253 +0x85 fp=0x86ed9ffa50 sp=0x86ed9ff9f8 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c3f78)
+	runtime/mcentral.go:171 +0x5cf fp=0x86ed9ffb90 sp=0x86ed9ffa50 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x22d379c0108, 0x32)
+	runtime/malloc.go:1006 +0x1c7 fp=0x86ed9ffbe8 sp=0x86ed9ffb90 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x1c8, 0x7ff665334e98, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x86ed9ffcf0 sp=0x86ed9ffbe8 pc=0x7ff663cf72a5
+runtime.newobject(0x7ff663cd513b?)
+	runtime/malloc.go:2141 +0x25 fp=0x86ed9ffd18 sp=0x86ed9ffcf0 pc=0x7ff663c83485
+runtime.malg(0x800)
+	runtime/proc.go:5313 +0x25 fp=0x86ed9ffd58 sp=0x86ed9ffd18 pc=0x7ff663cc83e5
+runtime.newproc1(0x7ff6649595e8, 0x7ff6655853e0, 0x7ff663d06785, 0x0, 0x0)
+	runtime/proc.go:5361 +0x79 fp=0x86ed9ffdb8 sp=0x86ed9ffd58 pc=0x7ff663cc8599
+runtime.newproc.func1()
+	runtime/proc.go:5338 +0x25 fp=0x86ed9ffde8 sp=0x86ed9ffdb8 pc=0x7ff663cf14e5
+runtime.newproc(0x7ff665587fc0?)
+	runtime/proc.go:5337 +0x3f fp=0x86ed9ffe20 sp=0x86ed9ffde8 pc=0x7ff663cc84df
+runtime.newproc(0x7ff6649595e8)
+	<autogenerated>:1 +0x25 fp=0x86ed9ffe38 sp=0x86ed9ffe20 pc=0x7ff663d06785
+runtime.rt0_go()
+	runtime/asm_amd64.s:345 +0x14a fp=0x86ed9ffe48 sp=0x86ed9ffe38 pc=0x7ff663d0008a
+github.com/oam-dev/terraform-controller/api/types/crossplane-runtime: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+k8s.io/utils/internal/third_party/forked/golang/golang-lru: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+golang.org/x/net/html/atom: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/klauspost/compress/internal/regmask: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/klauspost/compress/internal/cpuinfo: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\asm.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\asm.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+k8s.io/apiserver/pkg/util/dryrun: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc000012d
+github.com/klauspost/compress/internal/le: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+sigs.k8s.io/kustomize/kyaml/sets: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/kubevela/pkg/meta: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/kubevela/pkg/monitor/metrics: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+sigs.k8s.io/kustomize/kyaml/sliceutil: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+# go.opentelemetry.io/otel/sdk
+fatal error: runtime: cannot allocate memory
+
+runtime stack:
+runtime.throw({0x7ff66492b1b3?, 0x20e9db2000?})
+	runtime/panic.go:1243 +0x4d fp=0x20e9fffb88 sp=0x20e9fffb58 pc=0x7ff663cfaf2d
+runtime.persistentalloc1(0x100, 0x43f37f00000001?, 0x7ff6655f8260)
+	runtime/malloc.go:2363 +0x2ba fp=0x20e9fffbe8 sp=0x20e9fffb88 pc=0x7ff663c839da
+runtime.persistentalloc.func1()
+	runtime/malloc.go:2316 +0x28 fp=0x20e9fffc18 sp=0x20e9fffbe8 pc=0x7ff663cedca8
+runtime.persistentalloc(0x7ff663c61000?, 0x7ff665587fc0?, 0x7ff6655853e0?)
+	runtime/malloc.go:2315 +0x45 fp=0x20e9fffc60 sp=0x20e9fffc18 pc=0x7ff663c836e5
+runtime.(*addrRanges).init(0x7ff6655c15f8, 0x7ff6655f8260)
+	runtime/mranges.go:258 +0x3a fp=0x20e9fffc88 sp=0x20e9fffc60 pc=0x7ff663cb3bda
+runtime.(*pageAlloc).init(0x7ff6655b1568, 0x7ff6655b1560, 0x7ff6655f8260, 0x0)
+	runtime/mpagealloc.go:324 +0x71 fp=0x20e9fffcb8 sp=0x20e9fffc88 pc=0x7ff663caad51
+runtime.(*mheap).init(0x7ff6655b1560)
+	runtime/mheap.go:812 +0x225 fp=0x20e9fffcf0 sp=0x20e9fffcb8 pc=0x7ff663ca6705
+runtime.mallocinit()
+	runtime/malloc.go:493 +0xfd fp=0x20e9fffd38 sp=0x20e9fffcf0 pc=0x7ff663c81e3d
+runtime.schedinit()
+	runtime/proc.go:890 +0xf2 fp=0x20e9fffd90 sp=0x20e9fffd38 pc=0x7ff663cc0492
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x20e9fffd98 sp=0x20e9fffd90 pc=0x7ff663d0007d
+# golang.org/x/crypto/cryptobyte/asn1
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0x67f2dff298?})
+	runtime/panic.go:1243 +0x4d fp=0x67f2dff210 sp=0x67f2dff1e0 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0x67f2dff2e8 sp=0x67f2dff210 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x67f2dff370 sp=0x67f2dff2e8 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0x67f2dff458 sp=0x67f2dff370 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x67f2dff4a0 sp=0x67f2dff458 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0x67f2dff4f8 sp=0x67f2dff4a0 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0x67f2dff638 sp=0x67f2dff4f8 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x1fb35e30108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0x67f2dff690 sp=0x67f2dff638 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x67f2dff798 sp=0x67f2dff690 pc=0x7ff663cf72a5
+runtime.newobject(0x67f2dff7f0?)
+	runtime/malloc.go:2141 +0x25 fp=0x67f2dff7c0 sp=0x67f2dff798 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x67f2dff828 sp=0x67f2dff7c0 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x67f2dff848 sp=0x67f2dff828 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x67f2dff8a0 sp=0x67f2dff848 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x67f2dff8a8 sp=0x67f2dff8a0 pc=0x7ff663d0007d
+# go.opentelemetry.io/otel/trace/embedded
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0xcc203ff308?})
+	runtime/panic.go:1243 +0x4d fp=0xcc203ff280 sp=0xcc203ff250 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0xcc203ff358 sp=0xcc203ff280 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xcc203ff3e0 sp=0xcc203ff358 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0xcc203ff4c8 sp=0xcc203ff3e0 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xcc203ff510 sp=0xcc203ff4c8 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0xcc203ff568 sp=0xcc203ff510 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0xcc203ff6a8 sp=0xcc203ff568 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x225ca710108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0xcc203ff700 sp=0xcc203ff6a8 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xcc203ff808 sp=0xcc203ff700 pc=0x7ff663cf72a5
+runtime.newobject(0xcc203ff860?)
+	runtime/malloc.go:2141 +0x25 fp=0xcc203ff830 sp=0xcc203ff808 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xcc203ff898 sp=0xcc203ff830 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xcc203ff8b8 sp=0xcc203ff898 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xcc203ff910 sp=0xcc203ff8b8 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xcc203ff918 sp=0xcc203ff910 pc=0x7ff663d0007d
+# github.com/google/cel-go/common/operators
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0x5ee49ff408?})
+	runtime/panic.go:1243 +0x4d fp=0x5ee49ff380 sp=0x5ee49ff350 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0x5ee49ff458 sp=0x5ee49ff380 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x5ee49ff4e0 sp=0x5ee49ff458 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0x5ee49ff5c8 sp=0x5ee49ff4e0 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x5ee49ff610 sp=0x5ee49ff5c8 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0x5ee49ff668 sp=0x5ee49ff610 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0x5ee49ff7a8 sp=0x5ee49ff668 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x1e79eaa0108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0x5ee49ff800 sp=0x5ee49ff7a8 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x5ee49ff908 sp=0x5ee49ff800 pc=0x7ff663cf72a5
+runtime.newobject(0x5ee49ff960?)
+	runtime/malloc.go:2141 +0x25 fp=0x5ee49ff930 sp=0x5ee49ff908 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x5ee49ff998 sp=0x5ee49ff930 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x5ee49ff9b8 sp=0x5ee49ff998 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x5ee49ffa10 sp=0x5ee49ff9b8 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x5ee49ffa18 sp=0x5ee49ffa10 pc=0x7ff663d0007d
+github.com/ProtonMail/go-crypto/internal/byteutil: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+helm.sh/helm/v3/pkg/helmpath/xdg: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+# sync/atomic
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff6d93b0990?, 0x7cf85ff830?})
+	runtime/panic.go:1243 +0x4d fp=0x7cf85ff7a8 sp=0x7cf85ff778 pc=0x7ff6d91bd84d
+runtime.(*mheap).sysAlloc(0x7ff6d966f660, 0x0?, 0x7ff6d967fa60, 0x7ff6d967fa88)
+	runtime/malloc.go:866 +0x378 fp=0x7cf85ff880 sp=0x7cf85ff7a8 pc=0x7ff6d915b4b8
+runtime.(*mheap).grow(0x7ff6d966f660, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x7cf85ff908 sp=0x7cf85ff880 pc=0x7ff6d917a6bd
+runtime.(*mheap).allocSpan(0x7ff6d966f660, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0x7cf85ff9b8 sp=0x7cf85ff908 pc=0x7ff6d9179e93
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0x7cf85ffa00 sp=0x7cf85ff9b8 pc=0x7ff6d91b62dc
+runtime.(*mheap).alloc(0x7ff600000004?, 0x7c00002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0x7cf85ffa48 sp=0x7cf85ffa00 pc=0x7ff6d9179917
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0x7cf85ffa78 sp=0x7cf85ffa48 pc=0x7ff6d91633f6
+runtime.(*mcentral).cacheSpan(0x7ff6d96815f8)
+	runtime/mcentral.go:171 +0x450 fp=0x7cf85ffaf0 sp=0x7cf85ffa78 pc=0x7ff6d9163270
+runtime.(*mcache).refill(0x1f116660108, 0x0?)
+	runtime/mcache.go:205 +0x16b fp=0x7cf85ffb30 sp=0x7cf85ffaf0 pc=0x7ff6d916286b
+runtime.(*mcache).nextFree(0x1f116660108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0x7cf85ffb68 sp=0x7cf85ffb30 pc=0x7ff6d915b9be
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff6d9582ec8)
+	runtime/malloc.go:1535 +0x145 fp=0x7cf85ffbc8 sp=0x7cf85ffb68 pc=0x7ff6d915bf85
+runtime.mallocgc(0x100, 0x7ff6d9582ec8, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0x7cf85ffbf8 sp=0x7cf85ffbc8 pc=0x7ff6d91bc085
+runtime.newobject(0x7ff6d91683b5?)
+	runtime/malloc.go:2141 +0x25 fp=0x7cf85ffc20 sp=0x7cf85ffbf8 pc=0x7ff6d915ca45
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x7cf85ffc88 sp=0x7cf85ffc20 pc=0x7ff6d91420de
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x7cf85ffca8 sp=0x7cf85ffc88 pc=0x7ff6d9141b7d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x7cf85ffd00 sp=0x7cf85ffca8 pc=0x7ff6d918d25c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x7cf85ffd08 sp=0x7cf85ffd00 pc=0x7ff6d91c1c5d
+image/color: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/cyphar/filepath-securejoin/internal/consts: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc000012d
+# k8s.io/apimachinery/pkg/types
+fatal error: runtime: cannot allocate memory
+
+runtime stack:
+runtime.throw({0x7ff66492b1b3?, 0x0?})
+	runtime/panic.go:1243 +0x4d fp=0x5334bff2d8 sp=0x5334bff2a8 pc=0x7ff663cfaf2d
+runtime.persistentalloc1(0x3fc0, 0xffffffffffffff80?, 0x7ff6655f8248)
+	runtime/malloc.go:2363 +0x2ba fp=0x5334bff338 sp=0x5334bff2d8 pc=0x7ff663c839da
+runtime.persistentalloc.func1()
+	runtime/malloc.go:2316 +0x28 fp=0x5334bff368 sp=0x5334bff338 pc=0x7ff663cedca8
+runtime.persistentalloc(0x82ed5bf00000?, 0x3?, 0x7b?)
+	runtime/malloc.go:2315 +0x45 fp=0x5334bff3b0 sp=0x5334bff368 pc=0x7ff663c836e5
+runtime.(*fixalloc).alloc(...)
+	runtime/mfixalloc.go:90
+runtime.(*mheap).allocMSpanLocked(0x7ff6655b1560)
+	runtime/mheap.go:1163 +0x11d fp=0x5334bff3f8 sp=0x5334bff3b0 pc=0x7ff663ca739d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x32)
+	runtime/mheap.go:1304 +0x405 fp=0x5334bff4e0 sp=0x5334bff3f8 pc=0x7ff663ca7885
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x5334bff528 sp=0x5334bff4e0 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x1200?)
+	runtime/mcentral.go:253 +0x85 fp=0x5334bff580 sp=0x5334bff528 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c3f78)
+	runtime/mcentral.go:171 +0x5cf fp=0x5334bff6c0 sp=0x5334bff580 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x1c66dc30108, 0x32)
+	runtime/malloc.go:1006 +0x1c7 fp=0x5334bff718 sp=0x5334bff6c0 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x1c8, 0x7ff665334e98, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x5334bff820 sp=0x5334bff718 pc=0x7ff663cf72a5
+runtime.newobject(0x7ff663cd513b?)
+	runtime/malloc.go:2141 +0x25 fp=0x5334bff848 sp=0x5334bff820 pc=0x7ff663c83485
+runtime.malg(0x800)
+	runtime/proc.go:5313 +0x25 fp=0x5334bff888 sp=0x5334bff848 pc=0x7ff663cc83e5
+runtime.newproc1(0x7ff6649595e8, 0x7ff6655853e0, 0x7ff663d06785, 0x0, 0x0)
+	runtime/proc.go:5361 +0x79 fp=0x5334bff8e8 sp=0x5334bff888 pc=0x7ff663cc8599
+runtime.newproc.func1()
+	runtime/proc.go:5338 +0x25 fp=0x5334bff918 sp=0x5334bff8e8 pc=0x7ff663cf14e5
+runtime.newproc(0x7ff665587fc0?)
+	runtime/proc.go:5337 +0x3f fp=0x5334bff950 sp=0x5334bff918 pc=0x7ff663cc84df
+runtime.newproc(0x7ff6649595e8)
+	<autogenerated>:1 +0x25 fp=0x5334bff968 sp=0x5334bff950 pc=0x7ff663d06785
+runtime.rt0_go()
+	runtime/asm_amd64.s:345 +0x14a fp=0x5334bff978 sp=0x5334bff968 pc=0x7ff663d0008a
+# github.com/go-openapi/swag/cmdutils
+fatal error: runtime: cannot allocate memory
+
+runtime stack:
+runtime.throw({0x7ff66492b1b3?, 0x0?})
+	runtime/panic.go:1243 +0x4d fp=0xd1b63ff428 sp=0xd1b63ff3f8 pc=0x7ff663cfaf2d
+runtime.persistentalloc1(0x3fc0, 0xffffffffffffff80?, 0x7ff6655f8248)
+	runtime/malloc.go:2363 +0x2ba fp=0xd1b63ff488 sp=0xd1b63ff428 pc=0x7ff663c839da
+runtime.persistentalloc.func1()
+	runtime/malloc.go:2316 +0x28 fp=0xd1b63ff4b8 sp=0xd1b63ff488 pc=0x7ff663cedca8
+runtime.persistentalloc(0xa72230e80000?, 0x3?, 0xbb?)
+	runtime/malloc.go:2315 +0x45 fp=0xd1b63ff500 sp=0xd1b63ff4b8 pc=0x7ff663c836e5
+runtime.(*fixalloc).alloc(...)
+	runtime/mfixalloc.go:90
+runtime.(*mheap).allocMSpanLocked(0x7ff6655b1560)
+	runtime/mheap.go:1163 +0x11d fp=0xd1b63ff548 sp=0xd1b63ff500 pc=0x7ff663ca739d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x32)
+	runtime/mheap.go:1304 +0x405 fp=0xd1b63ff630 sp=0xd1b63ff548 pc=0x7ff663ca7885
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xd1b63ff678 sp=0xd1b63ff630 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x1200?)
+	runtime/mcentral.go:253 +0x85 fp=0xd1b63ff6d0 sp=0xd1b63ff678 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c3f78)
+	runtime/mcentral.go:171 +0x5cf fp=0xd1b63ff810 sp=0xd1b63ff6d0 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x266bd6f0108, 0x32)
+	runtime/malloc.go:1006 +0x1c7 fp=0xd1b63ff868 sp=0xd1b63ff810 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x1c8, 0x7ff665334e98, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xd1b63ff970 sp=0xd1b63ff868 pc=0x7ff663cf72a5
+runtime.newobject(0x7ff663cd513b?)
+	runtime/malloc.go:2141 +0x25 fp=0xd1b63ff998 sp=0xd1b63ff970 pc=0x7ff663c83485
+runtime.malg(0x800)
+	runtime/proc.go:5313 +0x25 fp=0xd1b63ff9d8 sp=0xd1b63ff998 pc=0x7ff663cc83e5
+runtime.newproc1(0x7ff6649595e8, 0x7ff6655853e0, 0x7ff663d06785, 0x0, 0x0)
+	runtime/proc.go:5361 +0x79 fp=0xd1b63ffa38 sp=0xd1b63ff9d8 pc=0x7ff663cc8599
+runtime.newproc.func1()
+	runtime/proc.go:5338 +0x25 fp=0xd1b63ffa68 sp=0xd1b63ffa38 pc=0x7ff663cf14e5
+runtime.newproc(0x7ff665587fc0?)
+	runtime/proc.go:5337 +0x3f fp=0xd1b63ffaa0 sp=0xd1b63ffa68 pc=0x7ff663cc84df
+runtime.newproc(0x7ff6649595e8)
+	<autogenerated>:1 +0x25 fp=0xd1b63ffab8 sp=0xd1b63ffaa0 pc=0x7ff663d06785
+runtime.rt0_go()
+	runtime/asm_amd64.s:345 +0x14a fp=0xd1b63ffac8 sp=0xd1b63ffab8 pc=0x7ff663d0008a
+# github.com/google/go-cmp/cmp/internal/flags
+fatal error: runtime: cannot allocate memory
+
+goroutine 1 gp=0x2ad21b38a000 m=0 mp=0x7ff665587fc0 [running, locked to thread]:
+runtime.throw({0x7ff66492b1b3?, 0x2ad21b346000?})
+	runtime/panic.go:1243 +0x4d fp=0x2ad21b391970 sp=0x2ad21b391940 pc=0x7ff663cfaf2d
+runtime.stkbucket(...)
+	runtime/mprof.go:280
+runtime.mProf_Malloc(0x7ff665587fc0, 0x2ad21b32b100, 0x80)
+	runtime/mprof.go:446 +0x4b7 fp=0x2ad21b391a10 sp=0x2ad21b391970 pc=0x7ff663cb1077
+runtime.profilealloc(0x7ff665587fc0?, 0x2ad21b32b100?, 0x80?)
+	runtime/malloc.go:2229 +0x9b fp=0x2ad21b391a40 sp=0x2ad21b391a10 pc=0x7ff663c8353b
+runtime.mallocgcSmallNoscan(...)
+	runtime/malloc.go:1447
+runtime.mallocgc(0x80, 0x0, 0x0)
+	runtime/malloc.go:1125 +0x10ac fp=0x2ad21b391b48 sp=0x2ad21b391a40 pc=0x7ff663cf79ec
+runtime.growslice(0x2ad21b322840, 0x7ff665587fc0?, 0x169893d0108?, 0x2ad21b391c58?, 0x7ff663cfb25f?)
+	runtime/slice.go:265 +0x63b fp=0x2ad21b391c18 sp=0x2ad21b391b48 pc=0x7ff663cfcdbb
+os.readNextArg({0x2ad21b3ba499?, 0x2ad21b308160?})
+	os/exec_windows.go:147 +0x13c fp=0x2ad21b391ca8 sp=0x2ad21b391c18 pc=0x7ff663d7f5fc
+os.commandLineToArgv({0x2ad21b3ba400?, 0x7ff6652feca0?})
+	os/exec_windows.go:163 +0x7b fp=0x2ad21b391d58 sp=0x2ad21b391ca8 pc=0x7ff663d7f8bb
+os.init.0()
+	os/exec_windows.go:100 +0xa7 fp=0x2ad21b391d98 sp=0x2ad21b391d58 pc=0x7ff663d7f467
+runtime.doInit1(0x7ff665370900)
+	runtime/proc.go:8154 +0xda fp=0x2ad21b391eb8 sp=0x2ad21b391d98 pc=0x7ff663ccdbba
+runtime.doInit(...)
+	runtime/proc.go:8121
+runtime.main()
+	runtime/proc.go:269 +0x385 fp=0x2ad21b391fe0 sp=0x2ad21b391eb8 pc=0x7ff663cbf625
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2ad21b391fe8 sp=0x2ad21b391fe0 pc=0x7ff663d01d41
+
+goroutine 2 gp=0x2ad21b38a780 m=nil [force gc (idle)]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x2ad21b38dfa8 sp=0x2ad21b38df88 pc=0x7ff663cfb04a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.forcegchelper()
+	runtime/proc.go:387 +0xb8 fp=0x2ad21b38dfe0 sp=0x2ad21b38dfa8 pc=0x7ff663cbf938
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2ad21b38dfe8 sp=0x2ad21b38dfe0 pc=0x7ff663d01d41
+created by runtime.init.7 in goroutine 1
+	runtime/proc.go:375 +0x1a
+
+goroutine 3 gp=0x2ad21b38ab40 m=nil [GC sweep wait]:
+runtime.gopark(0x0?, 0x0?, 0x0?, 0x0?, 0x0?)
+	runtime/proc.go:474 +0xca fp=0x2ad21b38ff50 sp=0x2ad21b38ff30 pc=0x7ff663cfb04a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.bgsweep(0x2ad21b32a100)
+	runtime/mgcsweep.go:279 +0x94 fp=0x2ad21b38ffc8 sp=0x2ad21b38ff50 pc=0x7ff663ca3114
+runtime.gcenable.gowrap1()
+	runtime/mgc.go:214 +0x17 fp=0x2ad21b38ffe0 sp=0x2ad21b38ffc8 pc=0x7ff663cee217
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2ad21b38ffe8 sp=0x2ad21b38ffe0 pc=0x7ff663d01d41
+created by runtime.gcenable in goroutine 1
+	runtime/mgc.go:214 +0x66
+
+goroutine 4 gp=0x2ad21b38ad20 m=nil [GC scavenge wait]:
+runtime.gopark(0x2ad21b32a100?, 0x7ff664955b80?, 0x1?, 0x0?, 0x2ad21b38ad20?)
+	runtime/proc.go:474 +0xca fp=0x2ad21b39ff78 sp=0x2ad21b39ff58 pc=0x7ff663cfb04a
+runtime.goparkunlock(...)
+	runtime/proc.go:480
+runtime.(*scavengerState).park(0x7ff665584de0)
+	runtime/mgcscavenge.go:425 +0x49 fp=0x2ad21b39ffa8 sp=0x2ad21b39ff78 pc=0x7ff663ca0b49
+runtime.bgscavenge(0x2ad21b32a100)
+	runtime/mgcscavenge.go:653 +0x3c fp=0x2ad21b39ffc8 sp=0x2ad21b39ffa8 pc=0x7ff663ca109c
+runtime.gcenable.gowrap2()
+	runtime/mgc.go:215 +0x17 fp=0x2ad21b39ffe0 sp=0x2ad21b39ffc8 pc=0x7ff663cee1d7
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2ad21b39ffe8 sp=0x2ad21b39ffe0 pc=0x7ff663d01d41
+created by runtime.gcenable in goroutine 1
+	runtime/mgc.go:215 +0xa5
+
+goroutine 5 gp=0x2ad21b38b0e0 m=nil [runnable]:
+runtime.updateMaxProcsGoroutine()
+	runtime/proc.go:7137 fp=0x2ad21b3a1fe0 sp=0x2ad21b3a1fd8 pc=0x7ff663ccca80
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2ad21b3a1fe8 sp=0x2ad21b3a1fe0 pc=0x7ff663d01d41
+created by runtime.defaultGOMAXPROCSUpdateEnable in goroutine 1
+	runtime/proc.go:7134 +0x37
+
+goroutine 6 gp=0x2ad21b38b2c0 m=nil [runnable]:
+runtime.runFinalizers()
+	runtime/mfinal.go:193 fp=0x2ad21b39bfe0 sp=0x2ad21b39bfd8 pc=0x7ff663c920e0
+runtime.goexit({})
+	runtime/asm_amd64.s:1264 +0x1 fp=0x2ad21b39bfe8 sp=0x2ad21b39bfe0 pc=0x7ff663d01d41
+created by runtime.createfing in goroutine 1
+	runtime/mfinal.go:172 +0x3d
+# github.com/agext/levenshtein
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0x46d71ff4d8?})
+	runtime/panic.go:1243 +0x4d fp=0x46d71ff450 sp=0x46d71ff420 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0x46d71ff528 sp=0x46d71ff450 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x46d71ff5b0 sp=0x46d71ff528 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0x46d71ff698 sp=0x46d71ff5b0 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x46d71ff6e0 sp=0x46d71ff698 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0x46d71ff738 sp=0x46d71ff6e0 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0x46d71ff878 sp=0x46d71ff738 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x20c77c70108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0x46d71ff8d0 sp=0x46d71ff878 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x46d71ff9d8 sp=0x46d71ff8d0 pc=0x7ff663cf72a5
+runtime.newobject(0x46d71ffa30?)
+	runtime/malloc.go:2141 +0x25 fp=0x46d71ffa00 sp=0x46d71ff9d8 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x46d71ffa68 sp=0x46d71ffa00 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x46d71ffa88 sp=0x46d71ffa68 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x46d71ffae0 sp=0x46d71ffa88 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x46d71ffae8 sp=0x46d71ffae0 pc=0x7ff663d0007d
+# github.com/kubevela/pkg/cue/cuex/providers
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0x4aefbff278?})
+	runtime/panic.go:1243 +0x4d fp=0x4aefbff1f0 sp=0x4aefbff1c0 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0x4aefbff2c8 sp=0x4aefbff1f0 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x4aefbff350 sp=0x4aefbff2c8 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0x4aefbff438 sp=0x4aefbff350 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x4aefbff480 sp=0x4aefbff438 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0x4aefbff4d8 sp=0x4aefbff480 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0x4aefbff618 sp=0x4aefbff4d8 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x161091a0108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0x4aefbff670 sp=0x4aefbff618 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x4aefbff778 sp=0x4aefbff670 pc=0x7ff663cf72a5
+runtime.newobject(0x4aefbff7d0?)
+	runtime/malloc.go:2141 +0x25 fp=0x4aefbff7a0 sp=0x4aefbff778 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x4aefbff808 sp=0x4aefbff7a0 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x4aefbff828 sp=0x4aefbff808 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x4aefbff880 sp=0x4aefbff828 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x4aefbff888 sp=0x4aefbff880 pc=0x7ff663d0007d
+github.com/google/go-containerregistry/pkg/compression: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+sigs.k8s.io/kind/pkg/cluster/constants: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/protocolbuffers/txtpbfmt/config: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/oam-dev/kubevela/pkg/controller/core.oam.dev: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+internal/goversion: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/onsi/ginkgo/v2/config: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+internal/platform: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+internal/syslist: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/onsi/gomega/matchers/support/goraph/node: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\compile.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+# github.com/lib/pq/pqerror
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0x1e015ff8f8?})
+	runtime/panic.go:1243 +0x4d fp=0x1e015ff870 sp=0x1e015ff840 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0x1e015ff948 sp=0x1e015ff870 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x1e015ff9d0 sp=0x1e015ff948 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0x1e015ffab8 sp=0x1e015ff9d0 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x1e015ffb00 sp=0x1e015ffab8 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0x1e015ffb58 sp=0x1e015ffb00 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0x1e015ffc98 sp=0x1e015ffb58 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x16ffe210108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0x1e015ffcf0 sp=0x1e015ffc98 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x1e015ffdf8 sp=0x1e015ffcf0 pc=0x7ff663cf72a5
+runtime.newobject(0x1e015ffe50?)
+	runtime/malloc.go:2141 +0x25 fp=0x1e015ffe20 sp=0x1e015ffdf8 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x1e015ffe88 sp=0x1e015ffe20 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x1e015ffea8 sp=0x1e015ffe88 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x1e015fff00 sp=0x1e015ffea8 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x1e015fff08 sp=0x1e015fff00 pc=0x7ff663d0007d
+# github.com/google/go-containerregistry/pkg/v1/types
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0xb3c9ff188?})
+	runtime/panic.go:1243 +0x4d fp=0xb3c9ff100 sp=0xb3c9ff0d0 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0xb3c9ff1d8 sp=0xb3c9ff100 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xb3c9ff260 sp=0xb3c9ff1d8 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0xb3c9ff348 sp=0xb3c9ff260 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xb3c9ff390 sp=0xb3c9ff348 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0xb3c9ff3e8 sp=0xb3c9ff390 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0xb3c9ff528 sp=0xb3c9ff3e8 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x1c54ac70108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0xb3c9ff580 sp=0xb3c9ff528 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xb3c9ff688 sp=0xb3c9ff580 pc=0x7ff663cf72a5
+runtime.newobject(0xb3c9ff6e0?)
+	runtime/malloc.go:2141 +0x25 fp=0xb3c9ff6b0 sp=0xb3c9ff688 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xb3c9ff718 sp=0xb3c9ff6b0 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xb3c9ff738 sp=0xb3c9ff718 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xb3c9ff790 sp=0xb3c9ff738 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xb3c9ff798 sp=0xb3c9ff790 pc=0x7ff663d0007d
+# sigs.k8s.io/kind/pkg/apis/config/defaults
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0x883c5ff428?})
+	runtime/panic.go:1243 +0x4d fp=0x883c5ff3a0 sp=0x883c5ff370 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0x883c5ff478 sp=0x883c5ff3a0 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x883c5ff500 sp=0x883c5ff478 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0x883c5ff5e8 sp=0x883c5ff500 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x883c5ff630 sp=0x883c5ff5e8 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0x883c5ff688 sp=0x883c5ff630 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0x883c5ff7c8 sp=0x883c5ff688 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x26f5b690108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0x883c5ff820 sp=0x883c5ff7c8 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x883c5ff928 sp=0x883c5ff820 pc=0x7ff663cf72a5
+runtime.newobject(0x883c5ff980?)
+	runtime/malloc.go:2141 +0x25 fp=0x883c5ff950 sp=0x883c5ff928 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x883c5ff9b8 sp=0x883c5ff950 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x883c5ff9d8 sp=0x883c5ff9b8 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x883c5ffa30 sp=0x883c5ff9d8 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x883c5ffa38 sp=0x883c5ffa30 pc=0x7ff663d0007d
+# github.com/docker/cli/cli/config/types
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0x4e6bdff8c8?})
+	runtime/panic.go:1243 +0x4d fp=0x4e6bdff840 sp=0x4e6bdff810 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0x4e6bdff918 sp=0x4e6bdff840 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x4e6bdff9a0 sp=0x4e6bdff918 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0x4e6bdffa88 sp=0x4e6bdff9a0 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x4e6bdffad0 sp=0x4e6bdffa88 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0x4e6bdffb28 sp=0x4e6bdffad0 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0x4e6bdffc68 sp=0x4e6bdffb28 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x20749260108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0x4e6bdffcc0 sp=0x4e6bdffc68 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x4e6bdffdc8 sp=0x4e6bdffcc0 pc=0x7ff663cf72a5
+runtime.newobject(0x4e6bdffe20?)
+	runtime/malloc.go:2141 +0x25 fp=0x4e6bdffdf0 sp=0x4e6bdffdc8 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x4e6bdffe58 sp=0x4e6bdffdf0 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x4e6bdffe78 sp=0x4e6bdffe58 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x4e6bdffed0 sp=0x4e6bdffe78 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x4e6bdffed8 sp=0x4e6bdffed0 pc=0x7ff663d0007d
+# sigs.k8s.io/kind/pkg/log
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0xe2abfff258?})
+	runtime/panic.go:1243 +0x4d fp=0xe2abfff1d0 sp=0xe2abfff1a0 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0xe2abfff2a8 sp=0xe2abfff1d0 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xe2abfff330 sp=0xe2abfff2a8 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0xe2abfff418 sp=0xe2abfff330 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0xe2abfff460 sp=0xe2abfff418 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0xe2abfff4b8 sp=0xe2abfff460 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0xe2abfff5f8 sp=0xe2abfff4b8 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x29087890108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0xe2abfff650 sp=0xe2abfff5f8 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0xe2abfff758 sp=0xe2abfff650 pc=0x7ff663cf72a5
+runtime.newobject(0xe2abfff7b0?)
+	runtime/malloc.go:2141 +0x25 fp=0xe2abfff780 sp=0xe2abfff758 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xe2abfff7e8 sp=0xe2abfff780 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xe2abfff808 sp=0xe2abfff7e8 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xe2abfff860 sp=0xe2abfff808 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xe2abfff868 sp=0xe2abfff860 pc=0x7ff663d0007d
+# github.com/lib/pq/oid
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff664934d03?, 0x6a1a5ff178?})
+	runtime/panic.go:1243 +0x4d fp=0x6a1a5ff0f0 sp=0x6a1a5ff0c0 pc=0x7ff663cfaf2d
+runtime.(*mheap).sysAlloc(0x7ff6655b1560, 0x0?, 0x7ff6655c1960, 0x7ff6655c1988)
+	runtime/malloc.go:866 +0x378 fp=0x6a1a5ff1c8 sp=0x6a1a5ff0f0 pc=0x7ff663c824b8
+runtime.(*mheap).grow(0x7ff6655b1560, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x6a1a5ff250 sp=0x6a1a5ff1c8 pc=0x7ff663ca825d
+runtime.(*mheap).allocSpan(0x7ff6655b1560, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x365 fp=0x6a1a5ff338 sp=0x6a1a5ff250 pc=0x7ff663ca77e5
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5f fp=0x6a1a5ff380 sp=0x6a1a5ff338 pc=0x7ff663cedd9f
+runtime.(*mheap).alloc(...)
+	runtime/mheap.go:1002
+runtime.(*mcentral).grow(0x0?)
+	runtime/mcentral.go:253 +0x85 fp=0x6a1a5ff3d8 sp=0x6a1a5ff380 pc=0x7ff663c8d1c5
+runtime.(*mcentral).cacheSpan(0x7ff6655c34f8)
+	runtime/mcentral.go:171 +0x5cf fp=0x6a1a5ff518 sp=0x6a1a5ff3d8 pc=0x7ff663c8c54f
+runtime.(*mcache).refill(...)
+	runtime/mcache.go:205
+runtime.(*mcache).nextFree(0x208a6af0108, 0x24)
+	runtime/malloc.go:1006 +0x1c7 fp=0x6a1a5ff570 sp=0x6a1a5ff518 pc=0x7ff663c82b07
+runtime.mallocgcSmallScanNoHeader(...)
+	runtime/malloc.go:1535
+runtime.mallocgc(0x100, 0x7ff66526b128, 0x1)
+	runtime/malloc.go:1131 +0x965 fp=0x6a1a5ff678 sp=0x6a1a5ff570 pc=0x7ff663cf72a5
+runtime.newobject(0x6a1a5ff6d0?)
+	runtime/malloc.go:2141 +0x25 fp=0x6a1a5ff6a0 sp=0x6a1a5ff678 pc=0x7ff663c83485
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x6a1a5ff708 sp=0x6a1a5ff6a0 pc=0x7ff663c6509e
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x6a1a5ff728 sp=0x6a1a5ff708 pc=0x7ff663c64b3d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x6a1a5ff780 sp=0x6a1a5ff728 pc=0x7ff663cc049c
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x6a1a5ff788 sp=0x6a1a5ff780 pc=0x7ff663d0007d
+golang.org/x/text/encoding/internal/identifier: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+crypto/internal/constanttime: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+encoding: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+google.golang.org/grpc/serviceconfig: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+golang.org/x/text/internal/utf8internal: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+sigs.k8s.io/kustomize/kyaml/ext: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+sigs.k8s.io/kustomize/kyaml/yaml/internal/k8sgen/pkg/selection: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/protocolbuffers/txtpbfmt/logger: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+cuelang.org/go/pkg/tool: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+oras.land/oras-go/v2/internal/docker: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+cuelang.org/go/internal/filetypes/internal/opt: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+oras.land/oras-go/v2/internal/container/set: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/gobwas/glob/util/runes: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+github.com/lib/pq/internal/pqsql: H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: fork/exec H:\jarvis studio\workspaces\.mxc-home-c5f4d60ce095\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.1.windows-amd64\pkg\tool\windows_amd64\vet.exe: Il file di paging ├¿ troppo piccolo per essere completato.
+# internal/godebugs
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0xcbce3ff670?})
+	runtime/panic.go:1243 +0x4d fp=0xcbce3ff5e8 sp=0xcbce3ff5b8 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0xcbce3ff6c0 sp=0xcbce3ff5e8 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xcbce3ff748 sp=0xcbce3ff6c0 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0xcbce3ff7f8 sp=0xcbce3ff748 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0xcbce3ff840 sp=0xcbce3ff7f8 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0xcb00002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0xcbce3ff888 sp=0xcbce3ff840 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0xcbce3ff8b8 sp=0xcbce3ff888 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0xcbce3ff930 sp=0xcbce3ff8b8 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x20c61090108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0xcbce3ff970 sp=0xcbce3ff930 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x20c61090108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0xcbce3ff9a8 sp=0xcbce3ff970 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0xcbce3ffa08 sp=0xcbce3ff9a8 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0xcbce3ffa38 sp=0xcbce3ffa08 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0xcbce3ffa60 sp=0xcbce3ffa38 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xcbce3ffac8 sp=0xcbce3ffa60 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xcbce3ffae8 sp=0xcbce3ffac8 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xcbce3ffb40 sp=0xcbce3ffae8 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xcbce3ffb48 sp=0xcbce3ffb40 pc=0x7ff792cd5a3d
+# log/internal
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0x3e3bfffa10?})
+	runtime/panic.go:1243 +0x4d fp=0x3e3bfff988 sp=0x3e3bfff958 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0x3e3bfffa60 sp=0x3e3bfff988 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x3e3bfffae8 sp=0x3e3bfffa60 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0x3e3bfffb98 sp=0x3e3bfffae8 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0x3e3bfffbe0 sp=0x3e3bfffb98 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0x3e00002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0x3e3bfffc28 sp=0x3e3bfffbe0 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0x3e3bfffc58 sp=0x3e3bfffc28 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0x3e3bfffcd0 sp=0x3e3bfffc58 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x177682d0108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0x3e3bfffd10 sp=0x3e3bfffcd0 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x177682d0108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0x3e3bfffd48 sp=0x3e3bfffd10 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0x3e3bfffda8 sp=0x3e3bfffd48 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0x3e3bfffdd8 sp=0x3e3bfffda8 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0x3e3bfffe00 sp=0x3e3bfffdd8 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x3e3bfffe68 sp=0x3e3bfffe00 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x3e3bfffe88 sp=0x3e3bfffe68 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x3e3bfffee0 sp=0x3e3bfffe88 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x3e3bfffee8 sp=0x3e3bfffee0 pc=0x7ff792cd5a3d
+# vendor/golang.org/x/crypto/internal/alias
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0x3e9f3ff740?})
+	runtime/panic.go:1243 +0x4d fp=0x3e9f3ff6b8 sp=0x3e9f3ff688 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0x3e9f3ff790 sp=0x3e9f3ff6b8 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x3e9f3ff818 sp=0x3e9f3ff790 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0x3e9f3ff8c8 sp=0x3e9f3ff818 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0x3e9f3ff910 sp=0x3e9f3ff8c8 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0x3e00002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0x3e9f3ff958 sp=0x3e9f3ff910 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0x3e9f3ff988 sp=0x3e9f3ff958 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0x3e9f3ffa00 sp=0x3e9f3ff988 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x20e8cd20108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0x3e9f3ffa40 sp=0x3e9f3ffa00 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x20e8cd20108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0x3e9f3ffa78 sp=0x3e9f3ffa40 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0x3e9f3ffad8 sp=0x3e9f3ffa78 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0x3e9f3ffb08 sp=0x3e9f3ffad8 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0x3e9f3ffb30 sp=0x3e9f3ffb08 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x3e9f3ffb98 sp=0x3e9f3ffb30 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x3e9f3ffbb8 sp=0x3e9f3ffb98 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x3e9f3ffc10 sp=0x3e9f3ffbb8 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x3e9f3ffc18 sp=0x3e9f3ffc10 pc=0x7ff792cd5a3d
+# k8s.io/apimachinery/pkg/selection
+fatal error: runtime: cannot allocate memory
+
+runtime stack:
+runtime.throw({0x7ff79304169a?, 0x37abbffb50?})
+	runtime/panic.go:1243 +0x4d fp=0x37abbffb00 sp=0x37abbffad0 pc=0x7ff792cd124d
+runtime.persistentalloc1(0x100, 0x43f37f00000001?, 0x7ff7934fc9e0)
+	runtime/malloc.go:2363 +0x265 fp=0x37abbffb58 sp=0x37abbffb00 pc=0x7ff792c6db05
+runtime.persistentalloc.func1()
+	runtime/malloc.go:2316 +0x28 fp=0x37abbffb88 sp=0x37abbffb58 pc=0x7ff792cc8428
+runtime.persistentalloc(0x7ff792c51000?, 0x7ff7934b3060?, 0x7ff7934b18c0?)
+	runtime/malloc.go:2315 +0x45 fp=0x37abbffbd0 sp=0x37abbffb88 pc=0x7ff792c6d865
+runtime.(*addrRanges).init(0x7ff7934cbb78, 0x7ff7934fc9e0)
+	runtime/mranges.go:258 +0x3a fp=0x37abbffbf8 sp=0x37abbffbd0 pc=0x7ff792c93afa
+runtime.(*pageAlloc).init(0x7ff7934bbae8, 0x7ff7934bbae0, 0x7ff7934fc9e0, 0x0)
+	runtime/mpagealloc.go:324 +0x71 fp=0x37abbffc28 sp=0x37abbffbf8 pc=0x7ff792c8dd31
+runtime.(*mheap).init(0x7ff7934bbae0)
+	runtime/mheap.go:812 +0x225 fp=0x37abbffc60 sp=0x37abbffc28 pc=0x7ff792c89f25
+runtime.mallocinit()
+	runtime/malloc.go:493 +0xfd fp=0x37abbffca8 sp=0x37abbffc60 pc=0x7ff792c6b9fd
+runtime.schedinit()
+	runtime/proc.go:890 +0xf2 fp=0x37abbffd00 sp=0x37abbffca8 pc=0x7ff792c9e5b2
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x37abbffd08 sp=0x37abbffd00 pc=0x7ff792cd5a3d
+# github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0x30323ff990?})
+	runtime/panic.go:1243 +0x4d fp=0x30323ff908 sp=0x30323ff8d8 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0x30323ff9e0 sp=0x30323ff908 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x30323ffa68 sp=0x30323ff9e0 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0x30323ffb18 sp=0x30323ffa68 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0x30323ffb60 sp=0x30323ffb18 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0x3000002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0x30323ffba8 sp=0x30323ffb60 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0x30323ffbd8 sp=0x30323ffba8 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0x30323ffc50 sp=0x30323ffbd8 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x1a667120108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0x30323ffc90 sp=0x30323ffc50 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x1a667120108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0x30323ffcc8 sp=0x30323ffc90 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0x30323ffd28 sp=0x30323ffcc8 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0x30323ffd58 sp=0x30323ffd28 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0x30323ffd80 sp=0x30323ffd58 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x30323ffde8 sp=0x30323ffd80 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x30323ffe08 sp=0x30323ffde8 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x30323ffe60 sp=0x30323ffe08 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x30323ffe68 sp=0x30323ffe60 pc=0x7ff792cd5a3d
+# google.golang.org/grpc/encoding/internal
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0x92d7dff9c0?})
+	runtime/panic.go:1243 +0x4d fp=0x92d7dff938 sp=0x92d7dff908 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0x92d7dffa10 sp=0x92d7dff938 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x92d7dffa98 sp=0x92d7dffa10 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0x92d7dffb48 sp=0x92d7dffa98 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0x92d7dffb90 sp=0x92d7dffb48 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0x9200002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0x92d7dffbd8 sp=0x92d7dffb90 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0x92d7dffc08 sp=0x92d7dffbd8 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0x92d7dffc80 sp=0x92d7dffc08 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x24bd2920108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0x92d7dffcc0 sp=0x92d7dffc80 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x24bd2920108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0x92d7dffcf8 sp=0x92d7dffcc0 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0x92d7dffd58 sp=0x92d7dffcf8 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0x92d7dffd88 sp=0x92d7dffd58 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0x92d7dffdb0 sp=0x92d7dffd88 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x92d7dffe18 sp=0x92d7dffdb0 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x92d7dffe38 sp=0x92d7dffe18 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x92d7dffe90 sp=0x92d7dffe38 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x92d7dffe98 sp=0x92d7dffe90 pc=0x7ff792cd5a3d
+# internal/nettrace
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0xed5ddff4f0?})
+	runtime/panic.go:1243 +0x4d fp=0xed5ddff468 sp=0xed5ddff438 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0xed5ddff540 sp=0xed5ddff468 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xed5ddff5c8 sp=0xed5ddff540 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0xed5ddff678 sp=0xed5ddff5c8 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0xed5ddff6c0 sp=0xed5ddff678 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0xed00002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0xed5ddff708 sp=0xed5ddff6c0 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0xed5ddff738 sp=0xed5ddff708 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0xed5ddff7b0 sp=0xed5ddff738 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x2da65a80108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0xed5ddff7f0 sp=0xed5ddff7b0 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x2da65a80108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0xed5ddff828 sp=0xed5ddff7f0 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0xed5ddff888 sp=0xed5ddff828 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0xed5ddff8b8 sp=0xed5ddff888 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0xed5ddff8e0 sp=0xed5ddff8b8 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xed5ddff948 sp=0xed5ddff8e0 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xed5ddff968 sp=0xed5ddff948 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xed5ddff9c0 sp=0xed5ddff968 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xed5ddff9c8 sp=0xed5ddff9c0 pc=0x7ff792cd5a3d
+# internal/profilerecord
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0x97895ff5d0?})
+	runtime/panic.go:1243 +0x4d fp=0x97895ff548 sp=0x97895ff518 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0x97895ff620 sp=0x97895ff548 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x97895ff6a8 sp=0x97895ff620 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0x97895ff758 sp=0x97895ff6a8 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0x97895ff7a0 sp=0x97895ff758 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0x9700002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0x97895ff7e8 sp=0x97895ff7a0 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0x97895ff818 sp=0x97895ff7e8 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0x97895ff890 sp=0x97895ff818 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x22e09730108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0x97895ff8d0 sp=0x97895ff890 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x22e09730108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0x97895ff908 sp=0x97895ff8d0 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0x97895ff968 sp=0x97895ff908 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0x97895ff998 sp=0x97895ff968 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0x97895ff9c0 sp=0x97895ff998 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x97895ffa28 sp=0x97895ff9c0 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x97895ffa48 sp=0x97895ffa28 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x97895ffaa0 sp=0x97895ffa48 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x97895ffaa8 sp=0x97895ffaa0 pc=0x7ff792cd5a3d
+# vendor/golang.org/x/crypto/cryptobyte/asn1
+fatal error: runtime: cannot allocate memory
+
+runtime stack:
+runtime.throw({0x7ff79304169a?, 0xe76d3ff630?})
+	runtime/panic.go:1243 +0x4d fp=0xe76d3ff5e0 sp=0xe76d3ff5b0 pc=0x7ff792cd124d
+runtime.persistentalloc1(0x100, 0x43f37f00000001?, 0x7ff7934fc9e0)
+	runtime/malloc.go:2363 +0x265 fp=0xe76d3ff638 sp=0xe76d3ff5e0 pc=0x7ff792c6db05
+runtime.persistentalloc.func1()
+	runtime/malloc.go:2316 +0x28 fp=0xe76d3ff668 sp=0xe76d3ff638 pc=0x7ff792cc8428
+runtime.persistentalloc(0x7ff792c51000?, 0x7ff7934b3060?, 0x7ff7934b18c0?)
+	runtime/malloc.go:2315 +0x45 fp=0xe76d3ff6b0 sp=0xe76d3ff668 pc=0x7ff792c6d865
+runtime.(*addrRanges).init(0x7ff7934cbb78, 0x7ff7934fc9e0)
+	runtime/mranges.go:258 +0x3a fp=0xe76d3ff6d8 sp=0xe76d3ff6b0 pc=0x7ff792c93afa
+runtime.(*pageAlloc).init(0x7ff7934bbae8, 0x7ff7934bbae0, 0x7ff7934fc9e0, 0x0)
+	runtime/mpagealloc.go:324 +0x71 fp=0xe76d3ff708 sp=0xe76d3ff6d8 pc=0x7ff792c8dd31
+runtime.(*mheap).init(0x7ff7934bbae0)
+	runtime/mheap.go:812 +0x225 fp=0xe76d3ff740 sp=0xe76d3ff708 pc=0x7ff792c89f25
+runtime.mallocinit()
+	runtime/malloc.go:493 +0xfd fp=0xe76d3ff788 sp=0xe76d3ff740 pc=0x7ff792c6b9fd
+runtime.schedinit()
+	runtime/proc.go:890 +0xf2 fp=0xe76d3ff7e0 sp=0xe76d3ff788 pc=0x7ff792c9e5b2
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xe76d3ff7e8 sp=0xe76d3ff7e0 pc=0x7ff792cd5a3d
+# container/list
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0x65473ff360?})
+	runtime/panic.go:1243 +0x4d fp=0x65473ff2d8 sp=0x65473ff2a8 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0x65473ff3b0 sp=0x65473ff2d8 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0x65473ff438 sp=0x65473ff3b0 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0x65473ff4e8 sp=0x65473ff438 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0x65473ff530 sp=0x65473ff4e8 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0x6500002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0x65473ff578 sp=0x65473ff530 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0x65473ff5a8 sp=0x65473ff578 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0x65473ff620 sp=0x65473ff5a8 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x1b80ccc0108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0x65473ff660 sp=0x65473ff620 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x1b80ccc0108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0x65473ff698 sp=0x65473ff660 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0x65473ff6f8 sp=0x65473ff698 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0x65473ff728 sp=0x65473ff6f8 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0x65473ff750 sp=0x65473ff728 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0x65473ff7b8 sp=0x65473ff750 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0x65473ff7d8 sp=0x65473ff7b8 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0x65473ff830 sp=0x65473ff7d8 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0x65473ff838 sp=0x65473ff830 pc=0x7ff792cd5a3d
+# database/sql/internal
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0xea37ff6f0?})
+	runtime/panic.go:1243 +0x4d fp=0xea37ff668 sp=0xea37ff638 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0xea37ff740 sp=0xea37ff668 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xea37ff7c8 sp=0xea37ff740 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0xea37ff878 sp=0xea37ff7c8 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0xea37ff8c0 sp=0xea37ff878 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0xe00002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0xea37ff908 sp=0xea37ff8c0 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0xea37ff938 sp=0xea37ff908 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0xea37ff9b0 sp=0xea37ff938 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x1656ae90108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0xea37ff9f0 sp=0xea37ff9b0 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x1656ae90108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0xea37ffa28 sp=0xea37ff9f0 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0xea37ffa88 sp=0xea37ffa28 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0xea37ffab8 sp=0xea37ffa88 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0xea37ffae0 sp=0xea37ffab8 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xea37ffb48 sp=0xea37ffae0 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xea37ffb68 sp=0xea37ffb48 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xea37ffbc0 sp=0xea37ffb68 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xea37ffbc8 sp=0xea37ffbc0 pc=0x7ff792cd5a3d
+# crypto/internal/boring/sig
+fatal error: out of memory allocating heap arena map
+
+runtime stack:
+runtime.throw({0x7ff79304b854?, 0xe0807ff350?})
+	runtime/panic.go:1243 +0x4d fp=0xe0807ff2c8 sp=0xe0807ff298 pc=0x7ff792cd124d
+runtime.(*mheap).sysAlloc(0x7ff7934bbae0, 0x0?, 0x7ff7934cbee0, 0x7ff7934cbf08)
+	runtime/malloc.go:866 +0x378 fp=0xe0807ff3a0 sp=0xe0807ff2c8 pc=0x7ff792c6c078
+runtime.(*mheap).grow(0x7ff7934bbae0, 0x0?)
+	runtime/mheap.go:1565 +0x7d fp=0xe0807ff428 sp=0xe0807ff3a0 pc=0x7ff792c8b51d
+runtime.(*mheap).allocSpan(0x7ff7934bbae0, 0x1, 0x0, 0x24)
+	runtime/mheap.go:1290 +0x1b3 fp=0xe0807ff4d8 sp=0xe0807ff428 pc=0x7ff792c8acf3
+runtime.(*mheap).alloc.func1()
+	runtime/mheap.go:1008 +0x5c fp=0xe0807ff520 sp=0xe0807ff4d8 pc=0x7ff792cc957c
+runtime.(*mheap).alloc(0x7ff700000004?, 0xe000002000?, 0x4?)
+	runtime/mheap.go:1002 +0x57 fp=0xe0807ff568 sp=0xe0807ff520 pc=0x7ff792c8a777
+runtime.(*mcentral).grow(0x20000000?)
+	runtime/mcentral.go:253 +0x36 fp=0xe0807ff598 sp=0xe0807ff568 pc=0x7ff792c73fb6
+runtime.(*mcentral).cacheSpan(0x7ff7934cda78)
+	runtime/mcentral.go:171 +0x450 fp=0xe0807ff610 sp=0xe0807ff598 pc=0x7ff792c73e30
+runtime.(*mcache).refill(0x2d9c2d00108, 0xc0?)
+	runtime/mcache.go:205 +0x16b fp=0xe0807ff650 sp=0xe0807ff610 pc=0x7ff792c7342b
+runtime.(*mcache).nextFree(0x2d9c2d00108, 0x24)
+	runtime/malloc.go:1006 +0x7e fp=0xe0807ff688 sp=0xe0807ff650 pc=0x7ff792c6c57e
+runtime.mallocgcSmallScanNoHeader(0x100, 0x7ff7933f98c0)
+	runtime/malloc.go:1535 +0x145 fp=0xe0807ff6e8 sp=0xe0807ff688 pc=0x7ff792c6cb45
+runtime.mallocgc(0x100, 0x7ff7933f98c0, 0x1)
+	runtime/malloc.go:1131 +0x105 fp=0xe0807ff718 sp=0xe0807ff6e8 pc=0x7ff792ccf625
+runtime.newobject(0x7ff792c791f5?)
+	runtime/malloc.go:2141 +0x25 fp=0xe0807ff740 sp=0xe0807ff718 pc=0x7ff792c6d605
+internal/cpu.doinit()
+	internal/cpu/cpu_x86.go:73 +0x1e fp=0xe0807ff7a8 sp=0xe0807ff740 pc=0x7ff792c522be
+internal/cpu.Initialize({0x0, 0x0})
+	internal/cpu/cpu.go:196 +0x1d fp=0xe0807ff7c8 sp=0xe0807ff7a8 pc=0x7ff792c51d5d
+runtime.cpuinit(...)
+	runtime/proc.go:773
+runtime.schedinit()
+	runtime/proc.go:891 +0xfc fp=0xe0807ff820 sp=0xe0807ff7c8 pc=0x7ff792c9e5bc
+runtime.rt0_go()
+	runtime/asm_amd64.s:340 +0x13d fp=0xe0807ff828 sp=0xe0807ff820 pc=0x7ff792cd5a3d
+FAIL	github.com/oam-dev/kubevela/pkg/controller/config.oam.dev/v1alpha1/config [build failed]
+FAIL

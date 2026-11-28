@@ -795,4 +795,27 @@ template: {
 		Expect(got.Status.GetCondition("Synced").Message).Should(ContainSubstring("nacos.endpoint.name is required"))
 		Expect(fake.calls()).Should(Equal(0))
 	})
+
+	It("refuses to sync when the endpoint Secret lacks the velacore-config label", func() {
+		noLabelSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "nacos-no-catalog-label",
+				Namespace: "vela-system",
+			},
+			Data: map[string][]byte{
+				legacyconfig.SaveInputPropertiesKey: []byte(`{"servers":[{"ipAddr":"127.0.0.1","port":8848}]}`),
+			},
+		}
+		Expect(k8sClient.Create(ctx, noLabelSecret)).Should(Succeed())
+
+		availableTemplate("nc-app-no-catalog", nacosTemplateCUE("nacos"))
+		cfg := newConfig("nc-db-no-catalog", "nc-app-no-catalog", 3306)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(Equal("False/EndpointUnreadable"))
+		var got configv1alpha1.Config
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		Expect(nacosMessage(&got)).Should(ContainSubstring("config.oam.dev/catalog"))
+	})
+
 })

@@ -48,8 +48,9 @@ import (
 // Sentinel errors for the endpoint config, so a failure can be reported under the right
 // reason whether it surfaced from the read or from the publish.
 var (
-	errEndpointNotFound   = errors.New("nacos endpoint config not found")
-	errEndpointUnreadable = errors.New("nacos endpoint config unreadable")
+	errEndpointNotFound      = errors.New("nacos endpoint config not found")
+	errEndpointUnreadable    = errors.New("nacos endpoint config unreadable")
+	errEndpointUnlabelled    = fmt.Errorf("not a config Secret: label %s=%q is missing", apitypes.LabelConfigCatalog, apitypes.VelaCoreConfig)
 )
 
 // errEndpointUnmarked is the cause endpointUnreadable wraps for a sensitive endpoint config
@@ -236,6 +237,9 @@ func (r *Reconciler) readEndpointConfig(ctx context.Context, namespace, name str
 	}
 	if legacyconfig.SecretSensitive(&secret) && !legacyconfig.NacosEndpointMarked(&secret) {
 		return nil, endpointUnreadable(namespace, name, errEndpointUnmarked)
+	}
+	if secret.Labels[apitypes.LabelConfigCatalog] != apitypes.VelaCoreConfig {
+		return nil, endpointUnreadable(namespace, name, errEndpointUnlabelled)
 	}
 	properties, err := legacyconfig.SecretInputProperties(&secret)
 	if err != nil {
