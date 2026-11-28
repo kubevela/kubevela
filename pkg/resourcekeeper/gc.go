@@ -83,6 +83,9 @@ func newGCConfig(options ...GCOption) *gcConfig {
 //	   i.  GarbageCollectionMode is not set to `passive`
 //	   ii. All managed resources are RECYCLED. (RECYCLED means resource does not exist or managed by latest
 //	       resourcetrackers)
+//	c. when no currentRT exists for the application's generation (the generation advanced without a
+//	   workflow restart, e.g. a rapid A -> B -> A spec flip back to an already-reconciled revision), the
+//	   newest historyRT of the current revision is not marked, as it still tracks the live resources.
 //
 // NOTE: Mark Stage will always work for each application reconcile, not matter whether workflow is ended
 //
@@ -245,9 +248,61 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 			}
 		} else {
 			inactiveRTs = h._historyRTs
+			// A finished workflow normally implies a currentRT exists. When the generation
+			// advanced without a workflow restart (e.g. a rapid A -> B -> A spec flip back
+			// to an already-reconciled revision), no RT is created for the new generation
+			// and the newest historyRT of the current revision still tracks the live
+			// resources. Keep it instead of recycling live resources.
+			if h._currentRT == nil {
+				if owner, ok := h.owner.(currentRevisionTracker); ok {
+					labelKey, labelValue := owner.CurrentRevisionLabel()
+					inactiveRTs = dropCurrentRevisionRT(inactiveRTs, labelKey, labelValue)
+				}
+			}
 		}
 	}
 	return inactiveRTs
+}
+
+// currentRevisionTracker is implemented by owners whose trackers carry a revision label
+// (pkg/appkeeper's Application kind). scan uses it to tell "no current RT because the
+// generation raced ahead of the workflow" apart from "no current RT because nothing was
+// dispatched".
+type currentRevisionTracker interface {
+	// CurrentRevisionLabel returns the tracker label key/value identifying the revision the
+	// owner's current spec maps to. value == "" means none is recorded.
+	CurrentRevisionLabel() (key, value string)
+}
+
+// dropCurrentRevisionRT removes the newest live history RT carrying the current revision
+// label from the inactive list. History RTs of other revisions are still collected, so
+// removing all components from a spec (workflow restarts, dispatches nothing, old RT must
+// go) behaves exactly as before.
+func dropCurrentRevisionRT(historyRTs []*v1beta1.ResourceTracker, labelKey, labelValue string) []*v1beta1.ResourceTracker {
+	if labelValue == "" {
+		return historyRTs
+	}
+	// Multiple history RTs can carry the current revision label after repeated spec
+	// flips. Protect the one with the highest application generation (the same ordering
+	// used for currentRT selection) and never pick an RT that is already being deleted.
+	keep := -1
+	for i, rt := range historyRTs {
+		if rt == nil || rt.GetDeletionTimestamp() != nil {
+			continue
+		}
+		if rt.GetLabels()[labelKey] != labelValue {
+			continue
+		}
+		if keep < 0 || rt.Spec.ApplicationGeneration > historyRTs[keep].Spec.ApplicationGeneration {
+			keep = i
+		}
+	}
+	if keep < 0 {
+		return historyRTs
+	}
+	filtered := make([]*v1beta1.ResourceTracker, 0, len(historyRTs)-1)
+	filtered = append(filtered, historyRTs[:keep]...)
+	return append(filtered, historyRTs[keep+1:]...)
 }
 
 func (h *gcHandler) Mark(ctx context.Context) error {

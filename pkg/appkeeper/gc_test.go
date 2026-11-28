@@ -263,6 +263,93 @@ func TestApplicationGarbageCollectsAcrossGenerations(t *testing.T) {
 	r.True(finished)
 }
 
+// A rapid A -> B -> A spec flip advances the generation without a workflow restart, so no
+// current-generation RT exists while the gen-1 RT of the current revision still tracks the
+// live resources. The mark stage must keep that RT instead of recycling live resources.
+func TestApplicationGarbageCollectKeepsLiveHistoryTracker(t *testing.T) {
+	defer func(p float64) { resourcekeeper.MarkWithProbability = p }(resourcekeeper.MarkWithProbability)
+	resourcekeeper.MarkWithProbability = 1.0
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	ctx := context.Background()
+
+	rt := &v1beta1.ResourceTracker{
+		ObjectMeta: metav1.ObjectMeta{Name: "app-v1", Labels: map[string]string{
+			oam.LabelAppName:      "app",
+			oam.LabelAppNamespace: "default",
+			oam.LabelAppUID:       "uid",
+			oam.LabelAppRevision:  "app-v1",
+		}, Finalizers: []string{resourcetracker.Finalizer}},
+		Spec: v1beta1.ResourceTrackerSpec{
+			Type:                  v1beta1.ResourceTrackerTypeVersioned,
+			ApplicationGeneration: 1,
+		},
+	}
+	r.NoError(cli.Create(ctx, rt))
+	cm := &unstructured.Unstructured{}
+	cm.SetName("cm-1")
+	cm.SetNamespace("default")
+	cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+	cm.SetLabels(map[string]string{
+		oam.LabelAppName:      "app",
+		oam.LabelAppNamespace: "default",
+	})
+	r.NoError(cli.Create(ctx, cm))
+	r.NoError(resourcetracker.RecordManifestsInResourceTracker(ctx, cli, rt, []*unstructured.Unstructured{cm}, true, false, ""))
+
+	createRKWithRevision := func(gen int64, latestRevision string) resourcekeeper.ResourceKeeper {
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default", UID: "uid", Generation: gen},
+		}
+		if latestRevision != "" {
+			app.Status.LatestRevision = &apicommon.Revision{Name: latestRevision}
+		}
+		rk, err := resourcekeeper.New(ctx, cli, NewAppResourceTracker(app), resourcekeeper.Policies{}, KeeperOptions(cli, app))
+		r.NoError(err)
+		return rk
+	}
+	rtExists := func() bool {
+		rt := &v1beta1.ResourceTracker{}
+		return cli.Get(ctx, client.ObjectKey{Name: "app-v1"}, rt) == nil
+	}
+	rtDeleting := func() bool {
+		rt := &v1beta1.ResourceTracker{}
+		if err := cli.Get(ctx, client.ObjectKey{Name: "app-v1"}, rt); err != nil {
+			return false
+		}
+		return rt.GetDeletionTimestamp() != nil
+	}
+	cmExists := func() bool {
+		cm := &unstructured.Unstructured{}
+		cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+		return cli.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cm-1"}, cm) == nil
+	}
+
+	opts := []resourcekeeper.GCOption{resourcekeeper.DisableLegacyGCOption{}}
+
+	// latestRevision matches the gen-1 RT's revision label: the RT and its resources stay
+	rk := createRKWithRevision(3, "app-v1")
+	finished, _, err := rk.GarbageCollect(ctx, opts...)
+	r.NoError(err)
+	r.True(finished)
+	r.True(rtExists())
+	r.False(rtDeleting())
+	r.True(cmExists())
+
+	// a spec change that does restart the workflow records a new revision, and the old RT
+	// is collected as before
+	rk = createRKWithRevision(4, "app-v2")
+	finished, _, err = rk.GarbageCollect(ctx, opts...)
+	r.NoError(err)
+	r.False(finished)
+	r.False(cmExists())
+	rk = createRKWithRevision(4, "app-v2")
+	finished, _, err = rk.GarbageCollect(ctx, opts...)
+	r.NoError(err)
+	r.True(finished)
+	r.False(rtExists())
+}
+
 func TestCheckDependentComponent(t *testing.T) {
 	app := &v1beta1.Application{
 		Spec: v1beta1.ApplicationSpec{

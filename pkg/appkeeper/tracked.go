@@ -106,6 +106,18 @@ func (a *applicationTracked) Orphaning() bool {
 	return slices.Contains(a.app.GetFinalizers(), oam.FinalizerOrphanResource)
 }
 
+// CurrentRevisionLabel identifies the revision the app's current spec maps to: the
+// app-revision label carrying status.latestRevision's name. The application controller sets
+// latestRevision earlier in the same reconcile, before GC runs; the keeper's mark stage reads
+// it to protect the history RT that still tracks the live resources when no
+// current-generation RT exists. The value is "" when no revision is recorded yet.
+func (a *applicationTracked) CurrentRevisionLabel() (string, string) {
+	if rev := a.app.Status.LatestRevision; rev != nil {
+		return oam.LabelAppRevision, rev.Name
+	}
+	return oam.LabelAppRevision, ""
+}
+
 // TrackerLabels are the app.oam.dev/* labels trackers have always carried, plus the
 // owner.oam.dev/* labels every kind's trackers carry.
 func (a *applicationTracked) TrackerLabels() map[string]string {
