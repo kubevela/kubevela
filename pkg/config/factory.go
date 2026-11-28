@@ -368,6 +368,7 @@ func (k *kubeConfigFactory) ParseTemplate(ctx context.Context, defaultName strin
 			Name: tm.Name,
 		},
 		Alias:          tm.Alias,
+		Description:    tm.Description,
 		Scope:          tm.Scope,
 		Sensitive:      tm.Sensitive,
 		Template:       cueScript,

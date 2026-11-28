@@ -549,6 +549,42 @@ template: {
 	r.Equal("system", cm.Labels[types.LabelConfigScope])
 }
 
+// The description in a template's metadata must reach both objects written from
+// the parsed template: the ConfigTemplate CR and the legacy ConfigMap.
+func TestParseTemplateKeepsDescription(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	k8sClient := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	f := NewConfigFactory(k8sClient)
+
+	tmpl, err := f.ParseTemplate(ctx, "mysql", []byte(`
+metadata: {
+	name:        "mysql"
+	alias:       "MySQL"
+	description: "A MySQL connection"
+	scope:       "project"
+}
+template: {
+	parameter: {host: string}
+	output: {}
+}
+`))
+	r.NoError(err)
+	r.Equal("A MySQL connection", tmpl.Description)
+	r.Equal("A MySQL connection", tmpl.ConfigMap.Annotations[types.AnnotationConfigDescription])
+
+	r.NoError(f.CreateOrUpdateConfigTemplateCR(ctx, "team-a", tmpl))
+	var ct configv1alpha1.ConfigTemplate
+	r.NoError(k8sClient.Get(ctx, pkgtypes.NamespacedName{Namespace: "team-a", Name: "mysql"}, &ct))
+	r.Equal("A MySQL connection", ct.Spec.Description)
+
+	r.NoError(f.CreateOrUpdateConfigTemplate(ctx, "team-a", tmpl))
+	var cm v1.ConfigMap
+	r.NoError(k8sClient.Get(ctx,
+		pkgtypes.NamespacedName{Namespace: "team-a", Name: TemplateConfigMapNamePrefix + "mysql"}, &cm))
+	r.Equal("A MySQL connection", cm.Annotations[types.AnnotationConfigDescription])
+}
+
 // Only the exact value marks a config for use as a Nacos endpoint.
 func TestNacosEndpointMarked(t *testing.T) {
 	for value, want := range map[string]bool{"true": true, "True": false, "false": false, "1": false, "": false} {
@@ -651,9 +687,7 @@ template: {
 	r.Contains(ct.Spec.Template, "parameter:", "the CUE is carried verbatim")
 	r.Equal(configv1alpha1.ConfigTemplateScopeSystem, ct.Spec.Scope)
 	r.Equal("atlas", ct.Spec.Alias)
-	// ParseTemplate does not carry description off the CUE metadata, so there is
-	// none to write. The CLI's own CR writer has the same gap.
-	r.Empty(ct.Spec.Description)
+	r.Equal("generated", ct.Spec.Description)
 
 	// Idempotent: a second write updates rather than failing.
 	tmpl.Labels["sourcedefinition.oam.dev/namespace"] = "vela-system"
