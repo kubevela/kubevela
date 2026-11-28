@@ -44,6 +44,10 @@ const kubeVersionTimeout = 5 * time.Second
 // can be fetched, values are valid, and templates render without errors,
 // without blocking on real resource creation, hooks, or waiting. Its only
 // request is for the target cluster's Kubernetes version.
+//
+// The ctx also bounds post-render template evaluation, so a cancelled
+// admission request stops compiling CUE rather than finishing the work for
+// nobody.
 func (p *Provider) dryRunRender(ctx context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, error) {
 	install := action.NewInstall(&action.Configuration{})
 	install.ReleaseName = releaseName
@@ -60,11 +64,11 @@ func (p *Provider) dryRunRender(ctx context.Context, ch *chart.Chart, releaseNam
 		install.KubeVersion = kv
 	}
 
-	install.PostRenderer = &velaLabelPostRenderer{
-		context:          velaCtx,
-		releaseName:      releaseName,
-		releaseNamespace: releaseNamespace,
+	var postRender *PostRenderParams
+	if options != nil {
+		postRender = options.PostRender
 	}
+	install.PostRenderer = newPostRenderer(ctx, postRender, velaCtx, releaseName, releaseNamespace)
 
 	if options != nil {
 		if options.SkipHooks != nil {

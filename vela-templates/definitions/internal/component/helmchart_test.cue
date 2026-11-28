@@ -192,3 +192,35 @@ _chart: {
 		}}]
 	}
 }
+
+// Post-rendering is handed to the provider as configuration, not applied here:
+// the renderer runs inside vela/helm, after Helm has produced the manifests.
+// What this definition owes is passing the template through unchanged.
+"a post-render CUE template passes through to the provider": test.#ComponentRender & _chart & {
+	parameter: options: postRender: cue: template: """
+		patch: {
+			if context.resource.kind == "StatefulSet" {
+				spec: template: spec: {
+					// +patchKey=name
+					containers: [{name: "redis", env: [{name: "DEPLOY_ENV", value: "prod"}]}]
+				}
+			}
+		}
+		"""
+	expect: calls: "vela/helm": "#Render": [{$params: options: postRender: cue: template: """
+		patch: {
+			if context.resource.kind == "StatefulSet" {
+				spec: template: spec: {
+					// +patchKey=name
+					containers: [{name: "redis", env: [{name: "DEPLOY_ENV", value: "prod"}]}]
+				}
+			}
+		}
+		"""}]
+}
+
+// Absent is absent: a chart with no postRender must not grow an empty block in
+// the provider call, since that is what tells the provider nothing is configured.
+"no post-render configuration reaches the provider when none is set": test.#ComponentRender & _chart & {
+	expect: calls: "vela/helm": "#Render": [{$params: options: postRender?: _|_}]
+}
