@@ -195,7 +195,7 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 		}
 	}
 
-	logger.WithSuccess(len(errs) == 0, startTime).Info(
+	logger.WithSuccess(len(errs) == 0, startTime).Debug(
 		"Crate component validation completed",
 		"crateComponentCount", crateComponentCount,
 		"errorCount", len(errs),
