@@ -17,11 +17,21 @@ limitations under the License.
 package apply
 
 import (
+	"context"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func TestShare(t *testing.T) {
@@ -83,4 +93,127 @@ func TestFirstSharerSkipsEmptyEntries(t *testing.T) {
 	require.Empty(t, FirstSharer(","))
 	require.Equal(t, "team-b/other", RemoveSharer(",team-a/shop,team-b/other", "team-a/shop"),
 		"removing a sharer drops the empty entries with it")
+}
+
+// An owner that left the list while a sharer was adding itself must not be written back.
+func TestSharedApplyKeepsAConcurrentChangeToTheSharerList(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	raced := false
+	cli := fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
+		Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			if !raced {
+				raced = true
+				live := &corev1.ConfigMap{}
+				if err := c.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
+					return err
+				}
+				if live.Annotations == nil {
+					live.Annotations = map[string]string{}
+				}
+				live.Annotations[oam.AnnotationAppSharedBy] = "x/owner"
+				if err := c.Update(ctx, live); err != nil {
+					return err
+				}
+			}
+			return c.Patch(ctx, obj, patch, opts...)
+		},
+	}).Build()
+	r.NoError(cli.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+		Name: "shared", Namespace: "default",
+		Labels:      map[string]string{oam.LabelAppName: "owner", oam.LabelAppNamespace: "x"},
+		Annotations: map[string]string{oam.AnnotationAppSharedBy: "x/owner,x/leaving"},
+	}}))
+
+	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
+	desired := &unstructured.Unstructured{}
+	desired.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+	desired.SetName("shared")
+	desired.SetNamespace("default")
+	r.NoError(NewAPIApplicator(cli).Apply(ctx, desired, sharedByApp(app)))
+
+	r.True(raced, "the test must have raced the patch")
+	got := &corev1.ConfigMap{}
+	r.NoError(cli.Get(ctx, client.ObjectKey{Namespace: "default", Name: "shared"}, got))
+	r.Equal("x/owner,default/app", got.Annotations[oam.AnnotationAppSharedBy])
+}
+
+// sharedConfigMapClient holds a ConfigMap controlled by owner, and runs race once before the
+// first real patch.
+func sharedConfigMapClient(t *testing.T, owner, sharedBy string, race func(c client.Client, live *corev1.ConfigMap) error) client.Client {
+	raced := race == nil
+	cli := fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
+		Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			if !raced {
+				raced = true
+				live := &corev1.ConfigMap{}
+				if err := c.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
+					return err
+				}
+				if err := race(c, live); err != nil {
+					return err
+				}
+			}
+			return c.Patch(ctx, obj, patch, opts...)
+		},
+	}).Build()
+	require.NoError(t, cli.Create(context.Background(), &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+		Name: "shared", Namespace: "default",
+		Labels:      map[string]string{oam.LabelAppName: owner, oam.LabelAppNamespace: "default"},
+		Annotations: map[string]string{oam.AnnotationAppSharedBy: sharedBy},
+	}}))
+	return cli
+}
+
+func applyShared(cli client.Client, opts ...ApplyOption) error {
+	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
+	desired := &unstructured.Unstructured{}
+	desired.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+	desired.SetName("shared")
+	desired.SetNamespace("default")
+	desired.SetLabels(map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "default"})
+	return NewAPIApplicator(cli).Apply(context.Background(), desired, append(opts, sharedByApp(app))...)
+}
+
+func sharedByOf(t *testing.T, cli client.Client) string {
+	got := &corev1.ConfigMap{}
+	require.NoError(t, cli.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "shared"}, got))
+	return got.Annotations[oam.AnnotationAppSharedBy]
+}
+
+func TestSharedApplyBySharer(t *testing.T) {
+	t.Run("a dry run leaves the list alone", func(t *testing.T) {
+		cli := sharedConfigMapClient(t, "owner", "default/owner", nil)
+		require.NoError(t, applyShared(cli, DryRunAll()))
+		require.Equal(t, "default/owner", sharedByOf(t, cli))
+	})
+	t.Run("fails if the resource stops being shared meanwhile", func(t *testing.T) {
+		cli := sharedConfigMapClient(t, "owner", "default/owner", func(c client.Client, live *corev1.ConfigMap) error {
+			delete(live.Annotations, oam.AnnotationAppSharedBy)
+			return c.Update(context.Background(), live)
+		})
+		require.ErrorContains(t, applyShared(cli), "no longer shared")
+	})
+	t.Run("fails if the resource is deleted meanwhile", func(t *testing.T) {
+		cli := sharedConfigMapClient(t, "owner", "default/owner", func(c client.Client, live *corev1.ConfigMap) error {
+			return c.Delete(context.Background(), live)
+		})
+		require.True(t, kerrors.IsNotFound(errors.Cause(applyShared(cli))))
+	})
+}
+
+func TestSharedApplyByOwnerMissingFromTheList(t *testing.T) {
+	t.Run("the owner adds itself", func(t *testing.T) {
+		cli := sharedConfigMapClient(t, "app", "x/other", nil)
+		require.NoError(t, applyShared(cli))
+		require.Equal(t, "x/other,default/app", sharedByOf(t, cli))
+	})
+	t.Run("a concurrent change to the list is a conflict", func(t *testing.T) {
+		cli := sharedConfigMapClient(t, "app", "x/other", func(c client.Client, live *corev1.ConfigMap) error {
+			live.Annotations[oam.AnnotationAppSharedBy] = "x/other,x/late"
+			return c.Update(context.Background(), live)
+		})
+		require.True(t, kerrors.IsConflict(errors.Cause(applyShared(cli))))
+		require.Equal(t, "x/other,x/late", sharedByOf(t, cli))
+	})
 }

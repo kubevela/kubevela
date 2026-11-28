@@ -50,6 +50,8 @@ const defaultPropertiesSecretKey = "properties"
 type ValidatingHandler struct {
 	Decoder admission.Decoder
 	Client  client.Client
+	// APIReader avoids stale Secret reads immediately after properties are created or updated.
+	APIReader client.Reader
 	// ControllerUser is the controller's own identity. Its writes (an Application's, with the
 	// AuthenticateApplication gate off; migration's) have no user behind them to review.
 	ControllerUser string
@@ -214,7 +216,11 @@ func (h *ValidatingHandler) resolveProperties(ctx context.Context, cfg *configv1
 			key = defaultPropertiesSecretKey
 		}
 		var secret corev1.Secret
-		if err := h.Client.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: cfg.Spec.PropertiesFrom.SecretRef.Name}, &secret); err != nil {
+		reader := h.APIReader
+		if reader == nil {
+			reader = h.Client
+		}
+		if err := reader.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: cfg.Spec.PropertiesFrom.SecretRef.Name}, &secret); err != nil {
 			return nil, fmt.Errorf("failed to load spec.propertiesFrom secret: %w", err)
 		}
 		raw, ok := secret.Data[key]
@@ -234,8 +240,9 @@ func (h *ValidatingHandler) resolveProperties(ctx context.Context, cfg *configv1
 func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
 	handler := &ValidatingHandler{
-		Client:  mgr.GetClient(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Decoder:   admission.NewDecoder(mgr.GetScheme()),
 	}
 	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
 		handler.ControllerUser = userInfo.Username
