@@ -380,6 +380,16 @@ def first_version: {
         | if $rev != null and $rev.spec[$field] != null then ($rev.spec[$field] + {_revision: $rev.metadata.name}) else $live end
       else $live end;
 
+# A component renders a Job when it is a task whose definition, if one can be seen, has a Job
+# workload; hasjob is whether the Jobs read include that component's.
+  def rendersjob($c; $appns):
+    (($c.type // "") | split("@")[0] == "task")
+    and ((resolve("c"; $c.type; $appns).spec.workload.definition.kind? // "Job") == "Job");
+  def hasjob($a; $c):
+    any(items($jobs)[]; .metadata.labels["app.oam.dev/component"] == $c.name
+      and .metadata.labels["app.oam.dev/name"] == $a.metadata.name
+      and (.metadata.labels["app.oam.dev/namespace"] // .metadata.namespace) == $a.metadata.namespace);
+
 # A Kubernetes label selector (labels.Parse) against a label map. A term this does not understand
 # matches nothing, as an unparseable selector does.
   def termmatch($l):
@@ -936,9 +946,7 @@ else [
     | [("livenessProbe", "readinessProbe") as $k | select(($c.properties // {})[$k] != null) | $k] as $probes
     | select(($probes | length) > 0)
     | (if ($probes | length) == 1 then "it" else "them" end) as $it
-    | any(items($jobs)[]; .metadata.labels["app.oam.dev/component"] == $c.name
-        and .metadata.labels["app.oam.dev/name"] == $a.metadata.name
-        and (.metadata.labels["app.oam.dev/namespace"] // .metadata.namespace) == $appns) as $hasJob
+    | hasjob($a; $c) as $hasJob
     | "component \($c.name) (task) sets \($probes | join(" and ")), which 1.11 left out of the Job" as $what
     | if $hasJob then
         f("error"; "task-probes"; "Application \($a | nn)";
@@ -955,6 +963,8 @@ else [
 
 # 16. The affinity trait: 1.11's accepted nodeSelector, affinity, schedulerName, priorityClassName and
 # topologySpreadConstraints and set none of them; 1.12 sets each on the Pods, which restart with them.
+# A task's Job never lets its pod template change, so, as for task probes, a Job the component
+# already has is an error, and a Job not created yet or not seen is a warning.
 # Where the cluster lets it be seen, a new Pod that cannot start is an error: no node fits the
 # nodeSelector and the required node terms, or the PriorityClass does not exist. The required node
 # terms are the raw affinity's, or without it the wrapped nodeAffinity's, which 1.11 applied
@@ -987,7 +997,17 @@ else [
                            else "the nodes were not read, so whether any fits its placement is unknown" end),
         (select($p.priorityClassName != null and ($pcsRead | not)) | "the PriorityClasses were not read, so whether \($p.priorityClassName) exists is unknown"),
         (select(($p.schedulerName // "default-scheduler") != "default-scheduler") | "the new Pods stay Pending unless scheduler \($p.schedulerName) runs")]) as $notes
-    | "component \($c.name): the affinity trait sets \($new | join(", ")), which 1.11 ignored; 1.12 applies \(if ($new | length) == 1 then "it" else "them" end) and the Pods restart" as $what
+    | (if ($new | length) == 1 then "it" else "them" end) as $it
+    | ($new | join(", ")) as $names
+    | rendersjob($c; $appns) as $job
+    | ($job and hasjob($a; $c)) as $hasJob
+    | (if $job | not then
+        "component \($c.name): the affinity trait sets \($names), which 1.11 ignored; 1.12 applies \($it) and the Pods restart"
+      elif $hasJob then
+        "component \($c.name) (task): the affinity trait sets \($names), which 1.11 ignored; 1.12 adds \($it) to the existing Job's pod template, the API server refuses that (field is immutable) and the workflow fails"
+      else
+        "component \($c.name) (task): the affinity trait sets \($names), which 1.11 ignored; \(if $jobsRead then "no Job of component \($c.name) exists on this cluster yet, so 1.12 creates one with \($names)" else "the Jobs were not read, so whether component \($c.name) has one is unknown" end); a Job that already exists, here or on a managed cluster, refuses the change (field is immutable) and the workflow fails"
+      end) as $what
     | ([(select($placed) | "that the nodes the workload should run on fit \([(select($sel != "") | "nodeSelector \($sel)"), (select($terms != null) | "the required nodeAffinity terms")] | join(" and "))"),
         (select(($p.schedulerName // "default-scheduler") != "default-scheduler") | "that scheduler \($p.schedulerName) runs"),
         (select($p.priorityClassName != null and ($pcsRead | not)) | "that PriorityClass \($p.priorityClassName) exists"),
@@ -996,9 +1016,12 @@ else [
              and ([items($pcs)[] | select(.metadata.name == $p.priorityClassName)] | length) == 0)
            | "create PriorityClass \($p.priorityClassName)"),
           (select($checks != "") | "check \($checks)")] | join(" and ")) as $todo
-    | f(if ($stuck | length) > 0 then "error" else "warn" end; "affinity-trait"; "Application \($a | nn)";
+    | (if $todo == "" then "check that the new placement is what the workload should get" else $todo end) as $todo
+    | f(if $hasJob or ($stuck | length) > 0 then "error" else "warn" end; "affinity-trait"; "Application \($a | nn)";
         ([$what] + $stuck + $notes | join("; "));
-        "\(if $todo == "" then "check that the new placement is what the workload should get" else $todo end), or remove \($new | join(", ")) to keep the 1.11 placement";
+        (if $job | not then "\($todo), or remove \($names) to keep the 1.11 placement"
+         elif $hasJob then "remove \($names) from the affinity trait before upgrading to keep the 1.11 placement; to keep \($it), \($todo), then delete the component's Job after the upgrade so 1.12 creates it again, which runs the task again"
+         else "\($todo); if component \($c.name) has a Job \(if $jobsRead then "on a managed cluster" else "already" end), remove \($names) before upgrading, or delete that Job after the upgrade so 1.12 creates it again, which runs the task again" end);
         guide("changes-to-built-in-definitions")) ),
 
 # 17. Builtin definitions edited in place. The 1.12 chart's hook Job applies every builtin with

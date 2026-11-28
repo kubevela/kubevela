@@ -1,0 +1,22 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "name": "system-cluster-critical"
+   },
+   "value": 2000000000
+  },
+  {
+   "metadata": {
+    "name": "system-node-critical"
+   },
+   "value": 2000001000
+  },
+  {
+   "metadata": {
+    "name": "high"
+   },
+   "value": 1000
+  }
+ ]
+}
