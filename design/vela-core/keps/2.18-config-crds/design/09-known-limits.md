@@ -33,7 +33,6 @@ item is a candidate for a follow-up; none blocks the upgrade or migration paths.
 
 | Limit | Effect |
 |---|---|
-| `spec.templateRef` can be changed | the Config re-renders against another template, which the webhook would have refused |
 | On Kubernetes older than 1.25, `sensitive` can be turned off | the CEL rule is ignored there; Secrets already marked stay sensitive, but inline properties are accepted again for new Configs |
 | No template access review | the SubjectAccessReview needs a requesting user, which only admission has ([Design 04](./04-template-scope-and-access.md)) |
 

@@ -96,6 +96,11 @@ spec:
                 - name
                 type: object
             type: object
+            x-kubernetes-validations:
+            - message: 'spec.templateRef is immutable: delete and recreate the config
+                to use a different template'
+              rule: has(self.templateRef) == has(oldSelf.templateRef) && (!has(self.templateRef)
+                || self.templateRef == oldSelf.templateRef)
           status:
             description: ConfigStatus defines the observed state of Config.
             properties:

@@ -50,6 +50,7 @@ type PropertiesReference struct {
 }
 
 // ConfigSpec defines the desired state of Config.
+// +kubebuilder:validation:XValidation:rule="has(self.templateRef) == has(oldSelf.templateRef) && (!has(self.templateRef) || self.templateRef == oldSelf.templateRef)",message="spec.templateRef is immutable: delete and recreate the config to use a different template"
 type ConfigSpec struct {
 	// TemplateRef is the ConfigTemplate (or legacy ConfigMap) to render against. If
 	// empty, Properties are materialized as-is with no template evaluation.
