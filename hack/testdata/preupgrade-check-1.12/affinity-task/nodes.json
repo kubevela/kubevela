@@ -1,0 +1,4 @@
+{"items":[
+ {"metadata":{"name":"node-a","labels":{"kubernetes.io/os":"linux","kubernetes.io/hostname":"node-a","disktype":"ssd"}}},
+ {"metadata":{"name":"node-b","labels":{"kubernetes.io/os":"linux","kubernetes.io/hostname":"node-b"}}}
+]}

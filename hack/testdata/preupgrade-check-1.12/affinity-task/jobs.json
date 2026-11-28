@@ -1,0 +1,4 @@
+{"items":[
+ {"apiVersion":"batch/v1","kind":"Job","metadata":{"namespace":"default","name":"migrate","labels":{"app.oam.dev/name":"placed-task","app.oam.dev/namespace":"default","app.oam.dev/component":"migrate"}}},
+ {"apiVersion":"batch/v1","kind":"Job","metadata":{"namespace":"default","name":"migrate-tolerant","labels":{"app.oam.dev/name":"tolerant-task","app.oam.dev/namespace":"default","app.oam.dev/component":"migrate"}}}
+]}

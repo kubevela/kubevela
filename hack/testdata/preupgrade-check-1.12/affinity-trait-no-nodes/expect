@@ -1,0 +1,11 @@
+exit 0
+warn affinity-trait Application default/nowhere
+warn affinity-trait Application default/linux
+warn affinity-trait Application default/scheduler
+warn affinity-trait Application default/no-class
+warn affinity-trait Application default/raw-nowhere
+warn affinity-trait Application default/raw-fits
+warn affinity-trait Application default/raw-and-selector
+warn affinity-trait Application default/custom-scheduler
+match the nodes were not read
+match the PriorityClasses were not read

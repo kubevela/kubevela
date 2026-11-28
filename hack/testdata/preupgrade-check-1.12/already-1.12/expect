@@ -1,0 +1,4 @@
+exit 0
+alone
+info version Deployment vela-system/kubevela-vela-core
+match ^vela-core is already on v1.12.0-alpha.3

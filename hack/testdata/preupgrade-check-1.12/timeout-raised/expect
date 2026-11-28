@@ -1,0 +1,2 @@
+exit 1
+error http-guard Application default/t3m

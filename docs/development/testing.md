@@ -40,7 +40,7 @@ gotchas that trip people up.
 make test
 ```
 
-This chains three targets:
+This chains four targets:
 
 1. `envtest`: downloads the pinned Kubernetes control-plane test binaries
    (currently **1.37.0**) via `setup-envtest`, so unit tests can talk to a
@@ -50,6 +50,9 @@ This chains three targets:
    `applicationconfiguration`), using `KUBEBUILDER_ASSETS` from step 1, then
    `./hack/downgradetest/`, the tests for `hack/downgrade-from-1.12.sh`.
 3. `test-cli-gen`: regenerates the CLI docs (it doesn't test them).
+4. `test-hack-scripts`: runs `hack/preupgrade-check-1.12_test.sh`, which checks
+   the pre-upgrade script against the captured clusters in
+   `hack/testdata/preupgrade-check-1.12/`. It needs `jq`.
 
 `make test` stops at the first failing stage. To run the equivalent
 `unit-test-core` commands standalone (useful when iterating, or to see every

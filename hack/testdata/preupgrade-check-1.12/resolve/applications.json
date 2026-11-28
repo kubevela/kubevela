@@ -1,0 +1,44 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "resolves-to-metadata"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "http://metadata.corp.example/"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "resolves-public"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://api.example.com/"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

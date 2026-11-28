@@ -1,0 +1,4 @@
+exit 0
+warn task-probes Application default/probed-task
+warn task-probes Application default/ready-task
+match the Jobs were not read, so whether component migrate has one is unknown

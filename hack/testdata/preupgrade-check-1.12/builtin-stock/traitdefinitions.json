@@ -1,0 +1,213 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "namespace": "vela-system",
+        "name": "command",
+        "managedFields": [
+          {
+            "apiVersion": "core.oam.dev/v1beta1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {}
+              },
+              "f:spec": {
+                "f:schematic": {
+                  "f:cue": {
+                    "f:template": {}
+                  }
+                }
+              }
+            },
+            "manager": "vela",
+            "operation": "Update",
+            "time": "2026-10-01T08:00:00Z"
+          },
+          {
+            "apiVersion": "core.oam.dev/v1beta1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:annotations": {
+                  "f:definition.oam.dev/description": {}
+                }
+              },
+              "f:spec": {
+                "f:appliesToWorkloads": {},
+                "f:schematic": {
+                  "f:cue": {
+                    "f:template": {}
+                  }
+                }
+              }
+            },
+            "manager": "vela-core-builtin-definitions",
+            "operation": "Apply",
+            "time": "2026-11-22T22:35:24Z"
+          },
+          {
+            "apiVersion": "core.oam.dev/v1beta1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                ".": {},
+                "f:conditions": {},
+                "f:configMapRef": {},
+                "f:latestRevision": {
+                  ".": {},
+                  "f:name": {},
+                  "f:revision": {},
+                  "f:revisionHash": {}
+                }
+              }
+            },
+            "manager": "kubevela",
+            "operation": "Update",
+            "subresource": "status",
+            "time": "2026-11-22T22:35:24Z"
+          }
+        ]
+      },
+      "spec": {}
+    },
+    {
+      "metadata": {
+        "namespace": "vela-system",
+        "name": "gateway",
+        "managedFields": [
+          {
+            "apiVersion": "core.oam.dev/v1beta1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:annotations": {
+                  "f:definition.oam.dev/description": {}
+                }
+              },
+              "f:spec": {
+                "f:appliesToWorkloads": {},
+                "f:podDisruptive": {},
+                "f:schematic": {
+                  "f:cue": {
+                    "f:template": {}
+                  }
+                },
+                "f:status": {
+                  "f:customStatus": {},
+                  "f:healthPolicy": {}
+                }
+              }
+            },
+            "manager": "vela-core-builtin-definitions",
+            "operation": "Apply",
+            "time": "2026-11-22T22:35:25Z"
+          },
+          {
+            "apiVersion": "core.oam.dev/v1beta1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                ".": {},
+                "f:conditions": {},
+                "f:configMapRef": {},
+                "f:latestRevision": {
+                  ".": {},
+                  "f:name": {},
+                  "f:revision": {},
+                  "f:revisionHash": {}
+                }
+              }
+            },
+            "manager": "kubevela",
+            "operation": "Update",
+            "subresource": "status",
+            "time": "2026-11-22T22:35:26Z"
+          }
+        ]
+      },
+      "spec": {
+        "definitionRef": {
+          "name": "ingresses.networking.k8s.io"
+        }
+      }
+    },
+    {
+      "metadata": {
+        "namespace": "vela-system",
+        "name": "resource",
+        "managedFields": [
+          {
+            "apiVersion": "core.oam.dev/v1beta1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {}
+              },
+              "f:spec": {
+                "f:schematic": {
+                  "f:cue": {
+                    "f:template": {}
+                  }
+                }
+              }
+            },
+            "manager": "helm",
+            "operation": "Update",
+            "time": "2026-10-01T08:00:00Z"
+          },
+          {
+            "apiVersion": "core.oam.dev/v1beta1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                ".": {},
+                "f:conditions": {},
+                "f:configMapRef": {},
+                "f:latestRevision": {
+                  ".": {},
+                  "f:name": {},
+                  "f:revision": {},
+                  "f:revisionHash": {}
+                }
+              }
+            },
+            "manager": "kubevela",
+            "operation": "Update",
+            "subresource": "status",
+            "time": "2026-11-22T22:35:29Z"
+          }
+        ]
+      },
+      "spec": {}
+    },
+    {
+      "metadata": {
+        "namespace": "vela-system",
+        "name": "scaler",
+        "managedFields": [
+          {
+            "apiVersion": "core.oam.dev/v1beta1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {}
+              },
+              "f:spec": {
+                "f:schematic": {
+                  "f:cue": {
+                    "f:template": {}
+                  }
+                }
+              }
+            },
+            "manager": "vela",
+            "operation": "Update",
+            "time": "2026-10-01T08:00:00Z"
+          }
+        ]
+      },
+      "spec": {}
+    }
+  ]
+}

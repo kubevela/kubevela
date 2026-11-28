@@ -1,0 +1,3 @@
+exit 1
+error trait-conflicts Application default/pinned-conflict
+warn definition-restrictions Application team-a/pinned-restricted

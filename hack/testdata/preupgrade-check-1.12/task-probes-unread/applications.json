@@ -1,0 +1,9 @@
+{"items":[
+ {"metadata":{"namespace":"default","name":"probed-task"},"spec":{"components":[{"name":"migrate","type":"task","properties":{"image":"busybox","cmd":["sh","-c","true"],
+   "livenessProbe":{"exec":{"command":["true"]}},"readinessProbe":{"exec":{"command":["true"]}}}}]}},
+ {"metadata":{"namespace":"default","name":"ready-task"},"spec":{"components":[{"name":"migrate","type":"task","properties":{"image":"busybox","readinessProbe":{"tcpSocket":{"port":80}}}}]}},
+ {"metadata":{"namespace":"default","name":"plain-task"},"spec":{"components":[{"name":"migrate","type":"task","properties":{"image":"busybox","cmd":["sh","-c","true"]}}]}},
+ {"metadata":{"namespace":"default","name":"probed-web"},"spec":{"components":[{"name":"web","type":"webservice","properties":{"image":"nginx","livenessProbe":{"httpGet":{"path":"/","port":80}}}}]}},
+ {"metadata":{"namespace":"team-a","name":"own-task"},"spec":{"components":[{"name":"migrate","type":"task","properties":{"image":"busybox","livenessProbe":{"exec":{"command":["true"]}}}}]}},
+ {"metadata":{"namespace":"default","name":"pinned-task"},"spec":{"components":[{"name":"migrate","type":"task@v2","properties":{"image":"busybox","livenessProbe":{"exec":{"command":["true"]}}}}]}}
+]}

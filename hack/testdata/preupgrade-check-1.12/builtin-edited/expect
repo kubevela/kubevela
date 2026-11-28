@@ -1,0 +1,6 @@
+exit 0
+warn builtin-edits TraitDefinition vela-system/command
+warn builtin-edits TraitDefinition vela-system/gateway
+warn builtin-edits TraitDefinition vela-system/scaler
+match builtin command was changed in place by kubectl-edit
+match builtin gateway was changed in place by vela

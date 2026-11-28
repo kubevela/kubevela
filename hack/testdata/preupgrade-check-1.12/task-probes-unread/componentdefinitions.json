@@ -1,0 +1,4 @@
+{"items":[
+ {"metadata":{"namespace":"vela-system","name":"task"},"spec":{"workload":{"definition":{"apiVersion":"batch/v1","kind":"Job"}}}},
+ {"metadata":{"namespace":"team-a","name":"task"},"spec":{"workload":{"definition":{"apiVersion":"batch/v1","kind":"Job"}}}}
+]}

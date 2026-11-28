@@ -1,0 +1,25 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "reads-elsewhere"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "r",
+       "type": "read-config",
+       "properties": {
+        "name": "db",
+        "namespace": "team-b"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+{"items":[
+ {"metadata":{"namespace":"default","name":"clean"},"spec":{
+   "components":[{"name":"web","type":"webservice","properties":{"image":"nginx"},
+     "traits":[{"type":"scaler","properties":{"replicas":2}},{"type":"gateway","properties":{"domain":"a.example.com"}},
+               {"type":"resource","properties":{"cpu":0.5,"memory":"512Mi"}}]}],
+   "workflow":{"steps":[{"name":"deploy","type":"deploy"},
+     {"name":"notify","type":"request","properties":{"url":"https://example.com/hook","timeout":"30s"}}]}}}
+]}

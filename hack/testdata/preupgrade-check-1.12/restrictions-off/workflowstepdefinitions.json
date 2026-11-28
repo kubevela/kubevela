@@ -1,0 +1,1 @@
+{"items":[{"metadata":{"namespace":"vela-system","name":"ops-step","annotations":{"definition.oam.dev/restrict-namespaces":"ops"}},"spec":{}}]}
