@@ -230,30 +230,31 @@ func (m *Migrator) migrateTemplatesAndConfigs(ctx context.Context, ns string, op
 		return report, err
 	}
 	seen := map[client.ObjectKey]bool{}
+	pending := map[client.ObjectKey]*configv1alpha1.ConfigTemplate{}
 	for i := range cms {
 		name := strings.TrimPrefix(cms[i].Name, TemplateConfigMapNamePrefix)
 		bound := groups.of(cms[i].Namespace, name)
-		m.migrateTemplateConfigMap(ctx, &cms[i], bound, opts, &report)
-		m.migrateConfigList(ctx, bound, opts, &report, seen)
+		m.migrateTemplateConfigMap(ctx, &cms[i], bound, opts, &report, pending)
+		m.migrateConfigList(ctx, bound, opts, &report, seen, pending)
 	}
 	if groups.unlisted != nil {
 		report.add(unlistedNamespacesRow(groups.unlisted))
 	}
-	m.migrateConfigList(ctx, groups.remaining(ns), opts, &report, seen)
+	m.migrateConfigList(ctx, groups.remaining(ns), opts, &report, seen, pending)
 	return report, nil
 }
 
 // migrateTemplateAndConfigs migrates one template ConfigMap, then the configs that
 // reference it. Configs already reported in this run (seen) are skipped. The configs
 // are listed before anything is written, so a failed list leaves the cluster as it was.
-func (m *Migrator) migrateTemplateAndConfigs(ctx context.Context, cm *corev1.ConfigMap, opts MigrationOptions, report *MigrationReport, seen map[client.ObjectKey]bool) error {
+func (m *Migrator) migrateTemplateAndConfigs(ctx context.Context, cm *corev1.ConfigMap, opts MigrationOptions, report *MigrationReport, seen map[client.ObjectKey]bool, pending map[client.ObjectKey]*configv1alpha1.ConfigTemplate) error {
 	name := strings.TrimPrefix(cm.Name, TemplateConfigMapNamePrefix)
 	secrets, unlisted, err := m.listConfigsOfTemplate(ctx, cm.Namespace, name)
 	if err != nil {
 		return err
 	}
-	m.migrateTemplateConfigMap(ctx, cm, secrets, opts, report)
-	m.migrateConfigList(ctx, secrets, opts, report, seen)
+	m.migrateTemplateConfigMap(ctx, cm, secrets, opts, report, pending)
+	m.migrateConfigList(ctx, secrets, opts, report, seen, pending)
 	if unlisted != nil {
 		report.add(unlistedNamespacesRow(unlisted))
 	}
@@ -360,14 +361,14 @@ func (g legacyConfigGroups) remaining(ns string) []corev1.Secret {
 	return secrets
 }
 
-func (m *Migrator) migrateConfigList(ctx context.Context, secrets []corev1.Secret, opts MigrationOptions, report *MigrationReport, seen map[client.ObjectKey]bool) {
+func (m *Migrator) migrateConfigList(ctx context.Context, secrets []corev1.Secret, opts MigrationOptions, report *MigrationReport, seen map[client.ObjectKey]bool, pending map[client.ObjectKey]*configv1alpha1.ConfigTemplate) {
 	for i := range secrets {
 		key := client.ObjectKeyFromObject(&secrets[i])
 		if seen[key] {
 			continue
 		}
 		seen[key] = true
-		m.migrateConfigSecret(ctx, &secrets[i], opts, report)
+		m.migrateConfigSecret(ctx, &secrets[i], opts, report, pending)
 	}
 }
 
@@ -478,7 +479,7 @@ func withMigrationLabel(labels map[string]string) map[string]string {
 // keep doing so without the grant the access table now asks for. A template whose nacos block
 // names an endpoint outside its namespace and vela-system is skipped: that endpoint was never
 // reviewed for anyone, and the controller would read it with its own rights.
-func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.ConfigMap, bound []corev1.Secret, opts MigrationOptions, report *MigrationReport) {
+func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.ConfigMap, bound []corev1.Secret, opts MigrationOptions, report *MigrationReport, pending map[client.ObjectKey]*configv1alpha1.ConfigTemplate) {
 	name := strings.TrimPrefix(cm.Name, TemplateConfigMapNamePrefix)
 	res := MigrationResult{Kind: kindConfigMap, Namespace: cm.Namespace, Name: name}
 	note := gitOpsNote(cm, kindConfigMap, configv1alpha1.ConfigTemplateKind)
@@ -560,6 +561,7 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 	res.Target = ct
 	reason := fmt.Sprintf("ConfigTemplate %s created", name)
 	if opts.DryRun {
+		pending[client.ObjectKeyFromObject(ct)] = ct
 		finish(MigrationAdopted, reason)
 		return
 	}
@@ -577,7 +579,7 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 // migrateConfigSecret adopts one legacy config Secret into a Config CR of the same
 // name in the same namespace, which then owns the Secret, its output objects and
 // its distribution Application.
-func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secret, opts MigrationOptions, report *MigrationReport) {
+func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secret, opts MigrationOptions, report *MigrationReport, pending map[client.ObjectKey]*configv1alpha1.ConfigTemplate) {
 	res := MigrationResult{Kind: kindSecret, Namespace: secret.Namespace, Name: secret.Name}
 	note := gitOpsNote(secret, kindSecret, configv1alpha1.ConfigKind)
 	finish := func(outcome MigrationOutcome, reason string) {
@@ -649,7 +651,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 			len(outside), secret.Namespace, strings.Join(outside, ", ")))
 		return
 	}
-	cfg, propsSecret, block, err := m.buildConfig(ctx, secret)
+	cfg, propsSecret, block, err := m.buildConfig(ctx, secret, pending)
 	if err != nil {
 		finish(MigrationFailed, err.Error())
 		return
@@ -763,7 +765,10 @@ type templateBlock struct {
 // the Secret's own annotation says sensitive; it never enters the CR then. The
 // template must exist as a CR or a legacy ConfigMap, otherwise the Config could
 // never become Available, and it must not block (see templateLookup.block).
-func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*configv1alpha1.Config, *corev1.Secret, *templateBlock, error) {
+// If pending contains a would-be ConfigTemplate from a dry-run template pass,
+// use it instead of the legacy ConfigMap when tpl.cr is nil, so that
+// grandfathered bindings are visible in accessBlock.
+func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret, pending map[client.ObjectKey]*configv1alpha1.ConfigTemplate) (*configv1alpha1.Config, *corev1.Secret, *templateBlock, error) {
 	legacy, err := convertSecret2Config(secret)
 	if err != nil {
 		return nil, nil, nil, err
@@ -796,6 +801,16 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		}
 		if tpl.cr == nil && tpl.legacy == nil {
 			return nil, nil, nil, fmt.Errorf("template %s/%s not found", templateNS, templateName)
+		}
+		// In dry run, the would-be CR was recorded in pending but never created.
+		// Use it so that grandfathered bindings are visible to accessBlock.
+		if tpl.cr == nil && pending != nil {
+			templateNS := templateNamespaceOf(secret)
+			templateName := secret.Labels[types.LabelConfigType]
+			pendingKey := client.ObjectKey{Namespace: templateNS, Name: templateName}
+			if pendingCR, ok := pending[pendingKey]; ok {
+				tpl = templateLookup{cr: pendingCR, legacy: nil}
+			}
 		}
 		if block := tpl.block(templateNS, templateName); block != nil {
 			return nil, nil, block, nil
