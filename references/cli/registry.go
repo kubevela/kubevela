@@ -277,7 +277,7 @@ func NewRegistry(ctx context.Context, token, registryName string, regURL string)
 // ListRegistryConfig will get all registry config stored in local
 // this will return at least one config, which is DefaultRegistry
 func ListRegistryConfig() ([]RegistryConfig, error) {
-	defaultRegistryConfig := RegistryConfig{Name: DefaultRegistry, URL: "oss://registry.kubevela.net/"}
+	defaultRegistryConfig := RegistryConfig{Name: DefaultRegistry, URL: "https://github.com/kubevela/kubevela/tree/master/vela-templates/registry/auto-gen"}
 	config, err := system.GetRepoConfig()
 	if err != nil {
 		return nil, err
@@ -297,15 +297,29 @@ func ListRegistryConfig() ([]RegistryConfig, error) {
 	if err = yaml.Unmarshal(data, &regConfigs); err != nil {
 		return nil, err
 	}
+	const oldDefaultURL = "oss://registry.kubevela.net/"
 	haveDefault := false
-	for _, r := range regConfigs {
-		if r.URL == defaultRegistryConfig.URL {
+	updated := false
+	for i, r := range regConfigs {
+		if r.Name == defaultRegistryConfig.Name {
 			haveDefault = true
+			if r.URL == oldDefaultURL {
+				regConfigs[i].URL = defaultRegistryConfig.URL
+				updated = true
+			}
 			break
+		}
+	}
+	if updated {
+		if err := StoreRepos(regConfigs); err != nil {
+			return nil, errors.Wrap(err, "error updating default registry URL")
 		}
 	}
 	if !haveDefault {
 		regConfigs = append(regConfigs, defaultRegistryConfig)
+		if err := StoreRepos(regConfigs); err != nil {
+			return nil, errors.Wrap(err, "error adding default registry")
+		}
 	}
 	return regConfigs, nil
 }
