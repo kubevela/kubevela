@@ -83,6 +83,111 @@ jobs:
           token: ${{ steps.token.outputs.token }}
           configPath: issue-commands
 
+  assign-policy:
+    runs-on: ubuntu-22.04
+    if: >-
+      github.event_name == 'issue_comment' &&
+      !github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
+      (contains(github.event.comment.body, '/assign') || contains(github.event.comment.body, '\assign'))
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # /assign is handled here, not in issue-commands.json: the commands action
+      # also allows anyone whose login is a substring of .github/comment.userlist.
+      - name: Handle /assign (maintainers and triagers assign, others get the assignment rule)
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Same command pattern the commands action matched.
+            const body = context.payload.comment.body || ""
+            if (!/(\/|\\)assign(\s|$)/i.test(body)) return
+
+            const user = context.payload.comment.user.login
+            const { owner, repo } = context.repo
+            const issue_number = context.issue.number
+
+            // Maintainers (write/admin) and triagers listed in .github/comment.userlist can assign.
+            let allowed = false
+            try {
+              const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({ owner, repo, username: user })
+              allowed = perm.permission === "admin" || perm.permission === "write"
+            } catch (err) {
+              console.log("could not read collaborator permission for " + user + ": " + err.message)
+            }
+            if (!allowed) {
+              try {
+                const { data: file } = await github.rest.repos.getContent({ owner, repo, path: ".github/comment.userlist" })
+                const triagers = Buffer.from(file.content, "base64").toString("utf-8")
+                  .split(/\r?\n/).map((l) => l.trim().toLowerCase()).filter(Boolean)
+                allowed = triagers.includes(user.toLowerCase())
+              } catch (err) {
+                console.log("could not read .github/comment.userlist: " + err.message)
+              }
+            }
+
+            if (allowed) {
+              // "/assign" assigns the commenter; "/assign @a b -c" adds a and b, removes c.
+              const args = ((body.match(/(?:\\|\/)assign(.*)(?:\r)?(?:\n|$)/i) || [])[1] || "")
+                .trim().split(/\s+/).filter(Boolean)
+              const add = [], remove = []
+              for (const arg of args) {
+                const login = arg.replace(/^-/, "").replace(/^@/, "")
+                if (login) (arg.startsWith("-") ? remove : add).push(login)
+              }
+              if (args.length === 0) add.push(user)
+              if (add.length) await github.rest.issues.addAssignees({ owner, repo, issue_number, assignees: add })
+              if (remove.length) await github.rest.issues.removeAssignees({ owner, repo, issue_number, assignees: remove })
+              console.log(user + " assigned [" + add.join(", ") + "] unassigned [" + remove.join(", ") + "] on #" + issue_number)
+              return
+            }
+
+            // Reply once per user per issue. Only trust the marker in this workflow's own comments.
+            const marker = `<!-- assign-policy:${user} -->`
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number, per_page: 100 })
+            if (comments.some((c) => c.user && c.user.login === "github-actions[bot]" && (c.body || "").includes(marker))) {
+              console.log("already replied to " + user + " on #" + issue_number)
+              return
+            }
+
+            const assignees = (context.payload.issue.assignees || []).map((a) => "@" + a.login)
+            const taken = assignees.length
+              ? `\n> [!NOTE]\n> This issue is already assigned to ${assignees.join(", ")}. Please pick another issue, or talk with the assignee here before you do any work.\n`
+              : ""
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: `${marker}
+            Hi @${user}, thanks for offering to work on this! :wave:
+
+            The \`/assign\` command no longer assigns issues to contributors. In KubeVela, **a maintainer must assign an issue to you before you open a pull request.** This prevents duplicate work, and it makes sure that maintainers agree with the approach before you start.
+            ${taken}
+            **What to do next**
+            1. Your request here is noted. If you have not done so already, add a short comment that explains how you plan to fix this.
+            2. **Wait until a maintainer assigns this issue to you.** Do not start the work or open a pull request before that.
+            3. Do the work and open your pull request. Link this issue in the description with \`Fixes #${issue_number}\`, or with \`Related to #${issue_number}\` if the pull request completes only part of it.
+
+            > [!IMPORTANT]
+            > Maintainers will not review a pull request that does not have an assigned issue, and they can close it.
+
+            More information:
+            - [CONTRIBUTING.md](https://github.com/kubevela/kubevela/blob/master/CONTRIBUTING.md)
+            - [Code contribution guide](https://kubevela.io/docs/contributor/code-contribute)
+            - [Announcement in the CNCF Slack](https://cloud-native.slack.com/archives/C01BLQ3HTJA/p1793980491783859) (join at https://slack.cncf.io)
+            `,
+            })
+
+            await github.rest.reactions.createForIssueComment({
+              owner,
+              repo,
+              comment_id: context.payload.comment.id,
+              content: "eyes",
+            })
+
   backport:
     runs-on: ubuntu-22.04
     if: github.event.issue.pull_request && contains(github.event.comment.body, '/backport')

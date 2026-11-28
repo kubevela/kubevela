@@ -25,7 +25,7 @@ Label commands:
 * Add label `bot/close feature request` for bot to close a feature request with standard message.
 
 Assign:
-When you participating in an issue area, and you want to assign to others
-to distribute this task or self-assign to give a solution. You can use the comment bellow.
-* Write the word `/assign githubname` in a comment, the robot will automatically assign to the corresponding person.
-* Specially, write the word `/assign` in a comment, you can assgin this task to yourself.  
+A maintainer or a listed triager must assign an issue to you before you open a pull request (see [CONTRIBUTING.md](https://github.com/kubevela/kubevela/blob/master/CONTRIBUTING.md)).
+* Maintainers (users with write access) and triagers listed in the [userlist](https://github.com/kubevela/kubevela/blob/master/.github/comment.userlist) write `/assign githubname` in a comment, and the bot assigns the issue to that person. A bare `/assign` assigns it to the person who wrote the comment, and `/assign -githubname` removes that assignee.
+* If anyone else writes `/assign`, the bot does not assign the issue. It replies once with the assignment rule and asks the contributor to wait for a maintainer to assign it.
+* To ask for an issue, comment on it and say how you plan to fix it, then wait for a maintainer or a listed triager to assign it to you.
