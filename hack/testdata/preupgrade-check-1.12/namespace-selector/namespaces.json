@@ -1,0 +1,39 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "name": "team-a",
+    "labels": {
+     "tenant": "true"
+    }
+   }
+  },
+  {
+   "metadata": {
+    "name": "team-b"
+   }
+  },
+  {
+   "metadata": {
+    "name": "team-c",
+    "labels": {
+     "tenant": "true",
+     "tier": "frozen"
+    }
+   }
+  },
+  {
+   "metadata": {
+    "name": "batch-1"
+   }
+  },
+  {
+   "metadata": {
+    "name": "vela-system",
+    "labels": {
+     "tenant": "true"
+    }
+   }
+  }
+ ]
+}

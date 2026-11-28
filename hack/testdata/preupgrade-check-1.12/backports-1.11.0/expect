@@ -1,0 +1,10 @@
+exit 1
+error trait-conflicts Application default/conflicting
+error http-guard Application default/metadata
+error http-guard Application default/loopback
+error http-guard Application default/slow
+error cross-namespace-credentials Application team-a/values-elsewhere
+error cross-namespace-credentials ComponentDefinition vela-system/tf-remote
+error vela-cli-namespace Application team-a/cli
+warn vela-cli-namespace Application team-a/cli
+error cross-namespace-credentials Application team-a/reads-elsewhere

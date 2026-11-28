@@ -1,0 +1,109 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "hook-secret"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "h",
+       "type": "webhook",
+       "properties": {
+        "url": {
+         "secretRef": {
+          "name": "hook",
+          "key": "url"
+         }
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "slack-secret"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "n",
+       "type": "notification",
+       "properties": {
+        "slack": {
+         "url": {
+          "secretRef": {
+           "name": "slack",
+           "key": "url"
+          }
+         },
+         "message": {
+          "text": "x"
+         }
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "fine-secret"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "h",
+       "type": "webhook",
+       "properties": {
+        "url": {
+         "secretRef": {
+          "name": "ok",
+          "key": "url"
+         }
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "denied-secret"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "h",
+       "type": "webhook",
+       "properties": {
+        "url": {
+         "secretRef": {
+          "name": "locked",
+          "key": "url"
+         }
+        }
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

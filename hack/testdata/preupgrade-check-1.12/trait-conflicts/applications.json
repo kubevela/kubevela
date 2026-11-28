@@ -1,0 +1,183 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "by-name"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "scaler"
+       },
+       {
+        "type": "gateway"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "wildcard"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "scaler"
+       },
+       {
+        "type": "solo"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "by-group"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "netpol"
+       },
+       {
+        "type": "gateway@v1"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "by-label"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "edge-tls"
+       },
+       {
+        "type": "picky"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "no-conflict"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "scaler"
+       },
+       {
+        "type": "picky"
+       },
+       {
+        "type": "netpol"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "local-def"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "scaler"
+       },
+       {
+        "type": "gateway"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "numeric"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "heavy"
+       },
+       {
+        "type": "over-five"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "numeric-miss"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "light"
+       },
+       {
+        "type": "over-five"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

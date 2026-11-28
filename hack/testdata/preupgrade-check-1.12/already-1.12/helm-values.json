@@ -1,0 +1,6 @@
+{
+ "featureGates": {
+  "enableGlobalPolicies": true,
+  "enableApplicationScopedPolicies": true
+ }
+}

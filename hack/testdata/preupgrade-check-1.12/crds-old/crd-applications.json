@@ -1,0 +1,1 @@
+{"kind":"CustomResourceDefinition","metadata":{"name":"applications.core.oam.dev"},"spec":{"versions":[{"name":"v1beta1","schema":{"openAPIV3Schema":{"properties":{"status":{"properties":{}}}}}}]}}

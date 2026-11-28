@@ -1,0 +1,3 @@
+warn resource-trait Application default/cpu-only
+warn resource-trait Application default/memory-only
+match 1.11 ignored a lone cpu

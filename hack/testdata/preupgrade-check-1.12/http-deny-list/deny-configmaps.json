@@ -1,0 +1,17 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "vela-system",
+    "name": "corp-deny",
+    "labels": {
+     "config.oam.dev/type": "vela-core-http-deny"
+    }
+   },
+   "data": {
+    "denyHosts": "# internal\n*.internal.example.com\napi.blocked.example  # partner\n",
+    "denyCIDRs": "203.0.113.0/24\n2001:db8::/32\n"
+   }
+  }
+ ]
+}

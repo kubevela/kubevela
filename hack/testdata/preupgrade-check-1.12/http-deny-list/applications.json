@@ -1,0 +1,144 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "wildcard-host"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://hooks.internal.example.com/x"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "exact-host"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://API.blocked.example./x"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "cidr4"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "http://203.0.113.9:8080/"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "cidr6"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "http://[2001:db8::7]/"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "values-host"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://values.blocked.example/"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "suffix-itself"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://internal.example.com/"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "outside-cidr"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "http://203.0.114.1/"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

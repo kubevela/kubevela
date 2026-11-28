@@ -1,0 +1,6 @@
+exit 1
+error affinity-trait Application default/placed-task
+warn affinity-trait Application default/new-task
+match component migrate \(task\): the affinity trait sets nodeSelector, which 1.11 ignored; 1.12 adds it to the existing Job's pod template, the API server refuses that \(field is immutable\)
+match no Job of component migrate exists on this cluster yet, so 1.12 creates one with priorityClassName
+match delete the component's Job after the upgrade so 1.12 creates it again, which runs the task again

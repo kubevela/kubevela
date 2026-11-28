@@ -1,0 +1,159 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "conflicting"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "scaler"
+       },
+       {
+        "type": "gateway"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "metadata"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "m",
+       "type": "request",
+       "properties": {
+        "url": "http://169.254.169.254/"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "loopback"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "l",
+       "type": "request",
+       "properties": {
+        "url": "http://127.0.0.1:8080/"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "slow"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "s",
+       "type": "webhook",
+       "properties": {
+        "url": {
+         "value": "https://example.com"
+        },
+        "timeout": "90s"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "values-elsewhere"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "db",
+      "type": "helmchart",
+      "properties": {
+       "chart": {
+        "source": "pg"
+       },
+       "valuesFrom": [
+        {
+         "kind": "ConfigMap",
+         "name": "v",
+         "namespace": "shared"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "cli"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "c",
+       "type": "vela-cli",
+       "properties": {
+        "command": [
+         "vela",
+         "version"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "reads-elsewhere"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "r",
+       "type": "read-config",
+       "properties": {
+        "name": "db",
+        "namespace": "shared"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

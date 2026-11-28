@@ -1,0 +1,76 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "pinned-conflict"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "scaler"
+       },
+       {
+        "type": "gateway@v1"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "live-ok"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "webservice",
+      "traits": [
+       {
+        "type": "scaler"
+       },
+       {
+        "type": "gateway"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "pinned-restricted"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "web2@v3"
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "live-unrestricted"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "web2"
+     }
+    ]
+   }
+  }
+ ]
+}

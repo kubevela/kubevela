@@ -1,0 +1,3 @@
+exit 1
+error http-guard Application default/resolves-to-metadata
+match resolved on this machine

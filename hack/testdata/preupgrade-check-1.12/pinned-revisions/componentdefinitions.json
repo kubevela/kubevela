@@ -1,0 +1,11 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "vela-system",
+    "name": "web2"
+   },
+   "spec": {}
+  }
+ ]
+}

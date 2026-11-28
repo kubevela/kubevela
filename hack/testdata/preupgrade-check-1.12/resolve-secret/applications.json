@@ -1,0 +1,49 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "hook-resolves-to-metadata"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "h",
+       "type": "webhook",
+       "properties": {
+        "url": {
+         "secretRef": {
+          "name": "hook",
+          "key": "url"
+         }
+        }
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "call-resolves-to-metadata"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "r",
+       "type": "request",
+       "properties": {
+        "url": "http://api.corp.example/"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

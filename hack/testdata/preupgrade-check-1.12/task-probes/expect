@@ -1,0 +1,5 @@
+exit 1
+error task-probes Application default/probed-task
+warn task-probes Application default/ready-task
+match field is immutable
+match no Job of component migrate exists on this cluster yet, so 1.12 creates one with readinessProbe

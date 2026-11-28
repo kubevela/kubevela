@@ -1,0 +1,4 @@
+exit 1
+error helmchart-release Application default/ns-only
+error helmchart-release Application default/empty-release
+match helm uninstall release -n web
