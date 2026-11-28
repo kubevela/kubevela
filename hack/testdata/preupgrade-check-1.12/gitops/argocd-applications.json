@@ -1,0 +1,4 @@
+{"items":[
+ {"kind":"Application","metadata":{"namespace":"argocd","name":"kubevela"},"spec":{"source":{"repoURL":"https://kubevela.github.io/charts","chart":"vela-core","targetRevision":"1.11.2"}}},
+ {"kind":"Application","metadata":{"namespace":"argocd","name":"other"},"spec":{"source":{"repoURL":"https://github.com/org/apps","path":"guestbook"}}}
+]}

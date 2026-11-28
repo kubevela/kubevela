@@ -1,0 +1,7 @@
+{
+ "workflow": {
+  "http": {
+   "maxTimeout": "2m"
+  }
+ }
+}

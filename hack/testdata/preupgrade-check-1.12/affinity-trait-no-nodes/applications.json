@@ -1,0 +1,354 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "nowhere"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "nodeSelector": {
+          "disktype": "nvme-nowhere"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "linux"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "nodeSelector": {
+          "kubernetes.io/os": "linux"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "scheduler"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "schedulerName": "bin-packer",
+         "priorityClassName": "high"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "tolerates"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "tolerations": [
+          {
+           "key": "gpu",
+           "operator": "Exists"
+          }
+         ],
+         "nodeAffinity": {
+          "required": {
+           "nodeSelectorTerms": [
+            {
+             "matchExpressions": [
+              {
+               "key": "kubernetes.io/os",
+               "operator": "In",
+               "values": [
+                "linux"
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "own-affinity"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "nodeSelector": {
+          "disktype": "nvme-nowhere"
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "no-class"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "priorityClassName": "no-such-class"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "raw-nowhere"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "affinity": {
+          "nodeAffinity": {
+           "requiredDuringSchedulingIgnoredDuringExecution": {
+            "nodeSelectorTerms": [
+             {
+              "matchExpressions": [
+               {
+                "key": "disktype",
+                "operator": "In",
+                "values": [
+                 "nvme"
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          }
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "raw-fits"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "affinity": {
+          "nodeAffinity": {
+           "requiredDuringSchedulingIgnoredDuringExecution": {
+            "nodeSelectorTerms": [
+             {
+              "matchExpressions": [
+               {
+                "key": "disktype",
+                "operator": "In",
+                "values": [
+                 "nvme"
+                ]
+               }
+              ]
+             },
+             {
+              "matchExpressions": [
+               {
+                "key": "disktype",
+                "operator": "Exists"
+               }
+              ],
+              "matchFields": [
+               {
+                "key": "metadata.name",
+                "operator": "In",
+                "values": [
+                 "node-a"
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          }
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "raw-and-selector"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "nodeSelector": {
+          "kubernetes.io/hostname": "node-b"
+         },
+         "affinity": {
+          "nodeAffinity": {
+           "requiredDuringSchedulingIgnoredDuringExecution": {
+            "nodeSelectorTerms": [
+             {
+              "matchExpressions": [
+               {
+                "key": "disktype",
+                "operator": "Exists"
+               }
+              ]
+             }
+            ]
+           }
+          }
+         }
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "custom-scheduler"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "web",
+      "type": "webservice",
+      "properties": {
+       "image": "nginx"
+      },
+      "traits": [
+       {
+        "type": "affinity",
+        "properties": {
+         "schedulerName": "no-such-scheduler"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

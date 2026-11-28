@@ -1,0 +1,6 @@
+{"items":[
+ {"metadata":{"namespace":"default","name":"ns-only"},"spec":{"components":[{"name":"podinfo","type":"helmchart","properties":{"chart":{"source":"podinfo","repoURL":"https://stefanprodan.github.io/podinfo"},"release":{"namespace":"web"}}}]}},
+ {"metadata":{"namespace":"default","name":"empty-release"},"spec":{"components":[{"name":"podinfo","type":"helmchart","properties":{"chart":{"source":"podinfo","repoURL":"https://stefanprodan.github.io/podinfo"},"release":{}}}]}},
+ {"metadata":{"namespace":"default","name":"named"},"spec":{"components":[{"name":"podinfo","type":"helmchart","properties":{"chart":{"source":"podinfo","repoURL":"https://stefanprodan.github.io/podinfo"},"release":{"name":"podinfo","namespace":"web"}}}]}},
+ {"metadata":{"namespace":"default","name":"no-release"},"spec":{"components":[{"name":"podinfo","type":"helmchart","properties":{"chart":{"source":"podinfo","repoURL":"https://stefanprodan.github.io/podinfo"}}}]}}
+]}

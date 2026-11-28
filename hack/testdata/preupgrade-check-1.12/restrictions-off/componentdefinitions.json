@@ -1,0 +1,1 @@
+{"items":[{"metadata":{"namespace":"vela-system","name":"restricted-web","annotations":{"definition.oam.dev/restrict-namespaces":"prod-*, vela-system"}},"spec":{}}]}

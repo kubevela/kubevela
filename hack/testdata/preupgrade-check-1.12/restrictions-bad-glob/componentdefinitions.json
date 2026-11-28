@@ -1,0 +1,4 @@
+{"apiVersion":"v1","kind":"List","items":[
+ {"apiVersion":"core.oam.dev/v1beta1","kind":"ComponentDefinition","metadata":{"name":"bad-glob","namespace":"vela-system","annotations":{"definition.oam.dev/restrict-namespaces":"team-[a, vela-system"}},"spec":{"workload":{"definition":{"apiVersion":"apps/v1","kind":"Deployment"}},"schematic":{"cue":{"template":"output: {}"}}}},
+ {"apiVersion":"core.oam.dev/v1beta1","kind":"ComponentDefinition","metadata":{"name":"class-glob","namespace":"vela-system","annotations":{"definition.oam.dev/restrict-namespaces":"team-[ab]"}},"spec":{"workload":{"definition":{"apiVersion":"apps/v1","kind":"Deployment"}},"schematic":{"cue":{"template":"output: {}"}}}}
+]}

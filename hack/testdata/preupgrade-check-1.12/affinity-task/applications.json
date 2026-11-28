@@ -1,0 +1,8 @@
+{"items":[
+ {"metadata":{"namespace":"default","name":"placed-task"},"spec":{"components":[{"name":"migrate","type":"task","properties":{"image":"busybox","cmd":["sh","-c","true"]},
+   "traits":[{"type":"affinity","properties":{"nodeSelector":{"kubernetes.io/os":"linux"}}}]}]}},
+ {"metadata":{"namespace":"default","name":"new-task"},"spec":{"components":[{"name":"migrate","type":"task","properties":{"image":"busybox"},
+   "traits":[{"type":"affinity","properties":{"priorityClassName":"high"}}]}]}},
+ {"metadata":{"namespace":"default","name":"tolerant-task"},"spec":{"components":[{"name":"migrate","type":"task","properties":{"image":"busybox"},
+   "traits":[{"type":"affinity","properties":{"tolerations":[{"key":"gpu","operator":"Exists"}]}}]}]}}
+]}

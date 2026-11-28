@@ -1,0 +1,12 @@
+{
+ "workflow": {
+  "httpDeny": {
+   "defaultConfig": {
+    "denyHosts": [
+     "metadata.google.internal",
+     "values.blocked.example"
+    ]
+   }
+  }
+ }
+}

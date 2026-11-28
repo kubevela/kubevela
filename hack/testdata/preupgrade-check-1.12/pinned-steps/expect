@@ -1,0 +1,6 @@
+exit 1
+error http-guard Application default/pinned-request
+error http-guard Application default/pinned-webhook
+error http-guard Application default/pinned-notification
+error http-guard Application default/pinned-timeout
+error cross-namespace-credentials Application default/pinned-config

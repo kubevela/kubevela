@@ -1,0 +1,10 @@
+exit 1
+error http-guard Application default/metadata-call
+error http-guard Application default/localhost-hook
+error http-guard Application default/loopback-slack
+error http-guard Application default/private-sub
+error http-guard Application default/by-ref
+error http-guard Application default/no-unit
+error http-guard Application default/too-long
+error http-guard Application default/zero
+match set timeout to a Go duration with a unit, such as "30s"

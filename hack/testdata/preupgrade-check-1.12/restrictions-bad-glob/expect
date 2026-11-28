@@ -1,0 +1,3 @@
+warn definition-restrictions ComponentDefinition vela-system/bad-glob
+warn definition-restrictions Application team-a/uses-bad
+warn definition-restrictions Application team-c/out-of-class

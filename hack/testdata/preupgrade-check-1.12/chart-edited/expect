@@ -1,0 +1,7 @@
+exit 0
+warn chart-edits ValidatingWebhookConfiguration kubevela-vela-core-admission
+warn chart-edits Deployment vela-system/kubevela-vela-core
+match \.webhooks\[name="validating\.core\.oam\.dev\.v1beta1\.applications"\]\.timeoutSeconds \(kubectl-patch\)
+match \.spec\.replicas \(kubectl-edit\)
+warn chart-edits ConfigMap vela-system/vela-addon-registry
+match \.data\.registries \(kubectl-patch\)

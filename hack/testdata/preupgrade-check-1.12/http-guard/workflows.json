@@ -1,0 +1,1 @@
+{"items":[{"metadata":{"namespace":"vela-system","name":"shared-flow"},"steps":[{"name":"meta","type":"request","properties":{"url":"http://metadata.google.internal/computeMetadata/v1/"}}]}]}

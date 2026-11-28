@@ -1,0 +1,102 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "tenant"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "webservice"
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-c",
+    "name": "frozen"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "webservice"
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "unlabelled"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "webservice"
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-b",
+    "name": "own-def"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "webservice"
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "batch-1",
+    "name": "batch-worker"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "worker"
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "worker-elsewhere"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "worker"
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "not-builtin"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "custom-web"
+     }
+    ]
+   }
+  }
+ ]
+}

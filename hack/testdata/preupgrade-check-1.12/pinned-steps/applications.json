@@ -1,0 +1,34 @@
+{
+ "items": [
+  {
+   "metadata": {"namespace": "default", "name": "pinned-request"},
+   "spec": {"components": [], "workflow": {"steps": [
+    {"name": "creds", "type": "request@v1.0.0", "properties": {"url": "http://169.254.169.254/latest/meta-data"}}
+   ]}}
+  },
+  {
+   "metadata": {"namespace": "default", "name": "pinned-webhook"},
+   "spec": {"components": [], "workflow": {"steps": [
+    {"name": "hook", "type": "webhook@v1", "properties": {"url": {"value": "http://localhost:8080/hook"}}}
+   ]}}
+  },
+  {
+   "metadata": {"namespace": "default", "name": "pinned-notification"},
+   "spec": {"components": [], "workflow": {"steps": [
+    {"name": "tell", "type": "notification@v1.2.0", "properties": {"slack": {"url": {"secretRef": {"name": "slack", "key": "url"}}, "message": {"text": "hi"}}}}
+   ]}}
+  },
+  {
+   "metadata": {"namespace": "default", "name": "pinned-timeout"},
+   "spec": {"components": [], "workflow": {"steps": [
+    {"name": "r", "type": "request@v1", "properties": {"url": "https://example.com", "timeout": "30"}}
+   ]}}
+  },
+  {
+   "metadata": {"namespace": "default", "name": "pinned-config"},
+   "spec": {"components": [], "workflow": {"steps": [
+    {"name": "read-other", "type": "read-config@v1", "properties": {"name": "db-creds", "namespace": "team-b"}}
+   ]}}
+  }
+ ]
+}

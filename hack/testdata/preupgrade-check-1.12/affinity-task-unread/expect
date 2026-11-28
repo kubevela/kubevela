@@ -1,0 +1,4 @@
+exit 0
+warn affinity-trait Application default/placed-task
+warn affinity-trait Application default/new-task
+match the Jobs were not read, so whether component migrate has one is unknown

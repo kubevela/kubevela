@@ -1,0 +1,32 @@
+{
+ "items": [
+  {
+   "kind": "Deployment",
+   "metadata": {
+    "namespace": "vela-system",
+    "name": "kubevela-vela-core",
+    "labels": {
+     "app.kubernetes.io/name": "vela-core",
+     "app.kubernetes.io/instance": "kubevela",
+     "controller.oam.dev/name": "vela-core",
+     "app.kubernetes.io/version": "1.11.0"
+    }
+   },
+   "spec": {
+    "template": {
+     "spec": {
+      "containers": [
+       {
+        "name": "kubevela",
+        "image": "oamdev/vela-core:v1.11.0",
+        "args": [
+         "--max-workflow-http-timeout=60s"
+        ]
+       }
+      ]
+     }
+    }
+   }
+  }
+ ]
+}

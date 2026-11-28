@@ -1,0 +1,20 @@
+exit 1
+error affinity-trait Application default/nowhere
+warn affinity-trait Application default/linux
+warn affinity-trait Application default/scheduler
+error affinity-trait Application default/no-class
+error affinity-trait Application default/raw-nowhere
+warn affinity-trait Application default/raw-fits
+error affinity-trait Application default/raw-and-selector
+warn affinity-trait Application default/custom-scheduler
+match no node has the labels disktype=nvme-nowhere
+match 2 of 2 nodes fit its placement
+match no PriorityClass no-such-class exists, so the new Pods are refused
+match no node matches the required nodeAffinity terms
+match no node has the labels kubernetes.io/hostname=node-b and matches the required nodeAffinity terms
+match the new Pods stay Pending unless scheduler no-such-scheduler runs
+error affinity-trait Application default/wrapped-and-selector
+warn affinity-trait Application default/raw-over-wrapped
+warn affinity-trait Application default/empty-class
+match no node has the labels kubernetes.io/os=linux and matches the required nodeAffinity terms
+match 1 of 2 nodes fit its placement

@@ -1,0 +1,103 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "web-in-team"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "restricted-web"
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "prod-eu",
+    "name": "web-in-prod"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "restricted-web"
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "override-trait"
+   },
+   "spec": {
+    "components": [
+     {
+      "name": "w",
+      "type": "webservice"
+     }
+    ],
+    "policies": [
+     {
+      "name": "o",
+      "type": "override",
+      "properties": {
+       "components": [
+        {
+         "traits": [
+          {
+           "type": "locked"
+          }
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "step"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "s",
+       "type": "ops-step"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "team-a",
+    "name": "cli"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "c",
+       "type": "vela-cli",
+       "properties": {
+        "command": [
+         "vela"
+        ],
+        "serviceAccountName": "deployer"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}

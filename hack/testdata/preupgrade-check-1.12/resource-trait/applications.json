@@ -1,0 +1,6 @@
+{"items":[
+ {"metadata":{"namespace":"default","name":"cpu-only"},"spec":{"components":[{"name":"web","type":"webservice","traits":[{"type":"resource","properties":{"cpu":"500m"}}]}]}},
+ {"metadata":{"namespace":"default","name":"memory-only"},"spec":{"components":[{"name":"web","type":"webservice","traits":[{"type":"resource","properties":{"memory":"1Gi"}}]}]}},
+ {"metadata":{"namespace":"default","name":"both"},"spec":{"components":[{"name":"web","type":"webservice","traits":[{"type":"resource","properties":{"cpu":1,"memory":"1Gi"}}]}]}},
+ {"metadata":{"namespace":"default","name":"with-requests"},"spec":{"components":[{"name":"web","type":"webservice","traits":[{"type":"resource","properties":{"cpu":1,"requests":{"cpu":1,"memory":"1Gi"}}}]}]}}
+]}

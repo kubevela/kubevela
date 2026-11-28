@@ -1,0 +1,5 @@
+{"items":[
+ {"metadata":{"namespace":"team-a","name":"team-labels"},"spec":{"global":true,"scope":"Application"}},
+ {"metadata":{"namespace":"vela-system","name":"platform-labels"},"spec":{"global":true,"scope":"Application"}},
+ {"metadata":{"namespace":"team-a","name":"plain"},"spec":{}}
+]}

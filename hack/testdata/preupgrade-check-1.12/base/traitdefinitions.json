@@ -1,0 +1,5 @@
+{"items":[
+ {"metadata":{"namespace":"vela-system","name":"scaler"},"spec":{}},
+ {"metadata":{"namespace":"vela-system","name":"gateway"},"spec":{"definitionRef":{"name":"ingresses.networking.k8s.io"}}},
+ {"metadata":{"namespace":"vela-system","name":"resource"},"spec":{}}
+]}

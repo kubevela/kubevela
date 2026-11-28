@@ -1,0 +1,88 @@
+{
+ "items": [
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "t60"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://example.com",
+        "timeout": "60s"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "t1m"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://example.com",
+        "timeout": "1m0s"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "t60ms"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://example.com",
+        "timeout": "60001ms"
+       }
+      }
+     ]
+    }
+   }
+  },
+  {
+   "metadata": {
+    "namespace": "default",
+    "name": "t90"
+   },
+   "spec": {
+    "components": [],
+    "workflow": {
+     "steps": [
+      {
+       "name": "a",
+       "type": "request",
+       "properties": {
+        "url": "https://example.com",
+        "timeout": "90s"
+       }
+      }
+     ]
+    }
+   }
+  }
+ ]
+}
