@@ -37,8 +37,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/crate/naming"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
-	"github.com/oam-dev/kubevela/pkg/module/naming"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -95,7 +95,7 @@ type Template struct {
 func LoadTemplate(ctx context.Context, cli client.Client, capName string, capType types.CapType, annotations map[string]string) (*Template, error) {
 	ctx = multicluster.WithCluster(ctx, multicluster.Local)
 
-	resolved, err := ResolveModuleType(ctx, cli, capName, capType)
+	resolved, err := ResolveCrateType(ctx, cli, capName, capType)
 	if err != nil {
 		return nil, err
 	}
@@ -279,12 +279,12 @@ func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev
 	if revisionCapabilityExists(capName, capType, apprev) {
 		return capName, nil
 	}
-	form, moduleName, apiVersion, shortName, err := parseTypeRef(capName)
+	form, crateName, apiVersion, shortName, err := parseTypeRef(capName)
 	if err != nil {
 		return "", err
 	}
 	if form == 3 {
-		resolved := naming.DefinitionName(moduleName, apiVersion, shortName)
+		resolved := naming.DefinitionName(crateName, apiVersion, shortName)
 		if revisionCapabilityExists(resolved, capType, apprev) {
 			return resolved, nil
 		}
@@ -322,7 +322,13 @@ func IsNotFoundInAppRevision(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not found in app revision")
 }
 
+// verifyRevisionName returns the key a revision holds capName's definition
+// under: the reference itself when the revision recorded it, or the bare
+// definition name for a revision written before references were recorded.
 func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) string {
+	if revisionCapabilityExists(capName, capType, apprev) {
+		return capName
+	}
 	if strings.Contains(capName, "@") {
 		splitName := capName[0:strings.LastIndex(capName, "@")]
 		ok := false

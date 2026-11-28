@@ -26,6 +26,7 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/docgen"
 )
@@ -92,6 +93,10 @@ func ComponentDef(ctx context.Context, c common.Args, opt Options) {
 	}
 	ref.Local = &docgen.FromLocal{Paths: ComponentDefDirs}
 	ref.Client = singleton.KubeClient.Get()
+	// The built-in components import vela packages (vela/crate, vela/addon,
+	// vela/helm), which the default compiler does not know. Without them a
+	// definition does not compile and its parameters are left out of the doc.
+	ref.Compiler = velacuex.WorkloadCompiler.Get()
 
 	if opt.Path != "" {
 		ref.I18N = &docgen.En

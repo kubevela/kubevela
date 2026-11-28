@@ -34,8 +34,8 @@ import (
 const (
 	// AffinityTraitType is the TraitDefinition used for pod scheduling overlays
 	// (nodeSelector, affinity, tolerations, ...). It patches the primary workload
-	// and, via patchOutputs, helmchart chart resources. On type: module (and
-	// inline modules whose primary output is an Application) it also overlays
+	// and, via patchOutputs, helmchart chart resources. On type: crate (and
+	// inline crates whose primary output is an Application) it also overlays
 	// auxiliary controller Deployments inside the owned Application. Trait
 	// fields take precedence over chart values already present on those resources.
 	AffinityTraitType = "affinity"
@@ -167,7 +167,7 @@ func InjectSchedulingIntoArgs(args map[string]interface{}, props SchedulingPrope
 }
 
 // AttachSchedulingTrait appends or replaces the affinity trait on workload
-// components, including type: module and helmchart. Namespace helper components
+// components, including type: crate and helmchart. Namespace helper components
 // are skipped. Affinity carries every scheduling field (including
 // topologySpreadConstraints) so Application walk / helmchart patchOutputs apply them.
 func AttachSchedulingTrait(app *v1beta1.Application, props SchedulingProperties) error {

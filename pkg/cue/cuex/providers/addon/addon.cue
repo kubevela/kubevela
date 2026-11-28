@@ -11,7 +11,7 @@ package addon
 		properties: {...}
 		skipVersionValidate: *false | bool
 		// Namespace of the Application that installs the addon; the addon's
-		// modules install their definitions into it.
+		// crates install their definitions into it.
 		namespace: *"" | string
 		// Where the installer wants the addon. Absent means the addon places
 		// itself, if at all.

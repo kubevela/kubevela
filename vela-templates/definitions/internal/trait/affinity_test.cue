@@ -126,7 +126,7 @@ _term: {labelSelector: matchLabels: app: "cache", topologyKey: "kubernetes.io/ho
 	]
 	expect: output: spec: template: spec: {
 		tolerations: [
-			{key: "dedicated", operator: "equal", value: "shop", effect: "NoSchedule", tolerationSeconds?: _|_},
+			{key: "dedicated", operator: "Equal", value: "shop", effect: "NoSchedule", tolerationSeconds?: _|_},
 			{operator: "Exists", effect: "NoExecute", tolerationSeconds: 300, key?: _|_, value?: _|_},
 		]
 		affinity?: _|_
@@ -178,14 +178,14 @@ _term: {labelSelector: matchLabels: app: "cache", topologyKey: "kubernetes.io/ho
 	expect: error: =~"topologyKey"
 }
 
-// type: module (and inline modules) render an owned Application whose aux
+// type: crate (and inline crates) render an owned Application whose aux
 // Deployments carry controllers; affinity must reach those pod templates.
-_moduleApp: {
+_crateApp: {
 	definition: "affinity"
 	workload: {
 		apiVersion: "core.oam.dev/v1beta1"
 		kind:       "Application"
-		metadata: name: "module-provider-kit"
+		metadata: name: "crate-provider-kit"
 		spec: components: [{
 			name: "provider-kit-aux"
 			type: "k8s-objects"
@@ -206,7 +206,7 @@ _moduleApp: {
 	}
 }
 
-"module owned Application aux Deployment gets nodeSelector": test.#TraitRender & _moduleApp & {
+"crate owned Application aux Deployment gets nodeSelector": test.#TraitRender & _crateApp & {
 	parameter: nodeSelector: "node-type": "infra"
 	expect: output: spec: components: [{
 		name: "provider-kit-aux"
@@ -313,7 +313,7 @@ _addonApp: {
 	}]
 }
 
-"module aux Deployment gets raw affinity and tolerations": test.#TraitRender & _moduleApp & {
+"crate aux Deployment gets raw affinity and tolerations": test.#TraitRender & _crateApp & {
 	parameter: {
 		affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
 			matchExpressions: [{key: "node-type", operator: "In", values: ["infra"]}]
@@ -371,12 +371,12 @@ _addonApp: {
 	}
 }
 
-"module aux Deployment overlays prior nodeSelector without CUE conflict": test.#TraitRender & {
+"crate aux Deployment overlays prior nodeSelector without CUE conflict": test.#TraitRender & {
 	definition: "affinity"
 	workload: {
 		apiVersion: "core.oam.dev/v1beta1"
 		kind:       "Application"
-		metadata: name: "module-provider-kit"
+		metadata: name: "crate-provider-kit"
 		spec: components: [{
 			name: "provider-kit-aux"
 			type: "k8s-objects"

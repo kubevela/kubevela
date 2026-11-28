@@ -36,8 +36,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/crate/naming"
 	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/module/naming"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -156,7 +156,7 @@ func TestWithoutStoredProblems(t *testing.T) {
 	require.Empty(t, refused)
 }
 
-// A definition a module removed is not a rule that changed: the Application can no longer render,
+// A definition a crate removed is not a rule that changed: the Application can no longer render,
 // so even an update that leaves its spec as it is gets validated in full and refused.
 func TestValidateUpdateRefusesAnApplicationWhoseDefinitionIsGone(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.ValidateDefinitionPermissions, false)

@@ -9,9 +9,9 @@ import (
 	labels: {
 		"ui-hidden": "true"
 	}
-	description: "Universal pod scheduling trait (nodeSelector, affinity, tolerations, …). Patches workloads with spec.template, helmchart chart resources, and when the component output is an Application (type: addon / type: module) upserts itself onto that Application's components and overlays auxiliary controller Deployments. Trait fields overlay any values already present."
+	description: "Universal pod scheduling trait (nodeSelector, affinity, tolerations, …). Patches workloads with spec.template, helmchart chart resources, and when the component output is an Application (type: addon / type: crate) upserts itself onto that Application's components and overlays auxiliary controller Deployments. Trait fields overlay any values already present."
 	attributes: {
-		// "*" so helmchart, type: addon, and type: module (Application primary) can carry the trait.
+		// "*" so helmchart, type: addon, and type: crate (Application primary) can carry the trait.
 		appliesToWorkloads: ["*"]
 		podDisruptive: true
 	}
@@ -125,7 +125,7 @@ template: {
 						operator: "\(k.operator)"
 					}
 					if k.operator == _|_ {
-						operator: "equal"
+						operator: "Equal"
 					}
 					if k.tolerationSeconds != _|_ {
 						tolerationSeconds: k.tolerationSeconds
@@ -145,7 +145,7 @@ template: {
 
 	// Trait properties copied onto owned Application components (same fields the
 	// author set on this affinity trait). Child components then apply scheduling
-	// when they render (webservice, helmchart, type: module, …).
+	// when they render (webservice, helmchart, type: crate, …).
 	_affinityTraitProperties: {
 		if parameter.nodeSelector != _|_ {
 			nodeSelector: parameter.nodeSelector
@@ -193,11 +193,11 @@ template: {
 	// object before _podSpec is applied so CUE does not conflict with prior values.
 	_schedKeys: ["nodeSelector", "affinity", "tolerations", "schedulerName", "priorityClassName", "topologySpreadConstraints"]
 
-	// For Application outputs (type: addon / type: module):
+	// For Application outputs (type: addon / type: crate):
 	// 1) upsert this affinity trait onto each non-skipped component so child
-	//    workloads (webservice, helmchart, nested module, …) honor it;
+	//    workloads (webservice, helmchart, nested crate, …) honor it;
 	// 2) overlay PodSpec fields onto any k8s-objects that already embed a
-	//    pod template (module aux controllers).
+	//    pod template (crate aux controllers).
 	// Defined as # so it is only evaluated when unified (avoids incomplete
 	// evaluation on webservice/helmchart primary outputs).
 	_scheduleAppComponents: {
@@ -282,7 +282,7 @@ template: {
 			spec: jobTemplate: spec: template: spec: _podSpec
 		}
 
-		// type: module (and inline modules as k8s-objects) render an Application.
+		// type: crate (and inline crates as k8s-objects) render an Application.
 		if context.output.kind == "Application" && context.output.spec != _|_ && context.output.spec.components != _|_ {
 			spec: components: (_scheduleAppComponents & {components: context.output.spec.components}).out
 		}
@@ -381,7 +381,7 @@ template: {
 		// +usage=Standard Kubernetes tolerations; overlays any existing tolerations
 		tolerations?: [...{
 			key?:      string
-			operator?: *"equal" | "Exists"
+			operator?: *"Equal" | "Exists"
 			value?:    string
 			effect?:   "NoSchedule" | "PreferNoSchedule" | "NoExecute"
 			// +usage=Specify the period of time the toleration

@@ -221,7 +221,7 @@ func nilIfEmpty(s []string) []string {
 // their own YAML, and the detail has to name the values that would have worked.
 func TestValidateComponentsReportsTheOffendingValue(t *testing.T) {
 	reads := 0
-	validator := &Validator{listRegistries: registries(&reads, "KubeVela", "my-modules")}
+	validator := &Validator{listRegistries: registries(&reads, "KubeVela", "my-crates")}
 	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
 		{Name: "api", Type: "webservice"},
 		{Name: "installer", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{
@@ -235,5 +235,5 @@ func TestValidateComponentsReportsTheOffendingValue(t *testing.T) {
 	assert.Equal(t, "spec.components[1].properties.registry", errs[0].Field)
 	assert.Equal(t, "my-addons", errs[0].BadValue)
 	assert.Contains(t, errs[0].Detail, "KubeVela")
-	assert.Contains(t, errs[0].Detail, "my-modules")
+	assert.Contains(t, errs[0].Detail, "my-crates")
 }

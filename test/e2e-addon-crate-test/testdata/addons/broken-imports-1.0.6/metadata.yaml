@@ -1,0 +1,7 @@
+name: broken-imports
+version: 1.0.6
+description: "Deliberately broken _imports.cue: import entry without a crate name."
+tags:
+  - test
+  - crate-import
+dependencies: []

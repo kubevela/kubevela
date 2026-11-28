@@ -103,6 +103,6 @@ func TestWorkflowPackages(t *testing.T) {
 	}
 	require.ElementsMatch(t, []string{
 		"op", "ql", "email", "http", "kube", "metrics", "time", "util", "builtin",
-		"multicluster", "config", "helm", "oam", "query", "terraform", "addon", "module", "registry", "velaconfig",
+		"multicluster", "config", "helm", "oam", "query", "terraform", "addon", "crate", "registry", "velaconfig",
 	}, names)
 }

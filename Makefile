@@ -25,6 +25,7 @@ test-cli-gen:
 unit-test-core:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(shell go list ./references/... | grep -v apiserver)
+	go test ./hack/downgradetest/
 
 ## test-definitions: Run the shipped definitions' tests (failing any @pending case that now passes), then check every definition and parameter is covered
 test-definitions: envtest

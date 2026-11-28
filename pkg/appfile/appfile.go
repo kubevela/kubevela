@@ -92,8 +92,10 @@ const (
 // User-defined policies are parsed as a Component without any Traits because their purpose is dispatching some resources
 // Internal policies are NOT parsed as a Component
 type Component struct {
-	Name               string
-	Type               string
+	Name string
+	Type string
+	// Reference is the type as the Application wrote it, such as `webservice@v2`.
+	Reference          string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
 	Traits             []*Trait
@@ -136,8 +138,10 @@ type Trait struct {
 	// The Name is name of TraitDefinition, actually it's a type of the trait instance
 	Name string
 	// TypeLabel is the trait.oam.dev/type value on the objects the trait emits.
-	// It equals Name except for a module trait, where it is the installed name.
-	TypeLabel          string
+	// It equals Name except for a crate trait, where it is the installed name.
+	TypeLabel string
+	// Reference is the type as the Application wrote it, such as `scaler@v2`.
+	Reference          string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
 
@@ -855,7 +859,7 @@ func makeWorkloadWithContext(pCtx process.Context, comp *Component, ns, appName 
 	}
 	commonLabels := definition.GetCommonLabels(definition.GetBaseContextLabels(pCtx))
 	// Keep revisioned definition names such as "configmap-component-v1" in the
-	// label. Resolve to the installed definition name only for module references
+	// label. Resolve to the installed definition name only for crate references
 	// containing slashes (e.g. "s3/v1/bucket"), which are invalid label values.
 	// The name has to be non-empty to be preferred: a template loaded from a file
 	// or an application revision (dry-run, live-diff) carries a ComponentDefinition

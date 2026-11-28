@@ -36,7 +36,7 @@ _job: {
 			spec: {
 				containers: [{
 					name:  "\(_app)-test-step-test-step-id-job"
-					image: "oamdev/vela-cli:v1.6.4"
+					image: "oamdev/vela-cli:v1.12.0-alpha.2"
 					command: ["vela", "addon", "enable", "fluxcd"]
 					// The API server drops the step's empty lists.
 					volumeMounts?: _|_

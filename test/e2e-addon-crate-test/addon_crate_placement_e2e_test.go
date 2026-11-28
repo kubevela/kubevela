@@ -1,0 +1,287 @@
+/*
+Copyright 2026 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package addoncratetest
+
+import (
+	"context"
+	"encoding/json"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
+)
+
+func policyProperties(app *v1beta1.Application, name string) map[string]interface{} {
+	for _, p := range app.Spec.Policies {
+		if p.Name == name {
+			return propertiesOf(p.Properties)
+		}
+	}
+	Fail("policy " + name + " not found on " + app.Name)
+	return nil
+}
+
+func workflowSteps(app *v1beta1.Application) map[string][]interface{} {
+	Expect(app.Spec.Workflow).ShouldNot(BeNil(), "Application %s has no workflow", app.Name)
+	steps := map[string][]interface{}{}
+	for _, step := range app.Spec.Workflow.Steps {
+		policies, _ := propertiesOf(step.Properties)["policies"].([]interface{})
+		steps[step.Name] = policies
+	}
+	return steps
+}
+
+// withPlacement sets placement on the type: addon component, next to its
+// registry and version, the same place a type: crate component takes it.
+func withPlacement(app *v1beta1.Application, place map[string]interface{}) *v1beta1.Application {
+	props := propertiesOf(app.Spec.Components[0].Properties)
+	props["placement"] = place
+	raw, err := json.Marshal(props)
+	Expect(err).ShouldNot(HaveOccurred())
+	app.Spec.Components[0].Properties = &k8sruntime.RawExtension{Raw: raw}
+	return app
+}
+
+var _ = Describe("Addons that place an imported crate", func() {
+	ctx := context.Background()
+
+	// --- Scenario 20 ---
+	// The catalog's multi-cluster shape: a clusters parameter feeds one
+	// topology policy, there is no workflow, and the import points at that
+	// policy. CI runs a single cluster, so the addon asks for the local one;
+	// the assertions are about the wiring.
+	Context("an addon with a topology policy and placement.fromPolicy (scenario 20)", Ordered, Label("addon-crate-scenario-20"), func() {
+		scope := scenarioScopes["20"]
+		var addonApp, crateApp, crateComponent string
+
+		BeforeAll(func() {
+			addonApp = scope.Text("addon-placement-import")
+			crateApp = scope.Text(fixtureCrateWidgetKit)
+			crateComponent = scope.Text("widget-kit")
+			scope.prepare(ctx)
+
+			Expect(k8sClient.Create(ctx, scope.addonApplication(scope.Text("placement-import"), scope.Text("placement-import"), "1.0.0",
+				map[string]interface{}{"clusters": []interface{}{"local"}}))).Should(Succeed())
+			waitAppRunning(ctx, scope.Namespace, scope.Text("placement-import"), installWait)
+			waitAppRunning(ctx, systemNS, addonApp, shortWait)
+			waitAppRunning(ctx, systemNS, crateApp, shortWait)
+			DeferCleanup(func() {
+				scope.uninstall(ctx, scope.Text("placement-import"), addonApp, crateApp)
+			})
+		})
+
+		It("forwards the named topology policy's clusters as the crate's placement", func() {
+			found := findComponent(mustGetApp(ctx, systemNS, addonApp), crateComponent)
+			Expect(found.Type).Should(Equal("crate"))
+			Expect(propertiesOf(found.Properties)["placement"]).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
+		})
+
+		It("keeps the crate component on the hub with its own deploy step", func() {
+			app := mustGetApp(ctx, systemNS, addonApp)
+			Expect(workflowSteps(app)).Should(Equal(map[string][]interface{}{
+				"deploy-topo-runtime": {"addon-components", "topo-runtime"},
+				"deploy-addon-crates": {"addon-crates-hub", "addon-crates"},
+			}), "the addon's topology deploys everything but the crate, as the default workflow would")
+			Expect(policyProperties(app, "addon-crates-hub")).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
+			Expect(policyProperties(app, "addon-crates")).Should(Equal(map[string]interface{}{"selector": []interface{}{crateComponent}}))
+			Expect(policyProperties(app, "addon-components")["selector"]).ShouldNot(ContainElement(crateComponent))
+			Expect(findComponent(app, crateComponent).DependsOn).Should(BeEmpty(),
+				"a deploy step waits only for components it deploys, so the step order replaces dependsOn")
+		})
+
+		It("deploys the addon's own resources through its topology", func() {
+			marker, err := getConfigMap(ctx, systemNS, scope.Text("placement-import-marker"))
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(marker.Data).Should(HaveKeyWithValue("source", "resources/marker.yaml"))
+		})
+
+		It("renders the crate's runtime policy from the forwarded placement", func() {
+			owned := mustGetApp(ctx, systemNS, crateApp)
+			Expect(owned.Labels).Should(HaveKeyWithValue(oam.LabelAppCluster, "local"), "the crate Application was deployed through a topology policy")
+			Expect(policyProperties(owned, "crate-runtime")).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
+			Expect(policyProperties(owned, "crate-hub")).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
+		})
+	})
+
+	// --- Scenario 21 ---
+	// placement on the type: addon component, in the same form as a type:
+	// crate component's. An addon with no topology of its own takes it and
+	// its imports follow it; an addon that places itself refuses it.
+	Context("placement on a type: addon component (scenario 21)", Ordered, Label("addon-crate-scenario-21"), func() {
+		scope := scenarioScopes["21"]
+		var addonApp, crateApp, crateComponent string
+
+		BeforeAll(func() {
+			addonApp = scope.Text("addon-placement-plain")
+			crateApp = scope.Text(fixtureCrateWidgetKit)
+			crateComponent = scope.Text("widget-kit")
+			scope.prepare(ctx)
+
+			Expect(k8sClient.Create(ctx, withPlacement(scope.addonApplication(scope.Text("placement-plain"), scope.Text("placement-plain"), "1.0.0", nil),
+				map[string]interface{}{"clusters": []interface{}{"local"}}))).Should(Succeed())
+			waitAppRunning(ctx, scope.Namespace, scope.Text("placement-plain"), installWait)
+			waitAppRunning(ctx, systemNS, addonApp, shortWait)
+			waitAppRunning(ctx, systemNS, crateApp, shortWait)
+			DeferCleanup(func() {
+				scope.uninstall(ctx, scope.Text("placement-plain"), addonApp, crateApp)
+			})
+		})
+
+		It("places the addon with a topology built from the placement", func() {
+			app := mustGetApp(ctx, systemNS, addonApp)
+			Expect(policyProperties(app, "addon-placement")).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
+			Expect(workflowSteps(app)).Should(HaveKeyWithValue("deploy-addon-crates", []interface{}{"addon-crates-hub", "addon-crates"}),
+				"the crate component stays on the hub")
+		})
+
+		It("deploys the addon's own resources through the placement", func() {
+			marker, err := getConfigMap(ctx, systemNS, scope.Text("placement-plain-marker"))
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(marker.Data).Should(HaveKeyWithValue("source", "resources/marker.yaml"))
+		})
+
+		It("gives the import with no placement of its own the addon's placement", func() {
+			found := findComponent(mustGetApp(ctx, systemNS, addonApp), crateComponent)
+			Expect(propertiesOf(found.Properties)["placement"]).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
+			Expect(policyProperties(mustGetApp(ctx, systemNS, crateApp), "crate-runtime")).Should(Equal(map[string]interface{}{"clusters": []interface{}{"local"}}))
+		})
+
+		It("refuses placement on an addon that defines its own topology", func() {
+			name := scope.Text("placement-import")
+			Expect(k8sClient.Create(ctx, withPlacement(scope.addonApplication(name, name, "1.0.0", nil),
+				map[string]interface{}{"clusters": []interface{}{"local"}}))).Should(Succeed())
+			DeferCleanup(func() { deleteApp(ctx, scope.Namespace, name) })
+			Eventually(func(g Gomega) {
+				app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: scope.Namespace, Name: name}, app)).Should(Succeed())
+				status, err := json.Marshal(app.Status)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(string(status)).Should(ContainSubstring(`places itself with its topology policy \"topo-runtime\", so placement cannot be set`))
+			}, shortWait, pollInterval).Should(Succeed())
+			Expect(isNotFound(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: scope.Text("addon-placement-import"), Namespace: systemNS}})).Should(BeTrue(),
+				"nothing is installed when the request is refused")
+		})
+	})
+})
+
+var _ = Describe("Addons that place an inline crate", func() {
+	ctx := context.Background()
+
+	// --- Scenario 22 ---
+	// placement on a type: addon component whose addon bundles its crate
+	// inline under crates/. The inline crate follows the addon's placement,
+	// the same as an import with no placement of its own. CI runs a single
+	// cluster, so the addon asks for the local one; the assertions are about
+	// the wiring.
+	Context("placement on a type: addon component with an inline crate (scenario 22)", Ordered, Label("addon-crate-scenario-22"), func() {
+		scope := scenarioScopes["22"]
+		local := map[string]interface{}{"clusters": []interface{}{"local"}}
+		var appName, addonApp, crateApp string
+
+		BeforeAll(func() {
+			appName = scope.Text("placement-inline")
+			addonApp = scope.Text("addon-placement-inline")
+			crateApp = scope.Text("crate-placed-kit")
+			scope.prepare(ctx)
+
+			Expect(k8sClient.Create(ctx, withPlacement(scope.addonApplication(appName, scope.Text("placement-inline"), "1.0.0", nil), local))).Should(Succeed())
+			waitAppRunning(ctx, scope.Namespace, appName, installWait)
+			waitAppRunning(ctx, systemNS, addonApp, shortWait)
+			waitAppRunning(ctx, systemNS, crateApp, shortWait)
+			DeferCleanup(func() {
+				scope.uninstall(ctx, appName, addonApp, crateApp)
+			})
+		})
+
+		It("places the addon with a topology built from the placement and keeps the inline crate on the hub", func() {
+			app := mustGetApp(ctx, systemNS, addonApp)
+			Expect(policyProperties(app, "addon-placement")).Should(Equal(local))
+			Expect(findComponent(app, scope.Text("placed-kit")).Type).Should(Equal("k8s-objects"))
+			Expect(workflowSteps(app)).Should(HaveKeyWithValue("deploy-addon-crates", []interface{}{"addon-crates-hub", "addon-crates"}),
+				"the inline crate component stays on the hub")
+		})
+
+		It("gives the inline crate's owned Application a runtime policy from the addon's placement", func() {
+			owned := mustGetApp(ctx, systemNS, crateApp)
+			Expect(policyProperties(owned, "crate-runtime")).Should(Equal(local))
+			Expect(policyProperties(owned, "crate-hub")).Should(Equal(local))
+			steps := map[string]string{}
+			for _, step := range owned.Status.Workflow.Steps {
+				steps[step.Name] = string(step.Phase)
+			}
+			Expect(steps).Should(HaveKeyWithValue("deploy-crate-hub", "succeeded"))
+			Expect(steps).Should(HaveKeyWithValue("deploy-crate-runtime", "succeeded"))
+		})
+
+		It("deploys both the runtime object and the hub object", func() {
+			for name, placement := range map[string]string{"placed-kit-defaults": "runtime", "placed-kit-admission": "hub"} {
+				cm, err := getConfigMap(ctx, scope.Namespace, scope.Text(name))
+				Expect(err).ShouldNot(HaveOccurred(), name)
+				Expect(cm.Data).Should(HaveKeyWithValue("placement", placement), name)
+			}
+		})
+
+		// The addon Application is patched with no last-applied configuration,
+		// so this also checks that the workflow generated for the placement
+		// does not outlive it and name policies that are gone.
+		It("drops the placement, its policies and its workflow when the placement is removed", func() {
+			Eventually(func(g Gomega) {
+				app := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: scope.Namespace, Name: appName}, app)).Should(Succeed())
+				props := propertiesOf(app.Spec.Components[0].Properties)
+				delete(props, "placement")
+				raw, err := json.Marshal(props)
+				g.Expect(err).ShouldNot(HaveOccurred())
+				app.Spec.Components[0].Properties = &k8sruntime.RawExtension{Raw: raw}
+				g.Expect(k8sClient.Update(ctx, app)).Should(Succeed())
+			}, shortWait, pollInterval).Should(Succeed())
+			Eventually(func(g Gomega) {
+				addon := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: systemNS, Name: addonApp}, addon)).Should(Succeed())
+				g.Expect(policyNames(addon)).ShouldNot(ContainElement("addon-placement"))
+				g.Expect(addon.Spec.Workflow).ShouldNot(BeNil())
+				for _, step := range addon.Spec.Workflow.Steps {
+					g.Expect(step.Type).Should(Equal("apply-component"), "the default steps replace the placement's deploy steps")
+				}
+				owned := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: systemNS, Name: crateApp}, owned)).Should(Succeed())
+				g.Expect(policyNames(owned)).ShouldNot(ContainElement("crate-runtime"))
+			}, reconcileWait, pollInterval).Should(Succeed())
+			waitAppRunning(ctx, scope.Namespace, appName, reconcileWait)
+			waitAppRunning(ctx, systemNS, addonApp, reconcileWait)
+			waitAppRunning(ctx, systemNS, crateApp, reconcileWait)
+		})
+
+		It("keeps the inline crate on the hub when the addon is installed with no placement", func() {
+			scope.uninstall(ctx, appName, addonApp, crateApp)
+			Expect(k8sClient.Create(ctx, scope.addonApplication(appName, scope.Text("placement-inline"), "1.0.0", nil))).Should(Succeed())
+			waitAppRunning(ctx, scope.Namespace, appName, installWait)
+			waitAppRunning(ctx, systemNS, crateApp, shortWait)
+			owned := mustGetApp(ctx, systemNS, crateApp)
+			Expect(policyNames(owned)).ShouldNot(ContainElement("crate-runtime"))
+			Expect(policyNames(mustGetApp(ctx, systemNS, addonApp))).ShouldNot(ContainElement("addon-placement"))
+			_, err := getConfigMap(ctx, scope.Namespace, scope.Text("placed-kit-defaults"))
+			Expect(err).ShouldNot(HaveOccurred(), "the runtime object installs on the hub")
+		})
+	})
+})

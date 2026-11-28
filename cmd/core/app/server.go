@@ -65,9 +65,9 @@ import (
 	configv1alpha1 "github.com/oam-dev/kubevela/pkg/controller/config.oam.dev/v1alpha1"
 	oamv1beta1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
+	crateservice "github.com/oam-dev/kubevela/pkg/crate/service"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/logging"
-	moduleservice "github.com/oam-dev/kubevela/pkg/module/service"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -160,12 +160,12 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 		klog.InfoS("Addon-as-component enabled, registered the addon render service")
 	}
 
-	// Same shape for the vela/module CueX provider: always on the compilers,
-	// inert until a renderer is installed, so the gate decides whether type: module
+	// Same shape for the vela/crate CueX provider: always on the compilers,
+	// inert until a renderer is installed, so the gate decides whether type: crate
 	// works rather than whether the package compiles.
-	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableModuleComponent) {
-		moduleservice.Register()
-		klog.InfoS("Module-as-component enabled, registered the module render service")
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCrateComponent) {
+		crateservice.Register()
+		klog.InfoS("Crate-as-component enabled, registered the crate render service")
 	}
 
 	// Start profiling server
@@ -253,10 +253,9 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 	controllerNamespace := resolveControllerNamespace(coreOptions.Server.LeaderElectionNamespace)
 	httpguard.SetEnhancer(controllerHTTPPolicy)
 	// Use APIReader: GetClient() is cache-backed and is not ready before mgr.Start.
-	if err := httpguard.LoadConfigMaps(ctx, manager.GetAPIReader(), coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
-		klog.ErrorS(err, "Failed to initialize workflow HTTP deny ConfigMaps",
-			"template", coreOptions.Workflow.HTTPDenyConfigTemplateName, "namespace", controllerNamespace)
-		return fmt.Errorf("failed to initialize workflow HTTP deny ConfigMaps: %w", err)
+	if err := loadHTTPDenyConfigMaps(ctx, manager.GetAPIReader(), coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
+		klog.ErrorS(err, "Failed to load the built-in workflow HTTP deny list")
+		return fmt.Errorf("failed to load the built-in workflow HTTP deny list: %w", err)
 	}
 	if err := httpguard.SetupWatcher(manager, coreOptions.Workflow.HTTPDenyConfigTemplateName, controllerNamespace); err != nil {
 		klog.ErrorS(err, "Failed to watch workflow HTTP deny ConfigMaps",

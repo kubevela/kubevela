@@ -158,7 +158,7 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	cli := &appRevBypassCacheClient{Client: h.Client}
 	appParser := appfile.NewApplicationParser(cli)
 
-	// A type: addon or type: module component renders to a package's own
+	// A type: addon or type: crate component renders to a package's own
 	// Application, which the provider would otherwise fetch from a remote
 	// registry while the apiserver holds this request open. See
 	// validation.WithValidationOnly.
@@ -442,7 +442,7 @@ func (h *ValidatingHandler) permitDefinition(ctx context.Context, req admission.
 		klog.Errorf("Unknown definition type: %v", definitionType)
 		return nil
 	}
-	// Set the app namespace so ResolveModuleType can search the right namespaces.
+	// Set the app namespace so ResolveCrateType can search the right namespaces.
 	ctx = oamutil.SetNamespaceInCtx(ctx, appNamespace)
 	capType := capTypeFromDefinitionType(definitionType)
 	toFieldErrs := func(msg string) field.ErrorList {
@@ -452,7 +452,7 @@ func (h *ValidatingHandler) permitDefinition(ctx context.Context, req admission.
 		}
 		return ferrs
 	}
-	resolved, err := appfile.ResolveModuleType(ctx, h.Client, defType, capType)
+	resolved, err := appfile.ResolveCrateType(ctx, h.Client, defType, capType)
 	if err != nil {
 		return toFieldErrs(err.Error())
 	}
@@ -475,7 +475,7 @@ func (h *ValidatingHandler) permitDefinition(ctx context.Context, req admission.
 }
 
 // capTypeFromDefinitionType maps a reflect.Type for a definition struct to the
-// corresponding types.CapType used by ResolveModuleType.
+// corresponding types.CapType used by ResolveCrateType.
 func capTypeFromDefinitionType(definitionType reflect.Type) types.CapType {
 	switch definitionType {
 	case reflect.TypeOf(v1beta1.TraitDefinition{}):
@@ -594,11 +594,11 @@ func (h *ValidatingHandler) ValidateAnnotations(ctx context.Context, app, oldApp
 			"Application has both autoUpdate and publishVersion annotations. Only one can be present"))
 	}
 
-	// modules.oam.dev/install-namespace redirects where a type: module
-	// component's definitions install (vela-templates/.../module.cue's
+	// crates.oam.dev/install-namespace redirects where a type: crate
+	// component's definitions install (vela-templates/.../crate.cue's
 	// _fromAddon check). Only the addon renderer is meant to set it, on the
 	// addon's own owned Application; a user's own Application setting it
-	// directly would otherwise redirect a module install into any namespace
+	// directly would otherwise redirect a crate install into any namespace
 	// the controller can reach, bypassing namespace restrictions and RBAC.
 	//
 	// Only a write that actually introduces, changes, or removes the value
@@ -612,20 +612,20 @@ func (h *ValidatingHandler) ValidateAnnotations(ctx context.Context, app, oldApp
 	// state was already vetted, and requiring every subsequent write to
 	// come from the controller would make the addon's own owned Application
 	// unupdatable by anything else once the annotation lands on it.
-	newVal, hasNew := app.Annotations[oam.AnnotationModuleInstallNamespace]
+	newVal, hasNew := app.Annotations[oam.AnnotationCrateInstallNamespace]
 	var oldVal string
 	var hadOld bool
 	if oldApp != nil {
-		oldVal, hadOld = oldApp.Annotations[oam.AnnotationModuleInstallNamespace]
+		oldVal, hadOld = oldApp.Annotations[oam.AnnotationCrateInstallNamespace]
 	}
 	unchanged := hasNew == hadOld && oldVal == newVal
 	if !unchanged {
 		// The controller writes for every tenant, so being the controller only proves the write
 		// came through dispatch. The renderer records the installing Application's namespace, so a
-		// write is the renderer's when the modules would install where the Application that
+		// write is the renderer's when the crates would install where the Application that
 		// dispatched it lives: the annotation's value, or without it the Application's own namespace.
 		// An addon's owned Application lives in vela-system and passes its admitted value on to the
-		// module Applications it dispatches, so a dispatcher carrying the same value also vouches.
+		// crate Applications it dispatches, so a dispatcher carrying the same value also vouches.
 		installsInto := app.Namespace
 		if hasNew {
 			installsInto = newVal
@@ -635,7 +635,7 @@ func (h *ValidatingHandler) ValidateAnnotations(ctx context.Context, app, oldApp
 			(installsInto == dispatcher || newVal != "" && h.dispatcherInstallsInto(ctx, app) == newVal)
 		if !renderer {
 			annotationsErrs = append(annotationsErrs, field.Forbidden(
-				field.NewPath("metadata", "annotations").Key(oam.AnnotationModuleInstallNamespace),
+				field.NewPath("metadata", "annotations").Key(oam.AnnotationCrateInstallNamespace),
 				"only the addon renderer may set or remove this annotation, for the namespace of the Application that installs the addon"))
 		}
 	}
@@ -662,7 +662,7 @@ func (h *ValidatingHandler) dispatcherInstallsInto(ctx context.Context, obj meta
 	if err := reader.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, dispatcher); err != nil {
 		return ""
 	}
-	return dispatcher.Annotations[oam.AnnotationModuleInstallNamespace]
+	return dispatcher.Annotations[oam.AnnotationCrateInstallNamespace]
 }
 
 // ValidateTraitConflicts validates TraitDefinition.spec.conflictsWith for traits
@@ -706,7 +706,7 @@ func (h *ValidatingHandler) ValidateTraitConflicts(ctx context.Context, app *v1b
 			// looking up the TraitDefinition. On resolution error (invalid syntax,
 			// ambiguous) we skip this trait: type existence is validated elsewhere and
 			// we must not block admission solely because conflict detection can't run.
-			resolved, err := appfile.ResolveModuleType(defCtx, h.Client, trait.Type, types.TypeTrait)
+			resolved, err := appfile.ResolveCrateType(defCtx, h.Client, trait.Type, types.TypeTrait)
 			if err != nil {
 				continue
 			}
@@ -893,7 +893,7 @@ func (h *ValidatingHandler) validateContent(ctx context.Context, app, oldApp *v1
 func (h *ValidatingHandler) validateRendering(ctx context.Context, app *v1beta1.Application) field.ErrorList {
 	errs := h.ValidateComponents(ctx, app)
 	errs = append(errs, h.ValidateAddonComponents(ctx, app)...)
-	return append(errs, h.ValidateModuleComponents(ctx, app)...)
+	return append(errs, h.ValidateCrateComponents(ctx, app)...)
 }
 
 // ValidateUpdate validates the Application on update
@@ -934,13 +934,13 @@ func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *
 }
 
 // usesMissingDefinition reports a type in app whose definition does not exist: a component, trait,
-// policy, workflow step or source type, resolved as admission resolves it (Form 3 module references
+// policy, workflow step or source type, resolved as admission resolves it (Form 3 crate references
 // included). Built-in policy and workflow step types have no definition and are left out; a type
 // that does not resolve at all is a different problem, reported by the rest of validation.
 func (h *ValidatingHandler) usesMissingDefinition(ctx context.Context, app *v1beta1.Application) bool {
 	defCtx := oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	missing := func(typ string, capType types.CapType, def client.Object) bool {
-		resolved, err := appfile.ResolveModuleType(defCtx, h.Client, typ, capType)
+		resolved, err := appfile.ResolveCrateType(defCtx, h.Client, typ, capType)
 		if err != nil {
 			return false
 		}

@@ -159,13 +159,13 @@ template: {
 }
 ```
 
-**Coupling moves into the step definition.** `s3-backup-job` knows where an S3 bucket keeps its name, so it is effectively part of the S3 component's module, shipped by the same author, versioned together. That is coherent when the two genuinely belong together.
+**Coupling moves into the step definition.** `s3-backup-job` knows where an S3 bucket keeps its name, so it is effectively part of the S3 component's crate, shipped by the same author, versioned together. That is coherent when the two genuinely belong together.
 
-**The cost is that the step library multiplies with the components.** A step can only read `context` for a shape it was written against, so *every* operation needing target data needs a step written for that component type. A given component might need to offer backup, restore, failover, promote-replica and rotate-credentials, so its module ships five or more bespoke `WorkflowStepDefinition`s, each a CUE file to write, test, scope-label, version and maintain. The next component along ships its own five, differing only in where a hostname or an identifier happens to live.
+**The cost is that the step library multiplies with the components.** A step can only read `context` for a shape it was written against, so *every* operation needing target data needs a step written for that component type. A given component might need to offer backup, restore, failover, promote-replica and rotate-credentials, so its crate ships five or more bespoke `WorkflowStepDefinition`s, each a CUE file to write, test, scope-label, version and maintain. The next component along ships its own five, differing only in where a hostname or an identifier happens to live.
 
 Worse, it puts the platform's existing step library largely out of reach. `notification`, `request`, `webhook`, `apply-object` and `read-object` all work fine, until the message needs to contain the bucket name, or the URL needs the instance endpoint. At that point there is no way to pass the value in, so the author writes `s3-notification` and `postgres-request`, and the generic steps get reimplemented once per component type.
 
-The counter-argument is real: a well-factored module ships a handful of good steps and reuses them across its own operations, and a step that encapsulates "how we back up S3" is genuinely valuable. But the reuse stops at the module boundary: nothing in `s3-backup-job` is available to any component that is not an S3 bucket, however similar the procedure.
+The counter-argument is real: a well-factored crate ships a handful of good steps and reuses them across its own operations, and a step that encapsulates "how we back up S3" is genuinely valuable. But the reuse stops at the crate boundary: nothing in `s3-backup-job` is available to any component that is not an S3 bucket, however similar the procedure.
 
 Works today. No dependency on any other KEP. Detailed in [Two ways a step gets its data](#two-ways-a-step-gets-its-data).
 
@@ -202,7 +202,7 @@ template: {
 
 **The most powerful, and the most to maintain.** Steps can be generated and conditional: the `if` above, or "one snapshot step per PVC this component happens to have", which is expressible here and nowhere else. Note the step itself is the same generic `job` as Option 3 uses; what differs is that the workflow around it is computed. The costs are real: authors write and test non-trivial CUE, errors move from `kubectl apply` to the middle of a running operation, and the stored template is opaque to the API server, so no structural validation and no `kubectl explain`.
 
-It also stops being a new kind of object. In this form the artifact is an X-Definition, and should be named `OperationDefinition`, inheriting `vela def`, `DefinitionRevision`, and distribution through the addon and module machinery that already ships `ComponentDefinition`s.
+It also stops being a new kind of object. In this form the artifact is an X-Definition, and should be named `OperationDefinition`, inheriting `vela def`, `DefinitionRevision`, and distribution through the addon and crate machinery that already ships `ComponentDefinition`s.
 
 Detailed in [Option 2 in detail](#option-2-in-detail-render-time-cue).
 
@@ -252,9 +252,9 @@ Detailed in [Option 3 in detail](#option-3-in-detail-expression-based-inputs).
 | Depends on other KEPs | none | none | KEP-2.16 extensions |
 | Available today | **yes** | needs a renderer | needs KEP-2.16 |
 
-The step-count row is the one that compounds. Options 2 and 3 let an operation author reach for whatever already exists: the platform's steps, another module's steps, a step they wrote for something else, and supply the differences declaratively. Option 1 requires that any step touching target data be written for that component type, so the library grows with the product of components and operations rather than staying a shared set. At one component it is invisible; at twenty it is the dominant maintenance cost of the feature.
+The step-count row is the one that compounds. Options 2 and 3 let an operation author reach for whatever already exists: the platform's steps, another crate's steps, a step they wrote for something else, and supply the differences declaratively. Option 1 requires that any step touching target data be written for that component type, so the library grows with the product of components and operations rather than staying a shared set. At one component it is invisible; at twenty it is the dominant maintenance cost of the feature.
 
-They are not mutually exclusive. Option 1 and Option 3 compose: a template can pass some values explicitly and let a bespoke step read others, which is a feature when a module ships its own steps, and a hazard if it becomes the path of least resistance in both directions. Option 2 subsumes both and replaces the template format.
+They are not mutually exclusive. Option 1 and Option 3 compose: a template can pass some values explicitly and let a bespoke step read others, which is a feature when a crate ships its own steps, and a hazard if it becomes the path of least resistance in both directions. Option 2 subsumes both and replaces the template format.
 
 ### What does not depend on this choice
 
@@ -451,7 +451,7 @@ attach:
       provider: aws                        # this snapshot procedure is not portable
 ```
 
-It is evaluated by listing clusters and matching their labels, which works today: a `VirtualCluster` carries `Labels`, and `FindVirtualClustersByLabels` (`pkg/multicluster/virtual_cluster.go`) is the existing lookup. Nothing about it requires cluster metadata in the CUE context, which is a separate question owned by [KEP-2.20 Design 04](../2.20-module-versioning/design/04-cluster-context.md) and still open. `clusterSelector` is meaningful under `None` too, in the narrower sense of restricting which clusters the operator may pass in `spec.clusters`; see [below](#scope-none-the-unattached-case).
+It is evaluated by listing clusters and matching their labels, which works today: a `VirtualCluster` carries `Labels`, and `FindVirtualClustersByLabels` (`pkg/multicluster/virtual_cluster.go`) is the existing lookup. Nothing about it requires cluster metadata in the CUE context, which is a separate question owned by [KEP-2.20 Design 04](../2.20-crate-versioning/design/04-cluster-context.md) and still open. `clusterSelector` is meaningful under `None` too, in the narrower sense of restricting which clusters the operator may pass in `spec.clusters`; see [below](#scope-none-the-unattached-case).
 
 **A cluster excluded by `clusterSelector` is refused, not skipped.** That is a deliberate difference from the [operator's own selector](#running-across-clusters), where a cluster matching `--clusters region=eu` but not running the component is skipped and reported. The operator's net was wide and being in an EU cluster without the component is not an error. `clusterSelector` is the author saying the procedure does not work there, so naming such a cluster explicitly fails at admission rather than quietly dropping it. Skip when the operator's net was wide; fail when the author's constraint was crossed.
 
@@ -796,9 +796,9 @@ The name is not the point; what comes with it is. As a definition it inherits ma
 | Parameter schemas derived and published for UIs automatically | `vela op list` output assembled by hand |
 | Definition admission and validation webhooks | operation-specific admission |
 | Snapshotting into `ApplicationRevision` alongside other definitions ([KEP-2.9](../2.9-app-templates/README.md)) | not addressed |
-| Distribution through addons and modules ([KEP-2.13](../2.13-addons/README.md), [KEP-2.20](../2.20-module-versioning/README.md)) | not addressed |
+| Distribution through addons and crates ([KEP-2.13](../2.13-addons/README.md), [KEP-2.20](../2.20-crate-versioning/README.md)) | not addressed |
 
-The last row is the thesis of this KEP rather than a convenience. Definitions are how capability is packaged and shipped in this ecosystem. If an operation is a definition, it travels with the `ComponentDefinition` through the module and addon machinery that already exists, which is precisely what "authored together, versioned together, shipped together" requires. Under Options 1 and 3 that distribution path has to be established for a new kind of object.
+The last row is the thesis of this KEP rather than a convenience. Definitions are how capability is packaged and shipped in this ecosystem. If an operation is a definition, it travels with the `ComponentDefinition` through the crate and addon machinery that already exists, which is precisely what "authored together, versioned together, shipped together" requires. Under Options 1 and 3 that distribution path has to be established for a new kind of object.
 
 The counter-weight is real too: this makes CUE mandatory for every operation author, including those writing a three-step runbook that needs no computation at all. Options 1 and 3 keep the simple case in YAML.
 
@@ -988,7 +988,7 @@ template: {
 
 **The coupling exists either way. The question is where it is declared, and whether it is visible.** Explicit puts it in the template, where a reviewer reading the runbook can see what it touches and admission can check it. Implicit moves it into the step definition, where it is checked by nothing and invisible to anyone reading the operation.
 
-Implicit is nonetheless the right choice in one clear case: a step shipped *alongside* the `ComponentDefinition` whose status it reads, by the same author, as part of the same module. There the coupling is internal rather than across a boundary, and forcing the shape out into every template that uses the step would spread a private detail across artifacts that should not know it. A `postgres` module shipping `postgres-promote` is the shape to expect.
+Implicit is nonetheless the right choice in one clear case: a step shipped *alongside* the `ComponentDefinition` whose status it reads, by the same author, as part of the same crate. There the coupling is internal rather than across a boundary, and forcing the shape out into every template that uses the step would spread a private detail across artifacts that should not know it. A `postgres` crate shipping `postgres-promote` is the shape to expect.
 
 The KEP already uses both, and the split is a reasonable model to follow: [`write-status`](#status-writeback) reads its target implicitly: it always writes to the operation's target, which is not a parameter, while taking its `patch` explicitly, because that is the caller's decision rather than the platform's.
 
@@ -1226,7 +1226,7 @@ Neither is safe as a blanket default and this KEP does not pick one, so a templa
 
 Note what `== "local"` does and does not mean. It fires when *this* workflow is running for a hub-dispatched instance, so it is the right gate for "only relevant on the hub". It is not a way to run something once: if the operation targets two spokes and not the hub, it never fires at all. Running exactly once across a multi-cluster operation needs a designated cluster, not a hub test.
 
-**Branching on cluster *labels* is not available and this KEP does not add it.** `ContextData.Cluster` (`pkg/cue/process/handle.go`) is a string, the cluster's name, and nothing in KubeVela exposes cluster labels to CUE today. [KEP-2.20 Design 04](../2.20-module-versioning/design/04-cluster-context.md) proposes exactly that as its baseline, and records a blocking prerequisite: the hub has no cluster-metadata entry, so label-based context would resolve on spokes and not on the hub. Inventing a second version of it here would be the cross-KEP drift this repository keeps getting bitten by.
+**Branching on cluster *labels* is not available and this KEP does not add it.** `ContextData.Cluster` (`pkg/cue/process/handle.go`) is a string, the cluster's name, and nothing in KubeVela exposes cluster labels to CUE today. [KEP-2.20 Design 04](../2.20-crate-versioning/design/04-cluster-context.md) proposes exactly that as its baseline, and records a blocking prerequisite: the hub has no cluster-metadata entry, so label-based context would resolve on spokes and not on the hub. Inventing a second version of it here would be the cross-KEP drift this repository keeps getting bitten by.
 
 Until it lands, a template that needs more about a cluster than its name reads it explicitly, with a `read-object` step or a `SourceDefinition` keyed on `context.cluster`. That is more verbose and it is honest about doing I/O. If Design 04 ships, `context.cluster` gains structure and these templates get simpler without any of them breaking.
 
@@ -1501,7 +1501,7 @@ spec:
             RETENTION_DAYS: '$(parameter.retentionDays)'
 ```
 
-Each knows exactly one component type's status shape, and neither knows anything about the other or about the application above it. That is the encapsulation the KEP is for: the `postgres` module ships `pg-dump`, the `aws-s3-bucket` module ships `s3-snapshot`, and neither had to agree with the other about anything beyond the parameter name they both accept.
+Each knows exactly one component type's status shape, and neither knows anything about the other or about the application above it. That is the encapsulation the KEP is for: the `postgres` crate ships `pg-dump`, the `aws-s3-bucket` crate ships `s3-snapshot`, and neither had to agree with the other about anything beyond the parameter name they both accept.
 
 ### Invoking it
 
@@ -1710,7 +1710,7 @@ The resumer is often not the person who started it, which is the point of an app
 The design that closes it has component authors declare what *role* an operation fulfils, so the application-level step dispatches by intent rather than by name:
 
 ```yaml
-# on the OperationTemplate the aws-s3-bucket module ships
+# on the OperationTemplate the aws-s3-bucket crate ships
 spec:
   role: backup
 
@@ -1725,7 +1725,7 @@ spec:
 
 "Back up this application" then means "run each component's own backup, whatever that is". A new component type is covered the day it is added, because it brought its backup with it.
 
-It is deferred rather than rejected because it needs a role vocabulary agreed across the ecosystem, and every module publishing templates has to adopt it before it is worth more than explicit dispatch. Explicit dispatch works today with no ecosystem ask, and the two compose: a step can name a template or a role, and role-based dispatch can arrive without changing anything already written.
+It is deferred rather than rejected because it needs a role vocabulary agreed across the ecosystem, and every crate publishing templates has to adopt it before it is worth more than explicit dispatch. Explicit dispatch works today with no ecosystem ask, and the two compose: a step can name a template or a role, and role-based dispatch can arrive without changing anything already written.
 
 ### Invoker-Chosen Identity
 
@@ -1745,7 +1745,7 @@ It is also not free mechanically. Impersonation does not chain within a request,
 
 ### System-Invoked Operations
 
-Migrations, of the kind an API line version change needs ([KEP-2.20](../2.20-module-versioning/README.md), [KEP-2.8](../2.8-migration/README.md)), look a great deal like operations: a declarative procedure, attached to the thing it acts on, versioned with it, and recorded when it runs. Expressing them as `OperationTemplate`s is worth exploring and nothing here precludes it.
+Migrations, of the kind an API line version change needs ([KEP-2.20](../2.20-crate-versioning/README.md), [KEP-2.8](../2.8-migration/README.md)), look a great deal like operations: a declarative procedure, attached to the thing it acts on, versioned with it, and recorded when it runs. Expressing them as `OperationTemplate`s is worth exploring and nothing here precludes it.
 
 Two assumptions in the current model would need answering first, and neither is a missing field.
 
@@ -1753,7 +1753,7 @@ Two assumptions in the current model would need answering first, and neither is 
 
 **Discovery assumes browsing.** `vela op list` answers what an operator may run against a target. A migration should not appear in it, and offering one to a person would be actively wrong.
 
-A `type` discriminator (`standard`, `migration`, and so on) is the obvious way to separate the two, and is deliberately not added now: an optional field defaulting to `standard` is non-breaking to introduce whenever something actually needs it, so reserving it early buys nothing. It is also worth checking first whether the real difference is *what it attaches to* rather than *what kind of thing it is*. If a migration attaches to an API line or a Module rather than a Component, then `attach.scope` grows a value and no second discriminator is needed.
+A `type` discriminator (`standard`, `migration`, and so on) is the obvious way to separate the two, and is deliberately not added now: an optional field defaulting to `standard` is non-breaking to introduce whenever something actually needs it, so reserving it early buys nothing. It is also worth checking first whether the real difference is *what it attaches to* rather than *what kind of thing it is*. If a migration attaches to an API line or a Crate rather than a Component, then `attach.scope` grows a value and no second discriminator is needed.
 
 ## Status
 
@@ -2128,9 +2128,9 @@ spec:
 
 Which renders a `Role` and `RoleBinding` in `payments-prod` for the target and the `Operation` itself, plus a pair in `vela-system` for the `invoke` grants, since a template's grant has to live where the template does. [Design 03](./design/03-permission-components.md) has both definitions in full, an Application applying the pair together, and the rendered objects laid out side by side.
 
-Two components, split by who owns them. `operation-permissions` is the platform administrator's, changes when a runbook needs a new API, and lives with the module. `operation-access` is the team's, changes when someone joins the rota, and lives with the team. Rolling them into one would tie an on-call change to a re-review of what the service account may touch.
+Two components, split by who owns them. `operation-permissions` is the platform administrator's, changes when a runbook needs a new API, and lives with the crate. `operation-access` is the team's, changes when someone joins the rota, and lives with the team. Rolling them into one would tie an on-call change to a re-review of what the service account may touch.
 
-The pairing is the point: the template *declares* what it needs, the component *provisions* it, and the two are the same list. A module can then ship its `ComponentDefinition`, the `OperationTemplate`s that go with it, and the permissions those templates require, as one reviewable unit. That completes the thesis rather than extending it, since today a template travels with its component and the RBAC that makes it work does not.
+The pairing is the point: the template *declares* what it needs, the component *provisions* it, and the two are the same list. A crate can then ship its `ComponentDefinition`, the `OperationTemplate`s that go with it, and the permissions those templates require, as one reviewable unit. That completes the thesis rather than extending it, since today a template travels with its component and the RBAC that makes it work does not.
 
 Two things to be clear about. This is a `ComponentDefinition` somebody writes, not an API this KEP adds. And it is only meaningfully safe under the authenticated posture: Kubernetes prevents a subject creating a `Role` granting more than it holds, which binds the *applier* only when the platform impersonates them. With `authentication.enabled` off, an Application applies with the controller's identity and that check does not bite. That is already true of any Application carrying RBAC objects, so it is a property to know rather than one introduced here.
 
@@ -2645,7 +2645,7 @@ The existing `skipUsers` list on the handler covers controller and system identi
 
    Three things resolve with it rather than separately:
 
-   - **Whether Options 1 and 3 coexist.** A generic step taking `$( )` properties and a bespoke step reading `context` do the same job by different means. Two ways to do one thing is the drift KEP-2.16 warns about; the counter-argument is that they serve genuinely different cases, published-generic against module-internal. Worth an explicit position rather than letting authors discover both.
+   - **Whether Options 1 and 3 coexist.** A generic step taking `$( )` properties and a bespoke step reading `context` do the same job by different means. Two ways to do one thing is the drift KEP-2.16 warns about; the counter-argument is that they serve genuinely different cases, published-generic against crate-internal. Worth an explicit position rather than letting authors discover both.
    - **How parameters are declared.** Options 1 and 3 leave a YAML manifest, where OpenAPI is what a Kubernetes user expects to read; Option 2 leaves a CUE artifact, which wants a CUE `parameter{}` block like every other X-Definition. See [Parameters](#parameters). The residual question the option choice does *not* answer is the ecosystem-wide one: whether KubeVela should declare OpenAPI directly and stop deriving it from CUE. That is bigger than this KEP and worth settling before more artifacts pick a side.
    - **What Option 3 costs.** It brings two dependencies that are KEP-2.16's to grant: the `$(parameter.*)` expression root, which KEP-2.9 currently answers with the `fromParameter` directive that KEP-2.16 removed on principle, and registration of `Operation.spec.parameters` as a consuming surface, which resolves sources before any Application exists and is therefore a new surface shape rather than a copy of an existing row.
 

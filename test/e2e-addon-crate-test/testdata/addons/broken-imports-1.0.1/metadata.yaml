@@ -1,0 +1,7 @@
+name: broken-imports
+version: 1.0.1
+description: "Deliberately broken _imports.cue: crate registry name that does not exist."
+tags:
+  - test
+  - crate-import
+dependencies: []

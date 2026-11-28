@@ -20,7 +20,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/module"
+	"github.com/oam-dev/kubevela/pkg/crate"
 	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
@@ -75,17 +75,17 @@ type InstallPackage struct {
 	AppCueTemplate ElementFile          `json:"appCueTemplate,omitempty"`
 	Notes          ElementFile          `json:"notes,omitempty"`
 
-	// Imports are the addon's modules/_imports.cue entries: external modules
-	// the addon references, each installed as a type: module component in
+	// Imports are the addon's crates/_imports.cue entries: external crates
+	// the addon references, each installed as a type: crate component in
 	// the rendered addon Application. Empty when the addon has no
-	// modules/_imports.cue file.
-	Imports []ModuleImport `json:"imports,omitempty"`
+	// crates/_imports.cue file.
+	Imports []CrateImport `json:"imports,omitempty"`
 
-	// InlineModules are modules developed directly inside the addon's own
-	// modules/<name>/ directories and parsed from the addon's own
+	// InlineCrates are crates developed directly inside the addon's own
+	// crates/<name>/ directories and parsed from the addon's own
 	// bundled files -- no registry, no fetch.
-	// Empty when the addon has no inline modules.
-	InlineModules []*module.Module `json:"inlineModules,omitempty"`
+	// Empty when the addon has no inline crates.
+	InlineCrates []*crate.Crate `json:"inlineCrates,omitempty"`
 }
 
 // WholeAddonPackage contains all infos of an addon

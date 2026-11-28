@@ -11,7 +11,7 @@ gotchas that trip people up.
 |---|---|
 | Unit tests | `make test` |
 | Shipped definition tests (`*_test.cue` beside `vela-templates/definitions/internal`) | `make test-definitions` |
-| Module/addon-module e2e (self-provisions a cluster) | `make e2e-test-local` |
+| Crate/addon-crate e2e (self-provisions a cluster) | `make e2e-test-local` |
 | Controller e2e against a cluster you already deployed to | `make e2e-test` |
 | One application e2e spec / flake check | `ginkgo -v --focus="<text>" ./test/e2e-application-test` |
 | CLI-driven application e2e | `make e2e-application-test-local` |
@@ -47,20 +47,23 @@ This chains three targets:
    real (in-memory) API server without a full cluster.
 2. `unit-test-core`: runs `go test` over `./pkg/... ./cmd/... ./apis/...`
    and `./references/...` (excluding `apiserver` and
-   `applicationconfiguration`), using `KUBEBUILDER_ASSETS` from step 1.
+   `applicationconfiguration`), using `KUBEBUILDER_ASSETS` from step 1, then
+   `./hack/downgradetest/`, the tests for `hack/downgrade-from-1.12.sh`.
 3. `test-cli-gen`: regenerates the CLI docs (it doesn't test them).
 
 `make test` stops at the first failing stage. To run the equivalent
 `unit-test-core` commands standalone (useful when iterating, or to see every
-package's result instead of stopping early), both `go test` invocations,
+package's result instead of stopping early), all three `go test` invocations,
 matching the Makefile exactly:
 
 ```bash
 KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.37.0 -p path)" \
-  go test $(go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
+  go test -coverprofile=coverage.txt $(go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 
 KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.37.0 -p path)" \
   go test $(go list ./references/... | grep -v apiserver)
+
+go test ./hack/downgradetest/
 ```
 
 Scope to one package while iterating on a specific change:
@@ -111,8 +114,8 @@ no cluster or kubeconfig is needed. CI runs this as its own workflow,
 
 The most self-contained option. It creates (or reuses) a `kubevela-debug` k3d
 cluster, builds and imports a `vela-core:e2e-test` image, pre-loads the
-public registry images the module and addon-module packages pull (zot for the
-module suite's credentialed-registry test, ChartMuseum and nginx for their
+public registry images the crate and addon-crate packages pull (zot for the
+crate suite's credentialed-registry test, ChartMuseum and nginx for their
 registries: `ghcr.io/project-zot/zot-minimal-linux-amd64`,
 `ghcr.io/helm/chartmuseum`, `docker.io/library/nginx`), installs the chart with
 the webhook enabled, and runs those two packages:

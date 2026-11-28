@@ -1,0 +1,7 @@
+name: broken-imports
+version: 1.0.3
+description: "Deliberately broken _imports.cue: pinned crate version that was never published."
+tags:
+  - test
+  - crate-import
+dependencies: []

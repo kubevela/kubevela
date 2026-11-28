@@ -310,6 +310,20 @@ func TestGenerateSuggestions(t *testing.T) {
 	assert.Equal(t, "us-east-1", region.Validate.Options[1].Value)
 }
 
+func TestGenerateEmptyEnumLabel(t *testing.T) {
+	ps := generate(t, `parameter: {
+	medium: *"" | "Memory"
+	format: *"json" | "text" | ""
+}`)
+	medium := uiParam(t, ps.UI, "medium").Validate.Options
+	require.Len(t, medium, 2)
+	assert.Equal(t, uischema.Option{Label: "Default", Value: ""}, medium[0], "an empty choice that is the default reads Default")
+	assert.Equal(t, "Memory", medium[1].Label)
+	format := uiParam(t, ps.UI, "format").Validate.Options
+	require.Len(t, format, 3)
+	assert.Equal(t, uischema.Option{Label: "(empty)", Value: ""}, format[2], "an empty choice that is not the default reads (empty)")
+}
+
 func TestGenerateStructMap(t *testing.T) {
 	ps := generate(t, `parameter: sidecars: [string]: {image: string, cpu?: string}`)
 	p := uiParam(t, ps.UI, "sidecars")

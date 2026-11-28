@@ -147,6 +147,6 @@ func TestWorkloadPackages(t *testing.T) {
 		names = append(names, p.GetName())
 	}
 	require.ElementsMatch(t, []string{
-		"config", "helm", "base64", "http", "kube", "cue", "addon", "registry", "velaconfig", "module",
+		"config", "helm", "base64", "http", "kube", "cue", "addon", "registry", "velaconfig", "crate",
 	}, names)
 }

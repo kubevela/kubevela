@@ -27,10 +27,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The addon and module components render an Application of their own, so their
+// The addon and crate components render an Application of their own, so their
 // health is the health of that Application. These policies are evaluated only at
 // runtime, against a live resource, so a mistake in them does not show up in any
-// build: the addon or module just silently reports healthy again.
+// build: the addon or crate just silently reports healthy again.
 //
 // The policies read their fields inside a nested _app struct on purpose. Reading
 // them as plain hidden fields of the file, and then naming one of those fields in
@@ -38,8 +38,8 @@ import (
 // that fills it has run, and every service silently reads back as an empty list.
 func TestOwnedApplicationPolicies(t *testing.T) {
 	definitions := map[string]string{
-		"addon":  "../../../../vela-templates/definitions/internal/component/addon.cue",
-		"module": "../../../../vela-templates/definitions/internal/component/module.cue",
+		"addon": "../../../../vela-templates/definitions/internal/component/addon.cue",
+		"crate": "../../../../vela-templates/definitions/internal/component/crate.cue",
 	}
 
 	testCases := map[string]struct {
@@ -60,7 +60,7 @@ func TestOwnedApplicationPolicies(t *testing.T) {
 				"status": "running",
 				"services": []interface{}{
 					service("api", true, ""),
-					service("widget", false, `addon "nest-module-poc" not found in registries [my-addons]`),
+					service("widget", false, `addon "nest-crate-poc" not found in registries [my-addons]`),
 				},
 			},
 			wantMessage: "Ready:1/2 widget unhealthy",
@@ -117,7 +117,7 @@ func service(name string, healthy bool, message string) map[string]interface{} {
 
 // ownedApplicationPolicies reads the policies out of the definition the chart
 // ships, so the test cannot drift from what runs in a cluster. The template
-// section is cut away first: it imports vela/addon and vela/module, which only
+// section is cut away first: it imports vela/addon and vela/crate, which only
 // resolve inside the CueX compiler.
 func ownedApplicationPolicies(t *testing.T, path, kind string) (string, string) {
 	t.Helper()

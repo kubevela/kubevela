@@ -17,9 +17,12 @@ limitations under the License.
 package app
 
 import (
+	"context"
 	"net"
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	workflowfeatures "github.com/kubevela/workflow/pkg/features"
 	"github.com/kubevela/workflow/pkg/utils/httpguard"
@@ -54,4 +57,23 @@ func mustCIDRs(cidrs ...string) []*net.IPNet {
 		out = append(out, n)
 	}
 	return out
+}
+
+// loadHTTPDenyConfigMaps loads the operators' workflow HTTP deny ConfigMaps before the manager starts.
+// A ConfigMap that does not parse, or a list that fails, is logged and the controller starts with the
+// built-in list, as a running controller keeps its last good one; the watcher loads the ConfigMaps once
+// they are fixed. Only a built-in list that does not load stops the start.
+func loadHTTPDenyConfigMaps(ctx context.Context, reader client.Reader, templateName, namespace string) error {
+	err := httpguard.LoadConfigMaps(ctx, reader, templateName, namespace)
+	if err == nil {
+		return nil
+	}
+	// An empty template name loads no ConfigMaps: it leaves the built-in list alone in force, and
+	// fails only when that list itself does not load.
+	if builtinErr := httpguard.LoadConfigMaps(ctx, reader, "", namespace); builtinErr != nil {
+		return builtinErr
+	}
+	klog.ErrorS(err, "Failed to load workflow HTTP deny ConfigMaps; starting with the built-in list until they are fixed",
+		"template", templateName, "namespace", namespace)
+	return nil
 }

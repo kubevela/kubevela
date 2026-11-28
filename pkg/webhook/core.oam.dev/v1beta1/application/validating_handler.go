@@ -38,7 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonvalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/addon"
-	modulevalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/module"
+	cratevalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/crate"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
 
@@ -59,12 +59,12 @@ type ValidatingHandler struct {
 	// Decoder decodes objects
 	Decoder admission.Decoder
 
-	addonValidator  componentValidator
-	moduleValidator componentValidator
+	addonValidator componentValidator
+	crateValidator componentValidator
 
 	// controllerUsername is vela-core's own identity, resolved from the
 	// manager's kubeconfig the same way RegisterMutatingHandler resolves
-	// skipUsers. ValidateAnnotations trusts modules.oam.dev/install-namespace
+	// skipUsers. ValidateAnnotations trusts crates.oam.dev/install-namespace
 	// only from this identity, since it is the addon renderer -- never a
 	// user's own Application -- that is meant to set it. Empty when it could
 	// not be resolved, in which case nobody is trusted and the annotation is
@@ -178,12 +178,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
 	handler := &ValidatingHandler{
-		Client:          mgr.GetClient(),
-		APIReader:       mgr.GetAPIReader(),
-		Live:            webhookutils.LiveClient(mgr),
-		Decoder:         admission.NewDecoder(mgr.GetScheme()),
-		addonValidator:  addonvalidation.NewValidator(mgr.GetClient()),
-		moduleValidator: modulevalidation.NewValidator(mgr.GetClient()),
+		Client:         mgr.GetClient(),
+		APIReader:      mgr.GetAPIReader(),
+		Live:           webhookutils.LiveClient(mgr),
+		Decoder:        admission.NewDecoder(mgr.GetScheme()),
+		addonValidator: addonvalidation.NewValidator(mgr.GetClient()),
+		crateValidator: cratevalidation.NewValidator(mgr.GetClient()),
 	}
 	handler.controllerUsername = resolveControllerUsername(mgr.GetConfig())
 	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: handler})
@@ -195,13 +195,13 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 // resolveControllerUsername resolves vela-core's own identity from the
 // manager's kubeconfig, the same way RegisterMutatingHandler resolves
 // skipUsers. Returns "" when it could not be resolved, logging a warning
-// since ValidateAnnotations then refuses modules.oam.dev/install-namespace
+// since ValidateAnnotations then refuses crates.oam.dev/install-namespace
 // for everyone, including the addon renderer itself.
 func resolveControllerUsername(cfg *rest.Config) string {
 	userInfo := utils.GetUserInfoFromConfig(cfg)
 	if userInfo == nil {
 		klog.Warning("[ApplicationValidatingHandler] could not resolve vela-core's own identity; " +
-			"modules.oam.dev/install-namespace will be refused on every Application, including the addon renderer's own")
+			"crates.oam.dev/install-namespace will be refused on every Application, including the addon renderer's own")
 		return ""
 	}
 	return userInfo.Username

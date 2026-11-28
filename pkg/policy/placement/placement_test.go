@@ -118,14 +118,14 @@ func TestAssembleBindsRuntimeToHubUntilAsked(t *testing.T) {
 		{Name: "store-v1-defs", Class: oam.PlacementHub},
 	}
 	names := Names{
-		HubPolicy: "module-hub", RuntimePolicy: "module-runtime",
-		HubOverride: "module-hub-override", RuntimeOverride: "module-runtime-override",
-		HubStep: "deploy-module-hub", RuntimeStep: "deploy-module-runtime",
+		HubPolicy: "crate-hub", RuntimePolicy: "crate-runtime",
+		HubOverride: "crate-hub-override", RuntimeOverride: "crate-runtime-override",
+		HubStep: "deploy-crate-hub", RuntimeStep: "deploy-crate-runtime",
 	}
 
 	policies, steps := Assemble(comps, nil, names)
 	require.Len(t, policies, 3, "no runtime topology policy until a placement request exists")
-	require.Equal(t, "module-hub", policies[0]["name"])
+	require.Equal(t, "crate-hub", policies[0]["name"])
 	require.Equal(t, []interface{}{pkgmulticluster.Local}, policies[0]["properties"].(map[string]interface{})["clusters"])
 	require.Equal(t, []interface{}{"store-aux-hub", "store-v1-defs"}, selector(policies[1]))
 	require.Equal(t, []interface{}{"store-aux"}, selector(policies[2]))
@@ -133,15 +133,15 @@ func TestAssembleBindsRuntimeToHubUntilAsked(t *testing.T) {
 	require.Len(t, steps, 2)
 	require.Equal(t, "deploy", steps[0]["type"])
 	require.Equal(t, step.DeployWorkflowStep, steps[0]["type"])
-	require.Equal(t, []interface{}{"module-hub", "module-hub-override"}, steps[0]["properties"].(map[string]interface{})["policies"])
-	require.Equal(t, []interface{}{"module-hub", "module-runtime-override"}, steps[1]["properties"].(map[string]interface{})["policies"])
+	require.Equal(t, []interface{}{"crate-hub", "crate-hub-override"}, steps[0]["properties"].(map[string]interface{})["policies"])
+	require.Equal(t, []interface{}{"crate-hub", "crate-runtime-override"}, steps[1]["properties"].(map[string]interface{})["policies"])
 }
 
 func TestAssembleCopiesThePlacementRequest(t *testing.T) {
 	names := Names{
-		HubPolicy: "module-hub", RuntimePolicy: "module-runtime",
-		HubOverride: "module-hub-override", RuntimeOverride: "module-runtime-override",
-		HubStep: "deploy-module-hub", RuntimeStep: "deploy-module-runtime",
+		HubPolicy: "crate-hub", RuntimePolicy: "crate-runtime",
+		HubOverride: "crate-hub-override", RuntimeOverride: "crate-runtime-override",
+		HubStep: "deploy-crate-hub", RuntimeStep: "deploy-crate-runtime",
 	}
 	comps := []Component{{Name: "store-aux", Class: oam.PlacementRuntime}}
 
@@ -154,7 +154,7 @@ func TestAssembleCopiesThePlacementRequest(t *testing.T) {
 		ClusterLabelSelector: map[string]string{},
 	}, names)
 
-	require.Equal(t, []interface{}{"module-runtime", "module-runtime-override"}, steps[1]["properties"].(map[string]interface{})["policies"])
+	require.Equal(t, []interface{}{"crate-runtime", "crate-runtime-override"}, steps[1]["properties"].(map[string]interface{})["policies"])
 	firstProps := first[2]["properties"].(map[string]interface{})
 	require.Equal(t, []interface{}{"spoke-a", "spoke-b"}, firstProps["clusters"])
 	_, hasSelector := firstProps["clusterLabelSelector"]
@@ -180,11 +180,11 @@ func TestAssembleOmitsUnnamedPoliciesAndSteps(t *testing.T) {
 	require.Empty(t, policies)
 	require.Empty(t, steps)
 
-	policies, steps = Assemble(comps, nil, Names{HubPolicy: "module-hub", HubStep: "deploy-module-hub"})
+	policies, steps = Assemble(comps, nil, Names{HubPolicy: "crate-hub", HubStep: "deploy-crate-hub"})
 	require.Len(t, policies, 1)
-	require.Equal(t, "module-hub", policies[0]["name"])
+	require.Equal(t, "crate-hub", policies[0]["name"])
 	require.Len(t, steps, 1)
-	require.Equal(t, []interface{}{"module-hub"}, steps[0]["properties"].(map[string]interface{})["policies"])
+	require.Equal(t, []interface{}{"crate-hub"}, steps[0]["properties"].(map[string]interface{})["policies"])
 }
 
 func names(objs []map[string]interface{}) []string {
