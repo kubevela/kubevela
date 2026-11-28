@@ -463,6 +463,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	}
 	appMap["apiVersion"] = "core.oam.dev/v1beta1"
 	appMap["kind"] = "Application"
+	dropEmptyWorkflow(appMap)
 
 	auxNames := appendAuxComponents(appMap, groups)
 	ensureAddonComponentStateKeepPolicy(appMap)
@@ -804,4 +805,22 @@ func hasWorkflow(app map[string]interface{}) bool {
 	spec, _ := app["spec"].(map[string]interface{})
 	_, ok := spec["workflow"]
 	return ok
+}
+
+// dropEmptyWorkflow removes a workflow with no steps and no ref, so the render
+// treats it as no workflow: crates are kept on the hub and the steps it writes
+// apply the components it adds in order. The controller generates every step
+// for such a workflow anyway. A mode goes with it, since the only steps left to
+// order are the ones the render writes.
+func dropEmptyWorkflow(app map[string]interface{}) {
+	spec, _ := app["spec"].(map[string]interface{})
+	wf, ok := spec["workflow"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	steps, _ := wf["steps"].([]interface{})
+	ref, _ := wf["ref"].(string)
+	if len(steps) == 0 && ref == "" {
+		delete(spec, "workflow")
+	}
 }

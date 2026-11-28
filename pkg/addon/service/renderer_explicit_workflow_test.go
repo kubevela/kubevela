@@ -158,6 +158,30 @@ spec:
 			"its deploy steps already cover every component the render adds")
 	})
 
+	It("is rendered as an addon with no workflow when its workflow has no steps and no ref", func() {
+		for _, topology := range []bool{false, true} {
+			var policies []v1beta1.AppPolicy
+			if topology {
+				policies = []v1beta1.AppPolicy{{Name: "topo-runtime", Type: "topology", Properties: rawJSON(map[string]interface{}{"clusters": []interface{}{"local"}})}}
+			}
+			render := func(wf *v1beta1.Workflow) map[string]interface{} {
+				return renderAddon(pkgaddon.InstallPackage{
+					AppTemplate: &v1beta1.Application{Spec: v1beta1.ApplicationSpec{
+						Components: []common2.ApplicationComponent{marker},
+						Policies:   policies,
+						Workflow:   wf,
+					}},
+					Definitions: []pkgaddon.ElementFile{definition},
+					Imports:     []pkgaddon.CrateImport{{Crate: "aws-s3", Enabled: true}},
+				}, nil)
+			}
+			want := render(nil)["spec"]
+			Expect(render(&v1beta1.Workflow{})["spec"]).To(Equal(want), "an empty workflow, topology %v", topology)
+			Expect(render(&v1beta1.Workflow{Mode: &wfv1alpha1.WorkflowExecuteMode{Steps: workflowv1alpha1.WorkflowModeStep}})["spec"]).
+				To(Equal(want), "a workflow with only a mode, topology %v", topology)
+		}
+	})
+
 	It("is refused when its workflow is a ref and it ships definitions", func() {
 		pkg := pkgaddon.InstallPackage{
 			Meta:        pkgaddon.Meta{Name: "ref-addon", Version: "1.0.0"},
