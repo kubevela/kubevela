@@ -744,7 +744,7 @@ func (g *TraitCUEGenerator) GenerateTemplate(t *TraitDefinition) string {
 	}
 
 	// Generate helper type definitions (like #HealthProbe, #labelSelector)
-	gen := NewCUEGenerator()
+	gen := NewCUEGenerator().forHelpers(t.GetHelperDefinitions())
 	for _, helperDef := range t.GetHelperDefinitions() {
 		gen.WriteHelperDefinition(&sb, helperDef, 1)
 	}
@@ -1336,7 +1336,7 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 	// Standard parameter block
 	sb.WriteString(fmt.Sprintf("%sparameter: {\n", indent))
 
-	gen := NewCUEGenerator()
+	gen := NewCUEGenerator().forHelpers(t.GetHelperDefinitions())
 	for _, param := range t.GetParams() {
 		// Handle OpenArrayParam specially
 		if openArr, ok := param.(*OpenArrayParam); ok {

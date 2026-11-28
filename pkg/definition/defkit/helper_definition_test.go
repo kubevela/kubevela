@@ -17,6 +17,9 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
+	"cuelang.org/go/cue/cuecontext"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -188,6 +191,80 @@ var _ = Describe("HelperDefinition", func() {
 			Expect(cue).To(ContainSubstring("namespaces?: [...string]"))
 			// Field with no marker (default)
 			Expect(cue).To(ContainSubstring("topologyKey: string"))
+		})
+	})
+
+	Context("Array-built helper referenced from an array", func() {
+		indexKeySchema := func() *defkit.ArrayParam {
+			return defkit.Array("keySchema").WithFields(
+				defkit.String("attributeName"),
+				defkit.String("keyType").Values("HASH", "RANGE"),
+			)
+		}
+
+		It("should reference the helper without a second list wrapper", func() {
+			comp := defkit.NewComponent("table").
+				Description("x").
+				Workload("example.com/v1", "Table").
+				Params(defkit.Array("globalSecondaryIndexes").Optional().WithFields(
+					defkit.String("indexName"),
+					defkit.Array("keySchema").WithSchemaRef("IndexKeySchema"),
+				)).
+				Helper("IndexKeySchema", indexKeySchema()).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("example.com/v1", "Table").
+						Set("spec.indexes", defkit.ParamRef("globalSecondaryIndexes")))
+				})
+
+			out := comp.ToCue()
+			Expect(out).To(ContainSubstring("keySchema: #IndexKeySchema"))
+			Expect(out).NotTo(ContainSubstring("[...#IndexKeySchema]"))
+
+			// A real key schema must unify with the generated parameter.
+			idx := strings.Index(out, "template: {")
+			Expect(idx).To(BeNumerically(">=", 0))
+			body := out[idx+len("template: {"):]
+			body = body[:strings.LastIndex(body, "}")]
+			v := cuecontext.New().CompileString(`parameter: globalSecondaryIndexes: [{
+				indexName: "byActor"
+				keySchema: [{attributeName: "actor", keyType: "HASH"}]
+			}]
+			` + body)
+			Expect(v.Validate()).To(Succeed())
+		})
+
+		It("should reference an Array-built helper from a helper field without a second list wrapper", func() {
+			gsi := defkit.Struct("gsi").WithFields(
+				defkit.Field("keySchema", defkit.ParamTypeArray).WithSchemaRef("IndexKeySchema"),
+			)
+			trait := defkit.NewTrait("list-helper-test").
+				Description("x").
+				AppliesTo("deployments.apps").
+				Helper("IndexKeySchema", indexKeySchema()).
+				Helper("GSI", gsi).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().Set("spec.selector", defkit.Lit("test"))
+				})
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("keySchema: #IndexKeySchema"))
+			Expect(cue).NotTo(ContainSubstring("[...#IndexKeySchema]"))
+		})
+
+		It("should still wrap an element-shaped helper in a list", func() {
+			comp := defkit.NewComponent("table").
+				Description("x").
+				Workload("example.com/v1", "Table").
+				Params(defkit.Array("keySchema").WithSchemaRef("KeyElement")).
+				Helper("KeyElement", defkit.Struct("keyElement").WithFields(
+					defkit.Field("attributeName", defkit.ParamTypeString),
+				)).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("example.com/v1", "Table").
+						Set("spec.keySchema", defkit.ParamRef("keySchema")))
+				})
+
+			Expect(comp.ToCue()).To(ContainSubstring("keySchema: [...#KeyElement]"))
 		})
 	})
 })

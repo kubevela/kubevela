@@ -644,7 +644,7 @@ func (g *WorkflowStepCUEGenerator) GenerateTemplate(w *WorkflowStepDefinition) s
 	var sb strings.Builder
 	sb.WriteString("template: {\n")
 
-	gen := NewCUEGenerator()
+	gen := NewCUEGenerator().forHelpers(w.GetHelperDefinitions())
 
 	// Generate helper type definitions
 	for _, helperDef := range w.GetHelperDefinitions() {
@@ -855,7 +855,7 @@ func (g *WorkflowStepCUEGenerator) generateParameterBlock(w *WorkflowStepDefinit
 
 	sb.WriteString(fmt.Sprintf("%sparameter: {\n", indent))
 
-	gen := NewCUEGenerator()
+	gen := NewCUEGenerator().forHelpers(w.GetHelperDefinitions())
 	for _, param := range w.GetParams() {
 		gen.writeParam(&sb, param, depth+1)
 	}
