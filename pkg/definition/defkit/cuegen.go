@@ -59,6 +59,9 @@ func cueLabel(name string) string {
 type CUEGenerator struct {
 	indent  string
 	imports []string
+	// listHelpers holds the names of helper definitions that are already
+	// lists, so array params referencing them are not wrapped again.
+	listHelpers map[string]bool
 }
 
 // CUEImports defines standard imports that may be needed in CUE definitions.
@@ -98,6 +101,38 @@ func NewCUEGenerator() *CUEGenerator {
 		indent:  "\t",
 		imports: []string{},
 	}
+}
+
+// forHelpers returns a copy of g that knows which of helpers are lists, so
+// that an array param with WithSchemaRef to one of them emits #Name instead of
+// [...#Name]. The copy keeps g itself unchanged between definitions.
+func (g *CUEGenerator) forHelpers(helpers []HelperDefinition) *CUEGenerator {
+	gen := *g
+	gen.listHelpers = nil
+	for _, h := range helpers {
+		isList := false
+		if h.HasParam() {
+			_, isList = h.GetParam().(*ArrayParam)
+		} else {
+			isList = strings.HasPrefix(strings.TrimSpace(h.GetSchema()), "[")
+		}
+		if isList {
+			if gen.listHelpers == nil {
+				gen.listHelpers = map[string]bool{}
+			}
+			gen.listHelpers[h.GetName()] = true
+		}
+	}
+	return &gen
+}
+
+// listOfRef returns the CUE type of a list of the helper schemaRef. A helper
+// that is already a list is referenced as is.
+func (g *CUEGenerator) listOfRef(schemaRef string) string {
+	if g.listHelpers[schemaRef] {
+		return "#" + schemaRef
+	}
+	return "[...#" + schemaRef + "]"
 }
 
 // WithImports adds CUE imports to the generator.
@@ -414,6 +449,7 @@ func (g *CUEGenerator) collectImportsFromOps(ops []ResourceOp) {
 // GenerateParameterSchema generates the CUE parameter schema from a component definition.
 // This generates only the `parameter: { ... }` block for comparison with original CUE.
 func (g *CUEGenerator) GenerateParameterSchema(c *ComponentDefinition) string {
+	g = g.forHelpers(c.GetHelperDefinitions())
 	var sb strings.Builder
 	sb.WriteString("parameter: {\n")
 
@@ -437,6 +473,7 @@ func (g *CUEGenerator) GenerateParameterSchema(c *ComponentDefinition) string {
 
 // GenerateFullDefinition generates the complete CUE definition from a component.
 func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
+	g = g.forHelpers(c.GetHelperDefinitions())
 	// Explicit imports plus the ones auto-detected from this component's
 	// template. Kept in a local so nothing leaks into the next call.
 	imports := g.mergedImports(c)
@@ -514,6 +551,7 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 //  5. parameter: block - parameter schema
 //  6. Helper type definitions - #HealthProbe and similar
 func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
+	g = g.forHelpers(c.GetHelperDefinitions())
 	var sb strings.Builder
 	sb.WriteString("template: {\n")
 
@@ -983,12 +1021,12 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 	// Check if this field references another helper type
 	if schemaRef := f.GetSchemaRef(); schemaRef != "" {
 		// Reference to a helper definition like #ResourcePolicyRuleSelector
-		// Check if this is an array type - if so, output [...#SchemaRef]
+		// Check if this is an array type - if so, output a list of #SchemaRef
 		if f.FieldType() == ParamTypeArray {
 			if f.HasDefault() {
-				sb.WriteString(fmt.Sprintf("%s%s: *%v | [...#%s]\n", indent, name, formatCUEValue(f.GetDefault()), schemaRef))
+				sb.WriteString(fmt.Sprintf("%s%s: *%v | %s\n", indent, name, formatCUEValue(f.GetDefault()), g.listOfRef(schemaRef)))
 			} else {
-				sb.WriteString(fmt.Sprintf("%s%s%s: [...#%s]\n", indent, name, marker, schemaRef))
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, marker, g.listOfRef(schemaRef)))
 			}
 		} else {
 			if f.HasDefault() {
@@ -4106,8 +4144,8 @@ func (g *CUEGenerator) writeArrayParam(sb *strings.Builder, p *ArrayParam, inden
 	// Priority: schemaRef > schema > fields > elementType
 	if schemaRef := p.GetSchemaRef(); schemaRef != "" {
 		// Reference to a helper definition like #HealthProbe
-		// For arrays, output [...#SchemaRef] to indicate an array of the helper type
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...#%s]\n", indent, name, optional, constraintPrefix, schemaRef))
+		// For arrays, output a list of the helper type
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s%s\n", indent, name, optional, constraintPrefix, g.listOfRef(schemaRef)))
 	} else if schema := p.GetSchema(); schema != "" {
 		// Raw CUE schema - output directly, with optional default
 		if p.HasDefault() {
@@ -4300,7 +4338,7 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 	// Check schemaRef first — references a helper definition like #HealthProbe
 	if schemaRef := f.GetSchemaRef(); schemaRef != "" {
 		if f.FieldType() == ParamTypeArray {
-			sb.WriteString(fmt.Sprintf("%s%s%s: [...#%s]\n", indent, name, marker, schemaRef))
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, marker, g.listOfRef(schemaRef)))
 		} else {
 			sb.WriteString(fmt.Sprintf("%s%s%s: #%s\n", indent, name, marker, schemaRef))
 		}

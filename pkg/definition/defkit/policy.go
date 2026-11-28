@@ -427,7 +427,7 @@ func (g *PolicyCUEGenerator) GenerateTemplate(p *PolicyDefinition) string {
 	var sb strings.Builder
 	sb.WriteString("template: {\n")
 
-	gen := NewCUEGenerator()
+	gen := NewCUEGenerator().forHelpers(p.GetHelperDefinitions())
 
 	// Generate helper type definitions (like #RuleSelector, #ApplyOnceStrategy)
 	for _, helperDef := range p.GetHelperDefinitions() {
@@ -495,7 +495,7 @@ func (g *PolicyCUEGenerator) generateParameterBlock(p *PolicyDefinition, depth i
 
 	sb.WriteString(fmt.Sprintf("%sparameter: {\n", indent))
 
-	gen := NewCUEGenerator()
+	gen := NewCUEGenerator().forHelpers(p.GetHelperDefinitions())
 	for _, param := range p.GetParams() {
 		gen.writeParam(&sb, param, depth+1)
 	}
