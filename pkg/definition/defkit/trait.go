@@ -208,6 +208,13 @@ func (t *TraitDefinition) Annotations(annotations map[string]string) *TraitDefin
 	return t
 }
 
+// Validators adds top-level parameter validators to the trait.
+// These validators are emitted inside the parameter: { ... } block as _validate* variables.
+func (t *TraitDefinition) Validators(validators ...*Validator) *TraitDefinition {
+	t.addValidators(validators...)
+	return t
+}
+
 // Version sets the version string for the trait definition.
 func (t *TraitDefinition) Version(v string) *TraitDefinition {
 	t.setVersion(v)
@@ -509,12 +516,12 @@ func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
 		}
 	}
 
-	// Validator message expressions on nested params. Traits do not emit
-	// top-level validators, but writeParam emits the ones attached to map and
-	// array params, so those messages can still reference a CUE stdlib call.
+	// Validator message expressions, both top-level and on nested map/array
+	// params, can reference a CUE stdlib call, so collect their imports.
 	// Scanned before the template check so traits without a Template body are
 	// covered too.
 	validatorScan := NewCUEGenerator()
+	validatorScan.collectImportsFromValidators(t.GetValidators())
 	for _, param := range t.GetParams() {
 		validatorScan.collectImportsFromParamValidators(param)
 	}
@@ -721,6 +728,9 @@ func (g *TraitCUEGenerator) GenerateTemplate(t *TraitDefinition) string {
 		for _, line := range strings.Split(strings.TrimSpace(t.GetTemplateBlock()), "\n") {
 			sb.WriteString(fmt.Sprintf("%s%s\n", g.indent, line))
 		}
+		// The raw block declares its own parameter, so validators go in a
+		// second parameter block that CUE unifies with it.
+		g.writeValidatorsBlock(&sb, t, 1)
 		sb.WriteString("}\n")
 		return sb.String()
 	}
@@ -741,6 +751,10 @@ func (g *TraitCUEGenerator) GenerateTemplate(t *TraitDefinition) string {
 	// Generate parameter section (skip if PatchContainer already generated it)
 	if !usedPatchContainer {
 		sb.WriteString(g.generateParameterBlock(t, 1))
+	} else {
+		// PatchContainer declares parameter itself, so validators go in a
+		// second parameter block that CUE unifies with it.
+		g.writeValidatorsBlock(&sb, t, 1)
 	}
 
 	// Generate helper type definitions (like #HealthProbe, #labelSelector)
@@ -1317,6 +1331,7 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 		// OpenStructParam: parameter: {...}
 		if _, ok := param.(*OpenStructParam); ok {
 			sb.WriteString(fmt.Sprintf("%sparameter: {...}\n", indent))
+			g.writeValidatorsBlock(&sb, t, depth)
 			return sb.String()
 		}
 
@@ -1329,6 +1344,7 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 				typeStr = cueTypeStr(dynMap.GetValueType())
 			}
 			sb.WriteString(fmt.Sprintf("%sparameter: [string]: %s\n", indent, typeStr))
+			g.writeValidatorsBlock(&sb, t, depth)
 			return sb.String()
 		}
 	}
@@ -1347,8 +1363,36 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 		gen.writeParam(&sb, param, depth+1)
 	}
 
+	// Write top-level validators
+	for _, v := range t.GetValidators() {
+		gen.writeValidator(&sb, v, depth+1)
+	}
+
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	return sb.String()
+}
+
+// writeValidatorsBlock writes the trait's top-level validators as a separate
+// parameter: { _validate*: ... } block. It is used where the main parameter
+// declaration is not a plain struct that validators can be written into:
+// OpenStructParam (parameter: {...}), DynamicMapParam (parameter: [string]: T)
+// and PatchContainer (parameter: #PatchParams). CUE unifies the second block
+// with the first, and hidden _validate* fields are not matched by a [string]
+// pattern or rejected by a closed definition, so the schema is unchanged.
+// It writes nothing when the trait has no validators, so existing output is
+// byte-for-byte the same.
+func (g *TraitCUEGenerator) writeValidatorsBlock(sb *strings.Builder, t *TraitDefinition, depth int) {
+	validators := t.GetValidators()
+	if len(validators) == 0 {
+		return
+	}
+	indent := strings.Repeat(g.indent, depth)
+	gen := NewCUEGenerator()
+	sb.WriteString(fmt.Sprintf("%sparameter: {\n", indent))
+	for _, v := range validators {
+		gen.writeValidator(sb, v, depth+1)
+	}
+	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
 
 // writePatchContainerPattern generates the complete PatchContainer pattern in CUE.
