@@ -44,6 +44,43 @@ For step-by-step local dev/debug workflows in this repo (IDE debugging, local
 k3d clusters, remote-cluster testing, logging), see
 [`docs/development/`](./docs/development/README.md).
 
+### `make test` needs a kubeconfig
+
+Three packages require a kubeconfig to be resolvable, even though they never
+contact a cluster: `pkg/cue`, `pkg/cue/cuex/providers/helm` and
+`pkg/utils/common` resolve a Kubernetes client through
+`github.com/kubevela/pkg/util/singleton`, whose loader calls `GetConfigOrDie()`
+and exits the test binary when there is none. Each guards for this in
+`TestMain` (`testutil.RequireKubeConfig`) and fails with instructions rather
+than dying with no output at all.
+
+Most packages no longer need one: `pkg/utils/kubeconfig.Check` lets the call
+sites that used to die degrade instead. If you add a package that resolves a
+singleton client eagerly, add the same guard.
+
+Any parseable kubeconfig is enough, since the tests never dial the cluster:
+
+```bash
+mkdir -p ~/.kube && cat > ~/.kube/config <<'EOF'
+apiVersion: v1
+kind: Config
+clusters:
+- cluster: {server: "https://127.0.0.1:1", insecure-skip-tls-verify: true}
+  name: dummy
+contexts:
+- context: {cluster: dummy, user: dummy}
+  name: dummy
+current-context: dummy
+users:
+- name: dummy
+  user: {token: dummy}
+EOF
+```
+
+Some suites additionally need the envtest binaries (`setup-envtest use 1.31.0`,
+exported via `KUBEBUILDER_ASSETS`), and `pkg/definition/gen_sdk` needs a
+running Docker daemon.
+
 ## Commit messages
 
 Commits follow `<Type>[optional scope]: <subject>`, with the type capitalized:
